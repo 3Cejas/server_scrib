@@ -12,6 +12,17 @@ let cambio_palabra = false; // Variable que almacena el temporizador de cambio d
 let terminado = false; // Variable booleana que indica si el juego ha empezado o no.
 let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 
+// Variables del modo letra prohibida.
+
+let modo_letra_prohibida = false;
+let modo_
+let letra_prohibida = "";
+const alfabeto = "abcdefghijklmnñopqrstuvwxyz"
+
+var nombre_modos = ["palabras bonus","letra prohibida"]
+var modos = new Map();
+modos.set("palabras bonus", false);
+modos.set("letra prohibida", false);
 // Comienza a escuchar.
 http.listen(port, () => log(`Servidor escuchando en el puerto: ${port}`));
 
@@ -38,10 +49,29 @@ io.on('connection', (socket) => {
     socket.on('count', (evt1) => {
         console.log(evt1);
         console.log(terminado);
+        setInterval(function() {
+            let modo_actual = nombre_modos.sort(() => Math.random() - 0.5).slice(0, 5);
+            switch (modo_actual){
+                case "palabras bonus":
+                    cambiar_palabra();
+                    break;
+                case "letra prohibida":
+                    letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
+                    socket.broadcast.emit('letra_prohibida', letra_prohibida);
+                    break;
+            }
+        }, 60000);
         if (evt1 == "00:00"){
             clearTimeout(cambio_palabra);
             terminado = true;
+            modo_letra_prohibida = false;
         }
+        if(evt1 == "00:05"){
+            letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
+            socket.broadcast.emit('letra_prohibida', letra_prohibida);
+            //modo_letra_prohibida = true;
+        }
+
         else{
             terminado = false;
         }
@@ -117,10 +147,9 @@ io.on('connection', (socket) => {
 
     // Inicia las palabras bonus cuando comienza el juego.
 
-    if(!terminado){
+    /*if(!terminado){
         cambiar_palabra();
-    }
-
+    }*/
     // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
 
     socket.on('nueva_palabra', (evt1) => {
