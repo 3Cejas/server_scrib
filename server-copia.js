@@ -1,4 +1,5 @@
 
+const { LOADIPHLPAPI } = require('dns');
 const { RAE } = require('rae-api'); //Define el constructor del buscador de la RAE.
 const debug = false; // Modo desarrollador de rae-api.
 const rae = new RAE(debug); //Creamos una instancia del buscador de la RAE.
@@ -9,15 +10,15 @@ const port = process.env.PORT || 3000; // Define el puerto de comunicación con 
 
 
 let cambio_palabra = false; // Variable que almacena el temporizador de cambio de palabra bonus.
-let terminado = false; // Variable booleana que indica si el juego ha empezado o no.
+var terminado = true; // Variable booleana que indica si el juego ha empezado o no.
 let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
-
+let tiempo = "";
 // Variables del modo letra prohibida.
 
 let modo_letra_prohibida = false;
-let modo_
+let modo_actual = "";
 let letra_prohibida = "";
-const alfabeto = "abcdefghijklmnñopqrstuvwxyz"
+const alfabeto = "eaosrnidlc"
 
 var nombre_modos = ["palabras bonus","letra prohibida"]
 var modos = new Map();
@@ -47,41 +48,31 @@ io.on('connection', (socket) => {
     // Envía el contador de tiempo.
 
     socket.on('count', (evt1) => {
-        console.log(evt1);
+        tiempo = evt1;
+        console.log(tiempo);
         console.log(terminado);
-        setInterval(function() {
-            let modo_actual = nombre_modos.sort(() => Math.random() - 0.5).slice(0, 5);
-            switch (modo_actual){
-                case "palabras bonus":
-                    cambiar_palabra();
-                    break;
-                case "letra prohibida":
-                    letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
-                    socket.broadcast.emit('letra_prohibida', letra_prohibida);
-                    break;
-            }
-        }, 60000);
         if (evt1 == "00:00"){
-            clearTimeout(cambio_palabra);
+            limpiar_modo_de_juego()
             terminado = true;
-            modo_letra_prohibida = false;
         }
-        if(evt1 == "00:05"){
-            letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
-            socket.broadcast.emit('letra_prohibida', letra_prohibida);
-            //modo_letra_prohibida = true;
+        if (evt1 == "00:20"){
+            modos_de_juego()
         }
-
+        if (evt1 == "00:10"){
+            limpiar_modo_de_juego()
+            modos_de_juego()
+        }
         else{
             terminado = false;
         }
-        socket.broadcast.emit('count', evt1);
+    socket.broadcast.emit('count', evt1);
     });
 
     // Envía el nombre del jugador 1.
 
     socket.on('nombre1', (evt1) => {
         socket.broadcast.emit('nombre1', evt1);
+        
     });
 
     // Envía el nombre del jugador 2.
@@ -154,24 +145,72 @@ io.on('connection', (socket) => {
 
     socket.on('nueva_palabra', (evt1) => {
         clearTimeout(cambio_palabra);
+        if(terminado == false){
         puntuacion = puntuaciones_palabra[Math.floor(Math.random() * puntuaciones_palabra.length)];
-        palabraRAE().then(palabra_bonus => socket.broadcast.emit('compartir_palabra', {palabra_bonus, puntuacion}));
+        palabraRAE().then(palabra_bonus => io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual}));
         cambiar_palabra();
-        
+        }
     });
 
+    //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
+    function modos_de_juego(){
+        if(terminado == false){
+        console.log("AQUIsíentrooooo")  
+            modo_actual = nombre_modos[Math.floor(Math.random() * nombre_modos.length)];
+            switch (modo_actual){
+                case "palabras bonus":
+                    log("activado palabras bonus");
+                    puntuacion = puntuaciones_palabra[Math.floor(Math.random() * puntuaciones_palabra.length)];
+                    console.log("AQUIsí")  
+                    palabraRAE().then(palabra_bonus => io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual}));
+                    cambiar_palabra();
+                    /*setTimeout(function(){
+                        clearTimeout(cambio_palabra);
+                        modos_de_juego();
+                    }, 5000);*/
+                    break;
+                case "letra prohibida":
+                    log("activado letra prohibida");
+                    letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
+                    io.emit('letra_prohibida', letra_prohibida);
+                    /*setTimeout(function(){
+                        clearTimeout(cambio_palabra);
+                        modo_letra_prohibida = false;
+                        modos_de_juego();
+                    }, 5000);*/
+                    break;
+            }
+    }
+    }
+    function limpiar_modo_de_juego(){
+        log("limpio " + modo_actual)
+        switch (modo_actual){
+            case "palabras bonus":
+                clearTimeout(cambio_palabra);
+                break;
+            case "letra prohibida":
+                letra_prohibida = "";
+                modo_letra_prohibida = false;
+                break;
+        }
+    }
     //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
 
     function cambiar_palabra(){
+        if(terminado == true && modo_actual != "palabras bonus"){
+            clearTimeout(cambio_palabra);
+        }
+        if(terminado == false){
             clearTimeout(cambio_palabra);
             cambio_palabra = setTimeout(
             function(){
                 puntuacion = puntuaciones_palabra[Math.floor(Math.random() * puntuaciones_palabra.length)];
-                palabraRAE().then(palabra_bonus => socket.broadcast.emit('compartir_palabra', {palabra_bonus, puntuacion}));
+                console.log("AQUI")  
+                palabraRAE().then(palabra_bonus => io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual}));
                 cambiar_palabra();
             }, 5000);
+        }
     }
-    
 });
 
 // Da retroalimentación cuando se ha conectado con el ciente.
