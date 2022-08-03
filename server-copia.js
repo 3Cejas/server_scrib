@@ -20,10 +20,43 @@ let modo_actual = "";
 let letra_prohibida = "";
 const alfabeto = "eaosrnidlc"
 
-var nombre_modos = ["palabras bonus","letra prohibida"]
+
+const nombre_modos = ["palabras bonus","letra prohibida", "texto borroso"]
+var modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"]
 var modos = new Map();
 modos.set("palabras bonus", false);
 modos.set("letra prohibida", false);
+
+const frecuencia_letras = {
+    'a' : 12.53,
+    'b' : 1.42,
+    'c' : 4.68,
+    'd' : 5.86,
+    'e' : 13.68,
+    'f' : 0.69,
+    'g' : 1.01,
+    'h' : 0.7,
+    'i' : 6.25,
+    'j' : 0.44,
+    'k' : 0.02,
+    'l' : 4.97,
+    'm' : 3.15,
+    'n' : 6.71,
+    'ñ' : 0.31,
+    'o' : 8.68,
+    'p' : 2.51,
+    'q' : 0.88,
+    'r' : 6.87,
+    's' : 7.98,
+    't' : 4.63,
+    'u' : 3.93,
+    'v' : 0.90,
+    'w' : 0.01,
+    'x' : 0.22,
+    'y' : 0.90,
+    'z' : 0.52
+
+}
 // Comienza a escuchar.
 http.listen(port, () => log(`Servidor escuchando en el puerto: ${port}`));
 
@@ -51,14 +84,22 @@ io.on('connection', (socket) => {
         tiempo = evt1;
         console.log(tiempo);
         console.log(terminado);
+        if (evt1 == "¡Tiempo!"){
+            limpiar_modo_de_juego()
+            terminado = true;
+            modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
+            ;
+        }
         if (evt1 == "00:00"){
             limpiar_modo_de_juego()
             terminado = true;
-        }
-        if (evt1 == "00:20"){
-            modos_de_juego()
+            modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
+            ;
         }
         if (evt1 == "00:10"){
+            modos_de_juego()
+        }
+        if (evt1 == "00:05"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
@@ -85,6 +126,7 @@ io.on('connection', (socket) => {
 
     socket.on('inicio', (evt1) => {
         terminado = false;
+        modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
         socket.broadcast.emit('inicio', evt1);
     });
 
@@ -111,6 +153,8 @@ io.on('connection', (socket) => {
     socket.on('limpiar', (evt1) => {
         clearTimeout(cambio_palabra);
         terminado = true;
+        modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
+        ;
         socket.broadcast.emit('limpiar', evt1);
     });
 
@@ -146,8 +190,10 @@ io.on('connection', (socket) => {
     socket.on('nueva_palabra', (evt1) => {
         clearTimeout(cambio_palabra);
         if(terminado == false){
-        puntuacion = puntuaciones_palabra[Math.floor(Math.random() * puntuaciones_palabra.length)];
-        palabraRAE().then(palabra_bonus => io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual}));
+        palabraRAE().then(palabra_bonus => {
+            puntuacion = puntuación_palabra(palabra_bonus[0]);
+            io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual});
+            })
         cambiar_palabra();
         }
     });
@@ -155,14 +201,19 @@ io.on('connection', (socket) => {
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego(){
         if(terminado == false){
-        console.log("AQUIsíentrooooo")  
-            modo_actual = nombre_modos[Math.floor(Math.random() * nombre_modos.length)];
+            console.log("ANTES: "+modos_restantes);
+            let indice_modo = Math.floor(Math.random() * modos_restantes.length)
+            modo_actual = modos_restantes[indice_modo];
+            console.log("MODO ACTUAL: "+modo_actual);
+            modos_restantes.splice(indice_modo, 1);
+            console.log(modos_restantes);
             switch (modo_actual){
                 case "palabras bonus":
                     log("activado palabras bonus");
-                    puntuacion = puntuaciones_palabra[Math.floor(Math.random() * puntuaciones_palabra.length)];
-                    console.log("AQUIsí")  
-                    palabraRAE().then(palabra_bonus => io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual}));
+                    palabraRAE().then(palabra_bonus => {
+                    puntuacion = puntuación_palabra(palabra_bonus[0]);
+                    io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual});
+                        })
                     cambiar_palabra();
                     /*setTimeout(function(){
                         clearTimeout(cambio_palabra);
@@ -179,6 +230,9 @@ io.on('connection', (socket) => {
                         modos_de_juego();
                     }, 5000);*/
                     break;
+                case "texto borroso":
+                    io.emit('texto_borroso', Math.floor(Math.random() * 2) + 1);
+                    break;
             }
     }
     }
@@ -192,6 +246,10 @@ io.on('connection', (socket) => {
                 letra_prohibida = "";
                 modo_letra_prohibida = false;
                 break;
+            case "texto borroso":
+                modo_letra_prohibida = false;
+                io.emit('limpiar_texto_borroso');
+                break;
         }
     }
     //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
@@ -204,13 +262,52 @@ io.on('connection', (socket) => {
             clearTimeout(cambio_palabra);
             cambio_palabra = setTimeout(
             function(){
-                puntuacion = puntuaciones_palabra[Math.floor(Math.random() * puntuaciones_palabra.length)];
-                console.log("AQUI")  
-                palabraRAE().then(palabra_bonus => io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual}));
+                palabraRAE().then(palabra_bonus => {
+                    puntuacion = puntuación_palabra(palabra_bonus[0]);
+                    io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual});
+                    })
                 cambiar_palabra();
             }, 5000);
         }
     }
+
+    //Función auxiliar que dada una palabra devuelve una puntación de respecto de la frecuencia.
+
+    function puntuación_palabra(palabra){
+        let puntuación = 0;
+        if(palabra != null){
+        let longitud = palabra.length
+        string_unico(toNormalForm(palabra)).split("").forEach(letra => puntuación +=frecuencia_letras[letra]);
+        console.log(puntuación)
+        console.log(longitud*0.1 *100)
+        return Math.ceil((((100 - puntuación) + longitud*0.1* 100)  )/25)*25;
+        }
+        else return puntuación;
+    }
+    function string_unico(names)
+{
+    string="";
+    ss="";
+    console.log(names)
+    namestring=names.split("");
+
+    for(j=0;j<namestring.length;j++) {
+        for(i=j;i<namestring.length;i++) {
+            if(string.includes(namestring[i])) // if contains not work then  
+                break;                         //use includes like in snippet
+            else
+                string+=namestring[i];
+         }
+         if(ss.length<string.length)
+             ss=string;
+         string="";
+    }
+    return ss;
+}
+
+function toNormalForm(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 });
 
 // Da retroalimentación cuando se ha conectado con el ciente.
@@ -222,6 +319,9 @@ io.on('disconnect', evt => {
 // Buscador de palabra aletoria y su definición en la RAE.
 
 async function palabraRAE(){
+    let word = ""
+    let definicion = ""
+    try{
     word = await rae.getRandomWord();
 	let search = await rae.searchWord(word);
 	let first_result = search.getRes()[0];
@@ -230,7 +330,7 @@ async function palabraRAE(){
 	let definitions = result.getDefinitions();
 	let i = 1;
 	console.log(`Definición de ${first_result.getHeader()}`);
-    let definicion = "";
+    definicion = "";
     while(definitions == ""){
         word = await rae.getRandomWord();
         search = await rae.searchWord(word);
@@ -239,16 +339,20 @@ async function palabraRAE(){
         result = await rae.fetchWord(wordId);
         definitions = result.getDefinitions();
         i = 1;
-        //console.log(`Definición de ${first_result.getHeader()}`);
+        console.log(`Definición de ${first_result.getHeader()}`);
         definicion = "";
     }
 	for (const definition of definitions) {
         if(i <= 3){
         definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-        //console.log(`${i}. Tipo: ${definition.getType()}\n`);
-		//console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+        console.log(`${i}. Tipo: ${definition.getType()}\n`);
+		console.log(`    Definición: ${definition.getDefinition()}\n\n`);
         }
 		i++;
+    }
+    }
+    catch{
+        return palabraRAE;
     }
     return [word,definicion];
     
