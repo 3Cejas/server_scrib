@@ -21,8 +21,8 @@ let letra_prohibida = "";
 const alfabeto = "eaosrnidlc"
 
 
-const nombre_modos = ["palabras bonus","letra prohibida", "texto borroso"]
-var modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"]
+const nombre_modos = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"]
+var modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"]
 var modos = new Map();
 modos.set("palabras bonus", false);
 modos.set("letra prohibida", false);
@@ -87,19 +87,30 @@ io.on('connection', (socket) => {
         if (evt1 == "¡Tiempo!"){
             limpiar_modo_de_juego()
             terminado = true;
-            modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
+            modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
             ;
         }
         if (evt1 == "00:00"){
             limpiar_modo_de_juego()
             terminado = true;
-            modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
-            ;
+            modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
-        if (evt1 == "00:10"){
+        if (evt1 == "05:00"){
             modos_de_juego()
         }
-        if (evt1 == "00:05"){
+        if (evt1 == "04:00"){
+            limpiar_modo_de_juego()
+            modos_de_juego()
+        }
+        if (evt1 == "03:00"){
+            limpiar_modo_de_juego()
+            modos_de_juego()
+        }
+        if (evt1 == "02:00"){
+            limpiar_modo_de_juego()
+            modos_de_juego()
+        }
+        if (evt1 == "01:00"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
@@ -126,7 +137,7 @@ io.on('connection', (socket) => {
 
     socket.on('inicio', (evt1) => {
         terminado = false;
-        modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
+        modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         socket.broadcast.emit('inicio', evt1);
     });
 
@@ -153,7 +164,7 @@ io.on('connection', (socket) => {
     socket.on('limpiar', (evt1) => {
         clearTimeout(cambio_palabra);
         terminado = true;
-        modos_restantes = ["palabras bonus","letra prohibida", "texto borroso"];
+        modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         ;
         socket.broadcast.emit('limpiar', evt1);
     });
@@ -180,6 +191,21 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('recibe_temas', evt1);
     });
 
+    socket.on('psico_de_j1', (evt1) => {
+        socket.broadcast.emit('psico_a_j2', evt1);
+    });
+
+    socket.on('psico_de_j2', (evt1) => {
+        socket.broadcast.emit('psico_a_j1', evt1);
+    });
+
+    socket.on('feedback_de_j1', (evt1) => {
+        socket.broadcast.emit('feedback_a_j2', evt1);
+    });
+
+    socket.on('feedback_de_j2', (evt1) => {
+        socket.broadcast.emit('feedback_a_j1', evt1);
+    });
     // Inicia las palabras bonus cuando comienza el juego.
 
     /*if(!terminado){
@@ -233,6 +259,12 @@ io.on('connection', (socket) => {
                 case "texto borroso":
                     io.emit('texto_borroso', Math.floor(Math.random() * 2) + 1);
                     break;
+                case "psicodélico":
+                    io.emit('psicodélico');
+                    break;
+                    case "texto inverso":
+                        io.emit('texto_inverso');
+                        break;
             }
     }
     }
@@ -245,10 +277,17 @@ io.on('connection', (socket) => {
             case "letra prohibida":
                 letra_prohibida = "";
                 modo_letra_prohibida = false;
+                io.emit('limpiar_letra_prohibida');
                 break;
             case "texto borroso":
                 modo_letra_prohibida = false;
                 io.emit('limpiar_texto_borroso');
+                break;
+            case "psicodélico":
+                io.emit('limpiar_psicodélico');
+                break;
+            case "texto inverso":
+                io.emit('limpiar_texto_inverso');
                 break;
         }
     }
@@ -267,7 +306,7 @@ io.on('connection', (socket) => {
                     io.emit('compartir_palabra', {palabra_bonus, puntuacion, modo_actual});
                     })
                 cambiar_palabra();
-            }, 5000);
+            }, 25000);
         }
     }
 
