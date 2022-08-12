@@ -91,7 +91,7 @@ io.on('connection', (socket) => {
             ;
         }
         if (evt1 == "00:00"){
-            limpiar_modo_de_juego()
+            //limpiar_modo_de_juego()
             terminado = true;
             modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
@@ -110,7 +110,7 @@ io.on('connection', (socket) => {
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "01:00"){
+        if (evt1 == "00:10"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
@@ -273,6 +273,7 @@ io.on('connection', (socket) => {
         switch (modo_actual){
             case "palabras bonus":
                 clearTimeout(cambio_palabra);
+                io.emit('limpiar_palabras_bonus');
                 break;
             case "letra prohibida":
                 letra_prohibida = "";
@@ -315,13 +316,14 @@ io.on('connection', (socket) => {
     function puntuación_palabra(palabra){
         let puntuación = 0;
         if(palabra != null){
-        let longitud = palabra.length
+        palabra = palabra.replace(/\s+/g, '')
+        let longitud = palabra.length;
         string_unico(toNormalForm(palabra)).split("").forEach(letra => puntuación +=frecuencia_letras[letra]);
         console.log(puntuación)
         console.log(longitud*0.1 *100)
         return Math.ceil((((100 - puntuación) + longitud*0.1* 100)  )/25)*25;
         }
-        else return puntuación;
+        else return 100;
     }
     function string_unico(names)
 {
