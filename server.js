@@ -110,7 +110,7 @@ io.on('connection', (socket) => {
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "00:10"){
+        if (evt1 == "01:00"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
