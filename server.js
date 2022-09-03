@@ -181,6 +181,9 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('bajar', evt1);
     });
 
+    socket.on('limpiar_psico', (evt1) => {
+        socket.broadcast.emit('limpiar_psicodélico', evt1);
+    });
     /* 
         Envía los temas elegidos aleatoriamente
         Para que también aparezcan en la pantalla
