@@ -88,31 +88,34 @@ io.on('connection', (socket) => {
             limpiar_modo_de_juego()
             terminado = true;
             modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
-            ;
         }
         if (evt1 == "00:00"){
             //limpiar_modo_de_juego()
             terminado = true;
             modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
-        if (evt1 == "05:00"){
+        if (evt1 == "05:30"){
             modos_de_juego()
         }
-        if (evt1 == "04:00"){
+        if (evt1 == "04:30"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "03:00"){
+        if (evt1 == "03:30"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "02:00"){
+        if (evt1 == "02:30"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "01:00"){
+        if (evt1 == "01:30"){
             limpiar_modo_de_juego()
             modos_de_juego()
+        }
+        if (evt1 == "01:20"){
+            limpiar_modo_de_juego()
+            activar_modo_emplatar()
         }
         else{
             terminado = false;
@@ -236,7 +239,7 @@ io.on('connection', (socket) => {
             console.log("MODO ACTUAL: "+modo_actual);
             modos_restantes.splice(indice_modo, 1);
             console.log(modos_restantes);
-            switch (modo_actual){
+            switch ("psicodélico"){
                 case "palabras bonus":
                     log("activado palabras bonus");
                     palabraRAE().then(palabra_bonus => {
@@ -295,8 +298,13 @@ io.on('connection', (socket) => {
                 break;
         }
     }
-    //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
 
+    //Función auxiliar que activa el modo emplatar en los jugadores.
+    function activar_modo_emplatar(){
+        io.emit('modo_emplatar');
+    }
+    
+    //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
     function cambiar_palabra(){
         if(terminado == true && modo_actual != "palabras bonus"){
             clearTimeout(cambio_palabra);
@@ -315,7 +323,6 @@ io.on('connection', (socket) => {
     }
 
     //Función auxiliar que dada una palabra devuelve una puntación de respecto de la frecuencia.
-
     function puntuación_palabra(palabra){
         let puntuación = 0;
         if(palabra != null){
@@ -355,7 +362,6 @@ function toNormalForm(str) {
 });
 
 // Da retroalimentación cuando se ha conectado con el ciente.
-
 io.on('disconnect', evt => {
     log('Un escritxr ha abandonado la partida.');
 });
