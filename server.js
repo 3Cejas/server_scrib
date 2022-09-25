@@ -113,7 +113,7 @@ io.on('connection', (socket) => {
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "01:20"){
+        if (evt1 == "00:30"){
             limpiar_modo_de_juego()
             activar_modo_emplatar()
         }
@@ -212,13 +212,8 @@ io.on('connection', (socket) => {
     socket.on('feedback_de_j2', (evt1) => {
         socket.broadcast.emit('feedback_a_j1', evt1);
     });
-    // Inicia las palabras bonus cuando comienza el juego.
 
-    /*if(!terminado){
-        cambiar_palabra();
-    }*/
     // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
-
     socket.on('nueva_palabra', (evt1) => {
         clearTimeout(cambio_palabra);
         if(terminado == false){
@@ -236,10 +231,10 @@ io.on('connection', (socket) => {
             console.log("ANTES: "+modos_restantes);
             let indice_modo = Math.floor(Math.random() * modos_restantes.length)
             modo_actual = modos_restantes[indice_modo];
-            console.log("MODO ACTUAL: "+modo_actual);
+            console.log("MODO ACTUAL: "+ modo_actual);
             modos_restantes.splice(indice_modo, 1);
             console.log(modos_restantes);
-            switch ("psicodélico"){
+            switch (modo_actual){
                 case "palabras bonus":
                     log("activado palabras bonus");
                     palabraRAE().then(palabra_bonus => {
