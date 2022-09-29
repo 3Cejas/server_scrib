@@ -108,7 +108,7 @@ io.on('connection', (socket) => {
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "01:30"){
+        if (evt1 == "00:35"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
@@ -185,6 +185,10 @@ io.on('connection', (socket) => {
 
     socket.on('limpiar_psico', (evt1) => {
         socket.broadcast.emit('limpiar_psicodélico', evt1);
+    });
+
+    socket.on('limpiar_inverso', (evt1) => {
+        socket.broadcast.emit('limpiar_texto_inverso', evt1);
     });
     /* 
         Envía los temas elegidos aleatoriamente
