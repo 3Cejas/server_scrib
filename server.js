@@ -90,7 +90,6 @@ io.on('connection', (socket) => {
             modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
         if (evt1 == "00:00"){
-            //limpiar_modo_de_juego()
             terminado = true;
             modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
@@ -271,6 +270,7 @@ io.on('connection', (socket) => {
     }
     function limpiar_modo_de_juego(){
         log("limpio " + modo_actual)
+        if(modos_restantes.length != 0){
         switch (modo_actual){
             case "palabras bonus":
                 clearTimeout(cambio_palabra);
@@ -292,6 +292,7 @@ io.on('connection', (socket) => {
                 io.emit('limpiar_texto_inverso');
                 break;
         }
+    }
     }
 
     //Función auxiliar que activa el modo emplatar en los jugadores.
