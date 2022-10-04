@@ -85,7 +85,7 @@ io.on('connection', (socket) => {
         console.log(tiempo);
         console.log(terminado);
         if (evt1 == "¡Tiempo!"){
-            limpiar_modo_de_juego()
+            //limpiar_modo_de_juego()
             terminado = true;
             modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
@@ -108,7 +108,7 @@ io.on('connection', (socket) => {
             limpiar_modo_de_juego()
             modos_de_juego()
         }
-        if (evt1 == "01:30"){
+        if (evt1 == "00:40"){
             limpiar_modo_de_juego()
             modos_de_juego()
         }
@@ -125,6 +125,7 @@ io.on('connection', (socket) => {
     // Envía el nombre del jugador 1.
 
     socket.on('nombre1', (evt1) => {
+        console.log(evt1)
         socket.broadcast.emit('nombre1', evt1);
         
     });
