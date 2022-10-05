@@ -236,7 +236,7 @@ io.on('connection', (socket) => {
             let indice_modo = Math.floor(Math.random() * modos_restantes.length)
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: "+ modo_actual);
-            modo_actual = "psicodélico"
+            modo_actual = "letra prohibida"
             modos_restantes.splice(indice_modo, 1);
             console.log(modos_restantes);
             switch (modo_actual){
