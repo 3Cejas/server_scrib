@@ -11,21 +11,16 @@ const port = process.env.PORT || 3000; // Define el puerto de comunicación con 
 
 let cambio_palabra = false; // Variable que almacena el temporizador de cambio de palabra bonus.
 var terminado = true; // Variable booleana que indica si el juego ha empezado o no.
-let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
-let tiempo = "";
+//let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 // Variables del modo letra prohibida.
 
-let modo_letra_prohibida = false;
+//let modo_letra_prohibida = false;
 let modo_actual = "";
 let letra_prohibida = "";
 const alfabeto = "eaosrnidlc"
 
 
-const nombre_modos = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"]
 var modos_restantes = ["palabras bonus","letra prohibida", "texto borroso", "psicodélico", "texto inverso"]
-var modos = new Map();
-modos.set("palabras bonus", false);
-modos.set("letra prohibida", false);
 
 const frecuencia_letras = {
     'a' : 12.53,
@@ -81,9 +76,6 @@ io.on('connection', (socket) => {
     // Envía el contador de tiempo.
 
     socket.on('count', (evt1) => {
-        tiempo = evt1;
-        console.log(tiempo);
-        console.log(terminado);
         if (evt1 == "¡Tiempo!"){
             //limpiar_modo_de_juego()
             terminado = true;
@@ -125,7 +117,6 @@ io.on('connection', (socket) => {
     // Envía el nombre del jugador 1.
 
     socket.on('nombre1', (evt1) => {
-        console.log(evt1)
         socket.broadcast.emit('nombre1', evt1);
         
     });
@@ -232,13 +223,13 @@ io.on('connection', (socket) => {
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego(){
         if(terminado == false){
-            console.log("ANTES: "+modos_restantes);
+            //console.log("ANTES: "+modos_restantes);
             let indice_modo = Math.floor(Math.random() * modos_restantes.length)
             modo_actual = modos_restantes[indice_modo];
-            console.log("MODO ACTUAL: "+ modo_actual);
+            //console.log("MODO ACTUAL: "+ modo_actual);
             modo_actual = "psicodélico"
             modos_restantes.splice(indice_modo, 1);
-            console.log(modos_restantes);
+            //console.log(modos_restantes);
             switch (modo_actual){
                 case "palabras bonus":
                     log("activado palabras bonus");
@@ -331,8 +322,6 @@ io.on('connection', (socket) => {
         palabra = palabra.replace(/\s+/g, '')
         let longitud = palabra.length;
         string_unico(toNormalForm(palabra)).split("").forEach(letra => puntuación +=frecuencia_letras[letra]);
-        console.log(puntuación)
-        console.log(longitud*0.1 *100)
         return Math.ceil((((100 - puntuación) + longitud*0.1* 100)  )/25)*25;
         }
         else return 100;
@@ -341,7 +330,6 @@ io.on('connection', (socket) => {
 {
     string="";
     ss="";
-    console.log(names)
     namestring=names.split("");
 
     for(j=0;j<namestring.length;j++) {
@@ -381,7 +369,7 @@ async function palabraRAE(){
 	let result = await rae.fetchWord(wordId);
 	let definitions = result.getDefinitions();
 	let i = 1;
-	console.log(`Definición de ${first_result.getHeader()}`);
+	//console.log(`Definición de ${first_result.getHeader()}`);
     definicion = "";
     while(definitions == ""){
         word = await rae.getRandomWord();
@@ -391,14 +379,14 @@ async function palabraRAE(){
         result = await rae.fetchWord(wordId);
         definitions = result.getDefinitions();
         i = 1;
-        console.log(`Definición de ${first_result.getHeader()}`);
+        //console.log(`Definición de ${first_result.getHeader()}`);
         definicion = "";
     }
 	for (const definition of definitions) {
         if(i <= 3){
         definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-        console.log(`${i}. Tipo: ${definition.getType()}\n`);
-		console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+        //console.log(`${i}. Tipo: ${definition.getType()}\n`);
+		//console.log(`    Definición: ${definition.getDefinition()}\n\n`);
         }
 		i++;
     }
