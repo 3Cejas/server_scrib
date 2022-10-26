@@ -112,6 +112,7 @@ io.on('connection', (socket) => {
     // Envía el contador de tiempo.
     socket.on('count', (evt1) => {
         if (evt1 == "¡Tiempo!") {
+            LIMPIEZAS[modo_actual](socket);
             activar_sockets_extratextuales(socket);
             terminado = true;
             modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
@@ -208,7 +209,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            // modo_actual = "psicodélico";
+            modo_actual = "psicodélico";
             MODOS[modo_actual](socket);
         }
     }
