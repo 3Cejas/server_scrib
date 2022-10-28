@@ -121,6 +121,10 @@ io.on('connection', (socket) => {
             terminado = true;
             modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
+        if (evt1 == "06:00") {
+            LIMPIEZAS[modo_actual](socket);
+            modos_de_juego();
+        }
         if (evt1 == "05:00") {
             modos_de_juego();
         }
@@ -209,7 +213,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            modo_actual = "psicodélico";
+            //modo_actual = "psicodélico";
             MODOS[modo_actual](socket);
         }
     }
@@ -281,7 +285,7 @@ io.on('connection', (socket) => {
                         io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
                     })
                     cambiar_palabra();
-                }, 5000);
+                }, 20000);
         }
     }
 
