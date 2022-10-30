@@ -145,20 +145,6 @@ io.on('connection', (socket) => {
         }
         socket.broadcast.emit('count', evt1);
     });
-
-    if (modo_actual == 'palabras bonus') {
-        socket.on('nueva_palabra', (evt1) => {
-            console.log("RECIBIDO");
-            clearTimeout(cambio_palabra);
-            if (terminado == false) {
-                palabraRAE().then(palabra_bonus => {
-                    puntuacion = puntuación_palabra(palabra_bonus[0]);
-                    io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
-                })
-                cambiar_palabra();
-            }
-        });
-    }
     // Comienza el juego.
 
     socket.on('inicio', (evt1) => {
@@ -202,6 +188,26 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('psico_a_j1', evt1);
     });
 
+    socket.on('feedback_de_j1', (evt1) => {
+        socket.broadcast.emit('feedback_a_j2', evt1);
+    });
+
+    socket.on('feedback_de_j2', (evt1) => {
+        socket.broadcast.emit('feedback_a_j1', evt1);
+    });
+
+    socket.on('nueva_palabra', (evt1) => {
+        console.log("RECIBIDO");
+        clearTimeout(cambio_palabra);
+        if (terminado == false) {
+            palabraRAE().then(palabra_bonus => {
+                puntuacion = puntuación_palabra(palabra_bonus[0]);
+                io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+            })
+            cambiar_palabra();
+        }
+    });
+
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego() {
         if (terminado == false) {
@@ -209,7 +215,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            //modo_actual = "psicodélico";
+            //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
@@ -247,7 +253,7 @@ io.on('connection', (socket) => {
 
         // Envía la lista de temas y elige aleatoriamente uno de ellos.
         socket.on('temas', (evt1) => {
-            socket.broadcast.emit('temasj1', evt1);
+            socket.broadcast.emit('temas_espectador', evt1);
         });
 
         // Realiza el scroll.
@@ -257,7 +263,7 @@ io.on('connection', (socket) => {
     }
 
     //Función auxiliar que activa los sockets de feedback.
-    function activar_sockets_feedback() {
+    function activar_sockets_feedback(socket) {
         socket.on('feedback_de_j1', (evt1) => {
             socket.broadcast.emit('feedback_a_j2', evt1);
         });
@@ -289,7 +295,7 @@ io.on('connection', (socket) => {
 
         // Recibe y activa la palabra y el modo bonus.
         'palabras bonus': function (socket) {
-            activar_sockets_feedback();
+            activar_sockets_feedback(socket);
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             console.log("ACTIVADO");
@@ -308,7 +314,7 @@ io.on('connection', (socket) => {
         //Recibe y activa el modo letra prohibida.
         'letra prohibida': function (socket) {
             log("activado letra prohibida");
-            activar_sockets_feedback();
+            activar_sockets_feedback(socket);
             letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
             io.emit('activar_modo', { modo_actual, letra_prohibida });
             /*setTimeout(function(){
