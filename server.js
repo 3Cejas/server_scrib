@@ -215,7 +215,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            //modo_actual = "palabras bonus";
+            modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
@@ -287,7 +287,7 @@ io.on('connection', (socket) => {
                         io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
                     })
                     cambiar_palabra();
-                }, 20000);
+                }, 3000);
         }
     }
 
@@ -382,41 +382,31 @@ io.on('disconnect', evt => {
 // Buscador de palabra aletoria y su definición en la RAE.
 
 async function palabraRAE() {
-    let word = ""
+    let random = ""
     let definicion = ""
-    try {
-        word = await rae.getRandomWord();
-        let search = await rae.searchWord(word);
-        let first_result = search.getRes()[0];
-        let wordId = first_result.getId();
-        let result = await rae.fetchWord(wordId);
-        let definitions = result.getDefinitions();
+    try{
+        random = await new RAE().getRandomWord(); //fetches a random word
+        palabra = random.getHeader()
+        search = await rae.searchWord(palabra);
+        first_result = search.getRes()[0];
+        wordId = first_result.getId();
+        result = await rae.fetchWord(wordId);
+        definitions = result.getDefinitions();
         let i = 1;
         //console.log(`Definición de ${first_result.getHeader()}`);
         definicion = "";
-        while (definitions == "") {
-            word = await rae.getRandomWord();
-            search = await rae.searchWord(word);
-            first_result = search.getRes()[0];
-            wordId = first_result.getId();
-            result = await rae.fetchWord(wordId);
-            definitions = result.getDefinitions();
-            i = 1;
-            //console.log(`Definición de ${first_result.getHeader()}`);
-            definicion = "";
-        }
         for (const definition of definitions) {
             if (i <= 3) {
                 definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-                //console.log(`${i}. Tipo: ${definition.getType()}\n`);
-                //console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+                console.log(`${i}. Tipo: ${definition.getType()}\n`);
+                console.log(`    Definición: ${definition.getDefinition()}\n\n`);
             }
             i++;
         }
     }
-    catch {
-        return palabraRAE;
+    catch{
+        return palabraRAE
     }
-    return [word, definicion];
+    return [palabra, definicion];
 
 };
