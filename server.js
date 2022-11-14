@@ -1,4 +1,3 @@
-
 const { Socket } = require('dgram');
 const { LOADIPHLPAPI } = require('dns');
 const { RAE } = require('rae-api'); //Define el constructor del buscador de la RAE.
@@ -13,15 +12,11 @@ const LIMPIEZAS = {
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra);
         socket.removeAllListeners('nueva_palabra');
-        socket.removeAllListeners('feedback_de_j1');
-        socket.removeAllListeners('feedback_de_j2');
     },
 
     'letra prohibida': function (socket) {
         letra_prohibida = "";
         modo_letra_prohibida = false;
-        socket.removeAllListeners('feedback_de_j1');
-        socket.removeAllListeners('feedback_de_j2');
     },
 
     'texto borroso': function (socket) {
@@ -29,8 +24,6 @@ const LIMPIEZAS = {
     },
 
     'psicodélico': function (socket) {
-        socket.removeAllListeners('psico_de_j1');
-        socket.removeAllListeners('psico_de_j2');
     },
 
     'texto inverso': function (socket) {
@@ -108,7 +101,6 @@ io.on('connection', (socket) => {
 
     //activa sockets no tienen que ver con los textos.
     activar_sockets_extratextuales(socket);
-
     // Envía el contador de tiempo.
     socket.on('count', (evt1) => {
         if (evt1 == "¡Tiempo!") {
@@ -122,23 +114,23 @@ io.on('connection', (socket) => {
             modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
         if (evt1 == "05:00") {
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "04:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "03:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "02:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "01:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         else {
             terminado = false;
@@ -154,7 +146,7 @@ io.on('connection', (socket) => {
         socket.removeAllListeners('nombre2');
         socket.removeAllListeners('envia_temas');
         socket.removeAllListeners('temas');
-        socket.removeAllListeners('scroll');
+        //socket.removeAllListeners('scroll');
 
         terminado = false;
         modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
@@ -180,6 +172,15 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('limpiar_psicodélico', evt1);
     });
     */
+
+    socket.on('feedback_de_j1', (evt1) => {
+        io.emit('feedback_a_j2', evt1);
+    });
+
+    socket.on('feedback_de_j2', (evt1) => {
+        io.emit('feedback_a_j1', evt1);
+    });
+
     socket.on('psico_de_j1', (evt1) => {
         socket.broadcast.emit('psico_a_j2', evt1);
     });
@@ -187,17 +188,7 @@ io.on('connection', (socket) => {
     socket.on('psico_de_j2', (evt1) => {
         socket.broadcast.emit('psico_a_j1', evt1);
     });
-
-    socket.on('feedback_de_j1', (evt1) => {
-        socket.broadcast.emit('feedback_a_j2', evt1);
-    });
-
-    socket.on('feedback_de_j2', (evt1) => {
-        socket.broadcast.emit('feedback_a_j1', evt1);
-    });
-
     socket.on('nueva_palabra', (evt1) => {
-        console.log("RECIBIDO");
         clearTimeout(cambio_palabra);
         if (terminado == false) {
             palabraRAE().then(palabra_bonus => {
@@ -209,13 +200,13 @@ io.on('connection', (socket) => {
     });
 
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
-    function modos_de_juego() {
+    function modos_de_juego(socket) {
         if (terminado == false) {
             let indice_modo = Math.floor(Math.random() * modos_restantes.length)
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            modo_actual = "palabras bonus";
+            modo_actual = "letra prohibida";
             MODOS[modo_actual](socket);
         }
     }
@@ -262,17 +253,6 @@ io.on('connection', (socket) => {
         });
     }
 
-    //Función auxiliar que activa los sockets de feedback.
-    function activar_sockets_feedback(socket) {
-        socket.on('feedback_de_j1', (evt1) => {
-            socket.broadcast.emit('feedback_a_j2', evt1);
-        });
-
-        socket.on('feedback_de_j2', (evt1) => {
-            socket.broadcast.emit('feedback_a_j1', evt1);
-        });
-    }
-
     //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
     function cambiar_palabra() {
         if (terminado == true && modo_actual != "palabras bonus") {
@@ -287,18 +267,16 @@ io.on('connection', (socket) => {
                         io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
                     })
                     cambiar_palabra();
-                }, 3000);
+                }, 20000);
         }
     }
 
     const MODOS = {
 
         // Recibe y activa la palabra y el modo bonus.
-        'palabras bonus': function (socket) {
-            activar_sockets_feedback(socket);
+        'palabras bonus': function () {
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
-            console.log("ACTIVADO");
             //activar_socket_nueva_palabra(socket);
             palabraRAE().then(palabra_bonus => {
                 puntuacion = puntuación_palabra(palabra_bonus[0]);
@@ -312,9 +290,7 @@ io.on('connection', (socket) => {
         },
 
         //Recibe y activa el modo letra prohibida.
-        'letra prohibida': function (socket) {
-            log("activado letra prohibida");
-            activar_sockets_feedback(socket);
+        'letra prohibida': function () {
             letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
             io.emit('activar_modo', { modo_actual, letra_prohibida });
             /*setTimeout(function(){
@@ -324,16 +300,16 @@ io.on('connection', (socket) => {
             }, 5000);*/
         },
 
-        'texto borroso': function (socket) {
+        'texto borroso': function () {
             let jugador = Math.floor(Math.random() * 2) + 1
             io.emit('activar_modo', { modo_actual, jugador });
         },
 
-        'psicodélico': function (socket) {
+        'psicodélico': function () {
             io.emit('activar_modo', { modo_actual });
         },
 
-        'texto inverso': function (socket) {
+        'texto inverso': function () {
             io.emit('activar_modo', { modo_actual });
         }
     }
@@ -382,31 +358,39 @@ io.on('disconnect', evt => {
 // Buscador de palabra aletoria y su definición en la RAE.
 
 async function palabraRAE() {
-    let random = ""
+    let word = ""
     let definicion = ""
-    try{
-        random = await new RAE().getRandomWord(); //fetches a random word
-        palabra = random.getHeader()
-        search = await rae.searchWord(palabra);
-        first_result = search.getRes()[0];
-        wordId = first_result.getId();
-        result = await rae.fetchWord(wordId);
-        definitions = result.getDefinitions();
+    try {
+        word = await rae.getRandomWord();
+        let search = await rae.searchWord(word);
+        let first_result = search.getRes()[0];
+        let wordId = first_result.getId();
+        let result = await rae.fetchWord(wordId);
+        let definitions = result.getDefinitions();
         let i = 1;
-        //console.log(`Definición de ${first_result.getHeader()}`);
         definicion = "";
+        while (definitions == "") {
+            word = await rae.getRandomWord();
+            search = await rae.searchWord(word);
+            first_result = search.getRes()[0];
+            wordId = first_result.getId();
+            result = await rae.fetchWord(wordId);
+            definitions = result.getDefinitions();
+            i = 1;
+            definicion = "";
+        }
         for (const definition of definitions) {
             if (i <= 3) {
                 definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-                console.log(`${i}. Tipo: ${definition.getType()}\n`);
-                console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+                //console.log(`${i}. Tipo: ${definition.getType()}\n`);
+                //console.log(`    Definición: ${definition.getDefinition()}\n\n`);
             }
             i++;
         }
     }
-    catch{
-        return palabraRAE
+    catch {
+        return palabraRAE;
     }
-    return [palabra, definicion];
+    return [word, definicion];
 
 };
