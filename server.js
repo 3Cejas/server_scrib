@@ -181,13 +181,15 @@ io.on('connection', (socket) => {
         io.emit('feedback_a_j1', evt1);
     });
 
-    socket.on('psico_de_j1', (evt1) => {
-        socket.broadcast.emit('psico_a_j2', evt1);
+    socket.on('psico', (evt1) => {
+        if (evt1 == 1){
+            socket.broadcast.emit('psico_a_j2', evt1);
+        }
+        else{
+            socket.broadcast.emit('psico_a_j1', evt1);
+        }
     });
-
-    socket.on('psico_de_j2', (evt1) => {
-        socket.broadcast.emit('psico_a_j1', evt1);
-    });
+    
     socket.on('nueva_palabra', (evt1) => {
         clearTimeout(cambio_palabra);
         if (terminado == false) {
@@ -206,7 +208,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            modo_actual = "palabras bonus";
+            //modo_actual = "psicodélico";
             MODOS[modo_actual](socket);
         }
     }
