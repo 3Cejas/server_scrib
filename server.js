@@ -181,14 +181,14 @@ io.on('connection', (socket) => {
         io.emit('feedback_a_j1', evt1);
     });
 
-    socket.on('psico', (evt1) => {
+    /*socket.on('psico', (evt1) => {
         if (evt1 == 1){
             socket.broadcast.emit('psico_a_j2', evt1);
         }
         else{
             socket.broadcast.emit('psico_a_j1', evt1);
         }
-    });
+    });*/
     
     socket.on('nueva_palabra', (evt1) => {
         clearTimeout(cambio_palabra);
