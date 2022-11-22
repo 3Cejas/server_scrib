@@ -219,7 +219,6 @@ io.on('connection', (socket) => {
         // Envía el nombre del jugador 1.
 
         socket.on('envío_nombre1', (evt1) => {
-            console.log("cojones");
             socket.broadcast.emit('nombre1', evt1);
         });
 
