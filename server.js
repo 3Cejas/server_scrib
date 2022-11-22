@@ -142,8 +142,8 @@ io.on('connection', (socket) => {
     socket.on('inicio', (evt1) => {
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
-        socket.removeAllListeners('nombre1');
-        socket.removeAllListeners('nombre2');
+        socket.removeAllListeners('envío_nombre1');
+        socket.removeAllListeners('envío_nombre2');
         socket.removeAllListeners('envia_temas');
         socket.removeAllListeners('temas');
         //socket.removeAllListeners('scroll');
@@ -181,6 +181,9 @@ io.on('connection', (socket) => {
         io.emit('feedback_a_j1', evt1);
     });
 
+    socket.on('cambiar_vista', (evt1) => {
+        io.emit('cambia_vista', evt1);
+    });
     /*socket.on('psico', (evt1) => {
         if (evt1 == 1){
             socket.broadcast.emit('psico_a_j2', evt1);
@@ -215,13 +218,14 @@ io.on('connection', (socket) => {
     function activar_sockets_extratextuales(socket) {
         // Envía el nombre del jugador 1.
 
-        socket.on('nombre1', (evt1) => {
+        socket.on('envío_nombre1', (evt1) => {
+            console.log("cojones");
             socket.broadcast.emit('nombre1', evt1);
         });
 
         // Envía el nombre del jugador 2.
 
-        socket.on('nombre2', (evt1) => {
+        socket.on('envío_nombre2', (evt1) => {
             socket.broadcast.emit('nombre2', evt1);
         });
 
