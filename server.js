@@ -128,7 +128,7 @@ io.on('connection', (socket) => {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
-        if (evt1 == "01:00") {
+        if (evt1 == "00:05") {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
@@ -219,7 +219,6 @@ io.on('connection', (socket) => {
         // Envía el nombre del jugador 1.
 
         socket.on('envío_nombre1', (evt1) => {
-            console.log("cojones");
             socket.broadcast.emit('nombre1', evt1);
         });
 
