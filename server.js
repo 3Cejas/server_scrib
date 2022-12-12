@@ -1,9 +1,9 @@
 
 const { Socket } = require('dgram');
 const { LOADIPHLPAPI } = require('dns');
-const { RAE } = require('rae-api'); //Define el constructor del buscador de la RAE.
+const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
 const debug = false; // Modo desarrollador de rae-api.
-const rae = new RAE(debug); //Creamos una instancia del buscador de la RAE.
+const rae = new RAE(debug); // Creamos una instancia del buscador de la RAE.
 const log = console.log; // Define la consola del servidor.
 const http = require("http").createServer(); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
@@ -13,6 +13,7 @@ const LIMPIEZAS = {
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra);
         socket.removeAllListeners('nueva_palabra');
+        // socket.removeAllListeners('enviar_palabra');
         socket.removeAllListeners('feedback_de_j1');
         socket.removeAllListeners('feedback_de_j2');
     },
@@ -33,22 +34,18 @@ const LIMPIEZAS = {
         socket.removeAllListeners('psico_de_j2');
     },
 
-    'texto inverso': function (socket) {
+    'texto inverso': function (socket) { },
 
-    },
-
-    '': function (socket) {
-        
-    }
+    '': function (socket) { }
 }
 
 let cambio_palabra = false; // Variable que almacena el temporizador de cambio de palabra bonus.
 var terminado = true; // Variable booleana que indica si el juego ha empezado o no.
-//let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
+// let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 
 // Variables del modo letra prohibida.
 
-//let modo_letra_prohibida = false;
+// let modo_letra_prohibida = false;
 let modo_actual = "";
 let letra_prohibida = "";
 const alfabeto = "eaosrnidlc";
@@ -153,7 +150,7 @@ io.on('connection', (socket) => {
             if (terminado == false) {
                 palabraRAE().then(palabra_bonus => {
                     puntuacion = puntuación_palabra(palabra_bonus[0]);
-                    io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+                    io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
                 })
                 cambiar_palabra();
             }
@@ -205,11 +202,10 @@ io.on('connection', (socket) => {
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego() {
         if (terminado == false) {
-            let indice_modo = Math.floor(Math.random() * modos_restantes.length)
+            let indice_modo = Math.floor(Math.random() * modos_restantes.length);
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            //modo_actual = "psicodélico";
             MODOS[modo_actual](socket);
         }
     }
@@ -278,7 +274,7 @@ io.on('connection', (socket) => {
                 function () {
                     palabraRAE().then(palabra_bonus => {
                         puntuacion = puntuación_palabra(palabra_bonus[0]);
-                        io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+                        io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
                     })
                     cambiar_palabra();
                 }, 20000);
@@ -293,10 +289,11 @@ io.on('connection', (socket) => {
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             console.log("ACTIVADO");
-            //activar_socket_nueva_palabra(socket);
+            // activar_socket_nueva_palabra(socket);
             palabraRAE().then(palabra_bonus => {
                 puntuacion = puntuación_palabra(palabra_bonus[0]);
                 io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+                io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
             })
             cambiar_palabra();
             /*setTimeout(function(){
@@ -305,7 +302,7 @@ io.on('connection', (socket) => {
             }, 5000);*/
         },
 
-        //Recibe y activa el modo letra prohibida.
+        // Recibe y activa el modo letra prohibida.
         'letra prohibida': function (socket) {
             log("activado letra prohibida");
             activar_sockets_feedback();
@@ -332,7 +329,7 @@ io.on('connection', (socket) => {
         }
     }
 
-    //Función auxiliar que dada una palabra devuelve una puntación de respecto de la frecuencia.
+    // Función auxiliar que dada una palabra devuelve una puntación de respecto de la frecuencia.
     function puntuación_palabra(palabra) {
         let puntuación = 0;
         if (palabra != null) {
@@ -352,7 +349,7 @@ io.on('connection', (socket) => {
         for (j = 0; j < namestring.length; j++) {
             for (i = j; i < namestring.length; i++) {
                 if (string.includes(namestring[i])) // if contains not work then  
-                    break;                         //use includes like in snippet
+                    break;                          // use includes like in snippet
                 else
                     string += namestring[i];
             }
@@ -386,7 +383,7 @@ async function palabraRAE() {
         let result = await rae.fetchWord(wordId);
         let definitions = result.getDefinitions();
         let i = 1;
-        //console.log(`Definición de ${first_result.getHeader()}`);
+        // console.log(`Definición de ${first_result.getHeader()}`);
         definicion = "";
         while (definitions == "") {
             word = await rae.getRandomWord();
@@ -396,14 +393,14 @@ async function palabraRAE() {
             result = await rae.fetchWord(wordId);
             definitions = result.getDefinitions();
             i = 1;
-            //console.log(`Definición de ${first_result.getHeader()}`);
+            // console.log(`Definición de ${first_result.getHeader()}`);
             definicion = "";
         }
         for (const definition of definitions) {
             if (i <= 3) {
                 definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-                //console.log(`${i}. Tipo: ${definition.getType()}\n`);
-                //console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+                // console.log(`${i}. Tipo: ${definition.getType()}\n`);
+                // console.log(`    Definición: ${definition.getDefinition()}\n\n`);
             }
             i++;
         }
