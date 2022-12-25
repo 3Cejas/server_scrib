@@ -8,6 +8,11 @@ const http = require("http").createServer(); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
 
+var temp_modo_1;
+var temp_modo_2;
+var temp_modo_3;
+var temp_modo_4;
+var temp_modo_5;
 const LIMPIEZAS = {
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra);
@@ -139,18 +144,28 @@ io.on('connection', (socket) => {
     });
     // Comienza el juego.
 
-    socket.on('inicio', (evt1) => {
+    socket.on('inicio', (duration) => {
+        intervalo = Math.round(duration/5);
+        temp_modo_5 = duration - intervalo;
+        temp_modo_4 = duration - 2 * intervalo;
+        temp_modo_3 = duration - 3 * intervalo;
+        temp_modo_2 = duration - 4 * intervalo;
+        temp_modo_1 = duration - 5 * intervalo;
+        print()
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
         socket.removeAllListeners('envío_nombre1');
         socket.removeAllListeners('envío_nombre2');
         socket.removeAllListeners('envia_temas');
         socket.removeAllListeners('temas');
+        socket.removeAllListeners('enviar_comentario');
+        socket.removeAllListeners('enviar_postgame1');
+        socket.removeAllListeners('enviar_postgame2');
         //socket.removeAllListeners('scroll');
 
         terminado = false;
         modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
-        socket.broadcast.emit('inicio', evt1);
+        socket.broadcast.emit('inicio', duration);
     });
 
     // Resetea el tablero de juego.
@@ -184,6 +199,7 @@ io.on('connection', (socket) => {
     socket.on('cambiar_vista', (evt1) => {
         io.emit('cambia_vista', evt1);
     });
+   
     /*socket.on('psico', (evt1) => {
         if (evt1 == 1){
             socket.broadcast.emit('psico_a_j2', evt1);
@@ -252,9 +268,21 @@ io.on('connection', (socket) => {
             socket.broadcast.emit('temas_espectador', evt1);
         });
 
+        // Envía un comentario.
+        socket.on('enviar_comentario', (evt1) => {
+            socket.broadcast.emit('recibir_comentario', evt1);
+        });
+
         // Realiza el scroll.
         socket.on('scroll', (evt1) => {
             socket.broadcast.emit('scroll', evt1);
+        });
+
+        socket.on('enviar_postgame1', (evt1) => {
+            io.emit('recibir_postgame2', evt1);
+        });
+        socket.on('enviar_postgame2', (evt1) => {
+            io.emit('recibir_postgame1', evt1);
         });
     }
 
@@ -397,5 +425,4 @@ async function palabraRAE() {
         return palabraRAE;
     }
     return [word, definicion];
-
 };
