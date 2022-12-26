@@ -1,4 +1,3 @@
-
 const { Socket } = require('dgram');
 const { LOADIPHLPAPI } = require('dns');
 const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
@@ -9,6 +8,11 @@ const http = require("http").createServer(); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
 
+var temp_modo_1;
+var temp_modo_2;
+var temp_modo_3;
+var temp_modo_4;
+var temp_modo_5;
 const LIMPIEZAS = {
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra);
@@ -21,8 +25,6 @@ const LIMPIEZAS = {
     'letra prohibida': function (socket) {
         letra_prohibida = "";
         modo_letra_prohibida = false;
-        socket.removeAllListeners('feedback_de_j1');
-        socket.removeAllListeners('feedback_de_j2');
     },
 
     'texto borroso': function (socket) {
@@ -30,8 +32,6 @@ const LIMPIEZAS = {
     },
 
     'psicodélico': function (socket) {
-        socket.removeAllListeners('psico_de_j1');
-        socket.removeAllListeners('psico_de_j2');
     },
 
     'texto inverso': function (socket) { },
@@ -105,7 +105,6 @@ io.on('connection', (socket) => {
 
     //activa sockets no tienen que ver con los textos.
     activar_sockets_extratextuales(socket);
-
     // Envía el contador de tiempo.
     socket.on('count', (evt1) => {
         if (evt1 == "¡Tiempo!") {
@@ -119,23 +118,23 @@ io.on('connection', (socket) => {
             modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
         }
         if (evt1 == "05:00") {
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "04:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "03:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         if (evt1 == "02:00") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
-        if (evt1 == "01:00") {
+        if (evt1 == "00:05") {
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
         }
         else {
             terminado = false;
@@ -156,20 +155,31 @@ io.on('connection', (socket) => {
             }
         });
     }
+    
     // Comienza el juego.
 
-    socket.on('inicio', (evt1) => {
+    socket.on('inicio', (duration) => {
+        intervalo = Math.round(duration/5);
+        temp_modo_5 = duration - intervalo;
+        temp_modo_4 = duration - 2 * intervalo;
+        temp_modo_3 = duration - 3 * intervalo;
+        temp_modo_2 = duration - 4 * intervalo;
+        temp_modo_1 = duration - 5 * intervalo;
+        print()
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
-        socket.removeAllListeners('nombre1');
-        socket.removeAllListeners('nombre2');
+        socket.removeAllListeners('envío_nombre1');
+        socket.removeAllListeners('envío_nombre2');
         socket.removeAllListeners('envia_temas');
         socket.removeAllListeners('temas');
-        socket.removeAllListeners('scroll');
+        socket.removeAllListeners('enviar_comentario');
+        socket.removeAllListeners('enviar_postgame1');
+        socket.removeAllListeners('enviar_postgame2');
+        //socket.removeAllListeners('scroll');
 
         terminado = false;
         modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
-        socket.broadcast.emit('inicio', evt1);
+        socket.broadcast.emit('inicio', duration);
     });
 
     // Resetea el tablero de juego.
@@ -191,16 +201,41 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('limpiar_psicodélico', evt1);
     });
     */
-    socket.on('psico_de_j1', (evt1) => {
-        socket.broadcast.emit('psico_a_j2', evt1);
+
+    socket.on('feedback_de_j1', (evt1) => {
+        io.emit('feedback_a_j2', evt1);
     });
 
-    socket.on('psico_de_j2', (evt1) => {
-        socket.broadcast.emit('psico_a_j1', evt1);
+    socket.on('feedback_de_j2', (evt1) => {
+        io.emit('feedback_a_j1', evt1);
+    });
+
+    socket.on('cambiar_vista', (evt1) => {
+        io.emit('cambia_vista', evt1);
+    });
+   
+    /*socket.on('psico', (evt1) => {
+        if (evt1 == 1){
+            socket.broadcast.emit('psico_a_j2', evt1);
+        }
+        else{
+            socket.broadcast.emit('psico_a_j1', evt1);
+        }
+    });*/
+    
+    socket.on('nueva_palabra', (evt1) => {
+        clearTimeout(cambio_palabra);
+        if (terminado == false) {
+            palabraRAE().then(palabra_bonus => {
+                puntuacion = puntuación_palabra(palabra_bonus[0]);
+                io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+            })
+            cambiar_palabra();
+        }
     });
 
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
-    function modos_de_juego() {
+    function modos_de_juego(socket) {
         if (terminado == false) {
             let indice_modo = Math.floor(Math.random() * modos_restantes.length);
             modo_actual = modos_restantes[indice_modo];
@@ -212,13 +247,13 @@ io.on('connection', (socket) => {
     function activar_sockets_extratextuales(socket) {
         // Envía el nombre del jugador 1.
 
-        socket.on('nombre1', (evt1) => {
+        socket.on('envío_nombre1', (evt1) => {
             socket.broadcast.emit('nombre1', evt1);
         });
 
         // Envía el nombre del jugador 2.
 
-        socket.on('nombre2', (evt1) => {
+        socket.on('envío_nombre2', (evt1) => {
             socket.broadcast.emit('nombre2', evt1);
         });
 
@@ -243,23 +278,24 @@ io.on('connection', (socket) => {
 
         // Envía la lista de temas y elige aleatoriamente uno de ellos.
         socket.on('temas', (evt1) => {
-            socket.broadcast.emit('temasj1', evt1);
+            socket.broadcast.emit('temas_espectador', evt1);
+        });
+
+        // Envía un comentario.
+        socket.on('enviar_comentario', (evt1) => {
+            socket.broadcast.emit('recibir_comentario', evt1);
         });
 
         // Realiza el scroll.
         socket.on('scroll', (evt1) => {
             socket.broadcast.emit('scroll', evt1);
         });
-    }
 
-    //Función auxiliar que activa los sockets de feedback.
-    function activar_sockets_feedback() {
-        socket.on('feedback_de_j1', (evt1) => {
-            socket.broadcast.emit('feedback_a_j2', evt1);
+        socket.on('enviar_postgame1', (evt1) => {
+            io.emit('recibir_postgame2', evt1);
         });
-
-        socket.on('feedback_de_j2', (evt1) => {
-            socket.broadcast.emit('feedback_a_j1', evt1);
+        socket.on('enviar_postgame2', (evt1) => {
+            io.emit('recibir_postgame1', evt1);
         });
     }
 
@@ -284,8 +320,7 @@ io.on('connection', (socket) => {
     const MODOS = {
 
         // Recibe y activa la palabra y el modo bonus.
-        'palabras bonus': function (socket) {
-            activar_sockets_feedback();
+        'palabras bonus': function () {
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             console.log("ACTIVADO");
@@ -315,16 +350,16 @@ io.on('connection', (socket) => {
             }, 5000);*/
         },
 
-        'texto borroso': function (socket) {
+        'texto borroso': function () {
             let jugador = Math.floor(Math.random() * 2) + 1
             io.emit('activar_modo', { modo_actual, jugador });
         },
 
-        'psicodélico': function (socket) {
+        'psicodélico': function () {
             io.emit('activar_modo', { modo_actual });
         },
 
-        'texto inverso': function (socket) {
+        'texto inverso': function () {
             io.emit('activar_modo', { modo_actual });
         }
     }
@@ -383,6 +418,7 @@ async function palabraRAE() {
         let result = await rae.fetchWord(wordId);
         let definitions = result.getDefinitions();
         let i = 1;
+        
         // console.log(`Definición de ${first_result.getHeader()}`);
         definicion = "";
         while (definitions == "") {
@@ -393,6 +429,7 @@ async function palabraRAE() {
             result = await rae.fetchWord(wordId);
             definitions = result.getDefinitions();
             i = 1;
+            
             // console.log(`Definición de ${first_result.getHeader()}`);
             definicion = "";
         }
@@ -409,5 +446,4 @@ async function palabraRAE() {
         return palabraRAE;
     }
     return [word, definicion];
-
 };

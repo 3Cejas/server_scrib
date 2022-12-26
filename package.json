@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "engines": {
         "node": "16.x"
-      },
+    },
     "description": "NodeJS with Socket.io Practice",
     "main": "server.js",
     "scripts": {
