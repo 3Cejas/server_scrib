@@ -165,7 +165,7 @@ io.on('connection', (socket) => {
         temp_modo_3 = duration - 3 * intervalo;
         temp_modo_2 = duration - 4 * intervalo;
         temp_modo_1 = duration - 5 * intervalo;
-        print()
+        
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
         socket.removeAllListeners('envío_nombre1');
