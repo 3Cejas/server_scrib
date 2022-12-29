@@ -165,7 +165,7 @@ io.on('connection', (socket) => {
         temp_modo_3 = duration - 3 * intervalo;
         temp_modo_2 = duration - 4 * intervalo;
         temp_modo_1 = duration - 5 * intervalo;
-        print()
+        // print()
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
         socket.removeAllListeners('envío_nombre1');
@@ -340,7 +340,7 @@ io.on('connection', (socket) => {
         // Recibe y activa el modo letra prohibida.
         'letra prohibida': function (socket) {
             log("activado letra prohibida");
-            activar_sockets_feedback();
+            // activar_sockets_feedback();
             letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
             io.emit('activar_modo', { modo_actual, letra_prohibida });
             /*setTimeout(function(){
