@@ -340,7 +340,7 @@ io.on('connection', (socket) => {
         // Recibe y activa el modo letra prohibida.
         'letra prohibida': function (socket) {
             log("activado letra prohibida");
-            activar_sockets_feedback();
+            // activar_sockets_feedback();
             letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
             io.emit('activar_modo', { modo_actual, letra_prohibida });
             /*setTimeout(function(){
