@@ -8,11 +8,13 @@ const http = require("http").createServer(); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
 
+//Variable relativa de tiempo de los modos.
 var temp_modo_1;
 var temp_modo_2;
 var temp_modo_3;
 var temp_modo_4;
 var temp_modo_5;
+
 const LIMPIEZAS = {
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra);
@@ -24,11 +26,13 @@ const LIMPIEZAS = {
 
     'letra prohibida': function (socket) {
         letra_prohibida = "";
-        modo_letra_prohibida = false;
+    },
+
+    'letra bendita': function (socket) {
+        letra_bendita = "";
     },
 
     'texto borroso': function (socket) {
-        modo_letra_prohibida = false;
     },
 
     'psicodélico': function (socket) {
@@ -44,11 +48,11 @@ var terminado = true; // Variable booleana que indica si el juego ha empezado o 
 // let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 
 // Variables del modo letra prohibida.
-
-// let modo_letra_prohibida = false;
 let modo_actual = "";
 let letra_prohibida = "";
-const alfabeto = "eaosrnidlc";
+let letra_bendita = "";
+const letras_prohibidas = "eaosrnidlc";
+const letras_benditas= "zjñxkw";
 
 var modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
 
@@ -227,7 +231,7 @@ io.on('connection', (socket) => {
         if (terminado == false) {
             palabraRAE().then(palabra_bonus => {
                 puntuacion = puntuación_palabra(palabra_bonus[0]);
-                io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+                io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
             })
             cambiar_palabra();
         }
@@ -240,6 +244,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
+            modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
@@ -340,13 +345,17 @@ io.on('connection', (socket) => {
         'letra prohibida': function (socket) {
             log("activado letra prohibida");
             // activar_sockets_feedback();
-            letra_prohibida = alfabeto[Math.floor(Math.random() * alfabeto.length)]
+            letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
             io.emit('activar_modo', { modo_actual, letra_prohibida });
-            /*setTimeout(function(){
-                clearTimeout(cambio_palabra);
-                modo_letra_prohibida = false;
-                modos_de_juego();
-            }, 5000);*/
+        },
+
+        // Recibe y activa el modo letra prohibida.
+        'letra bendita': function (socket) {
+            log("activado letra bendita");
+            // activar_sockets_feedback();
+            letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
+            console.log(letra_bendita)
+            io.emit('activar_modo', { modo_actual, letra_bendita });
         },
 
         'texto borroso': function () {
