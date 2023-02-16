@@ -238,6 +238,15 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('enviar_puntuacion_final', (evt1) => {
+        io.emit('recibir_puntuacion_final', evt1);
+    });
+
+    socket.on('enviar_clasificacion', (evt1) => {
+        console.log(evt1)
+        io.emit('recibir_clasificacion', evt1);
+    });
+
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego(socket) {
         if (terminado == false) {
