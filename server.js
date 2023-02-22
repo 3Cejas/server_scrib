@@ -258,7 +258,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            modo_actual = "psicodélico";
+            //modo_actual = "psicodélico";
             MODOS[modo_actual](socket);
         }
     }
