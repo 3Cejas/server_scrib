@@ -54,7 +54,7 @@ let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
 
-var modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
+var modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
 
 const frecuencia_letras = {
     'a': 12.53,
@@ -115,16 +115,24 @@ io.on('connection', (socket) => {
             LIMPIEZAS[modo_actual](socket);
             activar_sockets_extratextuales(socket);
             terminado = true;
-            modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
+            modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
         }
         if (evt1 == "00:00") {
             terminado = true;
-            modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
+            modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
         }
-        if (evt1 == "05:00") {
+        if (evt1 == "9:00") {
             modos_de_juego(socket);
         }
-        if (evt1 == "04:00") {
+        if (evt1 == "07:30") {
+            LIMPIEZAS[modo_actual](socket);
+            modos_de_juego(socket);
+        }
+        if (evt1 == "06:00") {
+            LIMPIEZAS[modo_actual](socket);
+            modos_de_juego(socket);
+        }
+        if (evt1 == "04:30") {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
@@ -132,11 +140,7 @@ io.on('connection', (socket) => {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
-        if (evt1 == "02:00") {
-            LIMPIEZAS[modo_actual](socket);
-            modos_de_juego(socket);
-        }
-        if (evt1 == "00:05") {
+        if (evt1 == "01:30") {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
@@ -146,7 +150,7 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('count', evt1);
     });
 
-    if (modo_actual == 'palabras bonus') {
+    /*if (modo_actual == 'palabras bonus') {
         socket.on('nueva_palabra', (evt1) => {
             console.log("RECIBIDO");
             clearTimeout(cambio_palabra);
@@ -158,7 +162,7 @@ io.on('connection', (socket) => {
                 cambiar_palabra();
             }
         });
-    }
+    }*/
     
     // Comienza el juego.
 
@@ -182,7 +186,7 @@ io.on('connection', (socket) => {
         //socket.removeAllListeners('scroll');
 
         terminado = false;
-        modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
+        modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
         socket.broadcast.emit('inicio', duration);
     });
 
@@ -192,7 +196,7 @@ io.on('connection', (socket) => {
         activar_sockets_extratextuales(socket);
         clearTimeout(cambio_palabra);
         terminado = true;
-        modos_restantes = ["palabras bonus", "letra prohibida", "texto borroso", "psicodélico", "texto inverso"];
+        modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
         socket.broadcast.emit('limpiar', evt1);
     });
 
@@ -254,7 +258,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            modo_actual = "palabras bonus";
+            modo_actual = "psicodélico";
             MODOS[modo_actual](socket);
         }
     }
@@ -340,8 +344,9 @@ io.on('connection', (socket) => {
             console.log("ACTIVADO");
             // activar_socket_nueva_palabra(socket);
             palabraRAE().then(palabra_bonus => {
+                log(palabra_bonus)
                 puntuacion = puntuación_palabra(palabra_bonus[0]);
-                io.emit('activar_modo', { modo_actual, palabra_bonus, puntuacion });
+                io.emit('activar_modo', { modo_actual });
                 io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
             })
             cambiar_palabra();
