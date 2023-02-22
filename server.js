@@ -121,18 +121,10 @@ io.on('connection', (socket) => {
             terminado = true;
             modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
         }
-        if (evt1 == "9:00") {
+        if (evt1 == "5:00") {
             modos_de_juego(socket);
         }
-        if (evt1 == "07:30") {
-            LIMPIEZAS[modo_actual](socket);
-            modos_de_juego(socket);
-        }
-        if (evt1 == "06:00") {
-            LIMPIEZAS[modo_actual](socket);
-            modos_de_juego(socket);
-        }
-        if (evt1 == "04:30") {
+        if (evt1 == "04:00") {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
@@ -140,7 +132,11 @@ io.on('connection', (socket) => {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
-        if (evt1 == "01:30") {
+        if (evt1 == "02:00") {
+            LIMPIEZAS[modo_actual](socket);
+            modos_de_juego(socket);
+        }
+        if (evt1 == "01:00") {
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego(socket);
         }
