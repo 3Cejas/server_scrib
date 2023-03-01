@@ -121,7 +121,7 @@ io.on('connection', (socket) => {
             terminado = true;
             modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
         }
-        if (evt1 == "5:00") {
+        if (evt1 == "05:00") {
             modos_de_juego(socket);
         }
         if (evt1 == "04:00") {
