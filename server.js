@@ -54,7 +54,7 @@ let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
 
-var modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
+const LISTA_MODOS = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso"];
 
 const frecuencia_letras = {
     'a': 12.53,
@@ -115,11 +115,11 @@ io.on('connection', (socket) => {
             LIMPIEZAS[modo_actual](socket);
             activar_sockets_extratextuales(socket);
             terminado = true;
-            modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
+            modos_restantes = [...LISTA_MODOS];
         }
         if (evt1 == "00:00") {
             terminado = true;
-            modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
+            modos_restantes = [...LISTA_MODOS];
         }
         if (evt1 == "05:00") {
             modos_de_juego(socket);
@@ -182,7 +182,7 @@ io.on('connection', (socket) => {
         //socket.removeAllListeners('scroll');
 
         terminado = false;
-        modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
+        modos_restantes = [...LISTA_MODOS];
         socket.broadcast.emit('inicio', duration);
     });
 
@@ -192,7 +192,7 @@ io.on('connection', (socket) => {
         activar_sockets_extratextuales(socket);
         clearTimeout(cambio_palabra);
         terminado = true;
-        modos_restantes = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso", "psicodélico", "texto inverso"];
+        modos_restantes = [...LISTA_MODOS];
         socket.broadcast.emit('limpiar', evt1);
     });
 
@@ -254,7 +254,7 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            //modo_actual = "psicodélico";
+            console.log("MODOS RESTANTES: ", modos_restantes)
             MODOS[modo_actual](socket);
         }
     }
