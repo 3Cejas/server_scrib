@@ -7,14 +7,6 @@ const log = console.log; // Define la consola del servidor.
 const http = require("http").createServer(); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
-
-//Variable relativa de tiempo de los modos.
-var temp_modo_1;
-var temp_modo_2;
-var temp_modo_3;
-var temp_modo_4;
-var temp_modo_5;
-
 const LIMPIEZAS = {
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra);
@@ -53,7 +45,7 @@ let letra_prohibida = "";
 let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
-
+var tiempos = [];
 const LISTA_MODOS = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso"];
 
 const frecuencia_letras = {
@@ -117,27 +109,20 @@ io.on('connection', (socket) => {
             terminado = true;
             modos_restantes = [...LISTA_MODOS];
         }
-        if (evt1 == "00:00") {
+        encontrado = false;
+        for (let i = 1; i < tiempos.length - 1 && !encontrado; i++) {
+            if (evt1 == tiempos[i]) {
+                LIMPIEZAS[modo_actual](socket);
+                modos_de_juego(socket);
+                tiempos.splice(i, 1);
+                encontrado = true;
+            }
+        }
+        if (evt1 == tiempos[0]) {
             terminado = true;
             modos_restantes = [...LISTA_MODOS];
         }
-        if (evt1 == "05:00") {
-            modos_de_juego(socket);
-        }
-        if (evt1 == "04:00") {
-            LIMPIEZAS[modo_actual](socket);
-            modos_de_juego(socket);
-        }
-        if (evt1 == "03:00") {
-            LIMPIEZAS[modo_actual](socket);
-            modos_de_juego(socket);
-        }
-        if (evt1 == "02:00") {
-            LIMPIEZAS[modo_actual](socket);
-            modos_de_juego(socket);
-        }
-        if (evt1 == "01:00") {
-            LIMPIEZAS[modo_actual](socket);
+        if (evt1 == tiempos[tiempos.length - 2]) {
             modos_de_juego(socket);
         }
         else {
@@ -163,12 +148,7 @@ io.on('connection', (socket) => {
     // Comienza el juego.
 
     socket.on('inicio', (duration) => {
-        intervalo = Math.round(duration/5);
-        temp_modo_5 = duration - intervalo;
-        temp_modo_4 = duration - 2 * intervalo;
-        temp_modo_3 = duration - 3 * intervalo;
-        temp_modo_2 = duration - 4 * intervalo;
-        temp_modo_1 = duration - 5 * intervalo;
+        tiempos = getRanges(duration, LISTA_MODOS.length + 1)
         
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
@@ -213,10 +193,6 @@ io.on('connection', (socket) => {
     socket.on('feedback_de_j2', (evt1) => {
         io.emit('feedback_a_j1', evt1);
     });
-
-    socket.on('cambiar_vista', (evt1) => {
-        io.emit('cambia_vista', evt1);
-    });
    
     /*socket.on('psico', (evt1) => {
         if (evt1 == 1){
@@ -255,6 +231,7 @@ io.on('connection', (socket) => {
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
             console.log("MODOS RESTANTES: ", modos_restantes)
+            modo_actual = "palabras bonus"
             MODOS[modo_actual](socket);
         }
     }
@@ -327,7 +304,7 @@ io.on('connection', (socket) => {
                         io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
                     })
                     cambiar_palabra();
-                }, 20000);
+                }, 15000);
         }
     }
 
@@ -371,7 +348,8 @@ io.on('connection', (socket) => {
 
         'texto borroso': function () {
             let jugador = Math.floor(Math.random() * 2) + 1
-            io.emit('activar_modo', { modo_actual, jugador });
+            duracion = diferencia_tiempo(tiempos[0], tiempos[1]) * 1000 / 2
+            io.emit('activar_modo', { modo_actual, jugador, duracion });
         },
 
         'psicodélico': function () {
@@ -465,4 +443,82 @@ async function palabraRAE() {
         return palabraRAE;
     }
     return [word, definicion];
+};
+
+//Función que dadas dos horas en string devuelve los trozos en x invervalos de tiempo.
+function getRanges(timeString, n) {
+    // Convertimos el tiempo en segundos
+    let totalTimeInSeconds = parseInt(timeString.split(":")[0]) * 60 + parseInt(timeString.split(":")[1]);
+  
+    // Si el número n es mayor o igual al tiempo total en segundos, devolvemos el tiempo completo
+    if (n >= totalTimeInSeconds) {
+      return [timeString];
+    }
+    const rangeDurationInSeconds = Math.ceil(totalTimeInSeconds / n);
+    const ranges = ['00:00'];
+    
+    let start = 0;
+    let end = rangeDurationInSeconds;
+    
+    while (end < totalTimeInSeconds) {
+      ranges.push(formatTime(end));
+      start = end;
+      end += rangeDurationInSeconds;
+    }
+    
+    ranges.push(formatTime(totalTimeInSeconds));
+    
+    return ranges;
+  }
+  
+  function formatTime(timeInSeconds) {
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = timeInSeconds % 60;
+    return ('0' + minutes).slice(-2) + ':' + ('0' + seconds).slice(-2);
+  }
+
+  //Función auxiliar que, dados dos tiempos en string, devuelve el tiempo transcurrido en segundoS.
+  function diferencia_tiempo(tiempo_inicial, tiempo_final) {
+    let tiempo_inicial_segundos = parseInt(tiempo_inicial.split(":")[0]) * 60 + parseInt(tiempo_inicial.split(":")[1]);
+    let tiempo_final_segundos = parseInt(tiempo_final.split(":")[0]) * 60 + parseInt(tiempo_final.split(":")[1]);
+    return tiempo_final_segundos - tiempo_inicial_segundos;
+  }
+
+  //Función que, dada una palabra, devuelve su definición en la RAE.
+  async function definicion_palabra(palabra) {
+    let definicion = ""
+    try {
+        let search = await rae.searchWord(palabra);
+        let first_result = search.getRes()[0];
+        let wordId = first_result.getId();
+        let result = await rae.fetchWord(wordId);
+        let definitions = result.getDefinitions();
+        let i = 1;
+        
+        // console.log(`Definición de ${first_result.getHeader()}`);
+        definicion = "";
+        while (definitions == "") {
+            search = await rae.searchWord(palabra);
+            first_result = search.getRes()[0];
+            wordId = first_result.getId();
+            result = await rae.fetchWord(wordId);
+            definitions = result.getDefinitions();
+            i = 1;
+            
+            // console.log(`Definición de ${first_result.getHeader()}`);
+            definicion = "";
+        }
+        for (const definition of definitions) {
+            if (i <= 3) {
+                definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
+                // console.log(`${i}. Tipo: ${definition.getType()}\n`);
+                // console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+            }
+            i++;
+        }
+    }
+    catch {
+        return definicion_palabra;
+    }
+    return definicion;
 };
