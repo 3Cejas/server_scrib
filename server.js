@@ -147,8 +147,8 @@ io.on('connection', (socket) => {
     
     // Comienza el juego.
 
-    socket.on('inicio', (duration) => {
-        tiempos = getRanges(duration, LISTA_MODOS.length + 1)
+    socket.on('inicio', (data) => {
+        tiempos = getRanges(data.count, LISTA_MODOS.length + 1);
         
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
@@ -163,7 +163,7 @@ io.on('connection', (socket) => {
 
         terminado = false;
         modos_restantes = [...LISTA_MODOS];
-        socket.broadcast.emit('inicio', duration);
+        socket.broadcast.emit('inicio', data);
     });
 
     // Resetea el tablero de juego.
@@ -174,6 +174,30 @@ io.on('connection', (socket) => {
         terminado = true;
         modos_restantes = [...LISTA_MODOS];
         socket.broadcast.emit('limpiar', evt1);
+    });
+
+    socket.on('pausar', (evt1) => {
+        clearTimeout(cambio_palabra);
+        activar_sockets_extratextuales(socket);
+        socket.broadcast.emit('pausar_js', evt1);
+    });
+
+    socket.on('reanudar', (evt1) => {
+        MODOS[modo_actual](socket);
+        socket.broadcast.emit('reanudar_js', evt1);
+    });
+
+    socket.on('aumentar_tiempo_borrado_a_jx', (evt1) => {
+        if(evt1 == 1){
+            socket.broadcast.emit('aumentar_tiempo_borrado_de_j1', evt1);
+        }
+        else{
+            socket.broadcast.emit('aumentar_tiempo_borrado_de_j2', evt1);
+        }
+    });
+
+    socket.on('enviar_feedback_modificador', (evt1) => {
+        socket.broadcast.emit('recibir_feedback_modificador', evt1.substring(0, evt1.length - 1) + "2");
     });
 
     /*
@@ -230,8 +254,8 @@ io.on('connection', (socket) => {
             modo_actual = modos_restantes[indice_modo];
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            console.log("MODOS RESTANTES: ", modos_restantes)
-            //modo_actual = "palabras bonus"
+            console.log("MODOS RESTANTES: ", modos_restantes);
+            ////modo_actual = "texto borroso";
             MODOS[modo_actual](socket);
         }
     }
@@ -411,6 +435,7 @@ async function palabraRAE() {
         word = await rae.getRandomWord();
         let search = await rae.searchWord(word);
         let first_result = search.getRes()[0];
+
         let wordId = first_result.getId();
         let result = await rae.fetchWord(wordId);
         let definitions = result.getDefinitions();
