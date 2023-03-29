@@ -197,7 +197,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('enviar_feedback_modificador', (evt1) => {
-        socket.broadcast.emit('recibir_feedback_modificador', evt1.substring(0, evt1.length - 1) + "2");
+        id_mod = evt1.id_mod.substring(0, evt1.id_mod.length - 1) + "2";
+        player = evt1.player
+        socket.broadcast.emit('recibir_feedback_modificador', {id_mod, player});
     });
 
     /*
@@ -255,7 +257,7 @@ io.on('connection', (socket) => {
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
             console.log("MODOS RESTANTES: ", modos_restantes);
-            ////modo_actual = "texto borroso";
+            //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
