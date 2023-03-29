@@ -23,7 +23,8 @@ Se difumina de manera aleatoria a uno de los dos jugadores y después de alterna
 ## INSTRUCCIONES PARA SU USO
 ### Desplegar el servidor
 1. Descarga el repositorio 3Cejas/server_scrib y accede a ella
-2. Introduce en la consola de comandos lo siguiente: node server.js
+2. Instala las dependencias: `npm install`
+2. Ejecuta la aplicación: `npm start`
 ### Comenzar a jugar
 3. Descarga el repositorio 3Cejas/players_scrib e inicia el control y los jugadores desde el dashboard de inicio (HTML).
 4. Desde control, pulsa el botón 'Escribir' y el juego comenzará.

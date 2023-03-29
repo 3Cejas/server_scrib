@@ -1,15 +1,11 @@
 {
-    "name": "realtime-editor",
+    "name": "scrib",
     "version": "1.0.0",
     "engines": {
-        "node": "16.x"
+        "node": ">=16"
     },
-    "description": "NodeJS with Socket.io Practice",
+    "description": "<SCRI>B",
     "main": "server.js",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "keywords": [],
     "author": "",
     "license": "ISC",
     "dependencies": {
