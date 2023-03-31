@@ -258,7 +258,7 @@ io.on('connection', (socket) => {
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
             console.log("MODOS RESTANTES: ", modos_restantes);
-            modo_actual = "palabras bonus";
+            //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
