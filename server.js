@@ -258,7 +258,7 @@ io.on('connection', (socket) => {
             console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
             console.log("MODOS RESTANTES: ", modos_restantes);
-            //modo_actual = "palabras bonus";
+            modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
@@ -344,7 +344,7 @@ io.on('connection', (socket) => {
             console.log("ACTIVADO");
             // activar_socket_nueva_palabra(socket);
             palabraRAE().then(palabra_bonus => {
-                log(palabra_bonus)
+                console.log("AQUII", palabra_bonus)
                 puntuacion = puntuación_palabra(palabra_bonus[0]);
                 io.emit('activar_modo', { modo_actual });
                 io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
@@ -432,45 +432,35 @@ io.on('disconnect', evt => {
 // Buscador de palabra aletoria y su definición en la RAE.
 
 async function palabraRAE() {
-    let word = ""
-    let definicion = ""
+    let palabra_final = ""
+    let definicion_final = ""
     try {
-        word = await rae.getRandomWord();
-        let search = await rae.searchWord(word);
-        let first_result = search.getRes()[0];
+        palabra = await new RAE().getRandomWord();
+        palabra_final = palabra.getHeader();
+        definiciones = palabra.getDefinitions();
 
-        let wordId = first_result.getId();
-        let result = await rae.fetchWord(wordId);
-        let definitions = result.getDefinitions();
-        let i = 1;
-        
-        // console.log(`Definición de ${first_result.getHeader()}`);
-        definicion = "";
-        while (definitions == "") {
-            word = await rae.getRandomWord();
-            search = await rae.searchWord(word);
-            first_result = search.getRes()[0];
-            wordId = first_result.getId();
-            result = await rae.fetchWord(wordId);
-            definitions = result.getDefinitions();
-            i = 1;
+        while (definiciones == "") {
+            palabra = await new RAE().getRandomWord();
+            palabra_final = palabra.getHeader();
+            definiciones = palabra.getDefinitions();
             
             // console.log(`Definición de ${first_result.getHeader()}`);
-            definicion = "";
         }
-        for (const definition of definitions) {
-            if (i <= 3) {
-                definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-                // console.log(`${i}. Tipo: ${definition.getType()}\n`);
-                // console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+        for (var i = 0; i < definiciones.length; i++) {
+            console.log(i)
+            if (i < 3) {
+                definicion_final += `${i+1}. ${definiciones[i].getDefinition()}<br><br/>`;
+                //console.log(`${i+1}. Tipo: ${definiciones[i].getType()}\n`);
+                //console.log(`    Definición: ${definiciones[i].getDefinition()}\n\n`);
             }
-            i++;
+        console.log("HOLAAA")
         }
     }
     catch {
         return palabraRAE;
     }
-    return [word, definicion];
+    console.log('JAAAAAA',palabra_final, definicion_final)
+    return [palabra_final, definicion_final];
 };
 
 //Función que dadas dos horas en string devuelve los trozos en x invervalos de tiempo.
