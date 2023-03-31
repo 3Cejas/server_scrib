@@ -183,8 +183,14 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('pausar_js', evt1);
     });
 
+    socket.on('tiempo_muerto_a_control', (evt1) => {
+        socket.broadcast.emit('tiempo_muerto_control', '');
+    });
+
     socket.on('reanudar', (evt1) => {
+        if(modo_actual != ""){
         MODOS[modo_actual](socket);
+        }
         socket.broadcast.emit('reanudar_js', evt1);
     });
 
@@ -246,7 +252,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('enviar_clasificacion', (evt1) => {
-        console.log(evt1)
+        //console.log(evt1)
         io.emit('recibir_clasificacion', evt1);
     });
 
@@ -344,7 +350,6 @@ io.on('connection', (socket) => {
             console.log("ACTIVADO");
             // activar_socket_nueva_palabra(socket);
             palabraRAE().then(palabra_bonus => {
-                console.log("AQUII", palabra_bonus)
                 puntuacion = puntuación_palabra(palabra_bonus[0]);
                 io.emit('activar_modo', { modo_actual });
                 io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
@@ -369,7 +374,6 @@ io.on('connection', (socket) => {
             log("activado letra bendita");
             // activar_sockets_feedback();
             letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
-            console.log(letra_bendita)
             io.emit('activar_modo', { modo_actual, letra_bendita });
         },
 
@@ -447,19 +451,16 @@ async function palabraRAE() {
             // console.log(`Definición de ${first_result.getHeader()}`);
         }
         for (var i = 0; i < definiciones.length; i++) {
-            console.log(i)
             if (i < 3) {
                 definicion_final += `${i+1}. ${definiciones[i].getDefinition()}<br><br/>`;
                 //console.log(`${i+1}. Tipo: ${definiciones[i].getType()}\n`);
                 //console.log(`    Definición: ${definiciones[i].getDefinition()}\n\n`);
             }
-        console.log("HOLAAA")
         }
     }
     catch {
         return palabraRAE;
     }
-    console.log('JAAAAAA',palabra_final, definicion_final)
     return [palabra_final, definicion_final];
 };
 
