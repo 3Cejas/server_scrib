@@ -194,12 +194,13 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('reanudar_js', evt1);
     });
 
-    socket.on('aumentar_tiempo_borrado_a_jx', (evt1) => {
-        if(evt1 == 1){
-            socket.broadcast.emit('aumentar_tiempo_borrado_de_j1', evt1);
+    socket.on('enviar_putada_a_jx', (evt1) => {
+        if(evt1.player == 1){
+            console.log("lol")
+            socket.broadcast.emit('enviar_putada_de_j1', evt1.putada);
         }
         else{
-            socket.broadcast.emit('aumentar_tiempo_borrado_de_j2', evt1);
+            socket.broadcast.emit('enviar_putada_de_j2', evt1.putada);
         }
     });
 
@@ -240,8 +241,10 @@ io.on('connection', (socket) => {
         clearTimeout(cambio_palabra);
         if (terminado == false) {
             palabraRAE().then(palabra_bonus => {
-                puntuacion = puntuación_palabra(palabra_bonus[0]);
-                io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
+                palabras_var = palabra_bonus[0];
+                palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
+                puntuacion = puntuación_palabra(palabra_bonus[0][0]);
+                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, puntuacion });
             })
             cambiar_palabra();
         }
@@ -252,7 +255,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('enviar_clasificacion', (evt1) => {
-        //console.log(evt1)
         io.emit('recibir_clasificacion', evt1);
     });
 
@@ -261,10 +263,8 @@ io.on('connection', (socket) => {
         if (terminado == false) {
             let indice_modo = Math.floor(Math.random() * modos_restantes.length);
             modo_actual = modos_restantes[indice_modo];
-            console.log("MODO ACTUAL: " + modo_actual);
             modos_restantes.splice(indice_modo, 1);
-            console.log("MODOS RESTANTES: ", modos_restantes);
-            //modo_actual = "palabras bonus";
+            modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
@@ -333,8 +333,10 @@ io.on('connection', (socket) => {
             cambio_palabra = setTimeout(
                 function () {
                     palabraRAE().then(palabra_bonus => {
-                        puntuacion = puntuación_palabra(palabra_bonus[0]);
-                        io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
+                        palabras_var = palabra_bonus[0];
+                        palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
+                        puntuacion = puntuación_palabra(palabra_bonus[0][0]);
+                        io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, puntuacion });
                     })
                     cambiar_palabra();
                 }, 15000);
@@ -347,12 +349,13 @@ io.on('connection', (socket) => {
         'palabras bonus': function () {
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
-            console.log("ACTIVADO");
             // activar_socket_nueva_palabra(socket);
             palabraRAE().then(palabra_bonus => {
-                puntuacion = puntuación_palabra(palabra_bonus[0]);
+                palabras_var = palabra_bonus[0];
+                palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
+                puntuacion = puntuación_palabra(palabra_bonus[0][0]);
                 io.emit('activar_modo', { modo_actual });
-                io.emit('enviar_palabra', { modo_actual, palabra_bonus, puntuacion });
+                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, puntuacion });
             })
             cambiar_palabra();
             /*setTimeout(function(){
@@ -447,14 +450,10 @@ async function palabraRAE() {
             palabra = await new RAE().getRandomWord();
             palabra_final = palabra.getHeader();
             definiciones = palabra.getDefinitions();
-            
-            // console.log(`Definición de ${first_result.getHeader()}`);
         }
         for (var i = 0; i < definiciones.length; i++) {
             if (i < 3) {
                 definicion_final += `${i+1}. ${definiciones[i].getDefinition()}<br><br/>`;
-                //console.log(`${i+1}. Tipo: ${definiciones[i].getType()}\n`);
-                //console.log(`    Definición: ${definiciones[i].getDefinition()}\n\n`);
             }
         }
     }
@@ -503,41 +502,31 @@ function getRanges(timeString, n) {
     return tiempo_final_segundos - tiempo_inicial_segundos;
   }
 
-  //Función que, dada una palabra, devuelve su definición en la RAE.
-  async function definicion_palabra(palabra) {
-    let definicion = ""
-    try {
-        let search = await rae.searchWord(palabra);
-        let first_result = search.getRes()[0];
-        let wordId = first_result.getId();
-        let result = await rae.fetchWord(wordId);
-        let definitions = result.getDefinitions();
-        let i = 1;
-        
-        // console.log(`Definición de ${first_result.getHeader()}`);
-        definicion = "";
-        while (definitions == "") {
-            search = await rae.searchWord(palabra);
-            first_result = search.getRes()[0];
-            wordId = first_result.getId();
-            result = await rae.fetchWord(wordId);
-            definitions = result.getDefinitions();
-            i = 1;
-            
-            // console.log(`Definición de ${first_result.getHeader()}`);
-            definicion = "";
-        }
-        for (const definition of definitions) {
-            if (i <= 3) {
-                definicion += `${i}. ${definition.getDefinition()}<br><br/>`;
-                // console.log(`${i}. Tipo: ${definition.getType()}\n`);
-                // console.log(`    Definición: ${definition.getDefinition()}\n\n`);
+//Función auxiliar para la extracción de las variaciones de una palabra.
+function extraccion_palabra_var(palabra_var) {
+    palabra_var_lista = palabra_var.split(", ")
+    let palabra = palabra_var_lista[0];
+    
+    if(palabra_var_lista.length > 1){
+        let terminacion = palabra_var_lista[1];
+        let index = palabra.length - 1;
+        if(terminacion.length != 1){
+            while (index >= 0 && palabra.charAt(index) !== terminacion.charAt(0)) {
+                index--;
             }
-            i++;
         }
+        else{
+            while (index >= 0 && !esVocal(palabra.charAt(index))) {
+                index--;
+            }
+        }
+        return [palabra, palabra.slice(0, index) + terminacion];
     }
-    catch {
-        return definicion_palabra;
-    }
-    return definicion;
-};
+    else return[palabra];
+  }
+
+// Función auxiliar que devuelve si un caracter es vocal o no.
+  function esVocal(caracter) {
+    var vocales = ['a', 'e', 'i', 'o', 'u'];
+    return vocales.includes(caracter.toLowerCase());
+  }
