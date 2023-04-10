@@ -47,7 +47,7 @@ let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
 var tiempos = [];
-const LISTA_MODOS = ["palabras bonus", "letra prohibida", "letra bendita", "texto borroso"];
+const LISTA_MODOS = ["palabras bonus", "letra prohibida", "letra bendita"];
 
 const frecuencia_letras = {
     'a': 12.53,
@@ -196,7 +196,6 @@ io.on('connection', (socket) => {
 
     socket.on('enviar_putada_a_jx', (evt1) => {
         if(evt1.player == 1){
-            console.log("lol")
             socket.broadcast.emit('enviar_putada_de_j1', evt1.putada);
         }
         else{
@@ -264,7 +263,7 @@ io.on('connection', (socket) => {
             let indice_modo = Math.floor(Math.random() * modos_restantes.length);
             modo_actual = modos_restantes[indice_modo];
             modos_restantes.splice(indice_modo, 1);
-            modo_actual = "palabras bonus";
+            //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
