@@ -157,7 +157,6 @@ io.on('connection', (socket) => {
         socket.removeAllListeners('envío_nombre2');
         socket.removeAllListeners('envia_temas');
         socket.removeAllListeners('temas');
-        socket.removeAllListeners('enviar_comentario');
         socket.removeAllListeners('enviar_postgame1');
         socket.removeAllListeners('enviar_postgame2');
         //socket.removeAllListeners('scroll');
@@ -257,6 +256,11 @@ io.on('connection', (socket) => {
         io.emit('recibir_clasificacion', evt1);
     });
 
+    // Envía un comentario.
+    socket.on('enviar_comentario', (evt1) => {
+        socket.broadcast.emit('recibir_comentario', evt1);
+    });
+
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego(socket) {
         if (terminado == false) {
@@ -304,14 +308,17 @@ io.on('connection', (socket) => {
             socket.broadcast.emit('temas_espectador', evt1);
         });
 
-        // Envía un comentario.
-        socket.on('enviar_comentario', (evt1) => {
-            socket.broadcast.emit('recibir_comentario', evt1);
-        });
-
         // Realiza el scroll.
         socket.on('scroll', (evt1) => {
             socket.broadcast.emit('scroll', evt1);
+        });
+
+        socket.on('scroll_sincro', (evt1) => {
+            socket.broadcast.emit('scroll_sincro', evt1);
+        });
+
+        socket.on('impro', (evt1) => {
+            socket.broadcast.emit('impro', evt1);
         });
 
         socket.on('enviar_postgame1', (evt1) => {
