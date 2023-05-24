@@ -47,7 +47,17 @@ let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
 var tiempos = [];
-const LISTA_MODOS = ["palabras bonus", "letra prohibida", "letra bendita"];
+const LISTA_MODOS = ["letra bendita", "letra prohibida", "palabras bonus"];
+let = modos_restantes = [...LISTA_MODOS];
+let escritxr1 = "";
+let escritxr2 = "";
+let inspiracion_musas = [];
+// Crea un objeto para llevar la cuenta de las musas
+let contador_musas = {
+    escritxr1: 0,
+    escritxr2: 0
+  };
+  
 
 const frecuencia_letras = {
     'a': 12.53,
@@ -84,9 +94,40 @@ http.listen(port, () => log(`Servidor escuchando en el puerto: ${port}`));
 
 io.on('connection', (socket) => {
 
+    socket.on('enviar_musa', (escritxr) => {
+
+        // Aumenta la cuenta del escritor correspondiente.
+        console.log(escritxr);
+        if (escritxr == 1) {
+        contador_musas.escritxr1++;
+        } else if (escritxr == 2) {
+        contador_musas.escritxr2++;
+        }
+
+        socket.escritxr = escritxr;
+
+        console.log(contador_musas);
+        io.emit('actualizar_contador_musas', contador_musas)
+    });
+
+    // Cuando un cliente se desconecta, disminuye la cuenta del escritor correspondiente.
+    socket.on('disconnect', () => {
+        if (socket.escritxr == 1) {
+            contador_musas.escritxr1--;
+        } else if (socket.escritxr == 2) {
+            contador_musas.escritxr2--;
+        }
+
+        console.log(contador_musas);
+        io.emit('actualizar_contador_musas', contador_musas)
+
+    });
     // Da retroalimentación cuando se ha conectado con el ciente.
 
     log('Un escritxr se ha unido a la partida.');
+
+    io.emit('nombre1', escritxr1);
+    io.emit('nombre2', escritxr2);
 
     // Envía el texto del editor 1.
 
@@ -100,36 +141,72 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('texto2', evt1);
     });
 
+    socket.on('pedir_nombre', () => {
+        console.log("te escucho")
+        if(socket.escritxr == 1){
+        socket.emit('dar_nombre', escritxr1);
+        }
+        else{
+            socket.emit('dar_nombre', escritxr2);
+        }
+        });
+
+    // Envía el nombre del jugador 1.
+
+    socket.on('envío_nombre1', (nombre) => {
+        escritxr1 = nombre;
+        socket.broadcast.emit('nombre1', nombre);
+    });
+
+    // Envía el nombre del jugador 2.
+
+    socket.on('envío_nombre2', (nombre) => {
+        escritxr2 = nombre;
+        socket.broadcast.emit('nombre2', nombre);
+    });
     //activa sockets no tienen que ver con los textos.
     activar_sockets_extratextuales(socket);
     // Envía el contador de tiempo.
-    socket.on('count', (evt1) => {
-        if (evt1 == "¡Tiempo!") {
+    socket.on('count', (data) => {
+        if (data.count == "¡Tiempo!") {
             LIMPIEZAS[modo_actual](socket);
             activar_sockets_extratextuales(socket);
             terminado = true;
             modos_restantes = [...LISTA_MODOS];
+            clearTimeout(cambio_palabra)
         }
-        encontrado = false;
-        for (let i = 1; i < tiempos.length - 1 && !encontrado; i++) {
-            if (evt1 == tiempos[i]) {
-                LIMPIEZAS[modo_actual](socket);
-                modos_de_juego(socket);
-                tiempos.splice(i, 1);
-                encontrado = true;
+        console.log(modos_restantes)
+
+        if(data.secondsPassed == 54){
+            inspiracion_musas = [];
+
+            if(modos_restantes[0] == 'letra bendita'){
+                console.log("paso")
+                inspiracion_musas = [];
+                letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
+                modo = modos_restantes[0]
+                io.emit("pedir_inspiracion_musa", {modo, letra_bendita})
+            }
+            if(modos_restantes[0] == "letra prohibida"){
+                letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
+                modo = modos_restantes[0]
+                console.log(letra_prohibida)
+                io.emit("pedir_inspiracion_musa", {modo, letra_prohibida})
+            }
+            if(modos_restantes[0] == "palabras bonus"){
+                modo = modos_restantes[0]
+                io.emit("pedir_inspiracion_musa", {modo})
             }
         }
-        if (evt1 == tiempos[0]) {
-            terminado = true;
-            modos_restantes = [...LISTA_MODOS];
-        }
-        if (evt1 == tiempos[tiempos.length - 2]) {
-            modos_de_juego(socket);
+        if(data.secondsPassed == 59){
+            LIMPIEZAS[modo_actual](socket);
+            modos_de_juego();
         }
         else {
             terminado = false;
         }
-        socket.broadcast.emit('count', evt1);
+        console.log(data)
+        socket.broadcast.emit('count', data);
     });
 
     /*if (modo_actual == 'palabras bonus') {
@@ -153,8 +230,6 @@ io.on('connection', (socket) => {
         
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
-        socket.removeAllListeners('envío_nombre1');
-        socket.removeAllListeners('envío_nombre2');
         socket.removeAllListeners('envia_temas');
         socket.removeAllListeners('temas');
         socket.removeAllListeners('enviar_postgame1');
@@ -164,6 +239,12 @@ io.on('connection', (socket) => {
         terminado = false;
         modos_restantes = [...LISTA_MODOS];
         socket.broadcast.emit('inicio', data);
+        inspiracion_musas = [];
+        letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
+
+        modo = modos_restantes[0]
+        io.emit("pedir_inspiracion_musa", {modo, letra_bendita})
+        modos_de_juego();
     });
 
     // Resetea el tablero de juego.
@@ -238,12 +319,26 @@ io.on('connection', (socket) => {
     socket.on('nueva_palabra', (evt1) => {
         clearTimeout(cambio_palabra);
         if (terminado == false) {
+            if(inspiracion_musas.length > 0){
+                indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
+                palabra_bonus = [[inspiracion_musas[indice_palabra]], [""]];
+                console.log("PALABRA", palabra_bonus);
+                inspiracion_musas.splice(indice_palabra, 1);
+                console.log(inspiracion_musas)
+                palabras_var = palabra_bonus[0];
+                console.log(palabra_bonus);
+                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                palabras_var = palabra_bonus[0];
+                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+            }
+            else{
             palabraRAE().then(palabra_bonus => {
                 palabras_var = palabra_bonus[0];
                 palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
-                puntuacion = puntuación_palabra(palabra_bonus[0][0]);
-                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, puntuacion });
+                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
             })
+            }
             cambiar_palabra();
         }
     });
@@ -261,28 +356,33 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('recibir_comentario', evt1);
     });
 
+    socket.on('aumentar_tiempo', (evt1) => {
+        io.emit('aumentar_tiempo_control', evt1);
+    });
+
+    socket.on('enviar_inspiracion', (palabra) => {
+        if(palabra != '' && palabra != null){
+            inspiracion_musas.push(palabra);
+        }
+        console.log(inspiracion_musas);
+    });
+
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
     function modos_de_juego(socket) {
         if (terminado == false) {
-            let indice_modo = Math.floor(Math.random() * modos_restantes.length);
-            modo_actual = modos_restantes[indice_modo];
-            modos_restantes.splice(indice_modo, 1);
+            //let indice_modo = Math.floor(Math.random() * modos_restantes.length);
+            console.log(modos_restantes)
+            modo_actual = modos_restantes[0];
+            modos_restantes.splice(0, 1);
+            console.log(modos_restantes)
+            if (modos_restantes.length == 0) {
+                modos_restantes = [...LISTA_MODOS];
+            }
             //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
         }
     }
     function activar_sockets_extratextuales(socket) {
-        // Envía el nombre del jugador 1.
-
-        socket.on('envío_nombre1', (evt1) => {
-            socket.broadcast.emit('nombre1', evt1);
-        });
-
-        // Envía el nombre del jugador 2.
-
-        socket.on('envío_nombre2', (evt1) => {
-            socket.broadcast.emit('nombre2', evt1);
-        });
 
         // Abre la pestaña de la votación.
         socket.on('vote', (evt1) => {
@@ -338,12 +438,26 @@ io.on('connection', (socket) => {
             clearTimeout(cambio_palabra);
             cambio_palabra = setTimeout(
                 function () {
+                    if(inspiracion_musas.length > 0){
+                        indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
+                        palabra_bonus = [[inspiracion_musas[indice_palabra]], [""]];
+                        inspiracion_musas.splice(indice_palabra, 1);
+                        palabras_var = palabra_bonus[0];
+                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                        palabras_var = palabra_bonus[0];
+                        io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+
+                    }
+                    else{
                     palabraRAE().then(palabra_bonus => {
+
                         palabras_var = palabra_bonus[0];
                         palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
-                        puntuacion = puntuación_palabra(palabra_bonus[0][0]);
-                        io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, puntuacion });
+                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                        io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+
                     })
+                    }
                     cambiar_palabra();
                 }, 15000);
         }
@@ -356,13 +470,25 @@ io.on('connection', (socket) => {
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             // activar_socket_nueva_palabra(socket);
+            if(inspiracion_musas.length > 0){
+                indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
+                palabra_bonus = [[inspiracion_musas[indice_palabra]], [""]];
+                inspiracion_musas.splice(indice_palabra, 1);
+                palabras_var = palabra_bonus[0];
+                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                palabras_var = palabra_bonus[0];
+                io.emit('activar_modo', { modo_actual});
+                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+            }
+            else{
             palabraRAE().then(palabra_bonus => {
                 palabras_var = palabra_bonus[0];
                 palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
-                puntuacion = puntuación_palabra(palabra_bonus[0][0]);
+                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                 io.emit('activar_modo', { modo_actual });
-                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, puntuacion });
+                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
             })
+            }
             cambiar_palabra();
             /*setTimeout(function(){
                 clearTimeout(cambio_palabra);
@@ -374,15 +500,18 @@ io.on('connection', (socket) => {
         'letra prohibida': function (socket) {
             log("activado letra prohibida");
             // activar_sockets_feedback();
-            letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
-            io.emit('activar_modo', { modo_actual, letra_prohibida });
+            //letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
+            musas();
+            io.emit('activar_modo', { modo_actual, letra_prohibida, inspiracion});
         },
 
         // Recibe y activa el modo letra prohibida.
         'letra bendita': function (socket) {
-            log("activado letra bendita");
+            log(modo_actual);
             // activar_sockets_feedback();
-            letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
+            //letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
+            musas();
+            log(letra_bendita)
             io.emit('activar_modo', { modo_actual, letra_bendita });
         },
 
@@ -398,19 +527,21 @@ io.on('connection', (socket) => {
 
         'texto inverso': function () {
             io.emit('activar_modo', { modo_actual });
-        }
+        },
+        '': function () { }
     }
 
     // Función auxiliar que dada una palabra devuelve una puntación de respecto de la frecuencia.
     function puntuación_palabra(palabra) {
+        palabra = palabra.toLowerCase();
         let puntuación = 0;
         if (palabra != null) {
             palabra = palabra.replace(/\s+/g, '')
             let longitud = palabra.length;
             string_unico(toNormalForm(palabra)).split("").forEach(letra => puntuación += frecuencia_letras[letra]);
-            return Math.ceil((((100 - puntuación) + longitud * 0.1 * 100)) / 25) * 25;
+            return Math.ceil((((10 - puntuación*0.5) + longitud * 0.1 * 30)) / 5) * 5;
         }
-        else return 100;
+        else return 10;
     }
 
     function string_unico(names) {
@@ -536,3 +667,20 @@ function extraccion_palabra_var(palabra_var) {
     var vocales = ['a', 'e', 'i', 'o', 'u'];
     return vocales.includes(caracter.toLowerCase());
   }
+
+// Función auxiliar que responde una palabra de las musas casa x segundos:
+function musas() {
+    indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
+    inspiracion = inspiracion_musas[indice_palabra];
+    console.log(inspiracion_musas)
+    inspiracion_musas.splice(indice_palabra, 1);
+    if(inspiracion){
+        console.log(inspiracion)
+        io.emit('inspirar', inspiracion);
+    }
+    clearTimeout(cambio_palabra)
+        cambio_palabra = setTimeout(
+        function(){
+            musas();
+        }, 5000);
+}
