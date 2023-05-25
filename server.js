@@ -149,6 +149,16 @@ io.on('connection', (socket) => {
         else{
             socket.emit('dar_nombre', escritxr2);
         }
+        if(modo_actual == "letra prohibida"){
+        socket.emit('modo_actual', {modo_actual, letra_prohibida});
+        }
+        else if(modo_actual == "letra bendita"){
+            letra = letra_bendita;
+            socket.emit('modo_actual', {modo_actual, letra_bendita});
+        }
+        else if(modo_actual == "palabras bonus"){
+            socket.emit('modo_actual', {modo_actual});
+        }
         });
 
     // Envía el nombre del jugador 1.
@@ -173,11 +183,12 @@ io.on('connection', (socket) => {
             activar_sockets_extratextuales(socket);
             terminado = true;
             modos_restantes = [...LISTA_MODOS];
+            modo_actual = "";
             clearTimeout(cambio_palabra)
         }
         console.log(modos_restantes)
 
-        if(data.secondsPassed == 54){
+        if(data.secondsPassed == 594){
             inspiracion_musas = [];
 
             if(modos_restantes[0] == 'letra bendita'){
@@ -190,15 +201,17 @@ io.on('connection', (socket) => {
             if(modos_restantes[0] == "letra prohibida"){
                 letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
                 modo = modos_restantes[0]
+                modo_actual = modo;
                 console.log(letra_prohibida)
                 io.emit("pedir_inspiracion_musa", {modo, letra_prohibida})
             }
             if(modos_restantes[0] == "palabras bonus"){
                 modo = modos_restantes[0]
+                modo_actual = modo;
                 io.emit("pedir_inspiracion_musa", {modo})
             }
         }
-        if(data.secondsPassed == 59){
+        if(data.secondsPassed == 599){
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego();
         }
