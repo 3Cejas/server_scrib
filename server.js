@@ -188,12 +188,11 @@ io.on('connection', (socket) => {
         }
         console.log(modos_restantes)
 
-        if(data.secondsPassed == 594){
+        if(data.secondsPassed == 54){
             inspiracion_musas = [];
 
             if(modos_restantes[0] == 'letra bendita'){
                 console.log("paso")
-                inspiracion_musas = [];
                 letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
                 modo = modos_restantes[0]
                 io.emit("pedir_inspiracion_musa", {modo, letra_bendita})
@@ -201,17 +200,16 @@ io.on('connection', (socket) => {
             if(modos_restantes[0] == "letra prohibida"){
                 letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
                 modo = modos_restantes[0]
-                modo_actual = modo;
-                console.log(letra_prohibida)
+                console.log("Aqui",letra_prohibida)
                 io.emit("pedir_inspiracion_musa", {modo, letra_prohibida})
             }
             if(modos_restantes[0] == "palabras bonus"){
                 modo = modos_restantes[0]
-                modo_actual = modo;
                 io.emit("pedir_inspiracion_musa", {modo})
             }
         }
-        if(data.secondsPassed == 599){
+        if(data.secondsPassed == 59){
+            console.log(modo_actual)
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego();
         }
@@ -515,7 +513,7 @@ io.on('connection', (socket) => {
             // activar_sockets_feedback();
             //letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
             musas();
-            io.emit('activar_modo', { modo_actual, letra_prohibida, inspiracion});
+            io.emit('activar_modo', { modo_actual, letra_prohibida });
         },
 
         // Recibe y activa el modo letra prohibida.
