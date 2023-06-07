@@ -1,3 +1,4 @@
+const { INSPECT_MAX_BYTES } = require('buffer');
 const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
 const http = require("http").createServer(); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
@@ -10,7 +11,8 @@ const port = process.env.PORT || 3000; // Define el puerto de comunicación con 
 
 const LIMPIEZAS = {
     'palabras bonus': function (socket) {
-        clearTimeout(cambio_palabra);
+        clearTimeout(cambio_palabra_j1);
+        clearTimeout(cambio_palabra_j2);
         socket.removeAllListeners('nueva_palabra');
         // socket.removeAllListeners('enviar_palabra');
         socket.removeAllListeners('feedback_de_j1');
@@ -18,10 +20,14 @@ const LIMPIEZAS = {
     },
 
     'letra prohibida': function (socket) {
+        clearTimeout(cambio_palabra_j1);
+        clearTimeout(cambio_palabra_j2);
         letra_prohibida = "";
     },
 
     'letra bendita': function (socket) {
+        clearTimeout(cambio_palabra_j1);
+        clearTimeout(cambio_palabra_j2);
         letra_bendita = "";
     },
 
@@ -36,7 +42,8 @@ const LIMPIEZAS = {
     '': function (socket) { }
 }
 
-let cambio_palabra = false; // Variable que almacena el temporizador de cambio de palabra bonus.
+let cambio_palabra_j1 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
+let cambio_palabra_j2 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
 var terminado = true; // Variable booleana que indica si el juego ha empezado o no.
 // let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 
@@ -51,7 +58,29 @@ const LISTA_MODOS = ["letra bendita", "letra prohibida", "palabras bonus"];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
-let inspiracion_musas = [];
+let inspiracion_musas_j1 = [];
+let inspiracion_musas_j2 = [];
+let palabras_insertadas_j1 = -1;
+let palabras_insertadas_j2 = -1;
+let votos = {
+    "🐢": 0,
+    "⚡": 0,
+    "⌛": 0,
+    "🌫️": 0,
+    "🙃": 0
+}
+let fin_j1 = false;
+let fin_j2 = false;
+let nueva_palabra_j1 = false;
+let nueva_palabra_j2 = false;
+
+//PARAMETROS DEL JUEGO
+const TIEMPO_CAMBIO_PALABRAS = 10000;
+const TIEMPO_CAMBIO_MODOS = 10;
+const TIEMPO_BORROSO = 30000;
+const PALABRAS_INSERTADAS_META = 1;
+const TIEMPO_VOTACION = 20000;
+
 // Crea un objeto para llevar la cuenta de las musas
 let contador_musas = {
     escritxr1: 0,
@@ -149,16 +178,7 @@ io.on('connection', (socket) => {
         else{
             socket.emit('dar_nombre', escritxr2);
         }
-        if(modo_actual == "letra prohibida"){
-        socket.emit('modo_actual', {modo_actual, letra_prohibida});
-        }
-        else if(modo_actual == "letra bendita"){
-            letra = letra_bendita;
-            socket.emit('modo_actual', {modo_actual, letra_bendita});
-        }
-        else if(modo_actual == "palabras bonus"){
-            socket.emit('modo_actual', {modo_actual});
-        }
+        sincro_modos(socket);
         });
 
     // Envía el nombre del jugador 1.
@@ -184,13 +204,20 @@ io.on('connection', (socket) => {
             terminado = true;
             modos_restantes = [...LISTA_MODOS];
             modo_actual = "";
-            clearTimeout(cambio_palabra)
+            nueva_palabra_j1 = false;
+            nueva_palabra_j2 = false;
+            clearTimeout(cambio_palabra_j1);
+            clearTimeout(cambio_palabra_j2);
         }
         console.log(modos_restantes)
+        console.log(modo_actual)
+        console.log("BUSCO",inspiracion_musas_j1)
 
-        if(data.secondsPassed == 54){
-            inspiracion_musas = [];
-
+        if(data.secondsPassed == TIEMPO_CAMBIO_MODOS){
+            inspiracion_musas_j1 = [];
+            inspiracion_musas_j2 = [];
+            palabras_insertadas_j1 = -1;
+            palabras_insertadas_j2 = -1;
             if(modos_restantes[0] == 'letra bendita'){
                 console.log("paso")
                 letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
@@ -207,9 +234,7 @@ io.on('connection', (socket) => {
                 modo = modos_restantes[0]
                 io.emit("pedir_inspiracion_musa", {modo})
             }
-        }
-        if(data.secondsPassed == 59){
-            console.log(modo_actual)
+            console.log("AQUI", inspiracion_musas_j1, inspiracion_musas_j2)
             LIMPIEZAS[modo_actual](socket);
             modos_de_juego();
         }
@@ -249,31 +274,56 @@ io.on('connection', (socket) => {
 
         terminado = false;
         modos_restantes = [...LISTA_MODOS];
+        modo_actual = "";
+        palabras_insertadas_j1 = -1;
+        palabras_insertadas_j2 = -1;
+        inspiracion_musas_j1 = [];
+        inspiracion_musas_j2 = [];
         socket.broadcast.emit('inicio', data);
-        inspiracion_musas = [];
-        letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
-
-        modo = modos_restantes[0]
-        io.emit("pedir_inspiracion_musa", {modo, letra_bendita})
-        modos_de_juego();
     });
 
     // Resetea el tablero de juego.
 
     socket.on('limpiar', (evt1) => {
         activar_sockets_extratextuales(socket);
-        clearTimeout(cambio_palabra);
+        clearTimeout(cambio_palabra_j1);
+        clearTimeout(cambio_palabra_j2);
         terminado = true;
         modos_restantes = [...LISTA_MODOS];
+        modo_actual = "";
+        inspiracion_musas_j1 = [];
+        inspiracion_musas_j2 = [];
+        palabras_insertadas_j1 = -1;
+        palabras_insertadas_j2 = -1;
+        nueva_palabra_j1 = false;
+        nueva_palabra_j2 = false;
         socket.broadcast.emit('limpiar', evt1);
     });
 
     socket.on('pausar', (evt1) => {
-        clearTimeout(cambio_palabra);
+        clearTimeout(cambio_palabra_j1);
+        clearTimeout(cambio_palabra_j2);
         activar_sockets_extratextuales(socket);
         socket.broadcast.emit('pausar_js', evt1);
     });
 
+    socket.on('fin_de_control', (player) => {
+        if(player == 1){
+            fin_j1 = true;
+            clearTimeout(cambio_palabra_j1);
+            socket.broadcast.emit('fin', player);
+        }
+        else if(player == 2){
+            fin_j2 = true;
+            clearTimeout(cambio_palabra_j2);
+            socket.broadcast.emit('fin', player);
+        }
+        if(fin_j1 && fin_j2){
+            fin_j1 = false;
+            fin_j2 = false;
+            terminado = true;
+        }
+    });
     socket.on('tiempo_muerto_a_control', (evt1) => {
         socket.broadcast.emit('tiempo_muerto_control', '');
     });
@@ -327,30 +377,120 @@ io.on('connection', (socket) => {
         }
     });*/
     
-    socket.on('nueva_palabra', (evt1) => {
-        clearTimeout(cambio_palabra);
+    socket.on('nueva_palabra', (escritxr) => {
+        console.log("NUEVA", escritxr)
+        if(escritxr == 1){
+        clearTimeout(cambio_palabra_j1);
+        nueva_palabra_j1 = true;
+        }
+        else{
+        clearTimeout(cambio_palabra_j2);
+        nueva_palabra_j2 = true;
+        }
         if (terminado == false) {
-            if(inspiracion_musas.length > 0){
-                indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
-                palabra_bonus = [[inspiracion_musas[indice_palabra]], [""]];
-                console.log("PALABRA", palabra_bonus);
-                inspiracion_musas.splice(indice_palabra, 1);
-                console.log(inspiracion_musas)
+            if(inspiracion_musas_j1.length > 0 && escritxr == 1){
+                indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
+                palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [""]];
+                inspiracion_musas_j1.splice(indice_palabra_j1, 1);
                 palabras_var = palabra_bonus[0];
-                console.log(palabra_bonus);
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                 palabras_var = palabra_bonus[0];
-                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+            }
+            if(inspiracion_musas_j2.length > 0 && escritxr == 2){
+                indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
+                palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [""]];
+                inspiracion_musas_j2.splice(indice_palabra_j2, 1);
+                palabras_var = palabra_bonus[0];
+                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                palabras_var = palabra_bonus[0];
+                io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
             }
             else{
             palabraRAE().then(palabra_bonus => {
                 palabras_var = palabra_bonus[0];
                 palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                if(inspiracion_musas_j1.length == 0 && escritxr == 1){
+                    io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                }
+                if(inspiracion_musas_j2.length == 0 && escritxr == 2){
+                    io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                }
             })
             }
-            cambiar_palabra();
+            cambiar_palabra(escritxr);
+        }
+    });
+
+    socket.on('nueva_palabra_musa', (escritxr) => {
+        if(escritxr == 1){
+            palabras_insertadas_j1++;
+            nueva_palabra_j1 = true;
+            clearTimeout(cambio_palabra_j1);
+        }
+        else{
+            palabras_insertadas_j2++;
+            nueva_palabra_j2 = true;
+            clearTimeout(cambio_palabra_j2);
+        }
+        if(palabras_insertadas_j1 == PALABRAS_INSERTADAS_META){
+            votos = {
+                "🐢": 0,
+                "⚡": 0,
+                "⌛": 0,
+                "🌫️": 0,
+                "🙃": 0
+            }
+            palabras_insertadas_j1 = -1;
+            palabras_insertadas_j2 = -1;
+            io.emit('elegir_ventaja_j1')
+            setTimeout(
+                function () {
+                    socket.removeAllListeners('enviar_voto_ventaja');
+                    console.log("AQUI", opcionConMasVotos());
+                    socket.emit('enviar_ventaja_j1', opcionConMasVotos());
+                    sincro_modos(socket);
+                }, TIEMPO_VOTACION);
+        }
+        if(palabras_insertadas_j2 == PALABRAS_INSERTADAS_META){
+            votos = {
+                "🐢": 0,
+                "⚡": 0,
+                "⌛": 0,
+                "🌫️": 0,
+                "🙃": 0
+            }
+            palabras_insertadas_j1 = -1;
+            palabras_insertadas_j2 = -1;
+            io.emit('elegir_ventaja_j2')
+            setTimeout(
+                function () {
+                    socket.removeAllListeners('enviar_voto_ventaja');
+                    socket.emit('enviar_ventaja_j2', opcionConMasVotos());
+                    sincro_modos(socket);
+                }, TIEMPO_VOTACION);
+        }
+        if (terminado == false) {
+            if(escritxr == 1){
+                indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
+                inspiracion_j1 = inspiracion_musas_j1[indice_palabra_j1];
+                inspiracion_musas_j1.splice(indice_palabra_j1, 1);
+            if(inspiracion_j1){
+                console.log(inspiracion_j1)
+                io.emit('inspirar_j1', inspiracion_j1);
+            }
+            }
+            else{
+                indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
+                inspiracion_j2 = inspiracion_musas_j2[indice_palabra_j2];
+                inspiracion_musas_j2.splice(indice_palabra_j2, 1);
+                if(inspiracion_j2){
+                    console.log(inspiracion_j2)
+                    io.emit('inspirar_j2', inspiracion_j2);
+                }
+            }
+            musas(escritxr);
         }
     });
 
@@ -373,9 +513,27 @@ io.on('connection', (socket) => {
 
     socket.on('enviar_inspiracion', (palabra) => {
         if(palabra != '' && palabra != null){
-            inspiracion_musas.push(palabra);
+            if(socket.escritxr == 1){
+                inspiracion_musas_j1.push(palabra);
+                if(inspiracion_musas_j1.length == 1 && nueva_palabra_j1 == true){
+                    nueva_palabra_j1 = false;
+                    musas(1);
+                }
+            }
+            else{
+                inspiracion_musas_j2.push(palabra);
+                if(inspiracion_musas_j2.length == 1 && nueva_palabra_j2 == true){
+                    nueva_palabra_j2 = false;
+                    musas(2);
+                }
+                }
         }
-        console.log(inspiracion_musas);
+        console.log("guardao", inspiracion_musas_j1);
+        console.log(inspiracion_musas_j2);
+    });
+
+    socket.on('enviar_voto_ventaja', (voto) => {
+        votos[voto] += 1;
     });
 
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
@@ -441,36 +599,69 @@ io.on('connection', (socket) => {
     }
 
     //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
-    function cambiar_palabra() {
+    function cambiar_palabra(escritxr) {
+        console.log("TEMP CAMBOO",escritxr)
         if (terminado == true && modo_actual != "palabras bonus") {
-            clearTimeout(cambio_palabra);
+            clearTimeout(cambio_palabra_j1);
+            clearTimeout(cambio_palabra_j2);
         }
         if (terminado == false) {
-            clearTimeout(cambio_palabra);
-            cambio_palabra = setTimeout(
+            if(escritxr==1){
+            clearTimeout(cambio_palabra_j1);
+            cambio_palabra_j1 = setTimeout(
                 function () {
-                    if(inspiracion_musas.length > 0){
-                        indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
-                        palabra_bonus = [[inspiracion_musas[indice_palabra]], [""]];
-                        inspiracion_musas.splice(indice_palabra, 1);
+                    if(inspiracion_musas_j1.length > 0){
+                        indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
+                        palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [""]];
+                        inspiracion_musas_j1.splice(indice_palabra_j1, 1);
                         palabras_var = palabra_bonus[0];
                         tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                         palabras_var = palabra_bonus[0];
-                        io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-
+                        io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                     }
                     else{
+                    console.log("AQUI, AMOR", inspiracion_musas_j1)
                     palabraRAE().then(palabra_bonus => {
-
                         palabras_var = palabra_bonus[0];
                         palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
                         tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                        io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-
+                        if(inspiracion_musas_j1.length == 0){
+                            console.log("ENVIO A J1: ", { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus })
+                            io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                        }
                     })
                     }
-                    cambiar_palabra();
-                }, 15000);
+                    cambiar_palabra(1);
+                }, TIEMPO_CAMBIO_PALABRAS);
+            }
+            else if(escritxr==2){
+            console.log("NO ME AFECTA")
+            clearTimeout(cambio_palabra_j2);
+            cambio_palabra_j2 = setTimeout(
+                function () {
+                        if(inspiracion_musas_j2.length > 0){
+                        indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
+                        palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [""]];
+                        inspiracion_musas_j2.splice(indice_palabra_j2, 1);
+                        palabras_var = palabra_bonus[0];
+                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                        palabras_var = palabra_bonus[0];
+                        io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                    }
+                    else{
+                    console.log("AQUI, AMOR", inspiracion_musas_j2)
+                    palabraRAE().then(palabra_bonus => {
+                        palabras_var = palabra_bonus[0];
+                        palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
+                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                        if(inspiracion_musas_j2.length == 0){
+                            io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                        }
+                    })
+                    }
+                    cambiar_palabra(2);
+                }, TIEMPO_CAMBIO_PALABRAS);
+            }
         }
     }
 
@@ -481,26 +672,42 @@ io.on('connection', (socket) => {
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             // activar_socket_nueva_palabra(socket);
-            if(inspiracion_musas.length > 0){
-                indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
-                palabra_bonus = [[inspiracion_musas[indice_palabra]], [""]];
-                inspiracion_musas.splice(indice_palabra, 1);
+            io.emit('activar_modo', { modo_actual });
+            if(inspiracion_musas_j1.length > 0){
+                indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
+                palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [""]];
+                inspiracion_musas_j1.splice(indice_palabra_j1, 1);
                 palabras_var = palabra_bonus[0];
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                 palabras_var = palabra_bonus[0];
-                io.emit('activar_modo', { modo_actual});
-                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                cambiar_palabra(1);
+            }
+            if(inspiracion_musas_j2.length > 0){
+                indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
+                palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [""]];
+                inspiracion_musas_j2.splice(indice_palabra_j2, 1);
+                palabras_var = palabra_bonus[0];
+                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                palabras_var = palabra_bonus[0];
+                io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                cambiar_palabra(2);
             }
             else{
             palabraRAE().then(palabra_bonus => {
                 palabras_var = palabra_bonus[0];
                 palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                io.emit('activar_modo', { modo_actual });
-                io.emit('enviar_palabra', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                if(inspiracion_musas_j1.length == 0){
+                    io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                    cambiar_palabra(1);
+                }
+                if(inspiracion_musas_j2.length == 0){
+                    io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                    cambiar_palabra(2);
+                }
             })
             }
-            cambiar_palabra();
             /*setTimeout(function(){
                 clearTimeout(cambio_palabra);
                 modos_de_juego();
@@ -512,7 +719,8 @@ io.on('connection', (socket) => {
             log("activado letra prohibida");
             // activar_sockets_feedback();
             //letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
-            musas();
+            musas(1);
+            musas(2);
             io.emit('activar_modo', { modo_actual, letra_prohibida });
         },
 
@@ -521,14 +729,15 @@ io.on('connection', (socket) => {
             log(modo_actual);
             // activar_sockets_feedback();
             //letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
-            musas();
+            musas(1);
+            musas(2);
             log(letra_bendita)
             io.emit('activar_modo', { modo_actual, letra_bendita });
         },
 
         'texto borroso': function () {
             let jugador = Math.floor(Math.random() * 2) + 1
-            duracion = diferencia_tiempo(tiempos[0], tiempos[1]) * 1000 / 2
+            duracion = TIEMPO_BORROSO;
             io.emit('activar_modo', { modo_actual, jugador, duracion });
         },
 
@@ -680,18 +889,69 @@ function extraccion_palabra_var(palabra_var) {
   }
 
 // Función auxiliar que responde una palabra de las musas casa x segundos:
-function musas() {
-    indice_palabra = Math.floor(Math.random() * inspiracion_musas.length);
-    inspiracion = inspiracion_musas[indice_palabra];
-    console.log(inspiracion_musas)
-    inspiracion_musas.splice(indice_palabra, 1);
-    if(inspiracion){
-        console.log(inspiracion)
-        io.emit('inspirar', inspiracion);
-    }
-    clearTimeout(cambio_palabra)
-        cambio_palabra = setTimeout(
+function musas(escritxr) {
+    if(escritxr == 1){
+        console.log("ENTRO",inspiracion_musas_j1)
+        indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
+        inspiracion_j1 = inspiracion_musas_j1[indice_palabra_j1];
+        console.log("AQUI2", inspiracion_musas_j1, inspiracion_musas_j2)
+        inspiracion_musas_j1.splice(indice_palabra_j1, 1);
+        if(inspiracion_j1){
+        io.emit('inspirar_j1', inspiracion_j1);
+        }
+        clearTimeout(cambio_palabra_j1)
+        cambio_palabra_j1 = setTimeout(
         function(){
-            musas();
-        }, 5000);
+            musas(escritxr);
+        }, TIEMPO_CAMBIO_PALABRAS);
+    }
+    else{
+        indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
+        inspiracion_j2 = inspiracion_musas_j2[indice_palabra_j2];
+        inspiracion_musas_j2.splice(indice_palabra_j2, 1);
+        if(inspiracion_j2){
+            console.log(inspiracion_j2)
+            io.emit('inspirar_j2', inspiracion_j2);
+        }
+        clearTimeout(cambio_palabra_j2)
+        cambio_palabra_j2 = setTimeout(
+        function(){
+            musas(escritxr);
+        }, TIEMPO_CAMBIO_PALABRAS);
+    }
+}
+
+function opcionConMasVotos() {
+    let maxVotos = -1;
+    let maxOpcion = null;
+
+    // Crear un array con las claves del objeto votos
+    let opciones = Object.keys(votos);
+
+    for (let opcion of opciones) {
+        if(votos[opcion] > maxVotos) {
+            maxVotos = votos[opcion];
+            maxOpcion = opcion;
+        }
+    }
+
+    // Si no se encontró una opción con más votos, seleccionar una al azar
+    if(maxOpcion === null && opciones.length > 0) {
+        let indiceAleatorio = Math.floor(Math.random() * opciones.length);
+        maxOpcion = opciones[indiceAleatorio];
+    }
+
+    return maxOpcion;
+}
+
+function sincro_modos(){
+    if(modo_actual == "letra prohibida"){
+        io.emit('modo_actual', {modo_actual, letra_prohibida});
+        }
+        else if(modo_actual == "letra bendita"){
+            io.emit('modo_actual', {modo_actual, letra_bendita});
+        }
+        else if(modo_actual == "palabras bonus"){
+            io.emit('modo_actual', {modo_actual});
+        }
 }
