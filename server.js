@@ -54,7 +54,7 @@ let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
 var tiempos = [];
-const LISTA_MODOS = ["letra bendita", "letra prohibida", "palabras bonus"];
+const LISTA_MODOS = ["letra bendita", "palabras bonus", "letra prohibida"];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
