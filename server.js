@@ -54,7 +54,7 @@ let letra_bendita = "";
 const letras_prohibidas = "eaosrnidlc";
 const letras_benditas= "zjñxkw";
 var tiempos = [];
-const LISTA_MODOS = ["letra bendita", "letra prohibida", "palabras bonus"];
+const LISTA_MODOS = ["letra bendita", "palabras bonus", "letra prohibida"];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -76,7 +76,7 @@ let nueva_palabra_j2 = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 10000;
-const TIEMPO_CAMBIO_MODOS = 10;
+const TIEMPO_CAMBIO_MODOS = 239;
 const TIEMPO_BORROSO = 30000;
 const PALABRAS_INSERTADAS_META = 1;
 const TIEMPO_VOTACION = 20000;
