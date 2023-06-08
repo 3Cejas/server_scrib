@@ -78,7 +78,7 @@ let nueva_palabra_j2 = false;
 const TIEMPO_CAMBIO_PALABRAS = 10000;
 const TIEMPO_CAMBIO_MODOS = 239;
 const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 1;
+const PALABRAS_INSERTADAS_META = 5;
 const TIEMPO_VOTACION = 20000;
 
 // Crea un objeto para llevar la cuenta de las musas
