@@ -51,10 +51,12 @@ var terminado = true; // Variable booleana que indica si el juego ha empezado o 
 let modo_actual = "";
 let letra_prohibida = "";
 let letra_bendita = "";
-const letras_prohibidas = "eaosrnidlc";
-const letras_benditas= "zjñxkw";
+const letras_prohibidas = ['e','a','o','s','r','n','i','d','l','c'];
+const letras_benditas= ['z','j','ñ','x','k','w'];
+let letras_benditas_restantes = [...letras_benditas];
+let letras_prohibidas_restantes = [...letras_prohibidas];
 var tiempos = [];
-const LISTA_MODOS = ["letra bendita", "palabras bonus", "letra prohibida"];
+const LISTA_MODOS = ["letra prohibida"];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -76,9 +78,9 @@ let nueva_palabra_j2 = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 10000;
-const TIEMPO_CAMBIO_MODOS = 5;
+const TIEMPO_CAMBIO_MODOS = 239;
 const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 5;
+const PALABRAS_INSERTADAS_META = 3;
 const TIEMPO_VOTACION = 20000;
 
 // Crea un objeto para llevar la cuenta de las musas
@@ -219,13 +221,24 @@ io.on('connection', (socket) => {
             palabras_insertadas_j1 = -1;
             palabras_insertadas_j2 = -1;
             if(modos_restantes[0] == 'letra bendita'){
-                console.log("paso")
-                letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
+                indice_letra_bendita = Math.floor(Math.random() * letras_benditas_restantes.length);
+                letra_bendita = letras_benditas_restantes[indice_letra_bendita]
+                letras_benditas_restantes.splice(indice_letra_bendita, 1);
+                if(letras_benditas_restantes.length == 0){
+                    letras_benditas_restantes = [...letras_benditas];
+                }
+                console.log(letras_benditas_restantes)
                 modo = modos_restantes[0]
                 io.emit("pedir_inspiracion_musa", {modo, letra_bendita})
             }
             if(modos_restantes[0] == "letra prohibida"){
-                letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
+                indice_letra_prohibida = Math.floor(Math.random() * letras_prohibidas_restantes.length);
+                letra_prohibida = letras_prohibidas_restantes[indice_letra_prohibida]
+                letras_prohibidas_restantes.splice(indice_letra_prohibida, 1);
+                if(letras_prohibidas_restantes.length == 0){
+                    letras_prohibidas_restantes = [...letras_prohibidas];
+                }
+                console.log(letras_prohibidas_restantes)
                 modo = modos_restantes[0]
                 console.log("Aqui",letra_prohibida)
                 io.emit("pedir_inspiracion_musa", {modo, letra_prohibida})
@@ -274,6 +287,8 @@ io.on('connection', (socket) => {
 
         terminado = false;
         modos_restantes = [...LISTA_MODOS];
+        letras_benditas_restantes = [...letras_benditas];
+        letras_prohibidas_restantes = [...letras_prohibidas];
         modo_actual = "";
         palabras_insertadas_j1 = -1;
         palabras_insertadas_j2 = -1;
@@ -443,7 +458,6 @@ io.on('connection', (socket) => {
                 "🙃": 0
             }
             palabras_insertadas_j1 = -1;
-            palabras_insertadas_j2 = -1;
             io.emit('elegir_ventaja_j1')
             setTimeout(
                 function () {
@@ -461,7 +475,6 @@ io.on('connection', (socket) => {
                 "🌫️": 0,
                 "🙃": 0
             }
-            palabras_insertadas_j1 = -1;
             palabras_insertadas_j2 = -1;
             io.emit('elegir_ventaja_j2')
             setTimeout(
@@ -517,14 +530,26 @@ io.on('connection', (socket) => {
                 inspiracion_musas_j1.push(palabra);
                 if(inspiracion_musas_j1.length == 1 && nueva_palabra_j1 == true){
                     nueva_palabra_j1 = false;
+                    console.log("SCALIAN,", modo_actual)
+                    if(modo_actual == "palabras bonus"){
+                        cambiar_palabra(1);
+                    }
+                    else{
                     musas(1);
+                    }
                 }
             }
             else{
                 inspiracion_musas_j2.push(palabra);
                 if(inspiracion_musas_j2.length == 1 && nueva_palabra_j2 == true){
                     nueva_palabra_j2 = false;
+                    if(modo_actual == "palabras bonus"){
+                        console.log("ERRRRRROR")
+                        cambiar_palabra(2);
+                    }
+                    else{
                     musas(2);
+                    }
                 }
                 }
         }
@@ -681,6 +706,7 @@ io.on('connection', (socket) => {
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                 palabras_var = palabra_bonus[0];
                 io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                clearTimeout(cambio_palabra_j1);
                 cambiar_palabra(1);
             }
             if(inspiracion_musas_j2.length > 0){
@@ -691,6 +717,7 @@ io.on('connection', (socket) => {
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                 palabras_var = palabra_bonus[0];
                 io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                clearTimeout(cambio_palabra_j2);
                 cambiar_palabra(2);
             }
             else{
@@ -700,10 +727,12 @@ io.on('connection', (socket) => {
                 tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
                 if(inspiracion_musas_j1.length == 0){
                     io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                    clearTimeout(cambio_palabra_j1);
                     cambiar_palabra(1);
                 }
                 if(inspiracion_musas_j2.length == 0){
                     io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                    clearTimeout(cambio_palabra_j2);
                     cambiar_palabra(2);
                 }
             })
