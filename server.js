@@ -44,6 +44,7 @@ const LIMPIEZAS = {
 
 let cambio_palabra_j1 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
 let cambio_palabra_j2 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
+let tiempo_voto = false;
 var terminado = true; // Variable booleana que indica si el juego ha empezado o no.
 // let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 
@@ -67,7 +68,7 @@ let inspiracion_musas_j2 = [];
 let palabras_insertadas_j1 = -1;
 let palabras_insertadas_j2 = -1;
 let votos = {
-    "🐢": 0,
+    //"🐢": 0,
     "⚡": 0,
     "⌛": 0,
     "🌫️": 0,
@@ -80,9 +81,9 @@ let nueva_palabra_j2 = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 10000;
-const TIEMPO_CAMBIO_MODOS = 19;
+const TIEMPO_CAMBIO_MODOS = 299;
 const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 1;
+const PALABRAS_INSERTADAS_META = 3;
 const TIEMPO_VOTACION = 20000;
 
 // Crea un objeto para llevar la cuenta de las musas
@@ -276,6 +277,7 @@ io.on('connection', (socket) => {
 
     socket.on('limpiar', (evt1) => {
         activar_sockets_extratextuales(socket);
+        clearTimeout(tiempo_voto);
         clearTimeout(cambio_palabra_j1);
         clearTimeout(cambio_palabra_j2);
         terminado = true;
@@ -401,7 +403,7 @@ io.on('connection', (socket) => {
                 io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                 nueva_palabra_j2 = false;
             }
-            else if(nueva_palabra_j1 == true || nueva_palabra_j2 == true) {
+            else if(nueva_palabra_j1 == true && escritxr == 1 || nueva_palabra_j2 == true && escritxr2 == 2) {
             palabraRAE().then(palabra_bonus => {
                 palabras_var = palabra_bonus[0];
                 palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
@@ -419,6 +421,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('nueva_palabra_musa', (escritxr) => {
+        console.log("ESTO ES UN ERROR DE AHORA")
         if(escritxr == 1){
             palabras_insertadas_j1++;
             nueva_palabra_j1 = true;
@@ -431,7 +434,7 @@ io.on('connection', (socket) => {
         }
         if(palabras_insertadas_j1 == PALABRAS_INSERTADAS_META){
             votos = {
-                "🐢": 0,
+                //"🐢": 0,
                 "⚡": 0,
                 "⌛": 0,
                 "🌫️": 0,
@@ -439,7 +442,7 @@ io.on('connection', (socket) => {
             }
             palabras_insertadas_j1 = -1;
             io.emit('elegir_ventaja_j1')
-            setTimeout(
+            tiempo_voto = setTimeout(
                 function () {
                     socket.removeAllListeners('enviar_voto_ventaja');
                     console.log("AQUI", opcionConMasVotos());
@@ -449,7 +452,7 @@ io.on('connection', (socket) => {
         }
         if(palabras_insertadas_j2 == PALABRAS_INSERTADAS_META){
             votos = {
-                "🐢": 0,
+                //"🐢": 0,
                 "⚡": 0,
                 "⌛": 0,
                 "🌫️": 0,
@@ -457,7 +460,7 @@ io.on('connection', (socket) => {
             }
             palabras_insertadas_j2 = -1;
             io.emit('elegir_ventaja_j2')
-            setTimeout(
+            tiempo_voto = setTimeout(
                 function () {
                     socket.removeAllListeners('enviar_voto_ventaja');
                     socket.emit('enviar_ventaja_j2', opcionConMasVotos());
