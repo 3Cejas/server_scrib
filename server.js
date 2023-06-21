@@ -39,6 +39,7 @@ const LIMPIEZAS = {
 
     'texto inverso': function (socket) { },
 
+    'tertulia': function (socket) { },
     '': function (socket) { }
 }
 
@@ -59,7 +60,7 @@ let letras_prohibidas_restantes = [...letras_prohibidas];
 var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
-const LISTA_MODOS = ["letra bendita", "palabras bonus", "letra prohibida"];
+const LISTA_MODOS = [ "tertulia", "letra bendita", "palabras bonus", "letra prohibida"];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -81,9 +82,9 @@ let nueva_palabra_j2 = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 10000;
-const TIEMPO_CAMBIO_MODOS = 299;
+const TIEMPO_CAMBIO_MODOS = 59;
 const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 3;
+const PALABRAS_INSERTADAS_META = 1;
 const TIEMPO_VOTACION = 20000;
 
 // Crea un objeto para llevar la cuenta de las musas
@@ -324,6 +325,11 @@ io.on('connection', (socket) => {
         if(modo_actual != ""){
         MODOS[modo_actual](socket);
         }
+        socket.broadcast.emit('reanudar_js', evt1);
+    });
+
+    socket.on('reanudar_modo', (evt1) => {
+        modos_de_juego()
         socket.broadcast.emit('reanudar_js', evt1);
     });
 
@@ -681,11 +687,12 @@ io.on('connection', (socket) => {
 
         // Recibe y activa la palabra y el modo bonus.
         'palabras bonus': function () {
+            io.emit('activar_modo', { modo_actual});
             log("activado palabras bonus");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             // activar_socket_nueva_palabra(socket);
             io.emit("pedir_inspiracion_musa", {modo_actual})
-            io.emit('activar_modo', { modo_actual });
+
             if(inspiracion_musas_j1.length > 0){
                 indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
                 palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [""]];
@@ -778,6 +785,11 @@ io.on('connection', (socket) => {
 
         'texto inverso': function () {
             io.emit('activar_modo', { modo_actual });
+        },
+
+        'tertulia': function (socket) {
+            io.emit('activar_modo', { modo_actual });
+            io.emit('tiempo_muerto_control', '');
         },
         '': function () { }
     }
