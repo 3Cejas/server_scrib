@@ -60,7 +60,7 @@ let letras_prohibidas_restantes = [...letras_prohibidas];
 var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
-const LISTA_MODOS = [ "tertulia", "letra bendita", "palabras bonus", "letra prohibida"];
+const LISTA_MODOS = ["letra bendita", "palabras bonus", "letra prohibida", "tertulia",];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -787,9 +787,13 @@ io.on('connection', (socket) => {
             io.emit('activar_modo', { modo_actual });
         },
 
-        'tertulia': function (socket) {
+        'tertulia': function () {
             io.emit('activar_modo', { modo_actual });
             io.emit('tiempo_muerto_control', '');
+        },
+
+        'tertulia': function () {
+            io.emit('activar_modo', { modo_actual });
         },
         '': function () { }
     }
