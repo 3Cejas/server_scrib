@@ -51,6 +51,7 @@ var terminado = true; // Variable booleana que indica si el juego ha empezado o 
 
 // Variables del modo letra prohibida.
 let modo_actual = "";
+let modo_anterior = "";
 let letra_prohibida = "";
 let letra_bendita = "";
 const letras_prohibidas = ['e','a','o','s','r','n','i','d','l','c'];
@@ -60,7 +61,7 @@ let letras_prohibidas_restantes = [...letras_prohibidas];
 var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
-const LISTA_MODOS = ["letra bendita", "palabras bonus", "letra prohibida", "tertulia",];
+const LISTA_MODOS = [ "letra bendita", "letra prohibida", "palabras bonus", "tertulia",];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -71,7 +72,7 @@ let palabras_insertadas_j2 = -1;
 let votos = {
     //"🐢": 0,
     "⚡": 0,
-    "⌛": 0,
+    //"⌛": 0,
     "🌫️": 0,
     "🙃": 0
 }
@@ -84,8 +85,8 @@ let nueva_palabra_j2 = false;
 const TIEMPO_CAMBIO_PALABRAS = 10000;
 const TIEMPO_CAMBIO_MODOS = 59;
 const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 1;
-const TIEMPO_VOTACION = 20000;
+const PALABRAS_INSERTADAS_META = 2;
+const TIEMPO_VOTACION = 10000;
 
 // Crea un objeto para llevar la cuenta de las musas
 let contador_musas = {
@@ -209,6 +210,7 @@ io.on('connection', (socket) => {
             activar_sockets_extratextuales(socket);
             terminado = true;
             modos_restantes = [...LISTA_MODOS];
+            modo_anterior = "";
             modo_actual = "";
             nueva_palabra_j1 = false;
             nueva_palabra_j2 = false;
@@ -220,13 +222,9 @@ io.on('connection', (socket) => {
         console.log("BUSCO",inspiracion_musas_j1)
 
         if(data.secondsPassed == TIEMPO_CAMBIO_MODOS){
-            inspiracion_musas_j1 = [];
-            inspiracion_musas_j2 = [];
-            palabras_insertadas_j1 = -1;
-            palabras_insertadas_j2 = -1;
-
             LIMPIEZAS[modo_actual](socket);
-            modos_de_juego();
+            modos_de_juego(socket);
+
         }
         else {
             terminado = false;
@@ -266,6 +264,7 @@ io.on('connection', (socket) => {
         modos_restantes = [...LISTA_MODOS];
         letras_benditas_restantes = [...letras_benditas];
         letras_prohibidas_restantes = [...letras_prohibidas];
+        modo_anterior = "";
         modo_actual = "";
         palabras_insertadas_j1 = -1;
         palabras_insertadas_j2 = -1;
@@ -283,6 +282,7 @@ io.on('connection', (socket) => {
         clearTimeout(cambio_palabra_j2);
         terminado = true;
         modos_restantes = [...LISTA_MODOS];
+        modo_anterior = "";
         modo_actual = "";
         inspiracion_musas_j1 = [];
         inspiracion_musas_j2 = [];
@@ -329,7 +329,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('reanudar_modo', (evt1) => {
-        modos_de_juego()
+        modos_de_juego(socket);
         socket.broadcast.emit('reanudar_js', evt1);
     });
 
@@ -438,41 +438,6 @@ io.on('connection', (socket) => {
             nueva_palabra_j2 = true;
             clearTimeout(cambio_palabra_j2);
         }
-        if(palabras_insertadas_j1 == PALABRAS_INSERTADAS_META){
-            votos = {
-                //"🐢": 0,
-                "⚡": 0,
-                "⌛": 0,
-                "🌫️": 0,
-                "🙃": 0
-            }
-            palabras_insertadas_j1 = -1;
-            io.emit('elegir_ventaja_j1')
-            tiempo_voto = setTimeout(
-                function () {
-                    socket.removeAllListeners('enviar_voto_ventaja');
-                    console.log("AQUI", opcionConMasVotos());
-                    socket.emit('enviar_ventaja_j1', opcionConMasVotos());
-                    sincro_modos(socket);
-                }, TIEMPO_VOTACION);
-        }
-        if(palabras_insertadas_j2 == PALABRAS_INSERTADAS_META){
-            votos = {
-                //"🐢": 0,
-                "⚡": 0,
-                "⌛": 0,
-                "🌫️": 0,
-                "🙃": 0
-            }
-            palabras_insertadas_j2 = -1;
-            io.emit('elegir_ventaja_j2')
-            tiempo_voto = setTimeout(
-                function () {
-                    socket.removeAllListeners('enviar_voto_ventaja');
-                    socket.emit('enviar_ventaja_j2', opcionConMasVotos());
-                    sincro_modos(socket);
-                }, TIEMPO_VOTACION);
-        }
         if (terminado == false) {
             if(escritxr == 1){
                 indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
@@ -506,7 +471,7 @@ io.on('connection', (socket) => {
 
     // Envía un comentario.
     socket.on('enviar_comentario', (evt1) => {
-        socket.broadcast.emit('recibir_comentario', evt1);
+        io.emit('recibir_comentario', evt1);
     });
 
     socket.on('aumentar_tiempo', (evt1) => {
@@ -557,6 +522,7 @@ io.on('connection', (socket) => {
             //let indice_modo = Math.floor(Math.random() * modos_restantes.length);
             console.log(modos_restantes)
             //modo = modos_restantes[0]
+            modo_anterior = modo_actual;
             modo_actual = modos_restantes[0];
             modos_restantes.splice(0, 1);
             console.log(modos_restantes)
@@ -566,6 +532,56 @@ io.on('connection', (socket) => {
             }
             //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
+            console.log("MODO ANTERIOR:", modo_anterior)
+            if(modo_anterior != "" && modo_anterior != "tertulia"  && modo_actual != "tertulia" && modo_anterior != "palabras bonus"){
+                console.log("HOTY ENTRO")
+            if(palabras_insertadas_j1 == palabras_insertadas_j2 ){
+                randomNum = Math.random();
+                if (randomNum < 0.5) {
+                    palabras_insertadas_j1 += 1;
+                } else {
+                    palabras_insertadas_j2 += 1;
+                }
+            }
+            if(palabras_insertadas_j1 > palabras_insertadas_j2){
+                votos = {
+                    //"🐢": 0,
+                    "⚡": 0,
+                    //"⌛": 0,
+                    "🌫️": 0,
+                    "🙃": 0
+                }
+                io.emit('elegir_ventaja_j1')
+                tiempo_voto = setTimeout(
+                    function () {
+                        socket.removeAllListeners('enviar_voto_ventaja');
+                        console.log("AQUI", opcionConMasVotos());
+                        socket.emit('enviar_ventaja_j1', opcionConMasVotos());
+                        sincro_modos(socket);
+                    }, TIEMPO_VOTACION);
+            }
+            else if(palabras_insertadas_j2 < PALABRAS_INSERTADAS_META){
+                votos = {
+                    //"🐢": 0,
+                    "⚡": 0,
+                    //"⌛": 0,
+                    "🌫️": 0,
+                    "🙃": 0
+                }
+                io.emit('elegir_ventaja_j2')
+                tiempo_voto = setTimeout(
+                    function () {
+                        socket.removeAllListeners('enviar_voto_ventaja');
+                        socket.emit('enviar_ventaja_j2', opcionConMasVotos());
+                        sincro_modos(socket);
+                    }, TIEMPO_VOTACION);
+            }
+            }
+
+            inspiracion_musas_j1 = [];
+            inspiracion_musas_j2 = [];
+            palabras_insertadas_j1 = -1;
+            palabras_insertadas_j2 = -1;
         }
     }
     function activar_sockets_extratextuales(socket) {
@@ -788,13 +804,11 @@ io.on('connection', (socket) => {
         },
 
         'tertulia': function () {
+            io.emit("pedir_inspiracion_musa", {modo_actual})
             io.emit('activar_modo', { modo_actual });
             io.emit('tiempo_muerto_control', '');
         },
 
-        'tertulia': function () {
-            io.emit('activar_modo', { modo_actual });
-        },
         '': function () { }
     }
 
