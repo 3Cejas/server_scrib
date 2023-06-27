@@ -80,7 +80,7 @@ let palabras_prohibidas_restantes = [...palabras_prohibidas];
 var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
-const LISTA_MODOS = [ "letra bendita", "palabras bonus", "tertulia", "letra prohibida", "palabras prohibidas", "tertulia" ];
+const LISTA_MODOS = [ "letra bendita", "palabras bonus", "tertulia", "letra prohibida", "palabras prohibidas", "tertulia", "locura"];
 let = modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -99,13 +99,14 @@ let fin_j1 = false;
 let fin_j2 = false;
 let nueva_palabra_j1 = false;
 let nueva_palabra_j2 = false;
+let locura = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 10000;
-const TIEMPO_CAMBIO_MODOS = 29;
-const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 1;
-const TIEMPO_VOTACION = 10000;
+let TIEMPO_CAMBIO_MODOS = 299;
+const TIEMPO_BORROSO = 60000;
+const PALABRAS_INSERTADAS_META = 5;
+const TIEMPO_VOTACION = 20000;
 
 // Crea un objeto para llevar la cuenta de las musas
 let contador_musas = {
@@ -280,6 +281,7 @@ io.on('connection', (socket) => {
         //socket.removeAllListeners('scroll');
 
         terminado = false;
+        locura = false;
         modos_restantes = [...LISTA_MODOS];
         letras_benditas_restantes = [...letras_benditas];
         letras_prohibidas_restantes = [...letras_prohibidas];
@@ -290,6 +292,7 @@ io.on('connection', (socket) => {
         palabras_insertadas_j2 = -1;
         inspiracion_musas_j1 = [];
         inspiracion_musas_j2 = [];
+        TIEMPO_CAMBIO_MODOS = 299;
         socket.broadcast.emit('inicio', data);
     });
 
@@ -302,6 +305,7 @@ io.on('connection', (socket) => {
         clearTimeout(cambio_palabra_j2);
         clearTimeout(listener_cambio_letra);
         terminado = true;
+        locura = false;
         modos_restantes = [...LISTA_MODOS];
         modo_anterior = "";
         modo_actual = "";
@@ -311,6 +315,7 @@ io.on('connection', (socket) => {
         palabras_insertadas_j2 = -1;
         nueva_palabra_j1 = false;
         nueva_palabra_j2 = false;
+        TIEMPO_CAMBIO_MODOS = 299;
         socket.broadcast.emit('limpiar', evt1);
     });
 
@@ -622,7 +627,7 @@ io.on('connection', (socket) => {
             //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
             console.log("MODO ANTERIOR:", modo_anterior)
-            if(modo_anterior != "" && modo_anterior != "tertulia"  && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "palabras prohibidas"){
+            if(modo_anterior != "" && modo_anterior != "tertulia"  && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
                 console.log("HOTY ENTRO")
             if(palabras_insertadas_j1 == palabras_insertadas_j2 ){
                 randomNum = Math.random();
@@ -641,15 +646,17 @@ io.on('connection', (socket) => {
                     "🙃": 0
                 }
                 io.emit('elegir_ventaja_j1')
+                console.log("TONTOOOO")
                 tiempo_voto = setTimeout(
                     function () {
+                        console.log("TUUUU")
                         socket.removeAllListeners('enviar_voto_ventaja');
                         console.log("AQUI", opcionConMasVotos());
-                        socket.emit('enviar_ventaja_j1', opcionConMasVotos());
+                        io.emit('enviar_ventaja_j1', opcionConMasVotos());
                         sincro_modos(socket);
                     }, TIEMPO_VOTACION);
             }
-            else if(palabras_insertadas_j2 < PALABRAS_INSERTADAS_META){
+            else if(palabras_insertadas_j2 > palabras_insertadas_j1){
                 votos = {
                     //"🐢": 0,
                     "⚡": 0,
@@ -661,7 +668,7 @@ io.on('connection', (socket) => {
                 tiempo_voto = setTimeout(
                     function () {
                         socket.removeAllListeners('enviar_voto_ventaja');
-                        socket.emit('enviar_ventaja_j2', opcionConMasVotos());
+                        io.emit('enviar_ventaja_j2', opcionConMasVotos());
                         sincro_modos(socket);
                     }, TIEMPO_VOTACION);
             }
@@ -936,7 +943,7 @@ function cambiar_palabra_prohibida(escritxr) {
                 inspiracion_musas_j1 = [];
                 inspiracion_musas_j2 = [];
                 io.emit("pedir_inspiracion_musa", {modo_actual, letra_prohibida})
-            }, 30000);
+            }, 60000);
             musas(1);
             musas(2);
             io.emit('activar_modo', { modo_actual, letra_prohibida });
@@ -964,7 +971,7 @@ function cambiar_palabra_prohibida(escritxr) {
                 inspiracion_musas_j1 = [];
                 inspiracion_musas_j2 = [];
                 io.emit("pedir_inspiracion_musa", {modo_actual, letra_bendita})
-            }, 30000);
+            }, 60000);
             // activar_sockets_feedback();
             //letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
             musas(1);
@@ -1047,6 +1054,13 @@ function cambiar_palabra_prohibida(escritxr) {
             }, 5000);*/
         },
 
+        'locura': function (socket) {
+            locura = true;
+            TIEMPO_CAMBIO_MODOS = 29
+            io.emit('locura', { modo_actual });
+            modos_de_juego(socket);
+        },
+
         '': function () { }
     }
 
@@ -1058,7 +1072,11 @@ function cambiar_palabra_prohibida(escritxr) {
             palabra = palabra.replace(/\s+/g, '')
             let longitud = palabra.length;
             string_unico(toNormalForm(palabra)).split("").forEach(letra => puntuación += frecuencia_letras[letra]);
-            return Math.ceil((((10 - puntuación*0.5) + longitud * 0.1 * 30)) / 5) * 5;
+            puntuación = Math.ceil((((10 - puntuación*0.5) + longitud * 0.1 * 30)) / 5) * 5
+            if(isNaN(puntuación)){
+                puntuación = 10;
+            }
+            return puntuación;
         }
         else return 10;
     }
