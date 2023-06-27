@@ -44,10 +44,14 @@ const LIMPIEZAS = {
     'tertulia': function (socket) { },
 
     'palabras prohibidas': function (socket) {
+        palabras_prohibidas_restantes = [...palabras_prohibidas];
         clearTimeout(cambio_palabra_j1);
         clearTimeout(cambio_palabra_j2);
         socket.removeAllListeners('nueva_palabra');
     },
+
+    'locura': function (socket) { },
+
 
     '': function (socket) { }
 }
@@ -102,7 +106,7 @@ let nueva_palabra_j2 = false;
 let locura = false;
 
 //PARAMETROS DEL JUEGO
-const TIEMPO_CAMBIO_PALABRAS = 10000;
+const TIEMPO_CAMBIO_PALABRAS = 30000;
 let TIEMPO_CAMBIO_MODOS = 299;
 const TIEMPO_BORROSO = 60000;
 const PALABRAS_INSERTADAS_META = 5;
@@ -579,7 +583,7 @@ io.on('connection', (socket) => {
                         console.log("SCALIAN,", modo_actual)
                         cambiar_palabra_prohibida(1);
                     }
-                    else{
+                    else if(modo_actual != "palabras bonus" && modo_actual != "palabras prohibidas"){
                     musas(1);
                     }
                 }
@@ -596,8 +600,8 @@ io.on('connection', (socket) => {
                         console.log("ERRRRRROR")
                         cambiar_palabra_prohibida(2);
                     }
-                    else{
-                    musas(2);
+                    else if(modo_actual != "palabras bonus" && modo_actual != "palabras prohibidas"){
+                        musas(2);
                     }
                 }
                 }
