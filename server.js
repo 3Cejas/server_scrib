@@ -84,8 +84,10 @@ let palabras_prohibidas_restantes = [...palabras_prohibidas];
 var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
+
 const LISTA_MODOS = [ "letra bendita", "palabras bonus", "tertulia", "letra prohibida", "palabras prohibidas", "tertulia", "locura"];
-let = modos_restantes = [...LISTA_MODOS];
+const LISTA_MODOS_LOCURA = [ "letra bendita", "palabras bonus", "letra prohibida", "palabras prohibidas"];
+let modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
 let inspiracion_musas_j1 = [];
@@ -107,7 +109,8 @@ let locura = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 30000;
-let TIEMPO_CAMBIO_MODOS = 299;
+const CONST_TIEMPO_CAMBIO_MODOS = 14;
+let TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
 const TIEMPO_BORROSO = 60000;
 const PALABRAS_INSERTADAS_META = 5;
 const TIEMPO_VOTACION = 20000;
@@ -155,7 +158,7 @@ http.listen(port, () => log(`Servidor escuchando en el puerto: ${port}`));
 io.on('connection', (socket) => {
 
     socket.on('enviar_musa', (escritxr) => {
-
+        console.log("ENVIOOOO")
         // Aumenta la cuenta del escritor correspondiente.
         console.log(escritxr);
         if (escritxr == 1) {
@@ -296,7 +299,7 @@ io.on('connection', (socket) => {
         palabras_insertadas_j2 = -1;
         inspiracion_musas_j1 = [];
         inspiracion_musas_j2 = [];
-        TIEMPO_CAMBIO_MODOS = 299;
+        TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
         socket.broadcast.emit('inicio', data);
     });
 
@@ -319,7 +322,7 @@ io.on('connection', (socket) => {
         palabras_insertadas_j2 = -1;
         nueva_palabra_j1 = false;
         nueva_palabra_j2 = false;
-        TIEMPO_CAMBIO_MODOS = 299;
+        TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
         socket.broadcast.emit('limpiar', evt1);
     });
 
@@ -464,10 +467,12 @@ io.on('connection', (socket) => {
         if(escritxr == 1){
         clearTimeout(cambio_palabra_j1);
         nueva_palabra_j1 = true;
+        palabras_insertadas_j2++;
         }
         else{
         clearTimeout(cambio_palabra_j2);
         nueva_palabra_j2 = true;
+        palabras_insertadas_j1++;
         }
         if (terminado == false) {
             if(inspiracion_musas_j1.length > 0 && escritxr == 1){
@@ -588,7 +593,7 @@ io.on('connection', (socket) => {
                     }
                 }
             }
-            else{
+            else if (socket.escritxr == 2){
                 inspiracion_musas_j2.push(palabra);
                 if(inspiracion_musas_j2.length == 1 && nueva_palabra_j2 == true){
                     nueva_palabra_j2 = false;
@@ -626,7 +631,7 @@ io.on('connection', (socket) => {
             console.log(modos_restantes)
             console.log("MODO ACTUAL", modo_actual)
             if (modos_restantes.length == 0) {
-                modos_restantes = [...LISTA_MODOS];
+                modos_restantes = [...LISTA_MODOS_LOCURA];
             }
             //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
@@ -1060,7 +1065,7 @@ function cambiar_palabra_prohibida(escritxr) {
 
         'locura': function (socket) {
             locura = true;
-            TIEMPO_CAMBIO_MODOS = 29
+            TIEMPO_CAMBIO_MODOS = 4
             io.emit('locura', { modo_actual });
             modos_de_juego(socket);
         },
@@ -1173,7 +1178,7 @@ function getRanges(timeString, n) {
     return ('0' + minutes).slice(-2) + ':' + ('0' + seconds).slice(-2);
   }
 
-  //Función auxiliar que, dados dos tiempos en string, devuelve el tiempo transcurrido en segundoS.
+  //Función auxiliar que, dados dos tiempos en string, devuelve el tiempo transcurrido en segundos.
   function diferencia_tiempo(tiempo_inicial, tiempo_final) {
     let tiempo_inicial_segundos = parseInt(tiempo_inicial.split(":")[0]) * 60 + parseInt(tiempo_inicial.split(":")[1]);
     let tiempo_final_segundos = parseInt(tiempo_final.split(":")[0]) * 60 + parseInt(tiempo_final.split(":")[1]);
@@ -1244,25 +1249,30 @@ function musas(escritxr) {
 
 function opcionConMasVotos() {
     let maxVotos = -1;
-    let maxOpcion = null;
+    let opcionesConMaxVotos = [];
+
+    console.log(votos);
 
     // Crear un array con las claves del objeto votos
     let opciones = Object.keys(votos);
 
     for (let opcion of opciones) {
-        if(votos[opcion] > maxVotos) {
+        if (votos[opcion] > maxVotos) {
             maxVotos = votos[opcion];
-            maxOpcion = opcion;
+            opcionesConMaxVotos = [opcion];  // Reiniciar el array con la nueva opción de máximo voto
+        } else if (votos[opcion] === maxVotos) {
+            opcionesConMaxVotos.push(opcion);  // Añadir la opción al array de opciones con máximo voto
         }
     }
 
-    // Si no se encontró una opción con más votos, seleccionar una al azar
-    if(maxOpcion === null && opciones.length > 0) {
-        let indiceAleatorio = Math.floor(Math.random() * opciones.length);
-        maxOpcion = opciones[indiceAleatorio];
+    // Si hay un empate o no se encontró una opción con votos, seleccionar una al azar
+    if (opcionesConMaxVotos.length !== 1) {
+        console.log("AZAR");
+        let indiceAleatorio = Math.floor(Math.random() * opcionesConMaxVotos.length);
+        return opcionesConMaxVotos[indiceAleatorio];
     }
 
-    return maxOpcion;
+    return opcionesConMaxVotos[0];
 }
 
 function sincro_modos(){
