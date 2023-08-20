@@ -50,6 +50,10 @@ const LIMPIEZAS = {
         socket.removeAllListeners('nueva_palabra');
     },
 
+    'ortografía perfecta': function (socket) {
+
+    },
+
     'locura': function (socket) { },
 
 
