@@ -78,14 +78,22 @@ const palabras_prohibidas = [
     "dos", "también", "fue", "había", "era", "muy", "años", "hasta", "desde", "está"
 ];
 
+const repentizados = [
+    "\"A\" quiere que \"B\" se meta un pepino por el culo",
+    "\"A\" va comprar el pan",
+    "\"A\" le come el coño a \"B\""
+];
+
 let letras_benditas_restantes = [...letras_benditas];
 let letras_prohibidas_restantes = [...letras_prohibidas];
 let palabras_prohibidas_restantes = [...palabras_prohibidas];
+let repentizados_restantes = [...repentizados];
+
 var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
 
-const LISTA_MODOS = [ "letra bendita", "palabras bonus", "tertulia", "letra prohibida", "palabras prohibidas", "tertulia", "locura"];
+const LISTA_MODOS = ["ortografía perfecta",  "letra bendita", "palabras bonus", "tertulia", "letra prohibida", "palabras prohibidas", "tertulia", "locura"];
 const LISTA_MODOS_LOCURA = [ "letra bendita", "palabras bonus", "letra prohibida", "palabras prohibidas"];
 let modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
@@ -94,13 +102,20 @@ let inspiracion_musas_j1 = [];
 let inspiracion_musas_j2 = [];
 let palabras_insertadas_j1 = -1;
 let palabras_insertadas_j2 = -1;
-let votos = {
+let votos_ventaja = {
     //"🐢": 0,
     "⚡": 0,
     //"⌛": 0,
     "🌫️": 0,
     "🙃": 0
 }
+
+let votos_repentizado = {
+    "1": 0,
+    "2": 0,
+    "3": 0
+}
+
 let fin_j1 = false;
 let fin_j2 = false;
 let nueva_palabra_j1 = false;
@@ -109,7 +124,7 @@ let locura = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 30000;
-const CONST_TIEMPO_CAMBIO_MODOS = 14;
+const CONST_TIEMPO_CAMBIO_MODOS = 29;
 let TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
 const TIEMPO_BORROSO = 60000;
 const PALABRAS_INSERTADAS_META = 5;
@@ -616,7 +631,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('enviar_voto_ventaja', (voto) => {
-        votos[voto] += 1;
+        votos_ventaja[voto] += 1;
+    });
+
+    socket.on('enviar_voto_repentizado', (voto) => {
+        votos_repentizado[voto] += 1;
     });
 
     //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
@@ -647,7 +666,7 @@ io.on('connection', (socket) => {
                 }
             }
             if(palabras_insertadas_j1 > palabras_insertadas_j2){
-                votos = {
+                votos_ventaja = {
                     //"🐢": 0,
                     "⚡": 0,
                     //"⌛": 0,
@@ -660,13 +679,14 @@ io.on('connection', (socket) => {
                     function () {
                         console.log("TUUUU")
                         socket.removeAllListeners('enviar_voto_ventaja');
-                        console.log("AQUI", opcionConMasVotos());
-                        io.emit('enviar_ventaja_j1', opcionConMasVotos());
-                        sincro_modos(socket);
+                        console.log("AQUI", opcionConMasVotos(votos_ventaja));
+                        io.emit('enviar_ventaja_j1', opcionConMasVotos(votos_ventaja));
+                        sincro_modos();
+                        repentizado();
                     }, TIEMPO_VOTACION);
             }
             else if(palabras_insertadas_j2 > palabras_insertadas_j1){
-                votos = {
+                votos_ventaja = {
                     //"🐢": 0,
                     "⚡": 0,
                     //"⌛": 0,
@@ -677,8 +697,9 @@ io.on('connection', (socket) => {
                 tiempo_voto = setTimeout(
                     function () {
                         socket.removeAllListeners('enviar_voto_ventaja');
-                        io.emit('enviar_ventaja_j2', opcionConMasVotos());
-                        sincro_modos(socket);
+                        io.emit('enviar_ventaja_j2', opcionConMasVotos(votos_ventaja));
+                        sincro_modos();
+                        repentizado();
                     }, TIEMPO_VOTACION);
             }
             }
@@ -1069,6 +1090,9 @@ function cambiar_palabra_prohibida(escritxr) {
             io.emit('locura', { modo_actual });
             modos_de_juego(socket);
         },
+        'ortografía perfecta': function (socket) {
+            io.emit('activar_modo', { modo_actual});
+        },
 
         '': function () { }
     }
@@ -1247,20 +1271,18 @@ function musas(escritxr) {
     }
 }
 
-function opcionConMasVotos() {
+function opcionConMasVotos(votaciones) {
     let maxVotos = -1;
     let opcionesConMaxVotos = [];
 
-    console.log(votos);
-
     // Crear un array con las claves del objeto votos
-    let opciones = Object.keys(votos);
+    let opciones = Object.keys(votaciones);
 
     for (let opcion of opciones) {
-        if (votos[opcion] > maxVotos) {
-            maxVotos = votos[opcion];
+        if (votaciones[opcion] > maxVotos) {
+            maxVotos = votaciones[opcion];
             opcionesConMaxVotos = [opcion];  // Reiniciar el array con la nueva opción de máximo voto
-        } else if (votos[opcion] === maxVotos) {
+        } else if (votaciones[opcion] === maxVotos) {
             opcionesConMaxVotos.push(opcion);  // Añadir la opción al array de opciones con máximo voto
         }
     }
@@ -1275,17 +1297,39 @@ function opcionConMasVotos() {
     return opcionesConMaxVotos[0];
 }
 
-function sincro_modos(){
+function sincro_modos(socket = null) {
+    const emitter = socket || io; // Usa el socket si se pasa, de lo contrario, usa io.
+
     if(modo_actual == "letra prohibida"){
-        io.emit('modo_actual', {modo_actual, letra_prohibida});
-        }
-        else if(modo_actual == "letra bendita"){
-            io.emit('modo_actual', {modo_actual, letra_bendita});
-        }
-        else if(modo_actual == "palabras bonus"){
-            io.emit('modo_actual', {modo_actual});
-        }
-        else if(modo_actual == "palabras prohibidas"){
-            io.emit('modo_actual', {modo_actual});
-        }
+        emitter.emit('modo_actual', {modo_actual, letra_prohibida});
+    }
+    else if(modo_actual == "letra bendita"){
+        emitter.emit('modo_actual', {modo_actual, letra_bendita});
+    }
+    else if(modo_actual == "palabras bonus"){
+        emitter.emit('modo_actual', {modo_actual});
+    }
+    else if(modo_actual == "palabras prohibidas"){
+        emitter.emit('modo_actual', {modo_actual});
+    }
+}
+
+
+function repentizado(socket){
+    seleccionados = [];
+    for (let i = 0; i < 3; i++) {
+        indice_repentizado = Math.floor(Math.random() * repentizados_restantes.length);
+            seleccionados.push(repentizados_restantes[indice_repentizado]);
+            repentizados_restantes.splice(indice_repentizado, 1);
+            if(repentizados_restantes.length == 0){
+                repentizados_restantes = [...repentizados];
+            }
+    }
+    io.emit('elegir_repentizado', seleccionados)
+                tiempo_voto = setTimeout(
+                    function () {
+                        io.removeAllListeners('enviar_voto_repentizado');
+                        io.emit('enviar_repentizado', seleccionados[parseInt(opcionConMasVotos(votos_repentizado))]);
+                        sincro_modos();
+                    }, TIEMPO_VOTACION);
 }
