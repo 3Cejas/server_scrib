@@ -10,6 +10,10 @@ const log = console.log; // Define la consola del servidor.
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
 
 const LIMPIEZAS = {
+
+    'calentamiento': function (socket) {
+        TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
+    },
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra_j1);
         clearTimeout(cambio_palabra_j2);
@@ -65,7 +69,6 @@ let cambio_palabra_j2 = false; // Variable que almacena el temporizador de cambi
 let listener_cambio_letra = false; // Variable que almacena el listener de cambio de letra.
 let tiempo_voto = false;
 var terminado = true; // Variable booleana que indica si el juego ha empezado o no.
-// let puntuaciones_palabra = [50,75,100,125,150,175,200] // Variable que almacena las posibles puntuaciones de las palabras bonus.
 
 // Variables del modo letra prohibida.
 let modo_actual = "";
@@ -97,8 +100,8 @@ var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
 
-const LISTA_MODOS = ["ortografía perfecta",  "letra bendita", "palabras bonus", "tertulia", "letra prohibida", "palabras prohibidas", "tertulia", "locura"];
-const LISTA_MODOS_LOCURA = [ "letra bendita", "palabras bonus", "letra prohibida", "palabras prohibidas"];
+const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
+const LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas", "ortografía perfecta"];
 let modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -251,6 +254,7 @@ io.on('connection', (socket) => {
     activar_sockets_extratextuales(socket);
     // Envía el contador de tiempo.
     socket.on('count', (data) => {
+        console.log(data)
         if (data.count == "¡Tiempo!") {
             LIMPIEZAS[modo_actual](socket);
             activar_sockets_extratextuales(socket);
@@ -276,6 +280,7 @@ io.on('connection', (socket) => {
             terminado = false;
         }
         console.log(data)
+        console.log("TIEMPO LIMITE", TIEMPO_CAMBIO_MODOS)
         socket.broadcast.emit('count', data);
     });
 
@@ -296,8 +301,7 @@ io.on('connection', (socket) => {
     // Comienza el juego.
 
     socket.on('inicio', (data) => {
-        tiempos = getRanges(data.count, LISTA_MODOS.length + 1);
-        
+        tiempos = getRanges(data.count, LISTA_MODOS.length + 1); 
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
         socket.removeAllListeners('envia_temas');
@@ -305,7 +309,6 @@ io.on('connection', (socket) => {
         socket.removeAllListeners('enviar_postgame1');
         socket.removeAllListeners('enviar_postgame2');
         //socket.removeAllListeners('scroll');
-
         terminado = false;
         locura = false;
         modos_restantes = [...LISTA_MODOS];
@@ -320,6 +323,11 @@ io.on('connection', (socket) => {
         inspiracion_musas_j2 = [];
         TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
         socket.broadcast.emit('inicio', data);
+        console.log(modos_restantes)
+        modo_anterior = modo_actual;
+        modo_actual = modos_restantes[0];
+        modos_restantes.splice(0, 1);
+        MODOS[modo_actual](socket);
     });
 
     // Resetea el tablero de juego.
@@ -900,6 +908,9 @@ function cambiar_palabra_prohibida(escritxr) {
 
     const MODOS = {
 
+        'calentamiento': function () {
+            TIEMPO_CAMBIO_MODOS = 59;
+        },
         // Recibe y activa la palabra y el modo bonus.
         'palabras bonus': function () {
             io.emit('activar_modo', { modo_actual});
