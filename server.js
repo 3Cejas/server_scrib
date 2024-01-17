@@ -64,6 +64,8 @@ const LIMPIEZAS = {
     '': function (socket) { }
 }
 
+let texto1 = ""; // Variable que almacena el texto del editor 1.
+let texto2 = ""; // Variable que almacena el texto del editor 2.
 let cambio_palabra_j1 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
 let cambio_palabra_j2 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
 let listener_cambio_letra = false; // Variable que almacena el listener de cambio de letra.
@@ -87,9 +89,15 @@ const palabras_prohibidas = [
 ];
 
 const repentizados = [
-    "\"A\" quiere que \"B\" se meta un pepino por el culo",
-    "\"A\" va comprar el pan",
-    "\"A\" le come el coño a \"B\""
+    "\"A\" asusta a \"B\"",
+    "\"B\" rebela un secreto a \"C\"",
+    "\"B\" se ríe por algo que dice \"C\"",
+    "\"A\" llora por algo que dice \"B\"",
+    "\"B\" se enfada por algo que dice \"A\"",
+    "\"A\" se pone contento por algo que dice \"B\"",
+    "\"A\" consuela a \"B\" por algo que le dijo \"C\"",
+    "\"C\" se pone celoso por algo que dice \"B\"",
+    "\"B\" se pone a la defensiva",
 ];
 
 let letras_benditas_restantes = [...letras_benditas];
@@ -101,8 +109,10 @@ var tiempos = [];
 //1 + 5 + 1 + 5 + 1 + 5 + 5 + 1 + 5 + 5 (nuevo modo)
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
 
-const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
-const LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas", "ortografía perfecta"];
+//const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
+const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia",  "locura"];
+//const LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas", "ortografía perfecta"];
+const LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
 let modos_restantes = [...LISTA_MODOS];
 let escritxr1 = "";
 let escritxr2 = "";
@@ -132,7 +142,7 @@ let locura = false;
 
 //PARAMETROS DEL JUEGO
 const TIEMPO_CAMBIO_PALABRAS = 30000;
-const CONST_TIEMPO_CAMBIO_MODOS = 29;
+const CONST_TIEMPO_CAMBIO_MODOS = 119;
 let TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
 const TIEMPO_BORROSO = 60000;
 const PALABRAS_INSERTADAS_META = 5;
@@ -218,14 +228,24 @@ io.on('connection', (socket) => {
     // Envía el texto del editor 1.
 
     socket.on('texto1', (evt) => {
-        console.log(evt)
+        texto1 = evt;
         socket.broadcast.emit('texto1', evt);
     });
 
     // Envía el texto del editor 2.
 
-    socket.on('texto2', (evt1) => {
-        socket.broadcast.emit('texto2', evt1);
+    socket.on('texto2', (evt) => {
+        texto2 = evt;
+        socket.broadcast.emit('texto2', evt);
+    });
+
+    socket.on('pedir_texto1', () => {
+
+        socket.emit('texto1', texto1);
+    });
+
+    socket.on('pedir_texto2', () => {
+        socket.emit('texto2', texto2);
     });
 
     socket.on('pedir_nombre', () => {
@@ -497,7 +517,6 @@ io.on('connection', (socket) => {
             cambiar_palabra(escritxr);
         }
     });
-
 
     socket.on('nueva_palabra_prohibida', (escritxr) => {
         console.log("NUEVA", escritxr)
@@ -1228,6 +1247,8 @@ function getRanges(timeString, n) {
 
 //Función auxiliar para la extracción de las variaciones de una palabra.
 function extraccion_palabra_var(palabra_var) {
+    if(palabra_var == null) return [""];
+    
     palabra_var_lista = palabra_var.split(", ")
     let palabra = palabra_var_lista[0];
     
@@ -1316,7 +1337,6 @@ function opcionConMasVotos(votaciones) {
 
 function sincro_modos(socket = null) {
     const emitter = socket || io; // Usa el socket si se pasa, de lo contrario, usa io.
-
     if(modo_actual == "letra prohibida"){
         emitter.emit('modo_actual', {modo_actual, letra_prohibida});
     }
