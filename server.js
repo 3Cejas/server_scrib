@@ -79,7 +79,8 @@ let modo_anterior = "";
 let letra_prohibida = "";
 let letra_bendita = "";
 const letras_prohibidas = ['e','a','o','s','r','n','i','d','l','c'];
-const letras_benditas= ['z','j','ñ','x','k','w'];
+const letras_benditas= ['z','j','ñ','x','k','w', 'y', 'q', 'h', 'f'];
+
 const palabras_prohibidas = [
     "de", "la", "que", "el", "en", "y", "a", "los", "se", "del",
     "las", "un", "por", "con", "no", "una", "su", "para", "es", "al",
@@ -147,7 +148,7 @@ let TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
 const TIEMPO_BORROSO = 30000;
 const PALABRAS_INSERTADAS_META = 5;
 const TIEMPO_VOTACION = 30000;
-const TIEMPO_CAMBIO_LETRA = 30000;
+const TIEMPO_CAMBIO_LETRA = 60000;
 const TIEMPO_CALENTAMIENTO = 60
 
 // Crea un objeto para llevar la cuenta de las musas
