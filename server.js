@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000; // Define el puerto de comunicación con 
 const LIMPIEZAS = {
 
     'calentamiento': function (socket) {
-        TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
+        TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
     },
     'palabras bonus': function (socket) {
         clearTimeout(cambio_palabra_j1);
@@ -90,15 +90,15 @@ const palabras_prohibidas = [
 ];
 
 const repentizados = [
-    "\"A\" asusta a \"B\"",
+    "\"B\" discute violentamente con \"C\"", 
     "\"B\" rebela un secreto a \"C\"",
-    "\"B\" se ríe por algo que dice \"C\"",
-    "\"A\" llora por algo que dice \"B\"",
-    "\"B\" se enfada por algo que dice \"A\"",
-    "\"A\" se pone contento por algo que dice \"B\"",
-    "\"A\" consuela a \"B\" por algo que le dijo \"C\"",
-    "\"C\" se pone celoso por algo que dice \"B\"",
-    "\"B\" se pone a la defensiva",
+    "\"B\" ridiculiza a \"A\"",
+    "\"A\" quiere el perdón de \"B\"",
+    "\"B\" predice el futuro de \"A\"",
+    "\"A\" interroga a \"B\" sobre su pasado",
+    "\"B\" provoca a \"C\"" ,
+    "\"C\" quiere convertir a \"B\"",
+    "\"B\" quiere desenmascarar a \"A\"",
 ];
 
 let letras_benditas_restantes = [...letras_benditas];
@@ -111,10 +111,9 @@ var tiempos = [];
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
 
 //const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
-const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "locura"];
-//const LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas", "ortografía perfecta"];
-const LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
-let modos_restantes = [...LISTA_MODOS];
+let LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "locura"];
+let LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
+let modos_restantes;
 let escritxr1 = "";
 let escritxr2 = "";
 let inspiracion_musas_j1 = [];
@@ -125,7 +124,7 @@ let votos_ventaja = {
     //"🐢": 0,
     "⚡": 0,
     //"⌛": 0,
-    "🌫️": 0,
+    "🌪️": 0,
     "🙃": 0
 }
 
@@ -142,14 +141,23 @@ let nueva_palabra_j2 = false;
 let locura = false;
 
 //PARAMETROS DEL JUEGO
-const TIEMPO_CAMBIO_PALABRAS = 20000;
-const CONST_TIEMPO_CAMBIO_MODOS = 299;
-let TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
+/*const TIEMPO_CAMBIO_PALABRAS = 20000;
+const DURACION_TIEMPO_MODOS = 299;
+let TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
 const TIEMPO_BORROSO = 30000;
 const PALABRAS_INSERTADAS_META = 5;
 const TIEMPO_VOTACION = 30000;
 const TIEMPO_CAMBIO_LETRA = 60000;
-const TIEMPO_CALENTAMIENTO = 60
+const TIEMPO_CALENTAMIENTO = 3*/
+
+let TIEMPO_CAMBIO_PALABRAS;
+let DURACION_TIEMPO_MODOS;
+let TIEMPO_CAMBIO_MODOS;
+let TIEMPO_BORROSO;
+let PALABRAS_INSERTADAS_META;
+let TIEMPO_VOTACION;
+let TIEMPO_CAMBIO_LETRA;
+let TIEMPO_CALENTAMIENTO;
 
 // Crea un objeto para llevar la cuenta de las musas
 let contador_musas = {
@@ -330,6 +338,18 @@ io.on('connection', (socket) => {
     // Comienza el juego.
 
     socket.on('inicio', (data) => {
+        TIEMPO_CAMBIO_PALABRAS = data.parametros.TIEMPO_CAMBIO_PALABRAS;
+        DURACION_TIEMPO_MODOS = data.parametros.DURACION_TIEMPO_MODOS - 1;
+        TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
+        TIEMPO_BORROSO = data.parametros.TIEMPO_BORROSO;
+        PALABRAS_INSERTADAS_META = data.parametros.PALABRAS_INSERTADAS_META;
+        TIEMPO_VOTACION = data.parametros.TIEMPO_VOTACION;
+        TIEMPO_CAMBIO_LETRA = data.parametros.TIEMPO_CAMBIO_LETRA;
+        TIEMPO_CALENTAMIENTO = data.parametros.TIEMPO_CALENTAMIENTO;
+        LISTA_MODOS = data.parametros.LISTA_MODOS;
+        LISTA_MODOS_LOCURA = data.parametros.LISTA_MODOS_LOCURA;
+        modos_restantes = [...LISTA_MODOS];
+
         tiempos = getRanges(data.count, LISTA_MODOS.length + 1); 
         socket.removeAllListeners('vote');
         socket.removeAllListeners('exit');
@@ -351,7 +371,7 @@ io.on('connection', (socket) => {
         palabras_insertadas_j2 = -1;
         inspiracion_musas_j1 = [];
         inspiracion_musas_j2 = [];
-        TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
+        TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         socket.broadcast.emit('inicio', data);
         console.log(modos_restantes)
         modo_anterior = modo_actual;
@@ -380,7 +400,7 @@ io.on('connection', (socket) => {
         palabras_insertadas_j2 = -1;
         nueva_palabra_j1 = false;
         nueva_palabra_j2 = false;
-        TIEMPO_CAMBIO_MODOS = CONST_TIEMPO_CAMBIO_MODOS;
+        TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         socket.broadcast.emit('limpiar', evt1);
     });
 
@@ -695,8 +715,8 @@ io.on('connection', (socket) => {
             //modo_actual = "palabras bonus";
             MODOS[modo_actual](socket);
             console.log("MODO ANTERIOR:", modo_anterior)
+            repentizado_enviado = false;
             if(modo_anterior != "" && modo_anterior != "calentamiento" && modo_anterior != "tertulia"  && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
-                console.log("HOTY ENTRO")
             if(palabras_insertadas_j1 == palabras_insertadas_j2 ){
                 randomNum = Math.random();
                 if (randomNum < 0.5) {
@@ -710,7 +730,7 @@ io.on('connection', (socket) => {
                     //"🐢": 0,
                     "⚡": 0,
                     //"⌛": 0,
-                    "🌫️": 0,
+                    "🌪️": 0,
                     "🙃": 0
                 }
                 io.emit('elegir_ventaja_j1')
@@ -722,6 +742,8 @@ io.on('connection', (socket) => {
                         console.log("AQUI", opcionConMasVotos(votos_ventaja));
                         io.emit('enviar_ventaja_j1', opcionConMasVotos(votos_ventaja));
                         sincro_modos();
+                        console.log("FUERZAAAA", repentizado_enviado)
+                        repentizado_enviado = true;
                         repentizado();
                     }, TIEMPO_VOTACION);
             }
@@ -730,7 +752,7 @@ io.on('connection', (socket) => {
                     //"🐢": 0,
                     "⚡": 0,
                     //"⌛": 0,
-                    "🌫️": 0,
+                    "🌪️": 0,
                     "🙃": 0
                 }
                 io.emit('elegir_ventaja_j2')
@@ -739,9 +761,16 @@ io.on('connection', (socket) => {
                         socket.removeAllListeners('enviar_voto_ventaja');
                         io.emit('enviar_ventaja_j2', opcionConMasVotos(votos_ventaja));
                         sincro_modos();
+                        repentizado_enviado = true;
                         repentizado();
                     }, TIEMPO_VOTACION);
             }
+            }
+
+            else if(modo_anterior != ""  && modo_actual != "tertulia" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
+                if(repentizado_enviado == false){
+                repentizado();
+                }
             }
 
             inspiracion_musas_j1 = [];
@@ -1112,7 +1141,7 @@ function cambiar_palabra_prohibida(escritxr) {
 
         'locura': function (socket) {
             locura = true;
-            TIEMPO_CAMBIO_MODOS = 4
+            TIEMPO_CAMBIO_MODOS = 19;
             io.emit('locura', { modo_actual });
             modos_de_juego(socket);
         },
