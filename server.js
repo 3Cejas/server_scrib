@@ -90,15 +90,15 @@ const palabras_prohibidas = [
 ];
 
 const repentizados = [
-    "\"B\" discute violentamente con \"C\"", 
-    "\"B\" rebela un secreto a \"C\"",
-    "\"B\" ridiculiza a \"A\"",
-    "\"A\" quiere el perdón de \"B\"",
-    "\"B\" predice el futuro de \"A\"",
-    "\"A\" interroga a \"B\" sobre su pasado",
-    "\"B\" provoca a \"C\"" ,
-    "\"C\" quiere convertir a \"B\"",
-    "\"B\" quiere desenmascarar a \"A\"",
+    '<span style="color:white;"><span style="color:red;">B</span> discute violentamente con <span style="color:yellow;">C</span></span>', 
+    '<span style="color:white;"><span style="color:red;">B</span> revela un secreto a <span style="color:yellow;">C</span></span>',
+    '<span style="color:white;"><span style="color:red;">B</span> ridiculiza a <span style="color:green;">A</span></span>',
+    '<span style="color:white;"><span style="color:green;">A</span> quiere el perdón de <span style="color:red;">B</span></span>',
+    '<span style="color:white;"><span style="color:red;">B</span> predice el futuro de <span style="color:green;">A</span></span>',
+    '<span style="color:white;"><span style="color:green;">A</span> interroga a <span style="color:red;">B</span> sobre su pasado</span>',
+    '<span style="color:white;"><span style="color:red;">B</span> provoca a <span style="color:yellow;">C</span></span>',
+    '<span style="color:white;"><span style="color:yellow;">C</span> quiere convertir a <span style="color:red;">B</span></span>',
+    '<span style="color:white;"><span style="color:red;">B</span> quiere desenmascarar a <span style="color:green;">A</span></span>',
 ];
 
 let letras_benditas_restantes = [...letras_benditas];
@@ -140,16 +140,6 @@ let nueva_palabra_j1 = false;
 let nueva_palabra_j2 = false;
 let locura = false;
 
-//PARAMETROS DEL JUEGO
-/*const TIEMPO_CAMBIO_PALABRAS = 20000;
-const DURACION_TIEMPO_MODOS = 299;
-let TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
-const TIEMPO_BORROSO = 30000;
-const PALABRAS_INSERTADAS_META = 5;
-const TIEMPO_VOTACION = 30000;
-const TIEMPO_CAMBIO_LETRA = 60000;
-const TIEMPO_CALENTAMIENTO = 3*/
-
 let TIEMPO_CAMBIO_PALABRAS;
 let DURACION_TIEMPO_MODOS;
 let TIEMPO_CAMBIO_MODOS;
@@ -158,6 +148,7 @@ let PALABRAS_INSERTADAS_META;
 let TIEMPO_VOTACION;
 let TIEMPO_CAMBIO_LETRA;
 let TIEMPO_CALENTAMIENTO;
+let TIEMPO_LOCURA;
 
 // Crea un objeto para llevar la cuenta de las musas
 let contador_musas = {
@@ -348,6 +339,7 @@ io.on('connection', (socket) => {
         TIEMPO_CALENTAMIENTO = data.parametros.TIEMPO_CALENTAMIENTO;
         LISTA_MODOS = data.parametros.LISTA_MODOS;
         LISTA_MODOS_LOCURA = data.parametros.LISTA_MODOS_LOCURA;
+        TIEMPO_LOCURA = data.parametros.TIEMPO_LOCURA;
         modos_restantes = [...LISTA_MODOS];
 
         tiempos = getRanges(data.count, LISTA_MODOS.length + 1); 
@@ -1141,7 +1133,7 @@ function cambiar_palabra_prohibida(escritxr) {
 
         'locura': function (socket) {
             locura = true;
-            TIEMPO_CAMBIO_MODOS = 19;
+            TIEMPO_CAMBIO_MODOS = TIEMPO_LOCURA;
             io.emit('locura', { modo_actual });
             modos_de_juego(socket);
         },
