@@ -113,7 +113,7 @@ var tiempos = [];
 //const LISTA_MODOS = ["repentizado", "", "repentizado", "letra bendita", "repentizado", "palabras bonus", "tertulia", "repentizado", "letra prohibida"];
 
 //const LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
-let LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "locura"];
+let LISTA_MODOS = ["calentamiento", "letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "locura"];
 let LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
 let modos_restantes;
 let escritxr1 = "";
