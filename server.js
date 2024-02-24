@@ -195,7 +195,6 @@ http.listen(port, () => log(`Servidor escuchando en el puerto: ${port}`));
 io.on('connection', (socket) => {
 
     socket.on('enviar_musa', (escritxr) => {
-        console.log("ENVIOOOO")
         // Aumenta la cuenta del escritor correspondiente.
         console.log(escritxr);
         if (escritxr == 1) {
