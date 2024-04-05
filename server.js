@@ -91,16 +91,23 @@ const palabras_prohibidas = [
 ];
 
 const repentizados = [
-    '<span style="color:white;"><span style="color:red;">B</span> discute violentamente con <span style="color:yellow;">C</span></span>', 
-    '<span style="color:white;"><span style="color:red;">B</span> revela un secreto a <span style="color:yellow;">C</span></span>',
-    '<span style="color:white;"><span style="color:red;">B</span> ridiculiza a <span style="color:green;">A</span></span>',
-    '<span style="color:white;"><span style="color:green;">A</span> quiere el perdón de <span style="color:red;">B</span></span>',
-    '<span style="color:white;"><span style="color:red;">B</span> predice el futuro de <span style="color:green;">A</span></span>',
-    '<span style="color:white;"><span style="color:green;">A</span> interroga a <span style="color:red;">B</span> sobre su pasado</span>',
-    '<span style="color:white;"><span style="color:red;">B</span> provoca a <span style="color:yellow;">C</span></span>',
-    '<span style="color:white;"><span style="color:yellow;">C</span> quiere convertir a <span style="color:red;">B</span></span>',
-    '<span style="color:white;"><span style="color:red;">B</span> quiere desenmascarar a <span style="color:green;">A</span></span>',
+    '<span style="color:red;" contenteditable="false">B</span> discute violentamente con <span style="color:yellow;" contenteditable="false">C</span>.',
+    '<span style="color:red;" contenteditable="false">B</span> revela un secreto a <span style="color:yellow;" contenteditable="false">C</span>.',
+    '<span style="color:red;" contenteditable="false">B</span> ridiculiza a <span style="color:green;" contenteditable="false">A</span>.',
+    '<span style="color:green;" contenteditable="false">A</span> quiere el perdón de <span style="color:red;" contenteditable="false">B</span>.',
+    '<span style="color:red;" contenteditable="false">B</span> predice el futuro de <span style="color:green;" contenteditable="false">A</span>.',
+    '<span style="color:green;" contenteditable="false">A</span> interroga a <span style="color:red;" contenteditable="false">B</span> sobre su pasado.',
+    '<span style="color:red;" contenteditable="false">B</span> provoca a <span style="color:yellow;" contenteditable="false">C</span>.',
+    '<span style="color:yellow;" contenteditable="false">C</span> quiere convertir a <span style="color:red;" contenteditable="false">B</span>.',
+    '<span style="color:red;" contenteditable="false">B</span> quiere desenmascarar a <span style="color:green;" contenteditable="false">A</span>.'
 ];
+
+const convertirADivsASpans = repentizados.map(frase =>
+    frase.replace(/<div(.*?)>/g, '<span$1>').replace(/<\/div>/g, '</span>')
+);
+
+console.log(convertirADivsASpans);
+
 
 let letras_benditas_restantes = [...letras_benditas];
 let letras_prohibidas_restantes = [...letras_prohibidas];
@@ -242,13 +249,13 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('texto2', evt);
     });
 
-    socket.on('pedir_texto1', () => {
-
-        socket.emit('texto1', texto1);
-    });
-
-    socket.on('pedir_texto2', () => {
-        socket.emit('texto2', texto2);
+    socket.on('pedir_texto', () => {
+        if(socket.escritxr == 1){
+            socket.emit('texto1', texto1);
+            }
+        else{
+            socket.emit('texto2', texto2);
+        }
     });
 
     socket.on('pedir_nombre', () => {
@@ -723,7 +730,7 @@ io.on('connection', (socket) => {
             MODOS[modo_actual](socket);
             console.log("MODO ANTERIOR:", modo_anterior)
             repentizado_enviado = false;
-            if(modo_anterior != "" && modo_anterior != "calentamiento" && modo_anterior != "tertulia"  && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
+            if(modo_anterior != "" && modo_anterior != "calentamiento" && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
             if(palabras_insertadas_j1 == palabras_insertadas_j2 ){
                 randomNum = Math.random();
                 if (randomNum < 0.5) {
@@ -752,7 +759,7 @@ io.on('connection', (socket) => {
                         console.log("FUERZAAAA", repentizado_enviado)
                         repentizado_enviado = true;
                         repentizado();
-                    }, TIEMPO_VOTACION);
+                    }, TIEMPO_VOTACION + TIEMPO_BORROSO);
             }
             else if(palabras_insertadas_j2 > palabras_insertadas_j1){
                 votos_ventaja = {
@@ -770,7 +777,7 @@ io.on('connection', (socket) => {
                         sincro_modos();
                         repentizado_enviado = true;
                         repentizado();
-                    }, TIEMPO_VOTACION);
+                    }, TIEMPO_VOTACION + TIEMPO_BORROSO);
             }
             }
 
@@ -779,11 +786,15 @@ io.on('connection', (socket) => {
                 repentizado();
                 }
             }
-
-            inspiracion_musas_j1 = [];
-            inspiracion_musas_j2 = [];
-            palabras_insertadas_j1 = -1;
-            palabras_insertadas_j2 = -1;
+            console.log(modo_actual)
+            console.log("LLEGUEEEÉ")
+            console.log(palabras_insertadas_j1, palabras_insertadas_j2)
+            if(modo_actual != "tertulia"){
+                inspiracion_musas_j1 = [];
+                inspiracion_musas_j2 = [];
+                palabras_insertadas_j1 = -1;
+                palabras_insertadas_j2 = -1;
+            }
         }
     }
     function activar_sockets_extratextuales(socket) {
@@ -907,9 +918,9 @@ function cambiar_palabra_prohibida(escritxr) {
         clearTimeout(cambio_palabra_j1);
         clearTimeout(cambio_palabra_j2);
     }
-        if(escritxr==1 && terminado == false){
-        clearTimeout(cambio_palabra_j1);
-        cambio_palabra_j1 = setTimeout(
+        if(escritxr==2 && terminado == false){
+        clearTimeout(cambio_palabra_j2);
+        cambio_palabra_j2 = setTimeout(
             function () {
                 if(inspiracion_musas_j1.length > 0){
                     console.log("PALABRA BONUS DE MUSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
@@ -937,13 +948,13 @@ function cambiar_palabra_prohibida(escritxr) {
                         io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                     }
                 }
-                cambiar_palabra_prohibida(1);
+                cambiar_palabra_prohibida(2);
             }, TIEMPO_CAMBIO_PALABRAS);
         }
-        else if(escritxr==2 && terminado1 == false){
+        else if(escritxr==1 && terminado1 == false){
         console.log("NO ME AFECTA")
-        clearTimeout(cambio_palabra_j2);
-        cambio_palabra_j2 = setTimeout(
+        clearTimeout(cambio_palabra_j1);
+        cambio_palabra_j1 = setTimeout(
             function () {
                 if(inspiracion_musas_j2.length > 0){
                     indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
@@ -969,7 +980,7 @@ function cambiar_palabra_prohibida(escritxr) {
                         io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                     }
                 }
-                cambiar_palabra_prohibida(2);
+                cambiar_palabra_prohibida(1);
             }, TIEMPO_CAMBIO_PALABRAS);
         }
 }
@@ -1105,7 +1116,7 @@ function cambiar_palabra_prohibida(escritxr) {
                 palabras_var = palabra_bonus[0];
                 io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                 clearTimeout(cambio_palabra_j1);
-                cambiar_palabra_prohibida(1);
+                cambiar_palabra_prohibida(2);
             }
             if(inspiracion_musas_j2.length > 0){
                 indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
@@ -1116,28 +1127,38 @@ function cambiar_palabra_prohibida(escritxr) {
                 palabras_var = palabra_bonus[0];
                 io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                 clearTimeout(cambio_palabra_j2);
-                cambiar_palabra_prohibida(2);
+                cambiar_palabra_prohibida(1);
             }
             else{
-                indice_palabra_j1 = Math.floor(Math.random() * palabras_prohibidas_restantes_j1.length);
-                palabra_bonus = [[palabras_prohibidas_restantes_j1[indice_palabra_j1]], [""]];
-                palabras_prohibidas_restantes_j1.splice(indice_palabra_j1, 1);
-                if(palabras_prohibidas_restantes_j1.length == 0){
-                    palabras_prohibidas_restantes_j1 = [...palabras_prohibidas];
-                }
-                palabras_var = palabra_bonus[0];
-                tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                palabras_var = palabra_bonus[0];
-                console.log("AQUI, AMOR", inspiracion_musas_j1)
                 if(inspiracion_musas_j1.length == 0){
+                    indice_palabra_j1 = Math.floor(Math.random() * palabras_prohibidas_restantes_j1.length);
+                    palabra_bonus = [[palabras_prohibidas_restantes_j1[indice_palabra_j1]], [""]];
+                    palabras_prohibidas_restantes_j1.splice(indice_palabra_j1, 1);
+                    if(palabras_prohibidas_restantes_j1.length == 0){
+                        palabras_prohibidas_restantes_j1 = [...palabras_prohibidas];
+                    }
+                    palabras_var = palabra_bonus[0];
+                    tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                    palabras_var = palabra_bonus[0];
+                    console.log("AQUI, AMOR", inspiracion_musas_j1)
                     io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                    clearTimeout(cambio_palabra_j1);
-                    cambiar_palabra_prohibida(1);
-                }
-                if(inspiracion_musas_j2.length == 0){
-                    io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
                     clearTimeout(cambio_palabra_j2);
                     cambiar_palabra_prohibida(2);
+                }
+                if(inspiracion_musas_j2.length == 0){
+                    indice_palabra_j2 = Math.floor(Math.random() * palabras_prohibidas_restantes_j2.length);
+                    palabra_bonus = [[palabras_prohibidas_restantes_j2[indice_palabra_j2]], [""]];
+                    palabras_prohibidas_restantes_j2.splice(indice_palabra_j2, 1);
+                    if(palabras_prohibidas_restantes_j2.length == 0){
+                        palabras_prohibidas_restantes_j2 = [...palabras_prohibidas];
+                    }
+                    palabras_var = palabra_bonus[0];
+                    tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
+                    palabras_var = palabra_bonus[0];
+                    console.log("AQUI, AMOR", inspiracion_musas_j2)
+                    io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
+                    clearTimeout(cambio_palabra_j1);
+                    cambiar_palabra_prohibida(1);
                 }
             }
             /*setTimeout(function(){
@@ -1300,36 +1321,58 @@ function getRanges(timeString, n) {
     return tiempo_final_segundos - tiempo_inicial_segundos;
   }
 
-//Función auxiliar para la extracción de las variaciones de una palabra.
+// Función para determinar si una vocal está acentuada
+function esVocalAcentuada(vocal) {
+    const vocalesAcentuadas = "áéíóú";
+    return vocalesAcentuadas.includes(vocal);
+}
+
+// Función para remover el acento de una vocal
+function removerAcento(vocal) {
+    const correspondencia = {'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u'};
+    return correspondencia[vocal] || vocal;
+}
+
+// Función para extracción y modificación de palabras según la terminación especificada
 function extraccion_palabra_var(palabra_var) {
-    if(palabra_var == null) return [""];
+    if (palabra_var == null) return [""];
     
-    palabra_var_lista = palabra_var.split(", ")
+    let palabra_var_lista = palabra_var.split(", ");
     let palabra = palabra_var_lista[0];
     
-    if(palabra_var_lista.length > 1){
+    if (palabra_var_lista.length > 1) {
         let terminacion = palabra_var_lista[1];
         let index = palabra.length - 1;
-        if(terminacion.length != 1){
+        
+        if (terminacion.length != 1) {
             while (index >= 0 && palabra.charAt(index) !== terminacion.charAt(0)) {
                 index--;
             }
-        }
-        else{
+        } else {
             while (index >= 0 && !esVocal(palabra.charAt(index))) {
                 index--;
             }
         }
-        return [palabra, palabra.slice(0, index) + terminacion];
-    }
-    else return[palabra];
-  }
 
-// Función auxiliar que devuelve si un caracter es vocal o no.
-  function esVocal(caracter) {
-    var vocales = ['a', 'e', 'i', 'o', 'u'];
-    return vocales.includes(caracter.toLowerCase());
-  }
+        // Calcular la base de la palabra para la nueva terminación
+        let basePalabra = palabra.slice(0, index);
+        let palabraFinal = palabra; // Inicialmente igual a la palabra original
+
+        if (index > 0 && esVocalAcentuada(basePalabra.charAt(index - 1))) {
+            // Si la última vocal antes de la terminación es acentuada, remover el acento para la nueva palabra
+            let parteSinAcento = basePalabra.slice(0, index - 1) + removerAcento(basePalabra.charAt(index - 1));
+            palabraFinal = parteSinAcento + palabra.slice(index);
+        }
+
+        return [palabra, palabraFinal.slice(0, index) + terminacion];
+    } else return [palabra];
+}
+
+// Función para determinar si un carácter es una vocal (no considera acentos)
+function esVocal(caracter) {
+    const vocales = "aeiouAEIOU";
+    return vocales.includes(caracter);
+}
 
 // Función auxiliar que responde una palabra de las musas casa x segundos:
 function musas(escritxr) {
@@ -1424,7 +1467,7 @@ function repentizado(){
                 tiempo_voto = setTimeout(
                     function () {
                         io.removeAllListeners('enviar_voto_repentizado');
-                        io.emit('enviar_repentizado', seleccionados[parseInt(opcionConMasVotos(votos_repentizado)) - 1]);
+                        //io.emit('enviar_repentizado', seleccionados[parseInt(opcionConMasVotos(votos_repentizado)) - 1]);
                         votos_repentizado = {
                             "1": 0,
                             "2": 0,
