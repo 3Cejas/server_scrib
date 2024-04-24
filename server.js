@@ -1,6 +1,10 @@
 const { INSPECT_MAX_BYTES } = require('buffer');
 const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
-const http = require("http").createServer(); // Define el servidor http.
+const options = {
+    key: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/fullchain.pem')
+};
+const http = require("https").createServer(options); // Define el servidor http.
 const io = require("socket.io")(http); // Define el socket.
 
 const debug = false; // Modo desarrollador de rae-api.
