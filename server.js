@@ -1,5 +1,6 @@
 const { INSPECT_MAX_BYTES } = require('buffer');
 const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
+const fs = require('fs');
 const options = {
     key: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/privkey.pem'),
     cert: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/fullchain.pem')
