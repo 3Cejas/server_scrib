@@ -2,12 +2,16 @@ const { INSPECT_MAX_BYTES } = require('buffer');
 const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
 const fs = require('fs');
 const { clear } = require('console');
-// Variable de entorno para determinar el entorno
-const isProduction = process.env.NODE_ENV === 'production';
+const https = require('https');
+//require('dotenv').config();
 
+// Variable de entorno para determinar el entorno
+//const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = true;
 let server;
 let io;
 
+console.log(process.env.NODE_ENV)
 if (isProduction) {
     // Cargar certificados en entorno de producción
     const options = {
@@ -15,9 +19,11 @@ if (isProduction) {
         cert: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/fullchain.pem')
     };
     server = https.createServer(options); // Define el servidor HTTPS.
+    console.log("HTTPS iniciado")
 } else {
     // Usar servidor HTTP en entorno local
     server = require("http").createServer(); // Define el servidor HTTP.
+    console.log("HTTP iniciado")
 }
 
 io = require("socket.io")(server); // Define el socket para ambos casos
