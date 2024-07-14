@@ -7,7 +7,7 @@ const https = require('https');
 
 // Variable de entorno para determinar el entorno
 //const isProduction = process.env.NODE_ENV === 'production';
-const isProduction = true;
+const isProduction = false;
 let server;
 let io;
 
@@ -785,7 +785,7 @@ io.on('connection', (socket) => {
                         console.log("TUUUU")
                         socket.removeAllListeners('enviar_voto_ventaja');
                         console.log("AQUI", opcionConMasVotos(votos_ventaja));
-                        io.emit('enviar_ventaja_j1', opcionConMasVotos(votos_ventaja));
+                        io.emit('enviar_ventaja_j2', opcionConMasVotos(votos_ventaja));
                         sincro_modos();
                         console.log("FUERZAAAA", repentizado_enviado)
                         repentizado_enviado = true;
@@ -804,7 +804,7 @@ io.on('connection', (socket) => {
                 tiempo_voto = setTimeout(
                     function () {
                         socket.removeAllListeners('enviar_voto_ventaja');
-                        io.emit('enviar_ventaja_j2', opcionConMasVotos(votos_ventaja));
+                        io.emit('enviar_ventaja_j1', opcionConMasVotos(votos_ventaja));
                         sincro_modos();
                         repentizado_enviado = true;
                         repentizado();
@@ -1474,13 +1474,7 @@ function sincro_modos(socket = null) {
     else if(modo_actual == "letra bendita"){
         emitter.emit('modo_actual', {modo_actual, letra_bendita});
     }
-    else if(modo_actual == "palabras bonus"){
-        emitter.emit('modo_actual', {modo_actual});
-    }
-    else if(modo_actual == "palabras prohibidas"){
-        emitter.emit('modo_actual', {modo_actual});
-    }
-    else if(modo_actual == "tertulia"){
+    else if(modo_actual == "palabras bonus" || modo_actual == "palabras prohibidas" || modo_actual == "tertulia" || modo_actual == "frase final"){
         emitter.emit('modo_actual', {modo_actual});
     }
 }
