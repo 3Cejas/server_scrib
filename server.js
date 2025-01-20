@@ -124,16 +124,17 @@ const palabras_prohibidas = [
 ];
 
 const repentizados = [
-    '<span style="color:red;" contenteditable="false">B</span> discute violentamente con <span style="color:yellow;" contenteditable="false">C</span>.',
-    '<span style="color:red;" contenteditable="false">B</span> revela un secreto a <span style="color:yellow;" contenteditable="false">C</span>.',
-    '<span style="color:red;" contenteditable="false">B</span> ridiculiza a <span style="color:green;" contenteditable="false">A</span>.',
-    '<span style="color:green;" contenteditable="false">A</span> quiere el perdón de <span style="color:red;" contenteditable="false">B</span>.',
-    '<span style="color:red;" contenteditable="false">B</span> predice el futuro de <span style="color:green;" contenteditable="false">A</span>.',
-    '<span style="color:green;" contenteditable="false">A</span> interroga a <span style="color:red;" contenteditable="false">B</span> sobre su pasado.',
-    '<span style="color:red;" contenteditable="false">B</span> provoca a <span style="color:yellow;" contenteditable="false">C</span>.',
-    '<span style="color:yellow;" contenteditable="false">C</span> quiere convertir a <span style="color:red;" contenteditable="false">B</span>.',
-    '<span style="color:red;" contenteditable="false">B</span> quiere desenmascarar a <span style="color:green;" contenteditable="false">A</span>.'
-];
+    '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> discute violentamente con <span style="color:yellow;" contenteditable="true">C</span>.</div>',
+    '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> revela un secreto a <span style="color:yellow;" contenteditable="true">C</span>.</div>',
+    '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> ridiculiza a <span style="color:green;" contenteditable="true">A</span>.</div>',
+    '<div contenteditable="false"><span style="color:green;" contenteditable="true">A</span> quiere el perdón de <span style="color:red;" contenteditable="true">B</span>.</div>',
+    '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> predice el futuro de <span style="color:green;" contenteditable="true">A</span>.</div>',
+    '<div contenteditable="false"><span style="color:green;" contenteditable="true">A</span> interroga a <span style="color:red;" contenteditable="true">B</span> sobre su pasado.</div>',
+    '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> provoca a <span style="color:yellow;" contenteditable="true">C</span>.</div>',
+    '<div contenteditable="false"><span style="color:yellow;" contenteditable="true">C</span> quiere convertir a <span style="color:red;" contenteditable="true">B</span>.</div>',
+    '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> quiere desenmascarar a <span style="color:green;" contenteditable="true">A</span>.</div>'
+  ];
+  
 
 const DEFINICION_MUSA_BONUS = "<span style='color:lime;'>MUSA</span>: <span style='color: orange;'>Podrías escribir esta palabra ⬆️</span>";
 const DEFINICION_MUSA_PROHIBIDA= "<span style='color:red;'>MUSA ENEMIGA</span>: <span style='color: orange;'>Podrías escribir esta palabra ⬆️</span>";
@@ -645,19 +646,28 @@ io.on('connection', (socket) => {
     });
 
     socket.on('nueva_palabra_musa', (escritxr) => {
+        if(palabras_insertadas_j1 = -1)
+            palabras_insertadas_j1 = 0;
+        if(palabras_insertadas_j2 = -1)
+            palabras_insertadas_j2 = 0;
+        else{
+        console.log(typeof escritxr, escritxr)
         console.log("ESTO ES UN ERROR DE AHORA")
-        if(escritxr == 1){
+        if( Number(escritxr) == 1){
+            console.log("ENTRA 1")
             palabras_insertadas_j1++;
             nueva_palabra_j1 = true;
             clearTimeout(cambio_palabra_j1);
         }
-        else{
+        else if (Number(escritxr) == 2){
+            console.log("ENTRA 2")
             palabras_insertadas_j2++;
             nueva_palabra_j2 = true;
             clearTimeout(cambio_palabra_j2);
         }
         console.log("FINEZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
-            if(escritxr == 1 && terminado == false){
+        console.log(palabras_insertadas_j1, palabras_insertadas_j2)
+            if(Number(escritxr) == 1 && terminado == false){
                 indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
                 inspiracion_j1 = inspiracion_musas_j1[indice_palabra_j1];
                 inspiracion_musas_j1.splice(indice_palabra_j1, 1);
@@ -666,7 +676,7 @@ io.on('connection', (socket) => {
                 io.emit('inspirar_j1', inspiracion_j1);
             }
             }
-            else if(escritxr == 2 && terminado1 == false){
+            else if(Number(escritxr) == 2 && terminado1 == false){
                 indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
                 inspiracion_j2 = inspiracion_musas_j2[indice_palabra_j2];
                 inspiracion_musas_j2.splice(indice_palabra_j2, 1);
@@ -675,7 +685,8 @@ io.on('connection', (socket) => {
                     io.emit('inspirar_j2', inspiracion_j2);
                 }
             }
-            musas(escritxr);
+            musas(Number(escritxr));
+        }
     });
 
     socket.on('enviar_puntuacion_final', (evt1) => {
@@ -761,7 +772,10 @@ io.on('connection', (socket) => {
             MODOS[modo_actual](socket);
             console.log("MODO ANTERIOR:", modo_anterior)
             repentizado_enviado = false;
-            if(modo_anterior != "" && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
+            if(modo_anterior != "" && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "locura" && locura == false){
+            console.log(palabras_insertadas_j1)
+            console.log(palabras_insertadas_j2)
+            console.log("VOY A ELEGIIIIIIIIIIIIIIIIIIIIIIIIIIIR")
             if(palabras_insertadas_j1 == palabras_insertadas_j2 ){
                 randomNum = Math.random();
                 if (randomNum < 0.5) {
@@ -779,7 +793,7 @@ io.on('connection', (socket) => {
                     "🙃": 0
                 }
                 io.emit('elegir_ventaja_j1')
-                console.log("TONTOOOO")
+                console.log("TONTOOOOooooooooooooooooooooooooooooo")
                 tiempo_voto = setTimeout(
                     function () {
                         console.log("TUUUU")
@@ -812,7 +826,7 @@ io.on('connection', (socket) => {
             }
             }
 
-            else if(modo_anterior == ""  && modo_actual != "tertulia" && modo_anterior != "palabras prohibidas" && modo_anterior != "locura" && locura == false){
+            else if(modo_anterior == ""  && modo_actual != "tertulia" && modo_anterior != "locura" && locura == false){
                 if(repentizado_enviado == false){
                 repentizado();
                 }
@@ -1271,6 +1285,7 @@ function nueva_letra_bendita(){
     inspiracion_musas_j1 = [];
     inspiracion_musas_j2 = [];
     io.emit("pedir_inspiracion_musa", {modo_actual, letra_bendita})
+    console.log("LETRA BENDITA", letra_bendita)
     listener_cambio_letra = setTimeout(nueva_letra_bendita, TIEMPO_CAMBIO_LETRA);
 }
 
