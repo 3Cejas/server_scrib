@@ -106,7 +106,10 @@ let listener_cambio_letra = false; // Variable que almacena el listener de cambi
 let tiempo_voto = false;
 let terminado = true; // Variable booleana que indica si el juego ha empezado o no.
 let terminado1 = true;
-
+let tiempo_modos;
+// Variable global para almacenar los segundos transcurridos
+let secondsPassed = 0;
+let intervaloID_temp_modos;
 // Variables del modo letra prohibida.
 let modo_actual = "";
 let modo_anterior = "";
@@ -322,20 +325,18 @@ io.on('connection', (socket) => {
     socket.on('count', (data) => {
         console.log(data)
         if(data.player == 1){
+            terminado = false;
             if (data.count == "¡Tiempo!") {
                 terminado = true;
                 nueva_palabra_j1 = false;
                 clearTimeout(cambio_palabra_j1);
-            }
-            if(data.secondsPassed == TIEMPO_CAMBIO_MODOS -1){
-                LIMPIEZAS[modo_actual](socket);
-                modos_de_juego(socket);
             }
             console.log(modos_restantes)
             console.log(modo_actual)
             console.log("TIEMPO LIMITE", TIEMPO_CAMBIO_MODOS)
         }
         if(data.player == 2){
+            terminado1 = false;
             console.log("holaaaa", data)
             if (data.count == "¡Tiempo!") {
                 terminado1 = true;
@@ -343,14 +344,14 @@ io.on('connection', (socket) => {
                 clearTimeout(cambio_palabra_j2);
             }
         }
-        if(terminado && terminado1){
+        if(fin_del_juego){
+            clearInterval(intervaloID_temp_modos);
             LIMPIEZAS[modo_actual](socket);
             activar_sockets_extratextuales(socket);
             modos_restantes = [...LISTA_MODOS];
             modo_anterior = "";
             modo_actual = "";
         }
-        console.log(data.secondsPassed)
         socket.broadcast.emit('count', data);
     });
 
@@ -371,8 +372,9 @@ io.on('connection', (socket) => {
     // Comienza el juego.
 
     socket.on('inicio', (data) => {
+        clearInterval(intervaloID_temp_modos);
         TIEMPO_CAMBIO_PALABRAS = data.parametros.TIEMPO_CAMBIO_PALABRAS;
-        DURACION_TIEMPO_MODOS = data.parametros.DURACION_TIEMPO_MODOS - 1;
+        DURACION_TIEMPO_MODOS = data.parametros.DURACION_TIEMPO_MODOS;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         TIEMPO_BORROSO = data.parametros.TIEMPO_BORROSO;
         PALABRAS_INSERTADAS_META = data.parametros.PALABRAS_INSERTADAS_META;
@@ -393,6 +395,7 @@ io.on('connection', (socket) => {
         //socket.removeAllListeners('scroll');
         terminado = false;
         terminado1 = false;
+        fin_del_juego = false;
         locura = false;
         modos_restantes = [...LISTA_MODOS];
         letras_benditas_restantes = [...letras_benditas];
@@ -414,7 +417,8 @@ io.on('connection', (socket) => {
         timeout_inicio = setTimeout(() => {
         socket.broadcast.emit('post-inicio', {borrar_texto : data.borrar_texto});
         MODOS[modo_actual](socket);
-        repentizado()
+        //repentizado()
+        temp_modos();
         }, 10000);
     });
 
@@ -427,8 +431,10 @@ io.on('connection', (socket) => {
         clearTimeout(cambio_palabra_j2);
         clearTimeout(timeout_inicio);
         clearTimeout(listener_cambio_letra);
+        clearInterval(intervaloID_temp_modos);
         terminado = true;
         terminado1 = true;
+        fin_del_juego = true;
         locura = false;
         modos_restantes = [...LISTA_MODOS];
         modo_anterior = "";
@@ -689,13 +695,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('enviar_puntuacion_final', (evt1) => {
+    /*socket.on('enviar_puntuacion_final', (evt1) => {
         io.emit('recibir_puntuacion_final', evt1);
     });
 
     socket.on('enviar_clasificacion', (evt1) => {
         io.emit('recibir_clasificacion', evt1);
-    });
+    });*/
 
     // Envía un comentario.
     socket.on('enviar_comentario', (evt1) => {
@@ -756,8 +762,50 @@ io.on('connection', (socket) => {
         votos_repentizado[voto] += 1;
     });
 
-    //Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
-    function modos_de_juego(socket) {
+    
+    socket.on('resucitar', (evt1) => {
+        io.emit('resucitar_control', evt1);
+        MODOS[modo_actual](socket);
+    });
+
+
+
+
+// Función que inicia el temporizador para una duración determinada
+function temp_modos() {
+    // Reiniciar la variable de contador
+    secondsPassed = 0;
+    
+    // Crear un intervalo que se ejecute cada segundo (1000 ms)
+    intervaloID_temp_modos = setInterval(() => {
+      secondsPassed++;  // Incrementar el contador cada segundo
+      console.log(`Segundos pasados: ${secondsPassed}`);
+      io.emit('temp_modos', {secondsPassed, modo_actual});
+      
+      // Verificar si se alcanzó la duración deseada y reiniciar
+      if (secondsPassed >= TIEMPO_CAMBIO_MODOS) {
+        secondsPassed = 0;  // Reiniciar el contador a 0
+        LIMPIEZAS[modo_actual](socket);
+        modos_de_juego(socket);
+        console.log('Se alcanzó el tiempo límite. Reiniciando temporizador.');
+        console.log(modos_restantes)
+        if(modos_restantes.length == 0){
+            fin_del_juego = true;
+            clearInterval(intervaloID_temp_modos);
+            LIMPIEZAS[modo_actual](socket);
+            activar_sockets_extratextuales(socket);
+            modos_restantes = [...LISTA_MODOS];
+            modo_anterior = "";
+            modo_actual = "";
+        }
+        
+        // Si se requiere alguna acción adicional al reiniciar, colócala aquí
+      }
+    }, 1000);
+  }
+  
+//Función auxiliar recursiva que cambia los modos del juego a lo largo de toda la partida.
+    function modos_de_juego(socket, modo_anterior) {
         if (!(terminado && terminado1)) {
             //let indice_modo = Math.floor(Math.random() * modos_restantes.length);
             console.log(modos_restantes)
