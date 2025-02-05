@@ -86,8 +86,9 @@ const LIMPIEZAS = {
     'frase final': function (socket) {
         socket.broadcast.emit('fin', 1);
         socket.broadcast.emit('fin', 2);
-        fin_j1 = false;
-        fin_j2 = false;
+        fin_j1 = true;
+        fin_j2 = true;
+        fin_del_juego = true;
         terminado = true;
         terminado1 = true;
         io.emit('fin_a_control');
@@ -183,6 +184,7 @@ let votos_repentizado = {
 
 let fin_j1 = false;
 let fin_j2 = false;
+let fin_del_juego = false;
 let nueva_palabra_j1 = false;
 let nueva_palabra_j2 = false;
 let locura = false;
@@ -454,7 +456,7 @@ io.on('connection', (socket) => {
         clearTimeout(cambio_palabra_j2);
         clearTimeout(listener_cambio_letra);
         activar_sockets_extratextuales(socket);
-        socket.broadcast.emit('pausar_js', evt1);
+        //socket.broadcast.emit('pausar_js', evt1);
     });
 
     socket.on('fin_de_control', (player) => {
@@ -474,7 +476,15 @@ io.on('connection', (socket) => {
             fin_j2 = false;
             terminado = true;
             terminado1 = true;
+            fin_del_juego = true;
             clearTimeout(tiempo_voto);
+            fin_del_juego = true;
+            clearInterval(intervaloID_temp_modos);
+            LIMPIEZAS[modo_actual](socket);
+            activar_sockets_extratextuales(socket);
+            modos_restantes = [...LISTA_MODOS];
+            modo_anterior = "";
+            modo_actual = "";
         }
     });
     socket.on('tiempo_muerto_a_control', (evt1) => {
@@ -656,7 +666,6 @@ io.on('connection', (socket) => {
             palabras_insertadas_j1 = 0;
         if(palabras_insertadas_j2 = -1)
             palabras_insertadas_j2 = 0;
-        else{
         console.log(typeof escritxr, escritxr)
         console.log("ESTO ES UN ERROR DE AHORA")
         if( Number(escritxr) == 1){
@@ -692,7 +701,6 @@ io.on('connection', (socket) => {
                 }
             }
             musas(Number(escritxr));
-        }
     });
 
     /*socket.on('enviar_puntuacion_final', (evt1) => {
@@ -778,18 +786,15 @@ function temp_modos() {
     
     // Crear un intervalo que se ejecute cada segundo (1000 ms)
     intervaloID_temp_modos = setInterval(() => {
-      secondsPassed++;  // Incrementar el contador cada segundo
-      console.log(`Segundos pasados: ${secondsPassed}`);
-      io.emit('temp_modos', {secondsPassed, modo_actual});
-      
+    secondsPassed++;  // Incrementar el contador cada segundo
+    console.log(`Segundos pasados: ${secondsPassed}`);
+    io.emit('temp_modos', {secondsPassed, modo_actual});
+    console.log(modo_actual)
+    console.log(modo_anterior)
+    console.log(modos_restantes)
       // Verificar si se alcanzó la duración deseada y reiniciar
       if (secondsPassed >= TIEMPO_CAMBIO_MODOS) {
-        secondsPassed = 0;  // Reiniciar el contador a 0
-        LIMPIEZAS[modo_actual](socket);
-        modos_de_juego(socket);
-        console.log('Se alcanzó el tiempo límite. Reiniciando temporizador.');
-        console.log(modos_restantes)
-        if(modos_restantes.length == 0){
+        if(modo_actual == "frase final"){
             fin_del_juego = true;
             clearInterval(intervaloID_temp_modos);
             LIMPIEZAS[modo_actual](socket);
@@ -797,6 +802,16 @@ function temp_modos() {
             modos_restantes = [...LISTA_MODOS];
             modo_anterior = "";
             modo_actual = "";
+        }
+        else{
+        secondsPassed = 0;  // Reiniciar el contador a 0
+        LIMPIEZAS[modo_actual](socket);
+        modos_de_juego(socket);
+        console.log(modo_actual)
+        console.log(modo_anterior)
+        console.log(modos_restantes)
+        console.log(modos_restantes.length)
+        console.log('Se alcanzó el tiempo límite. Reiniciando temporizador.');
         }
         
         // Si se requiere alguna acción adicional al reiniciar, colócala aquí
@@ -820,7 +835,7 @@ function temp_modos() {
             MODOS[modo_actual](socket);
             console.log("MODO ANTERIOR:", modo_anterior)
             repentizado_enviado = false;
-            if(modo_anterior != "" && modo_actual != "tertulia" && modo_anterior != "palabras bonus" && modo_anterior != "locura" && locura == false){
+            if(modo_anterior != "" && modo_actual != "tertulia" && modo_anterior != "locura" && locura == false){
             console.log(palabras_insertadas_j1)
             console.log(palabras_insertadas_j2)
             console.log("VOY A ELEGIIIIIIIIIIIIIIIIIIIIIIIIIIIR")
@@ -851,7 +866,7 @@ function temp_modos() {
                         sincro_modos();
                         console.log("FUERZAAAA", repentizado_enviado)
                         repentizado_enviado = true;
-                        repentizado();
+                        //repentizado();
                     }, TIEMPO_VOTACION);
             }
             else if(palabras_insertadas_j2 > palabras_insertadas_j1){
@@ -869,14 +884,14 @@ function temp_modos() {
                         io.emit('enviar_ventaja_j1', opcionConMasVotos(votos_ventaja));
                         sincro_modos();
                         repentizado_enviado = true;
-                        repentizado();
+                        //repentizado();
                     }, TIEMPO_VOTACION);
             }
             }
 
             else if(modo_anterior == ""  && modo_actual != "tertulia" && modo_anterior != "locura" && locura == false){
                 if(repentizado_enviado == false){
-                repentizado();
+                //repentizado();
                 }
             }
             console.log(modo_actual)
@@ -1188,7 +1203,7 @@ function cambiar_palabra_prohibida(escritxr) {
             io.emit("pedir_inspiracion_musa", {modo_actual})
             io.emit('activar_modo', { modo_actual });
             io.emit('tiempo_muerto_control', '');
-        },
+                },
 
         'palabras prohibidas': function () {
             io.emit('activar_modo', { modo_actual});
