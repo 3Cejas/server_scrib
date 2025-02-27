@@ -26,8 +26,17 @@ if (isProduction) {
     console.log("HTTP iniciado")
 }
 
-io = require("socket.io")(server); // Define el socket para ambos casos
-
+// Configurar Socket.IO con opciones de cookie y CORS
+// Configurar Socket.IO con la cookie y CORS adecuados
+io = require('socket.io')(server, {
+    cookie: {
+        name: 'io',
+        // En producción: sameSite: 'none' y secure: true.
+        // En desarrollo: sameSite: 'lax' y secure: false.
+        sameSite: isProduction ? 'none' : 'lax',
+        secure: isProduction ? true : false
+    },
+});
 const debug = false; // Modo desarrollador de rae-api.
 const rae = new RAE(debug); // Creamos una instancia del buscador de la RAE.
 const log = console.log; // Define la consola del servidor.
