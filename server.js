@@ -7,7 +7,7 @@ const https = require('https');
 
 // Variable de entorno para determinar el entorno
 //const isProduction = process.env.NODE_ENV === 'production';
-const isProduction = false;
+const isProduction = true;
 let server;
 let io;
 
