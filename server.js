@@ -1,13 +1,13 @@
 const { INSPECT_MAX_BYTES } = require('buffer');
-const { RAE } = require('rae-api'); // Define el constructor del buscador de la RAE.
 const fs = require('fs');
+const puppeteer = require('puppeteer');
 const { clear } = require('console');
 const https = require('https');
 //require('dotenv').config();
 
 // Variable de entorno para determinar el entorno
 //const isProduction = process.env.NODE_ENV === 'production';
-const isProduction = true;
+const isProduction = false;
 let server;
 let io;
 
@@ -37,8 +37,6 @@ io = require('socket.io')(server, {
         secure: isProduction ? true : false
     },
 });
-const debug = false; // Modo desarrollador de rae-api.
-const rae = new RAE(debug); // Creamos una instancia del buscador de la RAE.
 const log = console.log; // Define la consola del servidor.
 
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
@@ -1377,30 +1375,115 @@ function nueva_letra_prohibida(){
 
 }
 
-// Buscador de palabra aletoria y su definición en la RAE.
+/******************************************************
+ * rae-scrapper.js
+ * ----------------------------------------------------
+ * No reutiliza la misma pestaña:
+ *  - Cada búsqueda usa un contexto de incógnito (ahora se
+ *    llama createBrowserContext() en las versiones nuevas
+ *    de Puppeteer).
+ *  - Evita que la RAE almacene cookies/session y devuelva
+ *    la misma palabra.
+ ******************************************************/
+
+let navegador = null;
+
+/**
+ * Inicializa el navegador (una sola vez).
+ */
+async function inicializarNavegador() {
+  if (!navegador) {
+    // Lanza un navegador (headless por defecto).
+    // Asegúrate de usar puppeteer (no puppeteer-core),
+    // o de indicar un executablePath si fuera necesario.
+    navegador = await puppeteer.launch({
+      headless: true,
+    });
+  }
+}
+
+/**
+ * Cierra el navegador si está abierto (opcional).
+ */
+async function cerrarNavegador() {
+  if (navegador) {
+    await navegador.close();
+    navegador = null;
+  }
+}
+
+/**
+ * Crea un contexto de incógnito usando createBrowserContext()
+ * (nueva API en versiones recientes de Puppeteer),
+ * abre una pestaña dentro de ese contexto, navega a la RAE y
+ * obtiene la palabra aleatoria y su primera definición.
+ *
+ * @returns {Promise<{ palabra: string, definicion: string }>}
+ */
 async function palabraRAE() {
-    let palabra_final = ""
-    let definicion_final = ""
+  // Si no existe el navegador, lo inicializamos
+  if (!navegador) {
+    await inicializarNavegador();
+  }
+
+  // 1) Creamos un contexto de “incógnito” (aislado)
+  //    (API actual: createBrowserContext)
+  const contexto = await navegador.createBrowserContext();
+
+  // 2) Abrimos una pestaña en este nuevo contexto
+  const page = await contexto.newPage();
+
+  try {
+    // Opcional: user agent y viewport para simular un navegador normal
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+    );
+    await page.setViewport({ width: 1366, height: 768 });
+
+    // 3) Vamos a la URL ?m=random2
+    await page.goto('https://dle.rae.es/?m=random2', {
+      waitUntil: 'networkidle2',
+    });
+
+    // 4) Esperamos el botón “Consultar” y hacemos clic
+    await page.waitForSelector('button[aria-label="Consultar"]', {
+      visible: true,
+      timeout: 30000,
+    });
+    await page.click('button[aria-label="Consultar"]');
+
+    // 5) Esperamos la siguiente navegación con la palabra nueva
+    await page.waitForNavigation({ waitUntil: 'networkidle2' });
+
+    // 6) Extraemos la palabra
+    let palabra = 'No encontrada';
     try {
-        palabra = await new RAE().getRandomWord();
-        palabra_final = palabra.getHeader();
-        definiciones = palabra.getDefinitions();
-        while (definiciones == "" || palabra.getHeader() == null) {
-            palabra = await new RAE().getRandomWord();
-            palabra_final = palabra.getHeader();
-            definiciones = palabra.getDefinitions();
-        }
-        for (var i = 0; i < definiciones.length; i++) {
-            if (i < 3) {
-                definicion_final += `${i+1}. ${definiciones[i].getDefinition()}<br><br/>`;
-            }
-        }
+      palabra = await page.$eval('h1.c-page-header__title', (el) =>
+        el.textContent.trim()
+      );
+    } catch {
+      // Dejamos "No encontrada"
     }
-    catch {
-        return palabraRAE;
+
+    // 7) Extraemos la definición
+    let definicion = 'Definición no encontrada';
+    try {
+      definicion = await page.$eval(
+        'ol.c-definitions li.j div.c-definitions__item > div',
+        (el) => el.textContent.trim()
+      );
+    } catch {
+      // Dejamos "Definición no encontrada"
     }
-    return [palabra_final, definicion_final];
-};
+
+    return [palabra, definicion];
+  } finally {
+    // 8) Cerramos la pestaña y el contexto
+    await page.close();
+    await contexto.close();
+  }
+}
 
 //Función que dadas dos horas en string devuelve los trozos en x invervalos de tiempo.
 function getRanges(timeString, n) {
@@ -1455,8 +1538,8 @@ function removerAcento(vocal) {
 
 // Función para extracción y modificación de palabras según la terminación especificada
 function extraccion_palabra_var(palabra_var) {
+    console.log(palabra_var,"HOLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     if (palabra_var == null) return [""];
-    
     let palabra_var_lista = palabra_var.split(", ");
     let palabra = palabra_var_lista[0];
     
