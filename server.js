@@ -1420,69 +1420,87 @@ async function cerrarNavegador() {
  *
  * @returns {Promise<{ palabra: string, definicion: string }>}
  */
+// Variable global para guardar la palabra y definición
+// Inicialmente vacía, representada con null o un array vacío.
+let palabra_buscada = null;
+
 async function palabraRAE() {
   // Si no existe el navegador, lo inicializamos
   if (!navegador) {
     await inicializarNavegador();
   }
 
-  // 1) Creamos un contexto de “incógnito” (aislado)
-  //    (API actual: createBrowserContext)
-  const contexto = await navegador.createBrowserContext();
+  // Al inicio de la función, si la variable global está vacía,
+  // es que no hay palabra previa y tenemos que obtener una nueva.
+  if (!palabra_buscada) {
+    // 1) Creamos un contexto de incógnito
+    const contexto = await navegador.createBrowserContext();
 
-  // 2) Abrimos una pestaña en este nuevo contexto
-  const page = await contexto.newPage();
+    // 2) Abrimos una pestaña en este nuevo contexto
+    const page = await contexto.newPage();
 
-  try {
-    // Opcional: user agent y viewport para simular un navegador normal
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-    );
-    await page.setViewport({ width: 1366, height: 768 });
-
-    // 3) Vamos a la URL ?m=random2
-    await page.goto('https://dle.rae.es/?m=random2', {
-      waitUntil: 'networkidle2',
-    });
-
-    // 4) Esperamos el botón “Consultar” y hacemos clic
-    await page.waitForSelector('button[aria-label="Consultar"]', {
-      visible: true,
-      timeout: 30000,
-    });
-    await page.click('button[aria-label="Consultar"]');
-
-    // 5) Esperamos la siguiente navegación con la palabra nueva
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    // 6) Extraemos la palabra
-    let palabra = 'No encontrada';
     try {
-      palabra = await page.$eval('h1.c-page-header__title', (el) =>
-        el.textContent.trim()
+      // Opcional: user agent y viewport
+      await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
       );
-    } catch {
-      // Dejamos "No encontrada"
-    }
+      await page.setViewport({ width: 1366, height: 768 });
 
-    // 7) Extraemos la definición
-    let definicion = 'Definición no encontrada';
-    try {
-      definicion = await page.$eval(
-        'ol.c-definitions li.j div.c-definitions__item > div',
-        (el) => el.textContent.trim()
-      );
-    } catch {
-      // Dejamos "Definición no encontrada"
-    }
+      // 3) Vamos a la URL ?m=random2
+      await page.goto('https://dle.rae.es/?m=random2', {
+        waitUntil: 'networkidle2',
+      });
 
-    return [palabra, definicion];
-  } finally {
-    // 8) Cerramos la pestaña y el contexto
-    await page.close();
-    await contexto.close();
+      // 4) Esperamos el botón “Consultar” y hacemos clic
+      await page.waitForSelector('button[aria-label="Consultar"]', {
+        visible: true,
+        timeout: 30000,
+      });
+      await page.click('button[aria-label="Consultar"]');
+
+      // 5) Esperamos la siguiente navegación con la palabra nueva
+      await page.waitForNavigation({ waitUntil: 'networkidle2' });
+
+      // 6) Extraemos la palabra
+      let palabra = 'No encontrada';
+      try {
+        palabra = await page.$eval('h1.c-page-header__title', (el) =>
+          el.textContent.trim()
+        );
+      } catch {
+        // Dejamos "No encontrada"
+      }
+
+      // 7) Extraemos la definición
+      let definicion = 'Definición no encontrada';
+      try {
+        definicion = await page.$eval(
+          'ol.c-definitions li.j div.c-definitions__item > div',
+          (el) => el.textContent.trim()
+        );
+      } catch {
+        // Dejamos "Definición no encontrada"
+      }
+
+      // Asignamos al global
+      palabra_buscada = [palabra, definicion];
+    } finally {
+      // 8) Cerramos la pestaña y el contexto
+      await page.close();
+      await contexto.close();
+    }
   }
+
+  // Ahora devolvemos la palabra que esté en la variable global
+  const resultado = palabra_buscada;
+
+  // Vaciamos la variable para forzar que la próxima vez
+  // se vuelva a buscar una palabra distinta.
+  palabra_buscada = null;
+
+  // Retornamos la palabra y definición
+  return resultado;
 }
 
 //Función que dadas dos horas en string devuelve los trozos en x invervalos de tiempo.
