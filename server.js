@@ -115,6 +115,7 @@ let tiempo_voto = false;
 let terminado = true; // Variable booleana que indica si el juego ha empezado o no.
 let terminado1 = true;
 let tiempo_modos;
+let atributos = {1: {}, 2: {}};
 // Variable global para almacenar los segundos transcurridos
 let secondsPassed = 0;
 let intervaloID_temp_modos;
@@ -494,6 +495,57 @@ io.on('connection', (socket) => {
             modo_actual = "";
         }
     });
+
+    socket.on('fin_de_player', (player) => {
+        socket.broadcast.emit('fin_de_player_a_control', player);
+        if(player == 1){
+            fin_j1 = true;
+            clearTimeout(cambio_palabra_j1);
+            socket.broadcast.emit('fin', player);
+        }
+        else if(player == 2){
+            fin_j2 = true;
+            clearTimeout(cambio_palabra_j2);
+            socket.broadcast.emit('fin', player);
+        }
+        clearTimeout(listener_cambio_letra);
+        if(fin_j1 && fin_j2){
+            fin_j1 = false;
+            fin_j2 = false;
+            terminado = true;
+            terminado1 = true;
+            fin_del_juego = true;
+            clearTimeout(tiempo_voto);
+            fin_del_juego = true;
+            clearInterval(intervaloID_temp_modos);
+            LIMPIEZAS[modo_actual](socket);
+            activar_sockets_extratextuales(socket);
+            modos_restantes = [...LISTA_MODOS];
+            modo_anterior = "";
+            modo_actual = "";
+        }
+    });
+
+    socket.on('enviar_atributos', (data) => {
+        atributos[data.player] = data.atributos;
+    });
+
+    socket.on('pedir_atributos', () => {
+        socket.emit('recibir_atributos', atributos);
+    });
+
+    socket.on('tiempo_muerto_a_control', (evt1) => {
+        socket.broadcast.emit('tiempo_muerto_control', '');
+    });
+
+    socket.on('reanudar', (evt1) => {
+        if(modo_actual != ""){
+        MODOS[modo_actual](socket);
+        }
+        socket.broadcast.emit('reanudar_js', evt1);
+    });
+
+
     socket.on('tiempo_muerto_a_control', (evt1) => {
         socket.broadcast.emit('tiempo_muerto_control', '');
     });
@@ -1037,6 +1089,7 @@ function cambiar_palabra_prohibida(escritxr) {
         clearTimeout(cambio_palabra_j2);
         cambio_palabra_j2 = setTimeout(
             function () {
+                console.log("ESTA FUNCIONANDO$$$$$")
                 if(inspiracion_musas_j1.length > 0){
                     console.log("PALABRA BONUS DE MUSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
                     indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
@@ -1072,6 +1125,7 @@ function cambiar_palabra_prohibida(escritxr) {
         cambio_palabra_j1 = setTimeout(
             function () {
                 if(inspiracion_musas_j2.length > 0){
+                    console.log("ESTA FUNCIONANDO$$$$$")
                     indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
                     palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [DEFINICION_MUSA_PROHIBIDA]];
                     inspiracion_musas_j2.splice(indice_palabra_j2, 1);
@@ -1425,83 +1479,94 @@ async function cerrarNavegador() {
 let palabra_buscada = null;
 
 async function palabraRAE() {
-  // Si no existe el navegador, lo inicializamos
-  if (!navegador) {
-    await inicializarNavegador();
-  }
-
-  // Al inicio de la función, si la variable global está vacía,
-  // es que no hay palabra previa y tenemos que obtener una nueva.
-  if (!palabra_buscada) {
-    // 1) Creamos un contexto de incógnito
-    const contexto = await navegador.createBrowserContext();
-
-    // 2) Abrimos una pestaña en este nuevo contexto
-    const page = await contexto.newPage();
-
-    try {
-      // Opcional: user agent y viewport
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-      );
-      await page.setViewport({ width: 1366, height: 768 });
-
-      // 3) Vamos a la URL ?m=random2
-      await page.goto('https://dle.rae.es/?m=random2', {
-        waitUntil: 'networkidle2',
-      });
-
-      // 4) Esperamos el botón “Consultar” y hacemos clic
-      await page.waitForSelector('button[aria-label="Consultar"]', {
-        visible: true,
-        timeout: 30000,
-      });
-      await page.click('button[aria-label="Consultar"]');
-
-      // 5) Esperamos la siguiente navegación con la palabra nueva
-      await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-      // 6) Extraemos la palabra
-      let palabra = 'No encontrada';
+    // Inicializamos el navegador si aún no se ha hecho
+    if (!navegador) {
+      await inicializarNavegador();
+    }
+  
+    // Bucle infinito que reintenta la operación hasta obtener una palabra válida
+    while (true) {
       try {
-        palabra = await page.$eval('h1.c-page-header__title', (el) =>
-          el.textContent.trim()
-        );
-      } catch {
-        // Dejamos "No encontrada"
+        // Si no hay palabra buscada previamente, procedemos a obtener una nueva
+        if (!palabra_buscada) {
+          // 1) Creamos un contexto de incógnito para aislar la sesión
+          const contexto = await navegador.createBrowserContext();
+          // 2) Abrimos una nueva pestaña en este contexto
+          const page = await contexto.newPage();
+          try {
+            // Opcional: establecemos el user agent y el viewport para emular un navegador real
+            await page.setUserAgent(
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+                'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+            );
+            await page.setViewport({ width: 1366, height: 768 });
+  
+            // 3) Navegamos a la URL que devuelve una palabra aleatoria
+            await page.goto('https://dle.rae.es/?m=random2', {
+              waitUntil: 'networkidle2',
+            });
+  
+            // 4) Esperamos el botón “Consultar” y simulamos un clic
+            await page.waitForSelector('button[aria-label="Consultar"]', {
+              visible: true,
+              timeout: 30000,
+            });
+            await page.click('button[aria-label="Consultar"]');
+  
+            // 5) Esperamos la navegación que carga la palabra nueva
+            await page.waitForNavigation({ waitUntil: 'networkidle2' });
+  
+            // 6) Extraemos la palabra; en caso de fallo se asigna "No encontrada"
+            let palabra = 'No encontrada';
+            try {
+              palabra = await page.$eval('h1.c-page-header__title', (el) =>
+                el.textContent.trim()
+              );
+            } catch {
+              // Se mantiene "No encontrada" en caso de error al extraer la palabra
+            }
+  
+            // 7) Extraemos la definición; en caso de fallo se asigna "Definición no encontrada"
+            let definicion = 'Definición no encontrada';
+            try {
+              definicion = await page.$eval(
+                'ol.c-definitions li.j div.c-definitions__item > div',
+                (el) => el.textContent.trim()
+              );
+            } catch {
+              // Se mantiene "Definición no encontrada" en caso de error al extraer la definición
+            }
+  
+            // Almacenamos la palabra y su definición en la variable global
+            palabra_buscada = [palabra, definicion];
+          } finally {
+            // 8) Cerramos la pestaña y el contexto para liberar recursos
+            await page.close();
+            await contexto.close();
+          }
+        }
+  
+        // Guardamos el resultado obtenido y reiniciamos la variable para la próxima búsqueda
+        const resultado = palabra_buscada;
+        palabra_buscada = null;
+  
+        // Validamos que la palabra extraída sea válida (diferente de "No encontrada")
+        if (resultado[0] && resultado[0] !== 'No encontrada') {
+          // Se retorna el resultado cuando la palabra es válida
+          return resultado;
+        } else {
+          // Si no se obtuvo una palabra válida, se lanza un error para activar el reintento
+          throw new Error('Palabra no encontrada, reintentando.');
+        }
+      } catch (error) {
+        // Se registra el error en consola y se espera 1 segundo antes de reintentar,
+        // evitando sobrecargar el servidor
+        console.error('Error en palabraRAE, reintentando:', error);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Se continúa el bucle para reintentar
       }
-
-      // 7) Extraemos la definición
-      let definicion = 'Definición no encontrada';
-      try {
-        definicion = await page.$eval(
-          'ol.c-definitions li.j div.c-definitions__item > div',
-          (el) => el.textContent.trim()
-        );
-      } catch {
-        // Dejamos "Definición no encontrada"
-      }
-
-      // Asignamos al global
-      palabra_buscada = [palabra, definicion];
-    } finally {
-      // 8) Cerramos la pestaña y el contexto
-      await page.close();
-      await contexto.close();
     }
   }
-
-  // Ahora devolvemos la palabra que esté en la variable global
-  const resultado = palabra_buscada;
-
-  // Vaciamos la variable para forzar que la próxima vez
-  // se vuelva a buscar una palabra distinta.
-  palabra_buscada = null;
-
-  // Retornamos la palabra y definición
-  return resultado;
-}
 
 //Función que dadas dos horas en string devuelve los trozos en x invervalos de tiempo.
 function getRanges(timeString, n) {
