@@ -204,7 +204,6 @@ let TIEMPO_BORROSO;
 let PALABRAS_INSERTADAS_META;
 let TIEMPO_VOTACION;
 let TIEMPO_CAMBIO_LETRA;
-let TIEMPO_LOCURA;
 
 // Crea un objeto para llevar la cuenta de las musas
 let contador_musas = {
@@ -392,7 +391,6 @@ io.on('connection', (socket) => {
         TIEMPO_CAMBIO_LETRA = data.parametros.TIEMPO_CAMBIO_LETRA;
         LISTA_MODOS = data.parametros.LISTA_MODOS;
         LISTA_MODOS_LOCURA = data.parametros.LISTA_MODOS_LOCURA;
-        TIEMPO_LOCURA = data.parametros.TIEMPO_LOCURA;
         modos_restantes = [...LISTA_MODOS];
 
         tiempos = getRanges(data.count, LISTA_MODOS.length + 1); 
@@ -614,7 +612,6 @@ io.on('connection', (socket) => {
         nueva_palabra_j2 = true;
         }
             if(inspiracion_musas_j1.length > 0 && escritxr == 1 && terminado == false){
-                paso = false;
                 indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
                 palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [DEFINICION_MUSA_BONUS]];
                 inspiracion_musas_j1.splice(indice_palabra_j1, 1);
@@ -625,7 +622,6 @@ io.on('connection', (socket) => {
                 nueva_palabra_j1 = false;
             }
             if(inspiracion_musas_j2.length > 0 && escritxr == 2 && terminado1 == false){
-                paso = false;
                 indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
                 palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [DEFINICION_MUSA_BONUS]];
                 inspiracion_musas_j2.splice(indice_palabra_j2, 1);
@@ -668,7 +664,6 @@ io.on('connection', (socket) => {
         palabras_insertadas_j1++;
         }
         if(inspiracion_musas_j1.length > 0 && escritxr == 2 && terminado == false){
-            paso = false;
             indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
             palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [DEFINICION_MUSA_PROHIBIDA]];
             inspiracion_musas_j1.splice(indice_palabra_j1, 1);
@@ -679,7 +674,6 @@ io.on('connection', (socket) => {
             nueva_palabra_j2 = false;
         }
         if(inspiracion_musas_j2.length > 0 && escritxr == 1  && terminado1 == false){
-            paso = false;
             indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
             palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [DEFINICION_MUSA_PROHIBIDA]];
             inspiracion_musas_j2.splice(indice_palabra_j2, 1);
