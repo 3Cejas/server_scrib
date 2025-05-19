@@ -5,7 +5,7 @@ const PalabrasMalditasMode= require('./palabras_malditas.js');
 const { INSPECT_MAX_BYTES } = require('buffer');
 const fs = require('fs');
 const puppeteer = require('puppeteer');
-const { clear } = require('console');
+const { clear, count } = require('console');
 const https = require('https');
 //require('dotenv').config();
 
@@ -99,14 +99,14 @@ const LIMPIEZAS = {
     'locura': function (socket) { },
 
     'frase final': function (socket) {
-        socket.broadcast.emit('fin', 1);
-        socket.broadcast.emit('fin', 2);
+        //socket.broadcast.emit('fin', 1);
+        //socket.broadcast.emit('fin', 2);
         fin_j1 = true;
         fin_j2 = true;
         fin_del_juego = true;
         playersState[1].finished = true;
         playersState[2].finished = true;
-        io.emit('fin_a_control');
+        //io.emit('fin_a_control');
     },
 
 
@@ -421,7 +421,7 @@ io.on('connection', (socket) => {
         LISTA_MODOS = data.parametros.LISTA_MODOS;
         LISTA_MODOS_LOCURA = data.parametros.LISTA_MODOS_LOCURA;
         modos_restantes = [...LISTA_MODOS];
-        bonusmode = new PalabrasBonusMode(io, 30);
+        bonusmode = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS);
         malditasmode = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS);
         musas = new Musas(io, TIEMPO_CAMBIO_PALABRAS);
 
@@ -440,6 +440,8 @@ io.on('connection', (socket) => {
         playersState[1].finished = false;;
         playersState[2].finished = false;;
         fin_del_juego = false;
+        fin_j1 = false;
+        fin_j2 = false;
         locura = false;
         modos_restantes = [...LISTA_MODOS];
         modoIndex = 0
@@ -682,7 +684,7 @@ socket.on('enviar_inspiracion', palabra => {
         break;
 
         case 'letra bendita':
-        case 'letra maldita':
+        case 'letra prohibida':
           musas.addMusa(playerId, palabra);
           console.log(`[musas] Se añadió musa para J${playerId}: "${palabra}"`);
         break;
@@ -811,15 +813,16 @@ function modos_de_juego(socket) {
   if (debeLanzarVentaja(prev, curr, locura)) {
     // elegimos la instancia que lleva el conteo en este modo
     let counterMode;
-    if (curr === 'palabras bonus') {
+    if (prev === 'palabras bonus') {
       counterMode = bonusmode;
-    } else if (curr === 'palabras prohibidas') {
+    } else if (prev === 'palabras prohibidas') {
       counterMode = malditasmode;
     } else {
       counterMode = musas;
     }
 
     // obtenemos los contadores de J1 y J2
+    console.log(counterMode)
     let j1 = counterMode.getInsertedCount(1);
     let j2 = counterMode.getInsertedCount(2);
     console.log(`Palabras pedidas → J1: ${j1} | J2: ${j2}`);

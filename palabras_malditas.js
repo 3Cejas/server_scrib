@@ -2,111 +2,146 @@
 const MusasMode = require('./musas.js');
 
 class PalabrasMalditasMode extends MusasMode {
-  // ─── Lista estática de palabras malditas ────────────────────────────
-  static MALDITAS = [
+  static STATIC_WORDS    = [
     "de","la","que","el","en","y","a","los","se","del",
     "las","un","por","con","no","una","su","para","es","al",
     "lo","como","más","o","pero","sus","le","ha","me","si",
     "sin","sobre","este","ya","entre","cuando","todo","esta","ser","son",
     "dos","también","fue","había","era","muy","años","hasta","desde","está"
   ];
+  static remainingStatic = [...PalabrasMalditasMode.STATIC_WORDS];
 
-  // Copia mutable para ir consumiendo sin repetir
-  static _remainingMalditas = [...PalabrasMalditasMode.MALDITAS];
-
-  constructor(io, TIEMPO_CAMBIO_PALABRAS) {
-    super(io, TIEMPO_CAMBIO_PALABRAS);
+  constructor(io, timeoutMs) {
+    super(io, timeoutMs);
+    // Inicializar contadores y flags por jugador
+    [1, 2].forEach(id => {
+      this.players[id].insertedCount         = 0;
+      this.players[id].lastDeliveredFromMusa = false;
+    });
   }
 
   /**
-   * Override de la emisión automática tras timeout.
-   * Se encarga de:
-   *  - Robar musa del oponente si existe.
-   *  - Si no, tomar palabra estática al azar.
-   *  - Emitir por 'enviar_palabra_j{playerId}'.
+   * Devuelve cuántas musas ha usado (pedido tras musa previa) cada jugador.
+   */
+  getInsertedCount(playerId) {
+    return this.players[playerId]?.insertedCount || 0;
+  }
+
+  /**
+   * Cada musa que envía playerId se encola en la cola del otro.
+   */
+  addMusa(playerId, word) {
+    const target = 3 - playerId;  // 1↔2
+    const st     = this.players[target];
+    st.queue.push(word);
+    console.log(
+      `[Malditas][addMusa] J${playerId} ➡ encolada para J${target}: "${word}"`
+    );
+    // Si target estaba pendiente, emitimos YA
+    if (st.pending) {
+      st.pending = false;
+      this._emitNext(target);
+      this._schedulePending(target);
+    }
+  }
+
+  /**
+   * Inicia el modo para playerId:
+   * 1) Limpia timers.
+   * 2) Emite YA la primera palabra.
+   */
+  start(playerId) {
+    const st = this.players[playerId];
+    clearTimeout(st.emitTimer);
+    clearTimeout(st.pendingTimer);
+    st.emitTimer    = null;
+    st.pendingTimer = null;
+    st.pending      = false;
+    this._emitNext(playerId);
+  }
+
+  /**
+   * Emite la siguiente palabra para playerId y reprograma:
+   * - Si SU cola no vacía → roba de ella (musa).
+   * - Si vacía → toma aleatoria de STATIC_WORDS.
+   * Ajusta `lastDeliveredFromMusa` según el origen.
+   *
+   * @param {1|2} playerId
+   * @private
    */
   _emitNext(playerId) {
-    const otro         = playerId === 1 ? 2 : 1;
-    const queueOther   = this.players[otro].queue;
-    const evento       = `enviar_palabra_j${playerId}`;
+    const st        = this.players[playerId];
+    const queueSelf = st.queue;
+    const evento    = `enviar_palabra_j${playerId}`;
 
-    let palabras_var, palabra_bonus, tiempo_palabras_bonus;
-
-    if (queueOther.length > 0) {
-      // ─── Robar musa del oponente ───────────────────────────────────
-      const idx  = Math.floor(Math.random() * queueOther.length);
-      const word = queueOther.splice(idx, 1)[0];
-
-      palabras_var          = word;
-      palabra_bonus         = [ [word], '' ]; // sin definición
-      tiempo_palabras_bonus = this._puntuacionPalabra(word);
-
-      console.log(
-        `[PalabrasMalditasMode][_emitNext] J${playerId} robó musa de J${otro}: "${word}"`
-      );
-
+    let word;
+    if (queueSelf.length > 0) {
+      // Musa de cola propia (sugerida por el otro)
+      const idx = Math.floor(Math.random() * queueSelf.length);
+      word      = queueSelf.splice(idx, 1)[0];
+      st.lastDeliveredFromMusa = true;
+      console.log(`[Malditas][_emitNext] J${playerId} usa musa: "${word}"`);
     } else {
-      // ─── Lista estática (aleatorio + reset) ────────────────────────
-      if (PalabrasMalditasMode._remainingMalditas.length === 0) {
-        PalabrasMalditasMode._remainingMalditas = [
-          ...PalabrasMalditasMode.MALDITAS
+      // Palabra estática
+      if (!PalabrasMalditasMode.remainingStatic.length) {
+        PalabrasMalditasMode.remainingStatic = [
+          ...PalabrasMalditasMode.STATIC_WORDS
         ];
-        console.log(
-          '[PalabrasMalditasMode][_emitNext] Lista estática reiniciada'
-        );
+        console.log('[Malditas][_emitNext] Lista estática reiniciada');
       }
-
-      const rem  = PalabrasMalditasMode._remainingMalditas;
-      const idx  = Math.floor(Math.random() * rem.length);
-      const word = rem.splice(idx, 1)[0];
-
-      palabras_var          = word;
-      palabra_bonus         = [ [word], '' ];
-      tiempo_palabras_bonus = this._puntuacionPalabra(word);
-
-      console.log(
-        `[PalabrasMalditasMode][_emitNext] J${playerId} recibe estática: "${word}"`
+      const remIdx = Math.floor(
+        Math.random() * PalabrasMalditasMode.remainingStatic.length
       );
+      word = PalabrasMalditasMode.remainingStatic.splice(remIdx, 1)[0];
+      st.lastDeliveredFromMusa = false;
+      console.log(`[Malditas][_emitNext] J${playerId} recibe estática: "${word}"`);
     }
 
-    // ─── Emitir payload unificado ────────────────────────────────────
+    // Construir y enviar payload
     const payload = {
-      modo_actual: 'palabras malditas',
-      palabras_var,
-      palabra_bonus,
-      tiempo_palabras_bonus
+      modo_actual:           'palabras malditas',
+      palabras_var:          [word],
+      palabra_bonus:         [[word], ''],
+      tiempo_palabras_bonus: this._puntuacionPalabra(word)
     };
-    console.log(`[PalabrasMalditasMode][_emitNext] Emite ${evento}:`);
-    console.dir(payload, { depth: null, colors: true });
-
+    console.log(`[Malditas][_emitNext] Emite ${evento}:`, payload);
     this.io.emit(evento, payload);
-    // ─── Reprogramar siguiente envío ────────────────────────────────
-    this._schedulePending(playerId);
+
+    // Reprogramar siguiente emisión
+    st.emitTimer = setTimeout(
+      () => this._emitNext(playerId),
+      this.timeout
+    );
   }
 
   /**
-   * Cuando el cliente pide manualmente otra palabra maldita (opcional):
-   * simplemente arranca el scheduler para que al timeout lance `_emitNext`.
+   * Maneja petición MANUAL de nueva palabra maldita:
+   * 1) Si la última entrega fue musa → suma al otro insertedCount.
+   * 2) Limpia timer y emite YA una nueva palabra.
    *
    * @param {1|2} playerId
    */
   async handleRequest(playerId) {
-    const st = this.players[playerId];
-    if (!st) return;
+    const st        = this.players[playerId];
+    const opponent  = 3 - playerId;
 
-    // Limpiar timeout previo, si hubiera
-    if (st.pendingTimer) {
-      clearTimeout(st.pendingTimer);
-      st.pendingTimer = null;
+    // 1) Si la última entrega fue de musa, sumamos al otro
+    if (st.lastDeliveredFromMusa) {
+      this.players[opponent].insertedCount++;
+      console.log(
+        `[Malditas][handleRequest] J${playerId} pidió tras musa →` +
+        ` insertedCount J${opponent}=${this.players[opponent].insertedCount}`
+      );
     }
-    // Arrancar emisión automática
-    this._schedulePending(playerId);
+
+    // 2) Limpiar timer automático y disparar nueva emisión
+    clearTimeout(st.emitTimer);
+    st.emitTimer = null;
+    this._emitNext(playerId);
   }
 
   /**
-   * Calcula un "tiempo" según frecuencias de letras.
-   * @param {string} word
-   * @returns {number}
+   * Puntuación según frecuencia de letras.
    */
   _puntuacionPalabra(word) {
     if (!word) return 10;
@@ -118,7 +153,7 @@ class PalabrasMalditasMode extends MusasMode {
     const clean = word.toLowerCase().replace(/\s+/g, '');
     let sum = 0;
     for (const ch of clean) sum += freq[ch] || 0;
-    const pts = Math.ceil((((10 - sum*0.5) + clean.length*3)) / 5) * 5;
+    const pts = Math.ceil((((10 - sum * 0.5) + clean.length * 3)) / 5) * 5;
     return isNaN(pts) ? 10 : pts;
   }
 }
