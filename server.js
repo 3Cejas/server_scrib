@@ -1,6 +1,6 @@
-const BonusMode = require('./palabras_bonus');
-const CurseMode = require('./palabras_malditas');
 const Musas = require('./musas');
+const PalabrasBonusMode = require('./palabras_bonus.js');
+const PalabrasMalditasMode= require('./palabras_malditas.js');
 
 const { INSPECT_MAX_BYTES } = require('buffer');
 const fs = require('fs');
@@ -41,13 +41,17 @@ io = require('socket.io')(server, {
         secure: isProduction ? true : false
     },
 });
+
+let bonusmode = new PalabrasBonusMode(io, 300000);
+let malditasmode = new PalabrasMalditasMode(io, 30000);
+let musas = new Musas(io, 30000);
 const log = console.log; // Define la consola del servidor.
 const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
 const LIMPIEZAS = {
 
     'palabras bonus': function (socket) {
         
-        bonusMode.clearAll();
+        bonusmode.clearAll();
         //socket.removeAllListeners('nueva_palabra');
         // socket.removeAllListeners('enviar_palabra');
         //socket.removeAllListeners('feedback_de_j1');
@@ -85,7 +89,7 @@ const LIMPIEZAS = {
     'tertulia': function (socket) { },
 
     'palabras prohibidas': function (socket) {
-        curseMode.clearAll();
+        malditasmode.clearAll();
     },
 
     'ortografía perfecta': function (socket) {
@@ -109,9 +113,7 @@ const LIMPIEZAS = {
     '': function (socket) { }
 }
 
-let bonusMode;
-let curseMode;
-let musas;
+
 
 let texto1 = ""; // Variable que almacena el texto del editor 1.
 let texto2 = ""; // Variable que almacena el texto del editor 2.
@@ -140,14 +142,6 @@ let letra_bendita = "";
 const letras_prohibidas = ['e','a','o','s','r','n','i','d','l','c'];
 const letras_benditas= ['z','j','ñ','x','k','w', 'y', 'q', 'h', 'f'];
 
-const palabras_prohibidas = [
-    "de", "la", "que", "el", "en", "y", "a", "los", "se", "del",
-    "las", "un", "por", "con", "no", "una", "su", "para", "es", "al",
-    "lo", "como", "más", "o", "pero", "sus", "le", "ha", "me", "si",
-    "sin", "sobre", "este", "ya", "entre", "cuando", "todo", "esta", "ser", "son",
-    "dos", "también", "fue", "había", "era", "muy", "años", "hasta", "desde", "está"
-];
-
 const repentizados = [
     '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> discute violentamente con <span style="color:yellow;" contenteditable="true">C</span>.</div>',
     '<div contenteditable="false"><span style="color:red;" contenteditable="true">B</span> revela un secreto a <span style="color:yellow;" contenteditable="true">C</span>.</div>',
@@ -173,8 +167,6 @@ console.log(convertirADivsASpans);
 
 let letras_benditas_restantes = [...letras_benditas];
 let letras_prohibidas_restantes = [...letras_prohibidas];
-let palabras_prohibidas_restantes_j1 = [...palabras_prohibidas];
-let palabras_prohibidas_restantes_j2 = [...palabras_prohibidas];
 let repentizados_restantes = [...repentizados];
 
 var tiempos = [];
@@ -429,12 +421,8 @@ io.on('connection', (socket) => {
         LISTA_MODOS = data.parametros.LISTA_MODOS;
         LISTA_MODOS_LOCURA = data.parametros.LISTA_MODOS_LOCURA;
         modos_restantes = [...LISTA_MODOS];
-        bonusMode = new BonusMode(io, TIEMPO_CAMBIO_PALABRAS, palabraRAE, puntuación_palabra);
-        bonusMode.initPlayer(1, []); // lista inicial de musas vacía
-        bonusMode.initPlayer(2, []);
-        curseMode = new CurseMode(io, TIEMPO_CAMBIO_PALABRAS, palabras_prohibidas);
-        curseMode.initPlayer(1, []);
-        curseMode.initPlayer(2, []);
+        bonusmode = new PalabrasBonusMode(io, 30);
+        malditasmode = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS);
         musas = new Musas(io, TIEMPO_CAMBIO_PALABRAS);
 
 
@@ -457,8 +445,6 @@ io.on('connection', (socket) => {
         modoIndex = 0
         letras_benditas_restantes = [...letras_benditas];
         letras_prohibidas_restantes = [...letras_prohibidas];
-        palabras_prohibidas_restantes_j1 = [...palabras_prohibidas];
-        palabras_prohibidas_restantes_j2 = [...palabras_prohibidas];
         modo_anterior = "";
         modo_actual = "";
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
@@ -488,6 +474,9 @@ io.on('connection', (socket) => {
         playersState[1].finished = true;
         playersState[2].finished = true;
         if(musas) musas.clearAll();
+        if(bonusmode) bonusmode.clearAll();
+        console.log(malditasmode)
+        if(malditasmode) malditasmode.clearAll();
         fin_del_juego = true;
         locura = false;
         modos_restantes = [...LISTA_MODOS];
@@ -646,11 +635,11 @@ io.on('connection', (socket) => {
     });*/
     
     socket.on('nueva_palabra', (playerId) => {
-        bonusMode.handleRequest(Number(playerId));
+        bonusmode.handleRequest(Number(playerId));
       });
 
     socket.on('nueva_palabra_prohibida', (playerId) => {
-        curseMode.handleRequest(Number(playerId));
+        malditasmode.handleRequest(playerId);
       });
       
 
@@ -659,6 +648,10 @@ socket.on('nueva_palabra_musa', escritxr => {
     const playerId = Number(escritxr);
     console.log(`[socket] petición de musa para jugador ${playerId}`);
     musas.handleRequest(playerId);
+  });
+
+  socket.on('nueva_palabra_bonus', ({ jugador }) => {
+    bonusmode.handleRequest(jugador);
   });
   
       
@@ -673,9 +666,26 @@ socket.on('nueva_palabra_musa', escritxr => {
 
 // 3) Añadir musa cuando llegue:
 socket.on('enviar_inspiracion', palabra => {
-    const playerId = Number(socket.musa);
-    if (modo_actual.startsWith('letra ')) {
-      musas.addMusa(playerId, palabra);
+    const playerId = Number(socket.musa); // suponiendo que lo guardas así
+
+    switch (modo_actual) {
+      case 'palabras bonus':
+        // Si estamos en bonus, encolas en bonusMode
+        bonusmode.addMusa(playerId, palabra);
+        console.log(`[bonus] Se añadió musa para J${playerId}: "${palabra}"`);
+        break;
+
+      case 'palabras prohibidas':
+        // En modo malditas, encolas en malditasMode
+        malditasmode.addMusa(playerId, palabra);
+        console.log(`[maldita] Se añadió musa para J${playerId}: "${palabra}"`);
+        break;
+
+        case 'letra bendita':
+        case 'letra maldita':
+          musas.addMusa(playerId, palabra);
+          console.log(`[musas] Se añadió musa para J${playerId}: "${palabra}"`);
+        break;
     }
   });
       
@@ -777,33 +787,58 @@ function modos_de_juego(socket) {
   console.log('Modos restantes:', modos_restantes.slice(modoIndex));
 
   // 2) seleccionamos siguiente modo en O(1) con un índice
-  const prev = modo_actual;
-  const curr = modos_restantes[modoIndex++] || '';
-  modo_anterior = prev;
-  modo_actual   = curr;
+  const prev       = modo_actual;
+  const curr       = modos_restantes[modoIndex++] || '';
+  modo_anterior    = prev;
+  modo_actual      = curr;
   console.log(`MODO ANTERIOR: ${prev} | MODO ACTUAL: ${curr}`);
 
   // ── BLOQUE “MUSAS” ───────────────────────────────────────
-  musas.clearAll();    // <<-- solo limpia colas y timers, NO toca los contadores
-  MODOS[curr](socket);              // ejecuta la lógica del modo
+  // limpiamos colas y timers de **todas** las instancias
+  musas.clearAll();
+  bonusmode.clearAll();
+  malditasmode.clearAll();
+
+  // lanzamos la lógica del modo actual
+  MODOS[curr](socket);
   repentizado_enviado = false;      // resetea flag
   // ─────────────────────────────────────────────────────────
 
 
   // 3) decidir si lanzar ventaja/desventaja
-  console.log("DEBE LANZAR VENTAJA:", debeLanzarVentaja(prev, curr, locura))
-  if (debeLanzarVentaja(prev, curr, locura)) {
-    let j1 = musas.getInsertedCount(1);
-    let j2 = musas.getInsertedCount(2);
-    console.log(`Palabras de musas introducidas → J1: ${j1} | J2: ${j2}`);
+  console.log('DEBE LANZAR VENTAJA:', debeLanzarVentaja(prev, curr, locura));
 
-    // desempate aleatorio
+  if (debeLanzarVentaja(prev, curr, locura)) {
+    // elegimos la instancia que lleva el conteo en este modo
+    let counterMode;
+    if (curr === 'palabras bonus') {
+      counterMode = bonusmode;
+    } else if (curr === 'palabras prohibidas') {
+      counterMode = malditasmode;
+    } else {
+      counterMode = musas;
+    }
+
+    // obtenemos los contadores de J1 y J2
+    let j1 = counterMode.getInsertedCount(1);
+    let j2 = counterMode.getInsertedCount(2);
+    console.log(`Palabras pedidas → J1: ${j1} | J2: ${j2}`);
+
+    // desempate aleatorio si están igualados
     if (j1 === j2) {
       Math.random() < 0.5 ? j1++ : j2++;
     }
-    if (j1 > j2)         lanzarVentaja(socket, 'j1', 'j2');
-    else /* j2 >= j1 */  lanzarVentaja(socket, 'j2', 'j1');
-    musas.clearCounters();
+
+    // preparamos votos e iniciamos la votación
+    votos_ventaja = { '⚡': 0, '🌪️': 0, '🙃': 0 };
+    if (j1 > j2) {
+      lanzarVentaja(socket, 'j1', 'j2');
+    } else {
+      lanzarVentaja(socket, 'j2', 'j1');
+    }
+
+    // limpiamos los contadores de la instancia usada
+    counterMode.clearCounters();
     return;  // ya hemos programado la votación, salimos
   }
 
@@ -820,9 +855,7 @@ function modos_de_juego(socket) {
 
   console.log('Fin modos_de_juego para modo:', curr);
 }
-
   
-
     function activar_sockets_extratextuales(socket) {
 
         // Abre la pestaña de la votación.
@@ -870,148 +903,6 @@ function modos_de_juego(socket) {
         });
     }
 
-    //Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
-    function cambiar_palabra(escritxr) {
-        console.log("TEMP CAMBOO",escritxr)
-        if (!(playersState[1].finished && playersState[2].finished) && modo_actual != "palabras bonus") {
-            clearTimeout(cambio_palabra_j1);
-            clearTimeout(cambio_palabra_j2);
-        }
-            if(escritxr==1 && playersState[1].finished == false){
-            clearTimeout(cambio_palabra_j1);
-            cambio_palabra_j1 = setTimeout(
-                function () {
-                    if(inspiracion_musas_j1.length > 0){
-                        console.log("PALABRA BONUS DE MUSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-                        indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
-                        palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [DEFINICION_MUSA_BONUS]];
-                        inspiracion_musas_j1.splice(indice_palabra_j1, 1);
-                        palabras_var = palabra_bonus[0];
-                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                        palabras_var = palabra_bonus[0];
-                        io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                    }
-                    else{
-                    console.log("AQUI, AMOR", inspiracion_musas_j1)
-                    palabraRAE().then(palabra_bonus => {
-                        console.log(palabra_bonus)
-                        palabras_var = palabra_bonus[0];
-                        palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
-                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                        if(inspiracion_musas_j1.length == 0){
-                            console.log("ENVIO A J1: ", { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus })
-                            io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                        }
-                    })
-                    }
-                    cambiar_palabra(1);
-                }, TIEMPO_CAMBIO_PALABRAS);
-            }
-            else if(escritxr==2 && playersState[2].finished == false){
-            console.log("NO ME AFECTA")
-            clearTimeout(cambio_palabra_j2);
-            cambio_palabra_j2 = setTimeout(
-                function () {
-                        if(inspiracion_musas_j2.length > 0){
-                        indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
-                        palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [DEFINICION_MUSA_BONUS]];
-                        inspiracion_musas_j2.splice(indice_palabra_j2, 1);
-                        palabras_var = palabra_bonus[0];
-                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                        palabras_var = palabra_bonus[0];
-                        io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                    }
-                    else{
-                    console.log("AQUI, AMOR", inspiracion_musas_j2)
-                    palabraRAE().then(palabra_bonus => {
-                        palabras_var = palabra_bonus[0];
-                        palabra_bonus[0] = extraccion_palabra_var(palabra_bonus[0]);
-                        tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                        if(inspiracion_musas_j2.length == 0){
-                            io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                        }
-                    })
-                    }
-                    cambiar_palabra(2);
-                }, TIEMPO_CAMBIO_PALABRAS);
-            }
-    }
-
-//Función auxiliar recursiva que elige palabras bonus, las envía a jugador 1 y 2 y las cambia cada x segundos.
-function cambiar_palabra_prohibida(escritxr) {
-    console.log("TEMP CAMBOO",escritxr)
-    if (!(playersState[1].finished && playersState[2].finished) && modo_actual != "palabras prohibidas") {
-        clearTimeout(cambio_palabra_j1);
-        clearTimeout(cambio_palabra_j2);
-    }
-        if(escritxr==2 && playersState[1].finished == false){
-        clearTimeout(cambio_palabra_j2);
-        cambio_palabra_j2 = setTimeout(
-            function () {
-                console.log("ESTA FUNCIONANDO$$$$$")
-                if(inspiracion_musas_j1.length > 0){
-                    console.log("PALABRA BONUS DE MUSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-                    indice_palabra_j1 = Math.floor(Math.random() * inspiracion_musas_j1.length);
-                    palabra_bonus = [[inspiracion_musas_j1[indice_palabra_j1]], [DEFINICION_MUSA_PROHIBIDA]];
-                    inspiracion_musas_j1.splice(indice_palabra_j1, 1);
-                    palabras_var = palabra_bonus[0];
-                    tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                    palabras_var = palabra_bonus[0];
-                    io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                }
-                else{
-                    indice_palabra_j1 = Math.floor(Math.random() * palabras_prohibidas_restantes_j1.length);
-                    palabra_bonus = [[palabras_prohibidas_restantes_j1[indice_palabra_j1]], [DEFINICION_MUSA_PROHIBIDA]];
-                    palabras_prohibidas_restantes_j1.splice(indice_palabra_j1, 1);
-                    if(palabras_prohibidas_restantes_j1.length == 0){
-                        palabras_prohibidas_restantes_j1 = [...palabras_prohibidas];
-                    }
-                    palabras_var = palabra_bonus[0];
-                    console.log(palabra_bonus)
-                    tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                    palabras_var = palabra_bonus[0];
-                    console.log("AQUI, AMOR", inspiracion_musas_j1)
-                    if(inspiracion_musas_j1.length == 0){
-                        io.emit('enviar_palabra_j2', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                    }
-                }
-                cambiar_palabra_prohibida(2);
-            }, TIEMPO_CAMBIO_PALABRAS);
-        }
-        else if(escritxr==1 && playersState[2].finished == false){
-        console.log("NO ME AFECTA")
-        clearTimeout(cambio_palabra_j1);
-        cambio_palabra_j1 = setTimeout(
-            function () {
-                if(inspiracion_musas_j2.length > 0){
-                    console.log("ESTA FUNCIONANDO$$$$$")
-                    indice_palabra_j2 = Math.floor(Math.random() * inspiracion_musas_j2.length);
-                    palabra_bonus = [[inspiracion_musas_j2[indice_palabra_j2]], [DEFINICION_MUSA_PROHIBIDA]];
-                    inspiracion_musas_j2.splice(indice_palabra_j2, 1);
-                    palabras_var = palabra_bonus[0];
-                    tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                    palabras_var = palabra_bonus[0];
-                    io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                }
-                else{
-                    indice_palabra_j2 = Math.floor(Math.random() * palabras_prohibidas_restantes_j2.length);
-                    palabra_bonus = [[palabras_prohibidas_restantes_j2[indice_palabra_j2]], [""]];
-                    palabras_prohibidas_restantes_j2.splice(indice_palabra_j2, 1);
-                    if(palabras_prohibidas_restantes_j2.length == 0){
-                        palabras_prohibidas_restantes_j2 = [...palabras_prohibidas];
-                    }
-                    palabras_var = palabra_bonus[0];
-                    tiempo_palabras_bonus = puntuación_palabra(palabra_bonus[0][0]);
-                    palabras_var = palabra_bonus[0];
-                    console.log("AQUI, AMOR", inspiracion_musas_j2)
-                    if(inspiracion_musas_j2.length == 0){
-                        io.emit('enviar_palabra_j1', { modo_actual, palabras_var, palabra_bonus, tiempo_palabras_bonus });
-                    }
-                }
-                cambiar_palabra_prohibida(1);
-            }, TIEMPO_CAMBIO_PALABRAS);
-        }
-}
 
     const MODOS = {
 
@@ -1021,9 +912,9 @@ function cambiar_palabra_prohibida(escritxr) {
             log("activado palabras bonus");
 
             io.emit("pedir_inspiracion_musa", {modo_actual})
-
-            bonusMode.start(1);
-            bonusMode.start(2);
+            bonusmode.clearAll();
+            bonusmode.start(1);
+            bonusmode.start(2);
         },
 
         // Recibe y activa el modo letra prohibida.
@@ -1093,8 +984,9 @@ function cambiar_palabra_prohibida(escritxr) {
             // activar_socket_nueva_palabra(socket);
             io.emit("pedir_inspiracion_musa", {modo_actual})
 
-            curseMode.start(1);
-            curseMode.start(2);
+            malditasmode.clearAll();
+            malditasmode.start(1);
+            malditasmode.start(2);
         },
 
         'locura': function (socket) {
@@ -1113,46 +1005,6 @@ function cambiar_palabra_prohibida(escritxr) {
         },
 
         '': function () { }
-    }
-
-    // Función auxiliar que dada una palabra devuelve una puntación de respecto de la frecuencia.
-    function puntuación_palabra(palabra) {
-        palabra = palabra.toLowerCase();
-        let puntuación = 0;
-        if (palabra != null) {
-            palabra = palabra.replace(/\s+/g, '')
-            let longitud = palabra.length;
-            string_unico(toNormalForm(palabra)).split("").forEach(letra => puntuación += frecuencia_letras[letra]);
-            puntuación = Math.ceil((((10 - puntuación*0.5) + longitud * 0.1 * 30)) / 5) * 5
-            if(isNaN(puntuación)){
-                puntuación = 10;
-            }
-            return puntuación;
-        }
-        else return 10;
-    }
-
-    function string_unico(names) {
-        string = "";
-        ss = "";
-        namestring = names.split("");
-
-        for (j = 0; j < namestring.length; j++) {
-            for (i = j; i < namestring.length; i++) {
-                if (string.includes(namestring[i])) // if contains not work then  
-                    break;                          // use includes like in snippet
-                else
-                    string += namestring[i];
-            }
-            if (ss.length < string.length)
-                ss = string;
-            string = "";
-        }
-        return ss;
-    }
-
-    function toNormalForm(str) {
-        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     }
 });
 
@@ -1199,145 +1051,6 @@ function nueva_letra_prohibida(){
 
 }
 
-/******************************************************
- * rae-scrapper.js
- * ----------------------------------------------------
- * No reutiliza la misma pestaña:
- *  - Cada búsqueda usa un contexto de incógnito (ahora se
- *    llama createBrowserContext() en las versiones nuevas
- *    de Puppeteer).
- *  - Evita que la RAE almacene cookies/session y devuelva
- *    la misma palabra.
- ******************************************************/
-
-let navegador = null;
-
-/**
- * Inicializa el navegador (una sola vez).
- */
-async function inicializarNavegador() {
-  if (!navegador) {
-    // Lanza un navegador (headless por defecto).
-    // Asegúrate de usar puppeteer (no puppeteer-core),
-    // o de indicar un executablePath si fuera necesario.
-    navegador = await puppeteer.launch({
-      headless: true,
-    });
-  }
-}
-
-/**
- * Cierra el navegador si está abierto (opcional).
- */
-async function cerrarNavegador() {
-  if (navegador) {
-    await navegador.close();
-    navegador = null;
-  }
-}
-
-/**
- * Crea un contexto de incógnito usando createBrowserContext()
- * (nueva API en versiones recientes de Puppeteer),
- * abre una pestaña dentro de ese contexto, navega a la RAE y
- * obtiene la palabra aleatoria y su primera definición.
- *
- * @returns {Promise<{ palabra: string, definicion: string }>}
- */
-// Variable global para guardar la palabra y definición
-// Inicialmente vacía, representada con null o un array vacío.
-let palabra_buscada = null;
-
-async function palabraRAE() {
-    // Inicializamos el navegador si aún no se ha hecho
-    if (!navegador) {
-      await inicializarNavegador();
-    }
-  
-    // Bucle infinito que reintenta la operación hasta obtener una palabra válida
-    while (true) {
-      try {
-        // Si no hay palabra buscada previamente, procedemos a obtener una nueva
-        if (!palabra_buscada) {
-          // 1) Creamos un contexto de incógnito para aislar la sesión
-          const contexto = await navegador.createBrowserContext();
-          // 2) Abrimos una nueva pestaña en este contexto
-          const page = await contexto.newPage();
-          try {
-            // Opcional: establecemos el user agent y el viewport para emular un navegador real
-            await page.setUserAgent(
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-                'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-            );
-            await page.setViewport({ width: 1366, height: 768 });
-  
-            // 3) Navegamos a la URL que devuelve una palabra aleatoria
-            await page.goto('https://dle.rae.es/?m=random2', {
-              waitUntil: 'networkidle2',
-            });
-  
-            // 4) Esperamos el botón “Consultar” y simulamos un clic
-            await page.waitForSelector('button[aria-label="Consultar"]', {
-              visible: true,
-              timeout: 30000,
-            });
-            await page.click('button[aria-label="Consultar"]');
-  
-            // 5) Esperamos la navegación que carga la palabra nueva
-            await page.waitForNavigation({ waitUntil: 'networkidle2' });
-  
-            // 6) Extraemos la palabra; en caso de fallo se asigna "No encontrada"
-            let palabra = 'No encontrada';
-            try {
-              palabra = await page.$eval('h1.c-page-header__title', (el) =>
-                el.textContent.trim()
-              );
-            } catch {
-              // Se mantiene "No encontrada" en caso de error al extraer la palabra
-            }
-  
-            // 7) Extraemos la definición; en caso de fallo se asigna "Definición no encontrada"
-            let definicion = 'Definición no encontrada';
-            try {
-              definicion = await page.$eval(
-                'ol.c-definitions li.j div.c-definitions__item > div',
-                (el) => el.textContent.trim()
-              );
-            } catch {
-              // Se mantiene "Definición no encontrada" en caso de error al extraer la definición
-            }
-  
-            // Almacenamos la palabra y su definición en la variable global
-            palabra_buscada = [palabra, definicion];
-          } finally {
-            // 8) Cerramos la pestaña y el contexto para liberar recursos
-            await page.close();
-            await contexto.close();
-          }
-        }
-  
-        // Guardamos el resultado obtenido y reiniciamos la variable para la próxima búsqueda
-        const resultado = palabra_buscada;
-        palabra_buscada = null;
-  
-        // Validamos que la palabra extraída sea válida (diferente de "No encontrada")
-        if (resultado[0] && resultado[0] !== 'No encontrada') {
-          // Se retorna el resultado cuando la palabra es válida
-          return resultado;
-        } else {
-          // Si no se obtuvo una palabra válida, se lanza un error para activar el reintento
-          throw new Error('Palabra no encontrada, reintentando.');
-        }
-      } catch (error) {
-        // Se registra el error en consola y se espera 1 segundo antes de reintentar,
-        // evitando sobrecargar el servidor
-        console.error('Error en palabraRAE, reintentando:', error);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        // Se continúa el bucle para reintentar
-      }
-    }
-  }
-
 //Función que dadas dos horas en string devuelve los trozos en x invervalos de tiempo.
 function getRanges(timeString, n) {
     // Convertimos el tiempo en segundos
@@ -1376,59 +1089,6 @@ function getRanges(timeString, n) {
     let tiempo_final_segundos = parseInt(tiempo_final.split(":")[0]) * 60 + parseInt(tiempo_final.split(":")[1]);
     return tiempo_final_segundos - tiempo_inicial_segundos;
   }
-
-// Función para determinar si una vocal está acentuada
-function esVocalAcentuada(vocal) {
-    const vocalesAcentuadas = "áéíóú";
-    return vocalesAcentuadas.includes(vocal);
-}
-
-// Función para remover el acento de una vocal
-function removerAcento(vocal) {
-    const correspondencia = {'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u'};
-    return correspondencia[vocal] || vocal;
-}
-
-// Función para extracción y modificación de palabras según la terminación especificada
-function extraccion_palabra_var(palabra_var) {
-    console.log(palabra_var,"HOLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-    if (palabra_var == null) return [""];
-    let palabra_var_lista = palabra_var.split(", ");
-    let palabra = palabra_var_lista[0];
-    
-    if (palabra_var_lista.length > 1) {
-        let terminacion = palabra_var_lista[1];
-        let index = palabra.length - 1;
-        
-        if (terminacion.length != 1) {
-            while (index >= 0 && palabra.charAt(index) !== terminacion.charAt(0)) {
-                index--;
-            }
-        } else {
-            while (index >= 0 && !esVocal(palabra.charAt(index))) {
-                index--;
-            }
-        }
-
-        // Calcular la base de la palabra para la nueva terminación
-        let basePalabra = palabra.slice(0, index);
-        let palabraFinal = palabra; // Inicialmente igual a la palabra original
-
-        if (index > 0 && esVocalAcentuada(basePalabra.charAt(index - 1))) {
-            // Si la última vocal antes de la terminación es acentuada, remover el acento para la nueva palabra
-            let parteSinAcento = basePalabra.slice(0, index - 1) + removerAcento(basePalabra.charAt(index - 1));
-            palabraFinal = parteSinAcento + palabra.slice(index);
-        }
-
-        return [palabra, palabraFinal.slice(0, index) + terminacion];
-    } else return [palabra];
-}
-
-// Función para determinar si un carácter es una vocal (no considera acentos)
-function esVocal(caracter) {
-    const vocales = "aeiouAEIOU";
-    return vocales.includes(caracter);
-}
 
 function opcionConMasVotos(votaciones) {
     let maxVotos = -1;

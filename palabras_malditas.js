@@ -1,126 +1,126 @@
-// curseMode.js
-// Módulo para gestionar el modo "palabras malditas" de manera clara, optimizada y extensible.
+// palabras_malditas.js
+const MusasMode = require('./musas.js');
 
-class CurseMode {
-    /**
-     * Constructor
-     * @param {object} io - instancia de socket.io
-     * @param {number} timeoutMs - tiempo en milisegundos para cambio automático de palabra maldita
-     * @param {string[]} staticWords - lista estática inicial de palabras malditas
-     */
-    constructor(io, timeoutMs, staticWords) {
-      this.io = io;
-      this.timeoutMs = timeoutMs;
-      // Lista estática original: se usa para reiniciar cuando se agota
-      this.originalStaticWords = Array.isArray(staticWords) ? [...staticWords] : [];
-      // Estado de cada jugador
-      this.players = {
-        1: { musaWords: [], staticPool: [...this.originalStaticWords], timer: null },
-        2: { musaWords: [], staticPool: [...this.originalStaticWords], timer: null }
-      };
-    }
-  
-    /**
-     * Inicializa las palabras de musa (inspiración) para un jugador
-     * @param {number} playerId - 1 o 2
-     * @param {string[]} musaWords - lista inicial de palabras de musa
-     */
-    initPlayer(playerId, musaWords) {
-      this.players[playerId].musaWords = Array.isArray(musaWords) ? [...musaWords] : [];
-      // Reiniciar su pool estático también
-      this.players[playerId].staticPool = [...this.originalStaticWords];
-    }
-  
-    /**
-     * Inicia el modo para un jugador: asigna palabra maldita inicial y programa timeout
-     * @param {number} playerId - 1 o 2
-     */
-    start(playerId) {
-      this.clearTimer(playerId);
-      this.assignNextWord(playerId);
-    }
-  
-    /**
-     * Selecciona la siguiente palabra maldita para el jugador,
-     * priorizando las musaWords del jugador opuesto.
-     * Emite el evento `enviar_palabra_prohibida_j{playerId}` con:
-     * - modo_actual: "palabras prohibidas"
-     * - palabras_var: [palabraMaldita]
-     * @param {number} playerId - 1 o 2
-     */
-    assignNextWord(playerId) {
-      const player = this.players[playerId];
-      const other = this.players[playerId === 1 ? 2 : 1];
-  
-      let word;
-      // 1) Si el otro jugador envió musaWords, son malditas para este
-      if (other.musaWords.length > 0) {
-        const idx = Math.floor(Math.random() * other.musaWords.length);
-        word = other.musaWords.splice(idx, 1)[0];
-      } else {
-        // 2) Sino, tomar aleatoriamente de la pool estática
-        if (player.staticPool.length === 0) {
-          // Reiniciar pool cuando se consume
-          player.staticPool = [...this.originalStaticWords];
-        }
-        const idx = Math.floor(Math.random() * player.staticPool.length);
-        word = player.staticPool.splice(idx, 1)[0];
-      }
-  
-      // Emitir la palabra maldita
-      this.io.emit(`enviar_palabra_prohibida_j${playerId}`, {
-        modo_actual: "palabras prohibidas",
-        palabras_var: [word]
-      });
-      // Programar próximo cambio
-      this.scheduleTimeout(playerId);
-    }
-  
-    /**
-     * Programa el timeout para el siguiente cambio automático de palabra maldita
-     * @param {number} playerId - 1 o 2
-     */
-    scheduleTimeout(playerId) {
-      this.clearTimer(playerId);
-      this.players[playerId].timer = setTimeout(() => {
-        this.assignNextWord(playerId);
-      }, this.timeoutMs);
-    }
-  
-    /**
-     * Maneja la petición de nueva palabra maldita (cuando el jugador la solicita)
-     * @param {number} playerId - 1 o 2
-     */
-    handleRequest(playerId) {
-      this.assignNextWord(playerId);
-    }
-  
-    /**
-     * Añade una nueva palabra de musa recibida del jugador (se convertirá en maldita para el otro)
-     * @param {number} playerId - 1 o 2
-     * @param {string} word - palabra de musa a añadir
-     */
-    addMusaWord(playerId, word) {
-      if (!word) return;
-      this.players[playerId].musaWords.push(word);
-    }
-  
-    /**
-     * Limpia el temporizador de un jugador
-     * @param {number} playerId - 1 o 2
-     */
-    clearTimer(playerId) {
-      const t = this.players[playerId].timer;
-      if (t) clearTimeout(t);
-      this.players[playerId].timer = null;
-    }
-  
-    /**
-     * Limpia todos los temporizadores (al finalizar el modo)
-     */
-    clearAll() {
-      [1, 2].forEach(id => this.clearTimer(id));
-    }
+class PalabrasMalditasMode extends MusasMode {
+  // ─── Lista estática de palabras malditas ────────────────────────────
+  static MALDITAS = [
+    "de","la","que","el","en","y","a","los","se","del",
+    "las","un","por","con","no","una","su","para","es","al",
+    "lo","como","más","o","pero","sus","le","ha","me","si",
+    "sin","sobre","este","ya","entre","cuando","todo","esta","ser","son",
+    "dos","también","fue","había","era","muy","años","hasta","desde","está"
+  ];
+
+  // Copia mutable para ir consumiendo sin repetir
+  static _remainingMalditas = [...PalabrasMalditasMode.MALDITAS];
+
+  constructor(io, TIEMPO_CAMBIO_PALABRAS) {
+    super(io, TIEMPO_CAMBIO_PALABRAS);
   }
-  
-  module.exports = CurseMode;
+
+  /**
+   * Override de la emisión automática tras timeout.
+   * Se encarga de:
+   *  - Robar musa del oponente si existe.
+   *  - Si no, tomar palabra estática al azar.
+   *  - Emitir por 'enviar_palabra_j{playerId}'.
+   */
+  _emitNext(playerId) {
+    const otro         = playerId === 1 ? 2 : 1;
+    const queueOther   = this.players[otro].queue;
+    const evento       = `enviar_palabra_j${playerId}`;
+
+    let palabras_var, palabra_bonus, tiempo_palabras_bonus;
+
+    if (queueOther.length > 0) {
+      // ─── Robar musa del oponente ───────────────────────────────────
+      const idx  = Math.floor(Math.random() * queueOther.length);
+      const word = queueOther.splice(idx, 1)[0];
+
+      palabras_var          = word;
+      palabra_bonus         = [ [word], '' ]; // sin definición
+      tiempo_palabras_bonus = this._puntuacionPalabra(word);
+
+      console.log(
+        `[PalabrasMalditasMode][_emitNext] J${playerId} robó musa de J${otro}: "${word}"`
+      );
+
+    } else {
+      // ─── Lista estática (aleatorio + reset) ────────────────────────
+      if (PalabrasMalditasMode._remainingMalditas.length === 0) {
+        PalabrasMalditasMode._remainingMalditas = [
+          ...PalabrasMalditasMode.MALDITAS
+        ];
+        console.log(
+          '[PalabrasMalditasMode][_emitNext] Lista estática reiniciada'
+        );
+      }
+
+      const rem  = PalabrasMalditasMode._remainingMalditas;
+      const idx  = Math.floor(Math.random() * rem.length);
+      const word = rem.splice(idx, 1)[0];
+
+      palabras_var          = word;
+      palabra_bonus         = [ [word], '' ];
+      tiempo_palabras_bonus = this._puntuacionPalabra(word);
+
+      console.log(
+        `[PalabrasMalditasMode][_emitNext] J${playerId} recibe estática: "${word}"`
+      );
+    }
+
+    // ─── Emitir payload unificado ────────────────────────────────────
+    const payload = {
+      modo_actual: 'palabras malditas',
+      palabras_var,
+      palabra_bonus,
+      tiempo_palabras_bonus
+    };
+    console.log(`[PalabrasMalditasMode][_emitNext] Emite ${evento}:`);
+    console.dir(payload, { depth: null, colors: true });
+
+    this.io.emit(evento, payload);
+    // ─── Reprogramar siguiente envío ────────────────────────────────
+    this._schedulePending(playerId);
+  }
+
+  /**
+   * Cuando el cliente pide manualmente otra palabra maldita (opcional):
+   * simplemente arranca el scheduler para que al timeout lance `_emitNext`.
+   *
+   * @param {1|2} playerId
+   */
+  async handleRequest(playerId) {
+    const st = this.players[playerId];
+    if (!st) return;
+
+    // Limpiar timeout previo, si hubiera
+    if (st.pendingTimer) {
+      clearTimeout(st.pendingTimer);
+      st.pendingTimer = null;
+    }
+    // Arrancar emisión automática
+    this._schedulePending(playerId);
+  }
+
+  /**
+   * Calcula un "tiempo" según frecuencias de letras.
+   * @param {string} word
+   * @returns {number}
+   */
+  _puntuacionPalabra(word) {
+    if (!word) return 10;
+    const freq = {
+      a:1,b:2,c:3,d:4,e:5,f:1,g:2,h:1,i:5,
+      j:1,k:1,l:1,m:2,n:2,o:5,p:1,q:1,r:1,
+      s:1,t:1,u:5,v:1,w:1,x:1,y:1,z:1
+    };
+    const clean = word.toLowerCase().replace(/\s+/g, '');
+    let sum = 0;
+    for (const ch of clean) sum += freq[ch] || 0;
+    const pts = Math.ceil((((10 - sum*0.5) + clean.length*3)) / 5) * 5;
+    return isNaN(pts) ? 10 : pts;
+  }
+}
+
+module.exports = PalabrasMalditasMode;
