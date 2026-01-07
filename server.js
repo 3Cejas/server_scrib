@@ -2,66 +2,59 @@ const Musas = require('./musas');
 const PalabrasBonusMode = require('./palabras_bonus.js');
 const PalabrasMalditasMode= require('./palabras_malditas.js');
 
-const { INSPECT_MAX_BYTES } = require('buffer');
 const fs = require('fs');
-const puppeteer = require('puppeteer');
-const { clear, count } = require('console');
 const https = require('https');
 //require('dotenv').config();
 
-// Variable de entorno para determinar el entorno
-//const isProduction = process.env.NODE_ENV === 'production';
-const isProduction = false;
-let server;
+// Entorno de ejecución (local vs producción).
+//const es_produccion = process.env.NODE_ENV === 'production';
+const es_produccion = false;
+let servidor;
 let io;
 
-console.log(process.env.NODE_ENV)
-if (isProduction) {
-    // Cargar certificados en entorno de producción
+const DEPURACION_ACTIVA = process.env.DEBUG_SERVER === '1';
+const registrar = DEPURACION_ACTIVA ? console.log : () => {};
+
+registrar(process.env.NODE_ENV)
+if (es_produccion) {
+    // Certificados TLS en producción.
     const options = {
         key: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/privkey.pem'),
         cert: fs.readFileSync('/etc/letsencrypt/live/sutura.ddns.net/fullchain.pem')
     };
-    server = https.createServer(options); // Define el servidor HTTPS.
+    servidor = https.createServer(options);
     console.log("HTTPS iniciado")
 } else {
-    // Usar servidor HTTP en entorno local
-    server = require("http").createServer(); // Define el servidor HTTP.
+    // Servidor HTTP en entorno local.
+    servidor = require("http").createServer();
     console.log("HTTP iniciado")
 }
 
-// Configurar Socket.IO con opciones de cookie y CORS
-// Configurar Socket.IO con la cookie y CORS adecuados
-io = require('socket.io')(server, {
+// Configuración de Socket.IO (cookies y CORS).
+io = require('socket.io')(servidor, {
     cookie: {
         name: 'io',
         // En producción: sameSite: 'none' y secure: true.
         // En desarrollo: sameSite: 'lax' y secure: false.
-        sameSite: isProduction ? 'none' : 'lax',
-        secure: isProduction ? true : false
+        sameSite: es_produccion ? 'none' : 'lax',
+        secure: es_produccion ? true : false
     },
 });
 
-let bonusmode = new PalabrasBonusMode(io, 300000);
-let malditasmode = new PalabrasMalditasMode(io, 30000);
-let musas = new Musas(io, 30000);
-const log = console.log; // Define la consola del servidor.
-const port = process.env.PORT || 3000; // Define el puerto de comunicación con el servidor (puede ser o, el puerto dado por el entorno, o el 3000 si no lo encuentra).
-const LIMPIEZAS = {
+let modo_bonus = new PalabrasBonusMode(io, 300000);
+let modo_malditas = new PalabrasMalditasMode(io, 30000);
+let modo_musas = new Musas(io, 30000);
+const puerto = process.env.PORT || 3000; // Puerto de escucha.
+// Limpiezas por modo al salir de cada fase.
+const LIMPIEZAS_MODO = {
 
     'palabras bonus': function (socket) {
-        
-        bonusmode.clearAll();
-        //socket.removeAllListeners('nueva_palabra');
-        // socket.removeAllListeners('enviar_palabra');
-        //socket.removeAllListeners('feedback_de_j1');
-        //socket.removeAllListeners('feedback_de_j2');
+        modo_bonus.clearAll();
     },
 
     'letra prohibida': function (socket) {
-        // Reiniciar colas y timers
-        musas.clearAll();
-        // (Las colas de inspiración se rellenan con addMusa según vayan llegando)
+        // Limpiar colas y timers del modo de musas.
+        modo_musas.clearAll();
         clearTimeout(cambio_palabra_j1);
         clearTimeout(cambio_palabra_j2);
         clearTimeout(listener_cambio_letra);
@@ -69,9 +62,8 @@ const LIMPIEZAS = {
     },
 
     'letra bendita': function (socket) {
-        // Reiniciar colas y timers
-        musas.clearAll();
-        // (Las colas de inspiración se rellenan con addMusa según vayan llegando)
+        // Limpiar colas y timers del modo de musas.
+        modo_musas.clearAll();
         clearTimeout(cambio_palabra_j1);
         clearTimeout(cambio_palabra_j2);
         clearTimeout(listener_cambio_letra);
@@ -89,7 +81,7 @@ const LIMPIEZAS = {
     'tertulia': function (socket) { },
 
     'palabras prohibidas': function (socket) {
-        malditasmode.clearAll();
+        modo_malditas.clearAll();
     },
 
     'ortografía perfecta': function (socket) {
@@ -99,14 +91,11 @@ const LIMPIEZAS = {
     'locura': function (socket) { },
 
     'frase final': function (socket) {
-        //socket.broadcast.emit('fin', 1);
-        //socket.broadcast.emit('fin', 2);
         fin_j1 = true;
         fin_j2 = true;
         fin_del_juego = true;
-        playersState[1].finished = true;
-        playersState[2].finished = true;
-        //io.emit('fin_a_control');
+        estado_jugadores[1].finished = true;
+        estado_jugadores[2].finished = true;
     },
 
 
@@ -115,28 +104,29 @@ const LIMPIEZAS = {
 
 
 
-let texto1 = ""; // Variable que almacena el texto del editor 1.
-let texto2 = ""; // Variable que almacena el texto del editor 2.
-let cambio_palabra_j1 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
-let cambio_palabra_j2 = false; // Variable que almacena el temporizador de cambio de palabra bonus.
-let timeout_inicio = false; // Variable que almacena el temporizador de inicio de juego.
-let listener_cambio_letra = false; // Variable que almacena el listener de cambio de letra.
+let texto1 = ""; // Texto actual del escritor 1.
+let texto2 = ""; // Texto actual del escritor 2.
+let texto_escritor = { 1: "", 2: "" };
+let cambio_palabra_j1 = false; // Timer de cambio de palabra (J1).
+let cambio_palabra_j2 = false; // Timer de cambio de palabra (J2).
+let timeout_inicio = false; // Timer de inicio de partida.
+let listener_cambio_letra = false; // Timer de cambio de letra.
 let tiempo_voto = false;
-// Estado de cada jugador para modos letra bendita/prohibida
-const playersState = {
+// Estado por jugador para modos con letra.
+const estado_jugadores = {
     1: { inserts: -1, finished: false },
     2: { inserts: -1, finished: false }
   };
 let tiempo_modos;
 let atributos = {1: {}, 2: {}};
-// Variable global para almacenar los segundos transcurridos
-let secondsPassed = 0;
-let intervaloID_temp_modos;
-// Variables del modo letra prohibida.
+// Contador global de segundos del temporizador de modos.
+let segundos_transcurridos = 0;
+let id_intervalo_modos;
+// Estado del modo de letras.
 let modo_actual = "";
 let modo_anterior = "";
-// Índice global para recorrer modos_restantes sin usar shift()
-let modoIndex = 0;
+// Índice global para recorrer modos pendientes sin mutar el array.
+let indice_modo = 0;
 let letra_prohibida = "";
 let letra_bendita = "";
 const letras_prohibidas = ['e','a','o','s','r','n','i','d','l','c'];
@@ -162,27 +152,29 @@ const convertirADivsASpans = repentizados.map(frase =>
     frase.replace(/<div(.*?)>/g, '<span$1>').replace(/<\/div>/g, '</span>')
 );
 
-console.log(convertirADivsASpans);
+// Log opcional para validar el preprocesado de repentizados.
+registrar(convertirADivsASpans);
 
 
-let letras_benditas_restantes = [...letras_benditas];
-let letras_prohibidas_restantes = [...letras_prohibidas];
-let repentizados_restantes = [...repentizados];
+let letras_benditas_pendientes = [...letras_benditas];
+let letras_prohibidas_pendientes = [...letras_prohibidas];
+let repentizados_pendientes = [...repentizados];
 
 var tiempos = [];
 
-//const LISTA_MODOS = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
-let LISTA_MODOS = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "locura"];
-let LISTA_MODOS_LOCURA = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
-let modos_restantes;
+// const lista_modos = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
+let lista_modos = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "locura"];
+let lista_modos_locura = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
+let modos_pendientes;
 let escritxr1 = "";
 let escritxr2 = "";
 let votos_ventaja = {
-    //"🐢": 0,
+    "🐢": 0,
     "⚡": 0,
     //"⌛": 0,
     "🌪️": 0,
-    "🙃": 0
+    "🙃": 0,
+    "🖊️": 0
 }
 
 let votos_repentizado = {
@@ -206,7 +198,121 @@ let PALABRAS_INSERTADAS_META;
 let TIEMPO_VOTACION;
 let TIEMPO_CAMBIO_LETRA;
 
-// Crea un objeto para llevar la cuenta de las musas
+// Helpers de sincronización y limpieza de estado.
+const actualizarTimeoutModo = (modo, tiempo_ms) => {
+    if (!modo) return;
+    modo.timeout = tiempo_ms;
+    if (typeof modo.clearAll === 'function') {
+        modo.clearAll();
+    }
+};
+const limpiarTodosLosModos = () => {
+    if (modo_musas) modo_musas.clearAll();
+    if (modo_bonus) modo_bonus.clearAll();
+    if (modo_malditas) modo_malditas.clearAll();
+};
+const limpiarTimersPalabras = () => {
+    clearTimeout(cambio_palabra_j1);
+    clearTimeout(cambio_palabra_j2);
+    clearTimeout(listener_cambio_letra);
+};
+const limpiarTimersRonda = () => {
+    clearTimeout(tiempo_voto);
+    clearTimeout(timeout_inicio);
+    clearInterval(id_intervalo_modos);
+};
+const obtenerIdJugadorValido = (valor) => {
+    const id = Number(valor);
+    return (id === 1 || id === 2) ? id : null;
+};
+const MAX_NOMBRE_MUSA = 10;
+const REGEX_NOMBRE_MUSA = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 _.-]+$/;
+const REGEX_LETRA_MUSA = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
+const normalizarNombreMusa = (valor) => {
+    if (typeof valor !== 'string') return '';
+    const limpio = valor.trim().slice(0, MAX_NOMBRE_MUSA);
+    if (!limpio) return '';
+    if (!REGEX_NOMBRE_MUSA.test(limpio)) return '';
+    if (!REGEX_LETRA_MUSA.test(limpio)) return '';
+    return limpio.toUpperCase();
+};
+const extraerTextoPlano = (evento) => {
+    if (typeof evento === 'string') return evento;
+    if (evento && typeof evento.text === 'string') return evento.text;
+    return '';
+};
+const reiniciarEstadoPartida = (socket) => {
+    fin_j1 = false;
+    fin_j2 = false;
+    estado_jugadores[1].finished = true;
+    estado_jugadores[2].finished = true;
+    fin_del_juego = true;
+    limpiarTimersPalabras();
+    limpiarTimersRonda();
+    LIMPIEZAS_MODO[modo_actual](socket);
+    activar_sockets_extratextuales(socket);
+    modos_pendientes = [...lista_modos];
+    modo_anterior = "";
+    modo_actual = "";
+};
+
+// Helpers para reenviar eventos sin duplicar listeners.
+function reenviarAOtros(socket, evento, evento_salida = null) {
+    if (!socket._forwarded_events) socket._forwarded_events = new Set();
+    const key = evento_salida ? `${evento}->${evento_salida}` : evento;
+    if (socket._forwarded_events.has(key)) return;
+    socket._forwarded_events.add(key);
+
+    socket.on(evento, (payload) => {
+        const salida = evento_salida || evento;
+        socket.broadcast.emit(salida, payload);
+    });
+}
+
+function reenviarASala(socket, evento, sala, evento_salida = null) {
+    if (!socket._forwarded_room_events) socket._forwarded_room_events = new Set();
+    const key = `${evento}->${evento_salida || evento}@${sala}`;
+    if (socket._forwarded_room_events.has(key)) return;
+    socket._forwarded_room_events.add(key);
+
+    socket.on(evento, (payload) => {
+        const salida = evento_salida || evento;
+        io.to(sala).emit(salida, payload);
+    });
+}
+
+function reenviarGrupo(socket, eventos) {
+    eventos.forEach((evento) => reenviarAOtros(socket, evento));
+}
+
+function reenviarMapeados(socket, pares) {
+    pares.forEach(([entrada, salida]) => reenviarAOtros(socket, entrada, salida));
+}
+
+function reenviarMapeadosASala(socket, pares) {
+    pares.forEach(([entrada, salida, sala]) => reenviarASala(socket, entrada, sala, salida));
+}
+
+function activar_sockets_extratextuales(socket) {
+    if (socket._extratextuales_on) {
+        return;
+    }
+    socket._extratextuales_on = true;
+
+    reenviarGrupo(socket, ['vote', 'exit', 'scroll', 'scroll_sincro', 'impro']);
+    reenviarMapeados(socket, [
+        ['envia_temas', 'recibe_temas'],
+        ['temas', 'temas_espectador'],
+        ['tiempo_muerto_a_control', 'tiempo_muerto_control'],
+    ]);
+
+    reenviarMapeadosASala(socket, [
+        ['enviar_postgame1', 'recibir_postgame2', 'j2'],
+        ['enviar_postgame2', 'recibir_postgame1', 'j1'],
+    ]);
+}
+
+// Contador de musas conectadas por equipo.
 let contador_musas = {
     escritxr1: 0,
     escritxr2: 0
@@ -243,85 +349,98 @@ const frecuencia_letras = {
     'z': 0.52
 }
 
-// Comienza a escuchar.
-server.listen(port, () => log(`Servidor escuchando en el puerto: ${port}`));
+// Arranque del servidor.
+servidor.listen(puerto, () => console.log(`Servidor escuchando en el puerto: ${puerto}`));
 
 io.on('connection', (socket) => {
 
     socket.emit('actualizar_contador_musas', contador_musas);
 
+    // Registro de roles y salas.
     socket.on('registrar_espectador', () => {
         socket.join(`j${1}`);
         socket.join(`j${2}`);
   });
     socket.on('registrar_escritor', (escritxr) => {
 
-        const id = Number(escritxr);
-        if (![1,2].includes(id)) {
-          console.warn(`[server] register_escritor: id inválido (${escritxr})`);
+        const id_jugador = obtenerIdJugadorValido(escritxr);
+        if (!id_jugador) {
+          console.warn(`[servidor] register_escritor: id inválido (${escritxr})`);
           return;
         }
-        socket.escritxr = id;
-        socket.join(`j${id}`);
-        console.log(`[server] socket ${socket.id} registrado como escritor ${id}`);
+        socket.escritxr = id_jugador;
+        socket.join(`j${id_jugador}`);
+        registrar(`[servidor] socket ${socket.id} registrado como escritor ${id_jugador}`);
       });
 
-    socket.on('registrar_musa', (musa) => {
-        socket.musa = musa;
-        console.log(`Una musa se ha unido a la partida para el equipo ${musa}.`);
-        const id = Number(musa);
-        if (![1,2].includes(id)) {
-          console.log(`[server] enviar_musa: escritxr=${musa} no es escritor válido → no cuento`);
+    socket.on('registrar_musa', (evento) => {
+        const datos_musa = (evento && typeof evento === 'object') ? evento : { musa: evento };
+        const id_jugador = obtenerIdJugadorValido(datos_musa.musa);
+        const nombre_musa = normalizarNombreMusa(datos_musa.nombre) || 'MUSA';
+        socket.musa = id_jugador;
+        socket.nombre_musa = nombre_musa;
+        registrar(`Una musa (${nombre_musa}) se ha unido a la partida para el equipo ${datos_musa.musa}.`);
+        if (!id_jugador) {
+          registrar(`[servidor] enviar_musa: escritxr=${datos_musa.musa} no es escritor válido → no cuento`);
           return;
         }
-        // Actualizo contador porque SÍ es una musa legítima
-        if (id === 1) contador_musas.escritxr1++;
+        socket.join(`j${id_jugador}`);
+        // Actualiza contador solo si la musa es válida.
+        if (id_jugador === 1) contador_musas.escritxr1++;
         else             contador_musas.escritxr2++;
-        console.log('[server] contador_musas →', contador_musas);
+        registrar('[servidor] contador_musas →', contador_musas);
         io.emit('actualizar_contador_musas', contador_musas);
   });
 
   socket.on('disconnect', () => {
     const id = Number(socket.musa);
-    console.log(`[server] desconexión socket ${socket.id}, escritxr=${id}`);
+    registrar(`[servidor] desconexión socket ${socket.id}, escritxr=${id}`);
   
     if (id === 1) {
       if (contador_musas.escritxr1 > 0) {
         contador_musas.escritxr1--;
-        console.log(`[server] decrementado contador_musas.escritxr1 →`, contador_musas.escritxr1);
+        registrar(`[servidor] decrementado contador_musas.escritxr1 →`, contador_musas.escritxr1);
       }
     } 
     else if (id === 2) {
       if (contador_musas.escritxr2 > 0) {
         contador_musas.escritxr2--;
-        console.log(`[server] decrementado contador_musas.escritxr2 →`, contador_musas.escritxr2);
+        registrar(`[servidor] decrementado contador_musas.escritxr2 →`, contador_musas.escritxr2);
       }
     } 
     else {
-      console.log('[server] desconexión de cliente sin escritxr válido, no se modifica contador.');
+      registrar('[servidor] desconexión de cliente sin escritxr válido, no se modifica contador.');
     }
   
-    // Emitimos siempre el estado actualizado
+    // Emite el estado actualizado del contador.
     io.emit('actualizar_contador_musas', contador_musas);
   });
   
-    // Da retroalimentación cuando se ha conectado con el ciente.
+    // Envía nombres actuales al conectar.
 
     io.emit('nombre1', escritxr1);
     io.emit('nombre2', escritxr2);
 
-    // Envía el texto del editor 1.
+    // Canales de texto de los escritores.
 
-    socket.on('texto1', (evt) => {
-        texto1 = evt;
-        socket.broadcast.emit('texto1', evt);
+    socket.on('texto1', (evento) => {
+        texto1 = evento;
+        if (socket.escritxr === 1) {
+            texto_escritor[1] = extraerTextoPlano(evento);
+            modo_malditas.actualizarTextoJugador(1, texto_escritor[1]);
+        }
+        socket.broadcast.emit('texto1', evento);
     });
 
     // Envía el texto del editor 2.
 
-    socket.on('texto2', (evt) => {
-        texto2 = evt;
-        socket.broadcast.emit('texto2', evt);
+    socket.on('texto2', (evento) => {
+        texto2 = evento;
+        if (socket.escritxr === 2) {
+            texto_escritor[2] = extraerTextoPlano(evento);
+            modo_malditas.actualizarTextoJugador(2, texto_escritor[2]);
+        }
+        socket.broadcast.emit('texto2', evento);
     });
 
     socket.on('pedir_texto', () => {
@@ -333,64 +452,81 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('pedir_nombre', () => {
-        console.log("te escucho")
-        if(socket.musa == 1){
-        socket.emit('dar_nombre', escritxr1);
-        }
-        else{
-            socket.emit('dar_nombre', escritxr2);
-        }
-        sincro_modos(socket);
-        });
+socket.on('pedir_nombre', (payload = {}) => {
+    registrar("te escucho pedir_nombre", payload);
 
-    // Envía el nombre del jugador 1.
+    // Prioriza musa explícita si se pasa por parámetro.
+    const musa_param = Number(payload.musa);
+    const hayMusaPorParametro = (musa_param === 1 || musa_param === 2);
+
+    // Musa efectiva: parámetro válido o socket.musa.
+    const musa_efectiva = hayMusaPorParametro ? musa_param : Number(socket.musa);
+
+    // Fallback defensivo si socket.musa es inválida o no existe.
+    const musa_final = (musa_efectiva === 1 || musa_efectiva === 2) ? musa_efectiva : 1;
+
+    // Emite el nombre correspondiente.
+    socket.emit('dar_nombre', musa_final === 1 ? escritxr1 : escritxr2);
+
+    // Solo sincroniza modos si no hay musa forzada por parámetro.
+    if (!hayMusaPorParametro) {
+        sincro_modos(socket);
+    }
+});
+
+
+
+    // Actualiza nombre del jugador 1.
 
     socket.on('envío_nombre1', (nombre) => {
         escritxr1 = nombre;
         socket.broadcast.emit('nombre1', nombre);
     });
 
-    // Envía el nombre del jugador 2.
+    // Actualiza nombre del jugador 2.
 
     socket.on('envío_nombre2', (nombre) => {
         escritxr2 = nombre;
         socket.broadcast.emit('nombre2', nombre);
     });
-    //activa sockets no tienen que ver con los textos.
+    // Activa sockets extratextuales.
     activar_sockets_extratextuales(socket);
-    // Envía el contador de tiempo.
-    socket.on('count', (data) => {
-        console.log(data)
-        if(data.player == 1){
-            playersState[1].finished = false;
-            if (data.count == "¡Tiempo!") {
-                playersState[1].finished = true;;
+    // Contador de tiempo y finalización de ronda.
+    socket.on('count', (datos) => {
+        registrar(datos)
+        const id_jugador = obtenerIdJugadorValido(datos.player);
+        if (!id_jugador) {
+            return;
+        }
+        if(id_jugador == 1){
+            estado_jugadores[1].finished = false;
+            if (datos.count == "¡Tiempo!") {
+                estado_jugadores[1].finished = true;;
                 nueva_palabra_j1 = false;
                 clearTimeout(cambio_palabra_j1);
             }
-            console.log(modos_restantes)
-            console.log(modo_actual)
-            console.log("TIEMPO LIMITE", TIEMPO_CAMBIO_MODOS)
+            registrar(modos_pendientes)
+            registrar(modo_actual)
+            registrar("TIEMPO LIMITE", TIEMPO_CAMBIO_MODOS)
         }
-        if(data.player == 2){
-            playersState[2].finished = false;;
-            console.log("holaaaa", data)
-            if (data.count == "¡Tiempo!") {
-                playersState[2].finished = true;;
+        if(id_jugador == 2){
+            estado_jugadores[2].finished = false;;
+            registrar("holaaaa", datos)
+            if (datos.count == "¡Tiempo!") {
+                estado_jugadores[2].finished = true;;
                 nueva_palabra_j2 = false;
                 clearTimeout(cambio_palabra_j2);
             }
         }
         if(fin_del_juego){
-            clearInterval(intervaloID_temp_modos);
-            LIMPIEZAS[modo_actual](socket);
+            clearInterval(id_intervalo_modos);
+            LIMPIEZAS_MODO[modo_actual](socket);
             activar_sockets_extratextuales(socket);
-            modos_restantes = [...LISTA_MODOS];
+            modos_pendientes = [...lista_modos];
             modo_anterior = "";
             modo_actual = "";
         }
-        socket.broadcast.emit('count', data);
+        socket.broadcast.emit('count', datos);
     });
 
     /*if (modo_actual == 'palabras bonus') {
@@ -407,56 +543,50 @@ io.on('connection', (socket) => {
         });
     }*/
     
-    // Comienza el juego.
+    // Inicio de partida.
 
-    socket.on('inicio', (data) => {
-        clearInterval(intervaloID_temp_modos);
-        TIEMPO_CAMBIO_PALABRAS = data.parametros.TIEMPO_CAMBIO_PALABRAS;
-        DURACION_TIEMPO_MODOS = data.parametros.DURACION_TIEMPO_MODOS;
+    socket.on('inicio', (datos) => {
+        clearInterval(id_intervalo_modos);
+        TIEMPO_CAMBIO_PALABRAS = datos.parametros.TIEMPO_CAMBIO_PALABRAS;
+        DURACION_TIEMPO_MODOS = datos.parametros.DURACION_TIEMPO_MODOS;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
-        TIEMPO_BORROSO = data.parametros.TIEMPO_BORROSO;
-        PALABRAS_INSERTADAS_META = data.parametros.PALABRAS_INSERTADAS_META;
-        TIEMPO_VOTACION = data.parametros.TIEMPO_VOTACION;
-        TIEMPO_CAMBIO_LETRA = data.parametros.TIEMPO_CAMBIO_LETRA;
-        LISTA_MODOS = data.parametros.LISTA_MODOS;
-        LISTA_MODOS_LOCURA = data.parametros.LISTA_MODOS_LOCURA;
-        modos_restantes = [...LISTA_MODOS];
-        bonusmode = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS);
-        malditasmode = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS);
-        musas = new Musas(io, TIEMPO_CAMBIO_PALABRAS);
+        TIEMPO_BORROSO = datos.parametros.TIEMPO_BORROSO;
+        PALABRAS_INSERTADAS_META = datos.parametros.PALABRAS_INSERTADAS_META;
+        TIEMPO_VOTACION = datos.parametros.TIEMPO_VOTACION;
+        TIEMPO_CAMBIO_LETRA = datos.parametros.TIEMPO_CAMBIO_LETRA;
+        lista_modos = datos.parametros.LISTA_MODOS || datos.parametros.lista_modos || lista_modos;
+        lista_modos_locura = datos.parametros.LISTA_MODOS_LOCURA || datos.parametros.lista_modos_locura || lista_modos_locura;
+        modos_pendientes = [...lista_modos];
+        if (!modo_bonus) modo_bonus = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS);
+        if (!modo_malditas) modo_malditas = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS);
+        if (!modo_musas) modo_musas = new Musas(io, TIEMPO_CAMBIO_PALABRAS);
+        actualizarTimeoutModo(modo_bonus, TIEMPO_CAMBIO_PALABRAS);
+        actualizarTimeoutModo(modo_malditas, TIEMPO_CAMBIO_PALABRAS);
+        actualizarTimeoutModo(modo_musas, TIEMPO_CAMBIO_PALABRAS);
 
-
-
-
-
-        tiempos = getRanges(data.count, LISTA_MODOS.length + 1); 
-        socket.removeAllListeners('vote');
-        socket.removeAllListeners('exit');
-        socket.removeAllListeners('envia_temas');
-        socket.removeAllListeners('temas');
-        socket.removeAllListeners('enviar_postgame1');
-        socket.removeAllListeners('enviar_postgame2');
+        tiempos = getRanges(datos.count, lista_modos.length + 1); 
+        // Los forwarders se registran una sola vez por socket.
         //socket.removeAllListeners('scroll');
-        playersState[1].finished = false;;
-        playersState[2].finished = false;;
+        estado_jugadores[1].finished = false;;
+        estado_jugadores[2].finished = false;;
         fin_del_juego = false;
         fin_j1 = false;
         fin_j2 = false;
         locura = false;
-        modos_restantes = [...LISTA_MODOS];
-        modoIndex = 0
-        letras_benditas_restantes = [...letras_benditas];
-        letras_prohibidas_restantes = [...letras_prohibidas];
+        modos_pendientes = [...lista_modos];
+        indice_modo = 0
+        letras_benditas_pendientes = [...letras_benditas];
+        letras_prohibidas_pendientes = [...letras_prohibidas];
         modo_anterior = "";
         modo_actual = "";
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
-        socket.broadcast.emit('inicio', data);
-        console.log(modos_restantes)
+        socket.broadcast.emit('inicio', datos);
+        registrar(modos_pendientes)
         modo_anterior = modo_actual;
-        modo_actual = modos_restantes[0];
-        modos_restantes.splice(0, 1);
+        modo_actual = modos_pendientes[0];
+        modos_pendientes.splice(0, 1);
         timeout_inicio = setTimeout(() => {
-        socket.broadcast.emit('post-inicio', {borrar_texto : data.borrar_texto});
+        socket.broadcast.emit('post-inicio', {borrar_texto : datos.borrar_texto});
         MODOS[modo_actual](socket);
         //repentizado()
         temp_modos();
@@ -465,148 +595,143 @@ io.on('connection', (socket) => {
 
     // Resetea el tablero de juego.
 
-    socket.on('limpiar', (evt1) => {
+    socket.on('limpiar', (evento) => {
         activar_sockets_extratextuales(socket);
-        clearTimeout(tiempo_voto);
-        clearTimeout(cambio_palabra_j1);
-        clearTimeout(cambio_palabra_j2);
-        clearTimeout(timeout_inicio);
-        clearTimeout(listener_cambio_letra);
-        clearInterval(intervaloID_temp_modos);
-        playersState[1].finished = true;
-        playersState[2].finished = true;
-        if(musas) musas.clearAll();
-        if(bonusmode) bonusmode.clearAll();
-        console.log(malditasmode)
-        if(malditasmode) malditasmode.clearAll();
+        limpiarTimersPalabras();
+        limpiarTimersRonda();
+        estado_jugadores[1].finished = true;
+        estado_jugadores[2].finished = true;
+        limpiarTodosLosModos();
         fin_del_juego = true;
         locura = false;
-        modos_restantes = [...LISTA_MODOS];
-        modoIndex = 0
+        modos_pendientes = [...lista_modos];
+        indice_modo = 0
         modo_anterior = "";
         modo_actual = "";
         nueva_palabra_j1 = false;
         nueva_palabra_j2 = false;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
-        socket.broadcast.emit('limpiar', evt1);
+        socket.broadcast.emit('limpiar', evento);
     });
 
-    socket.on('pausar', (evt1) => {
-        clearTimeout(cambio_palabra_j1);
-        clearTimeout(cambio_palabra_j2);
-        clearTimeout(listener_cambio_letra);
+    socket.on('pausar', (evento) => {
+        limpiarTimersPalabras();
         activar_sockets_extratextuales(socket);
-        //socket.broadcast.emit('pausar_js', evt1);
+        //socket.broadcast.emit('pausar_js', evento);
     });
 
     socket.on('fin_de_control', (player) => {
-        if(player == 1){
+        const id_jugador = obtenerIdJugadorValido(player);
+        if (!id_jugador) {
+            return;
+        }
+        if(id_jugador == 1){
             fin_j1 = true;
             clearTimeout(cambio_palabra_j1);
-            socket.broadcast.emit('fin', player);
+            socket.broadcast.emit('fin', id_jugador);
         }
-        else if(player == 2){
+        else if(id_jugador == 2){
             fin_j2 = true;
             clearTimeout(cambio_palabra_j2);
-            socket.broadcast.emit('fin', player);
+            socket.broadcast.emit('fin', id_jugador);
         }
         clearTimeout(listener_cambio_letra);
         if(fin_j1 && fin_j2){
-            fin_j1 = false;
-            fin_j2 = false;
-            playersState[1].finished = true;;
-            playersState[2].finished = true;;
-            fin_del_juego = true;
-            clearTimeout(tiempo_voto);
-            fin_del_juego = true;
-            clearInterval(intervaloID_temp_modos);
-            LIMPIEZAS[modo_actual](socket);
-            activar_sockets_extratextuales(socket);
-            modos_restantes = [...LISTA_MODOS];
-            modo_anterior = "";
-            modo_actual = "";
+            reiniciarEstadoPartida(socket);
         }
     });
 
     socket.on('fin_de_player', (player) => {
-        socket.broadcast.emit('fin_de_player_a_control', player);
-        if(player == 1){
+        const id_jugador = obtenerIdJugadorValido(player);
+        if (!id_jugador) {
+            return;
+        }
+        socket.broadcast.emit('fin_de_player_a_control', id_jugador);
+        if(id_jugador == 1){
             fin_j1 = true;
             clearTimeout(cambio_palabra_j1);
-            socket.broadcast.emit('fin', player);
+            socket.broadcast.emit('fin', id_jugador);
         }
-        else if(player == 2){
+        else if(id_jugador == 2){
             fin_j2 = true;
             clearTimeout(cambio_palabra_j2);
-            socket.broadcast.emit('fin', player);
+            socket.broadcast.emit('fin', id_jugador);
         }
         clearTimeout(listener_cambio_letra);
         if(fin_j1 && fin_j2){
-            fin_j1 = false;
-            fin_j2 = false;
-            playersState[1].finished = true;;
-            playersState[2].finished = true;;
-            fin_del_juego = true;
-            clearTimeout(tiempo_voto);
-            fin_del_juego = true;
-            clearInterval(intervaloID_temp_modos);
-            LIMPIEZAS[modo_actual](socket);
-            activar_sockets_extratextuales(socket);
-            modos_restantes = [...LISTA_MODOS];
-            modo_anterior = "";
-            modo_actual = "";
+            reiniciarEstadoPartida(socket);
         }
     });
 
-    socket.on('enviar_atributos', (data) => {
-        atributos[data.player] = data.atributos;
+    socket.on('enviar_atributos', (datos) => {
+        if (!datos || !datos.atributos) {
+            return;
+        }
+        const id_jugador = obtenerIdJugadorValido(datos.player);
+        if (!id_jugador) {
+            return;
+        }
+        atributos[id_jugador] = datos.atributos;
     });
 
     socket.on('pedir_atributos', () => {
         socket.emit('recibir_atributos', atributos);
     });
 
-    socket.on('tiempo_muerto_a_control', (evt1) => {
-        socket.broadcast.emit('tiempo_muerto_control', '');
-    });
-
-    socket.on('reanudar', (evt1) => {
-        if(modo_actual != ""){
-        MODOS[modo_actual](socket);
+    socket.on('reanudar', (evento) => {
+        if (!modo_actual) {
+            return;
         }
-        socket.broadcast.emit('reanudar_js', evt1);
-    });
-
-
-    socket.on('tiempo_muerto_a_control', (evt1) => {
-        socket.broadcast.emit('tiempo_muerto_control', '');
-    });
-
-    socket.on('reanudar', (evt1) => {
-        if(modo_actual != ""){
         MODOS[modo_actual](socket);
-        }
-        socket.broadcast.emit('reanudar_js', evt1);
+        socket.broadcast.emit('reanudar_js', evento);
     });
 
-    socket.on('reanudar_modo', (evt1) => {
+    socket.on('reanudar_modo', (evento) => {
         modos_de_juego(socket);
-        socket.broadcast.emit('reanudar_js', evt1);
+        socket.broadcast.emit('reanudar_js', evento);
     });
 
-    socket.on('enviar_putada_a_jx', (evt1) => {
-        if(evt1.player == 1){
-            socket.broadcast.emit('enviar_putada_de_j1', evt1.putada);
+    socket.on('enviar_putada_a_jx', (evento) => {
+        if (!evento) {
+            return;
+        }
+        const id_jugador = obtenerIdJugadorValido(evento.player);
+        if (!id_jugador) {
+            return;
+        }
+        if(id_jugador == 1){
+            socket.broadcast.emit('enviar_putada_de_j1', evento.putada);
         }
         else{
-            socket.broadcast.emit('enviar_putada_de_j2', evt1.putada);
+            socket.broadcast.emit('enviar_putada_de_j2', evento.putada);
         }
     });
 
-    socket.on('enviar_feedback_modificador', (evt1) => {
-        id_mod = evt1.id_mod.substring(0, evt1.id_mod.length - 1) + "2";
-        player = evt1.player
-        socket.broadcast.emit('recibir_feedback_modificador', {id_mod, player});
+    socket.on('enviar_feedback_modificador', (evento) => {
+        if (!evento || typeof evento.id_mod !== 'string' || evento.id_mod.length === 0) {
+            return;
+        }
+        const id_mod = evento.id_mod.substring(0, evento.id_mod.length - 1) + "2";
+        const id_jugador = obtenerIdJugadorValido(evento.player);
+        if (!id_jugador) {
+            return;
+        }
+        socket.broadcast.emit('recibir_feedback_modificador', {id_mod, player: id_jugador});
+    });
+
+    socket.on('tecla_jugador', (evento) => {
+        if (!evento || typeof evento.code !== 'string') {
+            return;
+        }
+        const id_jugador = obtenerIdJugadorValido(evento.player) || socket.escritxr;
+        if (!id_jugador) {
+            return;
+        }
+        io.emit('tecla_jugador_control', {
+            player: id_jugador,
+            code: evento.code,
+            key: evento.key || ''
+        });
     });
 
     /*
@@ -619,13 +744,10 @@ io.on('connection', (socket) => {
     });
     */
 
-    socket.on('feedback_de_j1', (evt1) => {
-        io.emit('feedback_a_j2', evt1);
-    });
-
-    socket.on('feedback_de_j2', (evt1) => {
-        io.emit('feedback_a_j1', evt1);
-    });
+    reenviarMapeadosASala(socket, [
+        ['feedback_de_j1', 'feedback_a_j2', 'j2'],
+        ['feedback_de_j2', 'feedback_a_j1', 'j1'],
+    ]);
    
     /*socket.on('psico', (evt1) => {
         if (evt1 == 1){
@@ -636,57 +758,88 @@ io.on('connection', (socket) => {
         }
     });*/
     
-    socket.on('nueva_palabra', (playerId) => {
-        bonusmode.handleRequest(Number(playerId));
+    socket.on('nueva_palabra', (id_jugador) => {
+        const id_jugador_valido = obtenerIdJugadorValido(id_jugador);
+        if (!id_jugador_valido) {
+            return;
+        }
+        modo_bonus.handleRequest(id_jugador_valido);
       });
 
-    socket.on('nueva_palabra_prohibida', (playerId) => {
-        malditasmode.handleRequest(playerId);
+    socket.on('nueva_palabra_prohibida', (id_jugador) => {
+        const id_jugador_valido = obtenerIdJugadorValido(id_jugador);
+        if (!id_jugador_valido) {
+            return;
+        }
+        modo_malditas.handleRequest(id_jugador_valido);
       });
       
 
-// 4) Cuando el escritor pida palabra:
-socket.on('nueva_palabra_musa', escritxr => {
-    const playerId = Number(escritxr);
-    console.log(`[socket] petición de musa para jugador ${playerId}`);
-    musas.handleRequest(playerId);
+// 4) Cuando el escritor pide palabra:
+    socket.on('nueva_palabra_musa', escritxr => {
+        const id_jugador = obtenerIdJugadorValido(escritxr);
+        if (!id_jugador) {
+            return;
+        }
+        registrar(`[socket] petición de musa para jugador ${id_jugador}`);
+        modo_musas.handleRequest(id_jugador);
   });
 
-  socket.on('nueva_palabra_bonus', ({ jugador }) => {
-    bonusmode.handleRequest(jugador);
+  socket.on('nueva_palabra_bonus', ({ jugador } = {}) => {
+    const id_jugador = obtenerIdJugadorValido(jugador);
+    if (!id_jugador) {
+        return;
+    }
+    modo_bonus.handleRequest(id_jugador);
   });
   
       
-    // Envía un comentario.
-    socket.on('enviar_comentario', (evt1) => {
-        io.emit('recibir_comentario', evt1);
+    // Eventos generales de interacción.
+    socket.on('enviar_comentario', (evento) => {
+        if (evento == null) {
+            return;
+        }
+        io.emit('recibir_comentario', evento);
     });
 
-    socket.on('aumentar_tiempo', (evt1) => {
-        io.emit('aumentar_tiempo_control', evt1);
+    socket.on('aumentar_tiempo', (evento) => {
+        if (!evento) {
+            return;
+        }
+        io.emit('aumentar_tiempo_control', evento);
     });
 
 // 3) Añadir musa cuando llegue:
-socket.on('enviar_inspiracion', palabra => {
-    const playerId = Number(socket.musa); // suponiendo que lo guardas así
+socket.on('enviar_inspiracion', (evento) => {
+    const id_jugador = obtenerIdJugadorValido(socket.musa);
+    if (!id_jugador) {
+        return;
+    }
+    const datos = (evento && typeof evento === 'object') ? evento : { palabra: evento };
+    const palabra = typeof datos.palabra === 'string' ? datos.palabra.trim() : '';
+    if (!palabra) {
+        return;
+    }
+    const nombre_musa = normalizarNombreMusa(datos.nombre) || socket.nombre_musa || 'MUSA';
+    const payload_musa = { palabra, musa: nombre_musa };
 
     switch (modo_actual) {
       case 'palabras bonus':
-        // Si estamos en bonus, encolas en bonusMode
-        bonusmode.addMusa(playerId, palabra);
-        console.log(`[bonus] Se añadió musa para J${playerId}: "${palabra}"`);
+        // En modo bonus, encola en el modo bonus.
+        modo_bonus.addMusa(id_jugador, payload_musa);
+        registrar(`[bonus] Se añadió musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
         break;
 
       case 'palabras prohibidas':
-        // En modo malditas, encolas en malditasMode
-        malditasmode.addMusa(playerId, palabra);
-        console.log(`[maldita] Se añadió musa para J${playerId}: "${palabra}"`);
+        // En modo malditas, encola en el modo malditas.
+        modo_malditas.addMusa(id_jugador, payload_musa);
+        registrar(`[maldita] Se añadió musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
         break;
 
         case 'letra bendita':
         case 'letra prohibida':
-          musas.addMusa(playerId, palabra);
-          console.log(`[musas] Se añadió musa para J${playerId}: "${palabra}"`);
+          modo_musas.addMusa(id_jugador, payload_musa);
+          registrar(`[modo_musas] Se añadió musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
         break;
     }
   });
@@ -701,71 +854,67 @@ socket.on('enviar_inspiracion', palabra => {
     });
 
     
-    socket.on('resucitar', (evt1) => {
-        io.emit('resucitar_control', evt1);
+    socket.on('resucitar', (evento) => {
+        io.emit('resucitar_control', evento);
         MODOS[modo_actual](socket);
     });
 
 
 
 
-// Función que inicia el temporizador para una duración determinada
+// Temporizador principal de cambio de modos.
 function temp_modos() {
-    // Reiniciar la variable de contador
-    secondsPassed = 0;
+    // Reinicia contador.
+    segundos_transcurridos = 0;
     
-    // Crear un intervalo que se ejecute cada segundo (1000 ms)
-    intervaloID_temp_modos = setInterval(() => {
-    secondsPassed++;  // Incrementar el contador cada segundo
-    //console.log(`Segundos pasados: ${secondsPassed}`);
-    io.emit('temp_modos', {secondsPassed, modo_actual});
+    // Intervalo por segundo.
+    id_intervalo_modos = setInterval(() => {
+    segundos_transcurridos++;
+    //console.log(`Segundos pasados: ${segundos_transcurridos}`);
+    io.emit('temp_modos', {segundos_transcurridos, modo_actual});
     //console.log(modo_actual)
     //console.log(modo_anterior)
-    //console.log(modos_restantes)
-      // Verificar si se alcanzó la duración deseada y reiniciar
-      if (secondsPassed >= TIEMPO_CAMBIO_MODOS) {
+    //console.log(modos_pendientes)
+      // Si alcanza la duración, avanza de modo.
+      if (segundos_transcurridos >= TIEMPO_CAMBIO_MODOS) {
         if(modo_actual == "frase final"){
             fin_del_juego = true;
-            clearInterval(intervaloID_temp_modos);
-            LIMPIEZAS[modo_actual](socket);
+            clearInterval(id_intervalo_modos);
+            LIMPIEZAS_MODO[modo_actual](socket);
             activar_sockets_extratextuales(socket);
-            modos_restantes = [...LISTA_MODOS];
+            modos_pendientes = [...lista_modos];
             modo_anterior = "";
             modo_actual = "";
         }
         else{
-        secondsPassed = 0;  // Reiniciar el contador a 0
-        LIMPIEZAS[modo_actual](socket);
+        segundos_transcurridos = 0;
+        LIMPIEZAS_MODO[modo_actual](socket);
         modos_de_juego(socket);
         //console.log(modo_actual)
         //console.log(modo_anterior)
-        //console.log(modos_restantes)
-        //console.log(modos_restantes.length)
+        //console.log(modos_pendientes)
+        //console.log(modos_pendientes.length)
         //console.log('Se alcanzó el tiempo límite. Reiniciando temporizador.');
         }
         
-        // Si se requiere alguna acción adicional al reiniciar, colócala aquí
+        // Hook opcional al reiniciar.
       }
     }, 1000);
   }
 
-/**
- * Determina si toca lanzar la votación de ventajas/desventajas.
- */
+// Determina si toca lanzar la votación de ventajas/desventajas.
 function debeLanzarVentaja(prev, curr, locura) {
     return (
-      prev !== ''          &&  // prev no ha de ser la cadena vacía
-      curr !== 'tertulia'  &&  // curr no puede ser tertulia
-      prev !== 'locura'    &&  // prev no puede haber sido locura
-      locura === false        // no estar en estado locura
+      prev !== '' &&
+      curr !== 'tertulia' &&
+      prev !== 'locura' &&
+      locura === false
     );
   }
 
-/**
- * Lanza la votación para el jugador ganador y programa el timeout de envío.
- */
+// Lanza la votación para el jugador ganador y programa el timeout de envío.
 function lanzarVentaja(socket, ganador, perdedor) {
-  votos_ventaja = { '⚡': 0, '🌪️': 0, '🙃': 0 };
+  votos_ventaja = { '🐢': 0, '⚡': 0, '🌪️': 0, '🙃': 0, '🖊️': 0 };
   io.emit(`elegir_ventaja_${ganador}`);
 
   tiempo_voto = setTimeout(() => {
@@ -779,73 +928,67 @@ function lanzarVentaja(socket, ganador, perdedor) {
   }, TIEMPO_VOTACION);
 }
 
-/**
- * Bloque principal que avanza de modo:
- */
+// Avanza el estado global de modos.
 function modos_de_juego(socket) {
-  // 1) si ambos han terminado, salimos
-  if (playersState[1].finished && playersState[2].finished) return;
+  // Si ambos han terminado, no avanzar.
+  if (estado_jugadores[1].finished && estado_jugadores[2].finished) return;
 
-  console.log('Modos restantes:', modos_restantes.slice(modoIndex));
+  registrar('Modos restantes:', modos_pendientes.slice(indice_modo));
 
-  // 2) seleccionamos siguiente modo en O(1) con un índice
+  // Selecciona el siguiente modo en O(1).
   const prev       = modo_actual;
-  const curr       = modos_restantes[modoIndex++] || '';
+  const curr       = modos_pendientes[indice_modo++] || '';
   modo_anterior    = prev;
   modo_actual      = curr;
-  console.log(`MODO ANTERIOR: ${prev} | MODO ACTUAL: ${curr}`);
+  registrar(`MODO ANTERIOR: ${prev} | MODO ACTUAL: ${curr}`);
 
-  // ── BLOQUE “MUSAS” ───────────────────────────────────────
-  // limpiamos colas y timers de **todas** las instancias
-  musas.clearAll();
-  bonusmode.clearAll();
-  malditasmode.clearAll();
+  // Limpia colas y timers de todas las instancias.
+  limpiarTodosLosModos();
 
-  // lanzamos la lógica del modo actual
+  // Ejecuta la lógica del modo actual.
   MODOS[curr](socket);
-  repentizado_enviado = false;      // resetea flag
-  // ─────────────────────────────────────────────────────────
+  repentizado_enviado = false;
 
 
-  // 3) decidir si lanzar ventaja/desventaja
-  console.log('DEBE LANZAR VENTAJA:', debeLanzarVentaja(prev, curr, locura));
+  // Decide si lanza ventaja/desventaja.
+  registrar('DEBE LANZAR VENTAJA:', debeLanzarVentaja(prev, curr, locura));
 
   if (debeLanzarVentaja(prev, curr, locura)) {
-    // elegimos la instancia que lleva el conteo en este modo
+    // Selecciona la instancia que lleva el conteo de este modo.
     let counterMode;
     if (prev === 'palabras bonus') {
-      counterMode = bonusmode;
+      counterMode = modo_bonus;
     } else if (prev === 'palabras prohibidas') {
-      counterMode = malditasmode;
+      counterMode = modo_malditas;
     } else {
-      counterMode = musas;
+      counterMode = modo_musas;
     }
 
-    // obtenemos los contadores de J1 y J2
-    console.log(counterMode)
+    // Obtiene los contadores de J1 y J2.
+    registrar(counterMode)
     let j1 = counterMode.getInsertedCount(1);
     let j2 = counterMode.getInsertedCount(2);
-    console.log(`Palabras pedidas → J1: ${j1} | J2: ${j2}`);
+    registrar(`Palabras pedidas → J1: ${j1} | J2: ${j2}`);
 
-    // desempate aleatorio si están igualados
+    // Desempate aleatorio si están igualados.
     if (j1 === j2) {
       Math.random() < 0.5 ? j1++ : j2++;
     }
 
-    // preparamos votos e iniciamos la votación
-    votos_ventaja = { '⚡': 0, '🌪️': 0, '🙃': 0 };
+    // Prepara votos e inicia la votación.
+    votos_ventaja = { '🐢': 0, '⚡': 0, '🌪️': 0, '🙃': 0, '🖊️': 0 };
     if (j1 > j2) {
       lanzarVentaja(socket, 'j1', 'j2');
     } else {
       lanzarVentaja(socket, 'j2', 'j1');
     }
 
-    // limpiamos los contadores de la instancia usada
+    // Limpia los contadores de la instancia usada.
     counterMode.clearCounters();
-    return;  // ya hemos programado la votación, salimos
+    return;
   }
 
-  // 4) caso inicial (sin prev) si lo necesitas
+  // Caso inicial (sin prev), reservado si se necesita.
   if (
     !prev &&
     curr !== 'tertulia' &&
@@ -853,110 +996,62 @@ function modos_de_juego(socket) {
     locura === false &&
     !repentizado_enviado
   ) {
-    // repentizado();  // si toca, lo lanzas aquí
+    // repentizado();
   }
 
-  console.log('Fin modos_de_juego para modo:', curr);
+  registrar('Fin modos_de_juego para modo:', curr);
 }
   
-    function activar_sockets_extratextuales(socket) {
-
-        // Abre la pestaña de la votación.
-        socket.on('vote', (evt1) => {
-            socket.broadcast.emit('vote', evt1);
-        });
-
-        // Cierra la pestaña de votación.
-        socket.on('exit', (evt1) => {
-            socket.broadcast.emit('exit', evt1);
-        });
-
-        /* 
-            Envía los temas elegidos aleatoriamente
-            Para que también aparezcan en la pantalla
-            del jugador 2. 
-        */
-        socket.on('envia_temas', (evt1) => {
-            socket.broadcast.emit('recibe_temas', evt1);
-        });
-
-        // Envía la lista de temas y elige aleatoriamente uno de ellos.
-        socket.on('temas', (evt1) => {
-            socket.broadcast.emit('temas_espectador', evt1);
-        });
-
-        // Realiza el scroll.
-        socket.on('scroll', (evt1) => {
-            socket.broadcast.emit('scroll', evt1);
-        });
-
-        socket.on('scroll_sincro', (evt1) => {
-            socket.broadcast.emit('scroll_sincro', evt1);
-        });
-
-        socket.on('impro', (evt1) => {
-            socket.broadcast.emit('impro', evt1);
-        });
-
-        socket.on('enviar_postgame1', (evt1) => {
-            io.emit('recibir_postgame2', evt1);
-        });
-        socket.on('enviar_postgame2', (evt1) => {
-            io.emit('recibir_postgame1', evt1);
-        });
-    }
-
-
     const MODOS = {
 
         // Recibe y activa la palabra y el modo bonus.
         'palabras bonus': function () {
             io.emit('activar_modo', { modo_actual});
-            log("activado palabras bonus");
+            registrar("activado palabras bonus");
 
             io.emit("pedir_inspiracion_musa", {modo_actual})
-            bonusmode.clearAll();
-            bonusmode.start(1);
-            bonusmode.start(2);
+            modo_bonus.clearAll();
+            modo_bonus.start(1);
+            modo_bonus.start(2);
         },
 
         // Recibe y activa el modo letra prohibida.
         'letra prohibida': function (socket) {
-            log("activado letra prohibida");
-            indice_letra_prohibida = Math.floor(Math.random() * letras_prohibidas_restantes.length);
-            letra_prohibida = letras_prohibidas_restantes[indice_letra_prohibida]
-            letras_prohibidas_restantes.splice(indice_letra_prohibida, 1);
-            if(letras_prohibidas_restantes.length == 0){
-                letras_prohibidas_restantes = [...letras_prohibidas];
+            registrar("activado letra prohibida");
+            indice_letra_prohibida = Math.floor(Math.random() * letras_prohibidas_pendientes.length);
+            letra_prohibida = letras_prohibidas_pendientes[indice_letra_prohibida]
+            letras_prohibidas_pendientes.splice(indice_letra_prohibida, 1);
+            if(letras_prohibidas_pendientes.length == 0){
+                letras_prohibidas_pendientes = [...letras_prohibidas];
             }
             io.emit("pedir_inspiracion_musa", {modo_actual, letra_prohibida})
             // activar_sockets_feedback();
             //letra_prohibida = letras_prohibidas[Math.floor(Math.random() * letras_prohibidas.length)]
             listener_cambio_letra = setTimeout(nueva_letra_prohibida, TIEMPO_CAMBIO_LETRA);
-            musas.clearAll();
-            musas.start(1);
-            musas.start(2);
+            modo_musas.clearAll();
+            modo_musas.start(1);
+            modo_musas.start(2);
             io.emit('activar_modo', { modo_actual, letra_prohibida });
         },
 
         // Recibe y activa el modo letra prohibida.
         'letra bendita': function (socket) {
-            log(modo_actual);
-            indice_letra_bendita = Math.floor(Math.random() * letras_benditas_restantes.length);
-            letra_bendita = letras_benditas_restantes[indice_letra_bendita]
-            letras_benditas_restantes.splice(indice_letra_bendita, 1);
-            if(letras_benditas_restantes.length == 0){
-                letras_benditas_restantes = [...letras_benditas];
+            registrar(modo_actual);
+            indice_letra_bendita = Math.floor(Math.random() * letras_benditas_pendientes.length);
+            letra_bendita = letras_benditas_pendientes[indice_letra_bendita]
+            letras_benditas_pendientes.splice(indice_letra_bendita, 1);
+            if(letras_benditas_pendientes.length == 0){
+                letras_benditas_pendientes = [...letras_benditas];
             }
             io.emit("pedir_inspiracion_musa", {modo_actual, letra_bendita})
             listener_cambio_letra = setTimeout(nueva_letra_bendita, TIEMPO_CAMBIO_LETRA);
             // activar_sockets_feedback();
             //letra_bendita = letras_benditas[Math.floor(Math.random() * letras_benditas.length)]
-            Object.values(playersState).forEach(s => { s.inserts = -1; s.finished = false; });
-            musas.clearAll();
-            musas.start(1);
-            musas.start(2);
-            log(letra_bendita)
+            Object.values(estado_jugadores).forEach(s => { s.inserts = -1; s.finished = false; });
+            modo_musas.clearAll();
+            modo_musas.start(1);
+            modo_musas.start(2);
+            registrar(letra_bendita)
             io.emit('activar_modo', { modo_actual, letra_bendita });
         },
 
@@ -982,14 +1077,14 @@ function modos_de_juego(socket) {
 
         'palabras prohibidas': function () {
             io.emit('activar_modo', { modo_actual});
-            log("activado palabras prohibidas");
+            registrar("activado palabras prohibidas");
             // Cambia la palabra bonus si alguno de los jugadores ha acertado la palabra.
             // activar_socket_nueva_palabra(socket);
             io.emit("pedir_inspiracion_musa", {modo_actual})
 
-            malditasmode.clearAll();
-            malditasmode.start(1);
-            malditasmode.start(2);
+            modo_malditas.clearAll();
+            modo_malditas.start(1);
+            modo_malditas.start(2);
         },
 
         'locura': function (socket) {
@@ -1013,43 +1108,43 @@ function modos_de_juego(socket) {
 
 // Da retroalimentación cuando se ha conectado con el ciente.
 io.on('disconnect', evt => {
-    log('Un escritxr ha abandonado la partida.');
+registrar('Un escritxr ha abandonado la partida.');
 });
 
 function nueva_letra_bendita(){
-    indice_letra_bendita = Math.floor(Math.random() * letras_benditas_restantes.length);
-    letra_bendita = letras_benditas_restantes[indice_letra_bendita]
-    letras_benditas_restantes.splice(indice_letra_bendita, 1);
-    if(letras_benditas_restantes.length == 0){
-        letras_benditas_restantes = [...letras_benditas];
+    indice_letra_bendita = Math.floor(Math.random() * letras_benditas_pendientes.length);
+    letra_bendita = letras_benditas_pendientes[indice_letra_bendita]
+    letras_benditas_pendientes.splice(indice_letra_bendita, 1);
+    if(letras_benditas_pendientes.length == 0){
+        letras_benditas_pendientes = [...letras_benditas];
     }
     letra = letra_bendita;
     io.emit("nueva letra", letra);
-    // Reinicia el modo “musas” (limpia colas y timers)
-    musas.clearAll();
+    // Reinicia el modo “modo_musas” (limpia colas y timers)
+    modo_musas.clearAll();
     io.emit("pedir_inspiracion_musa", {modo_actual, letra_bendita})
     // Arranca el scheduling automático de musa para cada jugador
-    musas.start(1);
-    musas.start(2);
-    console.log("LETRA BENDITA", letra_bendita)
+    modo_musas.start(1);
+    modo_musas.start(2);
+    registrar("LETRA BENDITA", letra_bendita)
     listener_cambio_letra = setTimeout(nueva_letra_bendita, TIEMPO_CAMBIO_LETRA);
 }
 
 function nueva_letra_prohibida(){
-    indice_letra_prohibida = Math.floor(Math.random() * letras_prohibidas_restantes.length);
-    letra_prohibida = letras_prohibidas_restantes[indice_letra_prohibida]
-    letras_prohibidas_restantes.splice(indice_letra_prohibida, 1);
-    if(letras_prohibidas_restantes.length == 0){
-        letras_prohibidas_restantes = [...letras_prohibidas];
+    indice_letra_prohibida = Math.floor(Math.random() * letras_prohibidas_pendientes.length);
+    letra_prohibida = letras_prohibidas_pendientes[indice_letra_prohibida]
+    letras_prohibidas_pendientes.splice(indice_letra_prohibida, 1);
+    if(letras_prohibidas_pendientes.length == 0){
+        letras_prohibidas_pendientes = [...letras_prohibidas];
     }
     letra = letra_prohibida;
     io.emit("nueva letra", letra);
-    // Reinicia el modo “musas” (limpia colas y timers)
-    musas.clearAll();
+    // Reinicia el modo “modo_musas” (limpia colas y timers)
+    modo_musas.clearAll();
     io.emit("pedir_inspiracion_musa", {modo_actual, letra_prohibida})
         // Arranca el scheduling automático de musa para cada jugador
-        musas.start(1);
-        musas.start(2);
+        modo_musas.start(1);
+        modo_musas.start(2);
     listener_cambio_letra = setTimeout(nueva_letra_prohibida, TIEMPO_CAMBIO_LETRA);
 
 }
@@ -1111,7 +1206,7 @@ function opcionConMasVotos(votaciones) {
 
     // Si hay un empate o no se encontró una opción con votos, seleccionar una al azar
     if (opcionesConMaxVotos.length !== 1) {
-        console.log("AZAR");
+        registrar("AZAR");
         let indiceAleatorio = Math.floor(Math.random() * opcionesConMaxVotos.length);
         return opcionesConMaxVotos[indiceAleatorio];
     }
@@ -1136,11 +1231,11 @@ function sincro_modos(socket = null) {
 function repentizado(){
     seleccionados = [];
     for (let i = 0; i < 3; i++) {
-        indice_repentizado = Math.floor(Math.random() * repentizados_restantes.length);
-            seleccionados.push(repentizados_restantes[indice_repentizado]);
-            repentizados_restantes.splice(indice_repentizado, 1);
-            if(repentizados_restantes.length == 0){
-                repentizados_restantes = [...repentizados];
+        indice_repentizado = Math.floor(Math.random() * repentizados_pendientes.length);
+            seleccionados.push(repentizados_pendientes[indice_repentizado]);
+            repentizados_pendientes.splice(indice_repentizado, 1);
+            if(repentizados_pendientes.length == 0){
+                repentizados_pendientes = [...repentizados];
             }
     }
     io.emit('elegir_repentizado', {seleccionados, TIEMPO_VOTACION})

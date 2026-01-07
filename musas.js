@@ -20,6 +20,22 @@ class Musas {
     console.log('[MusasMode] Inicializado con timeout de petición:', this.timeout)
   }
 
+  _normalizarMusaItem(item) {
+    if (typeof item === 'string') {
+      const palabra = item.trim();
+      return palabra ? { palabra, musa: '' } : null;
+    }
+    if (!item || typeof item !== 'object') return null;
+    const palabra = typeof item.palabra === 'string'
+      ? item.palabra.trim()
+      : (typeof item.word === 'string' ? item.word.trim() : '');
+    if (!palabra) return null;
+    const musa = typeof item.musa === 'string'
+      ? item.musa.trim()
+      : (typeof item.nombre === 'string' ? item.nombre.trim() : '');
+    return { palabra, musa };
+  }
+
   // ─── Métodos públicos de limpieza ─────────────────────────────---
 
   /**
@@ -36,6 +52,7 @@ class Musas {
       if (st.pendingTimer){ clearTimeout(st.pendingTimer);st.pendingTimer= null }
       // 3) reset flag pending
       st.pending = false
+      if (st.ultimoMusaNombre != null) st.ultimoMusaNombre = ''
     })
   }
 
@@ -72,10 +89,12 @@ class Musas {
    */
   addMusa(playerId, word) {
     const st = this.players[playerId]
-    if (!st || !word) return
+    if (!st) return
+    const item = this._normalizarMusaItem(word)
+    if (!item) return
 
-    console.log(`[MusasMode] addMusa() jugador ${playerId} recibe palabra: "${word}"`)
-    st.queue.push(word)
+    console.log(`[MusasMode] addMusa() jugador ${playerId} recibe palabra: "${item.palabra}"`)
+    st.queue.push(item)
 
     if (st.pending) {
       st.pending = false
@@ -146,9 +165,14 @@ class Musas {
     if (!st || st.queue.length === 0) return
 
     const idx  = Math.floor(Math.random() * st.queue.length)
-    const word = st.queue.splice(idx, 1)[0]
+    const item = st.queue.splice(idx, 1)[0]
+    const word = typeof item === 'string' ? item : item.palabra
+    const musa = (item && typeof item === 'object') ? item.musa : ''
     console.log(`[MusasMode] _emitNext() J${playerId} → emitiendo "${word}"`)
-    this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, word)
+    this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, {
+      palabra: word,
+      musa_nombre: musa
+    })
   }
 
   /**

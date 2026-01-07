@@ -7,6 +7,13 @@
 const puppeteer = require('puppeteer');
 const MusasMode = require('./musas.js');
 
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 class PalabrasBonusMode extends MusasMode {
   // Puppeteer singleton y caché de última palabra buscada
   static _navegador      = null;
@@ -41,6 +48,7 @@ class PalabrasBonusMode extends MusasMode {
       }
       // Reiniciar control de flag
       st.lastDeliveredFromMusa = false;
+      st.ultimoMusaNombre = '';
     });
   }
 
@@ -85,15 +93,19 @@ class PalabrasBonusMode extends MusasMode {
     // 1) Si hay musas en cola
     if (st.queue.length > 0) {
       const idx = Math.floor(Math.random() * st.queue.length);
-      const rawPalabra = st.queue.splice(idx, 1)[0];
+      const item = st.queue.splice(idx, 1)[0];
+      const rawPalabra = (item && typeof item === 'object') ? item.palabra : item;
+      const musaNombre = (item && typeof item === 'object') ? item.musa : '';
 
       // Actualizar flag y contador
       st.insertedCount = (st.insertedCount || 0) + 1;
       st.lastDeliveredFromMusa = true;
 
       palabras_var          = rawPalabra;
-      palabra_bonus         = [[rawPalabra], ''];
+      const musaLabel = musaNombre ? escapeHtml(musaNombre) : 'MUSA';
+      palabra_bonus         = [[rawPalabra], `<span style="color:lime;">${musaLabel}</span>: <span style='color: orange;'>Podrías escribir esta palabra ⬆️</span>`];
       tiempo_palabras_bonus = this._puntuacionPalabra(rawPalabra);
+      st.ultimoMusaNombre = musaNombre;
 
       console.log(
         `[PalabrasBonusMode] J${playerId} recibe musa de cola: "${rawPalabra}" (musas usadas: ${st.insertedCount})`
@@ -106,6 +118,7 @@ class PalabrasBonusMode extends MusasMode {
         const variante = this._extraccionPalabraVar(rawPalabra);
 
         st.lastDeliveredFromMusa = false;
+        st.ultimoMusaNombre = '';
 
         palabras_var          = rawPalabra;
         palabra_bonus         = [variante, rawDef];
@@ -117,6 +130,7 @@ class PalabrasBonusMode extends MusasMode {
       } catch (err) {
         console.error('[PalabrasBonusMode] Error RAE:', err);
         st.lastDeliveredFromMusa = false;
+        st.ultimoMusaNombre = '';
         palabras_var          = '';
         palabra_bonus         = [[''], ''];
         tiempo_palabras_bonus = 10;
@@ -130,6 +144,10 @@ class PalabrasBonusMode extends MusasMode {
       palabra_bonus,
       tiempo_palabras_bonus
     };
+    if (st.lastDeliveredFromMusa) {
+      payload.origen_musa = 'musa';
+      payload.musa_nombre = st.ultimoMusaNombre || '';
+    }
     this.io.emit(evento, payload);
 
     // 4) Programar siguiente entrega automática

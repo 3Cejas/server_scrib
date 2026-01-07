@@ -1,6 +1,13 @@
 // palabras_malditas.js
 const MusasMode = require('./musas.js');
 
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 class PalabrasMalditasMode extends MusasMode {
   static STATIC_WORDS    = [
     "de","la","que","el","en","y","a","los","se","del",
@@ -13,11 +20,50 @@ class PalabrasMalditasMode extends MusasMode {
 
   constructor(io, timeoutMs) {
     super(io, timeoutMs);
+    this.texto_por_jugador = { 1: '', 2: '' };
+    this.palabras_usadas = { 1: new Set(), 2: new Set() };
+    this.TOP_K_PALABRAS = 5;
     // Inicializar contadores y flags por jugador
     [1, 2].forEach(id => {
       this.players[id].insertedCount         = 0;
       this.players[id].lastDeliveredFromMusa = false;
+      this.players[id].ultimoMusaNombre = '';
     });
+  }
+
+  /**
+   * Actualiza el texto del jugador para calcular palabras frecuentes del oponente.
+   * @param {1|2} playerId
+   * @param {string} texto
+   */
+  actualizarTextoJugador(playerId, texto) {
+    if (!this.players[playerId]) return;
+    this.texto_por_jugador[playerId] = typeof texto === 'string' ? texto : '';
+  }
+
+  _normalizarTexto(texto) {
+    return (texto || '')
+      .toLowerCase()
+      .replace(/[^a-záéíóúüñ\s]/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  _obtenerTopPalabrasJugador(playerId, k) {
+    const texto = this.texto_por_jugador[playerId] || '';
+    const limpio = this._normalizarTexto(texto);
+    if (!limpio) return [];
+
+    const conteo = new Map();
+    limpio.split(' ').forEach(palabra => {
+      if (palabra.length < 1) return;
+      conteo.set(palabra, (conteo.get(palabra) || 0) + 1);
+    });
+
+    return Array.from(conteo.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([palabra]) => palabra)
+      .slice(0, k);
   }
 
   /**
@@ -31,18 +77,21 @@ class PalabrasMalditasMode extends MusasMode {
    * Cada musa que envía playerId se encola en la cola del otro.
    */
   addMusa(playerId, word) {
-    const target = 3 - playerId;  // 1↔2
-    const st     = this.players[target];
-    st.queue.push(word);
-    console.log(
-      `[Malditas][addMusa] J${playerId} ➡ encolada para J${target}: "${word}"`
-    );
-    // Si target estaba pendiente, emitimos YA
-    if (st.pending) {
-      st.pending = false;
-      this._emitNext(target);
-      this._schedulePending(target);
+    const remitente = Number(playerId);
+    if (remitente !== 1 && remitente !== 2) {
+      return;
     }
+    const destinatario = remitente === 1 ? 2 : 1;
+    const st     = this.players[destinatario];
+    const item = this._normalizarMusaItem(word);
+    if (!item) {
+      return;
+    }
+    st.queue.push(item);
+    console.log(
+      `[Malditas][addMusa] J${remitente} ➡ encolada para J${destinatario}: "${item.palabra}"`
+    );
+    // No emitimos aquí: se entregará cuando toque (petición o timer).
   }
 
   /**
@@ -75,35 +124,60 @@ class PalabrasMalditasMode extends MusasMode {
     const evento    = `enviar_palabra_j${playerId}`;
 
     let word;
+    let def;
     if (queueSelf.length > 0) {
       // Musa de cola propia (sugerida por el otro)
       const idx = Math.floor(Math.random() * queueSelf.length);
-      word      = queueSelf.splice(idx, 1)[0];
+      const item = queueSelf.splice(idx, 1)[0];
+      word      = (item && typeof item === 'object') ? item.palabra : item;
+      const musaNombre = (item && typeof item === 'object') ? item.musa : '';
       st.lastDeliveredFromMusa = true;
       console.log(`[Malditas][_emitNext] J${playerId} usa musa: "${word}"`);
+      const musaLabel = musaNombre ? escapeHtml(musaNombre) : 'MUSA ENEMIGA';
+      def = `<span style="color:red;">${musaLabel}</span>: <span style='color: orange;'>me pega esta palabra ⬆️</span>`;
+      st.ultimoMusaNombre = musaNombre;
     } else {
-      // Palabra estática
-      if (!PalabrasMalditasMode.remainingStatic.length) {
-        PalabrasMalditasMode.remainingStatic = [
-          ...PalabrasMalditasMode.STATIC_WORDS
-        ];
-        console.log('[Malditas][_emitNext] Lista estática reiniciada');
+      const top = this._obtenerTopPalabrasJugador(playerId, this.TOP_K_PALABRAS);
+      const usadas = this.palabras_usadas[playerId];
+      const candidata = top.find(palabra => !usadas.has(palabra));
+
+      if (candidata) {
+        word = candidata;
+        usadas.add(word);
+        st.lastDeliveredFromMusa = false;
+        st.ultimoMusaNombre = '';
+        def = '';
+        console.log(`[Malditas][_emitNext] J${playerId} usa top oponente: "${word}"`);
+      } else {
+        // Palabra estática
+        if (!PalabrasMalditasMode.remainingStatic.length) {
+          PalabrasMalditasMode.remainingStatic = [
+            ...PalabrasMalditasMode.STATIC_WORDS
+          ];
+          console.log('[Malditas][_emitNext] Lista estática reiniciada');
+        }
+        const remIdx = Math.floor(
+          Math.random() * PalabrasMalditasMode.remainingStatic.length
+        );
+        word = PalabrasMalditasMode.remainingStatic.splice(remIdx, 1)[0];
+        st.lastDeliveredFromMusa = false;
+        st.ultimoMusaNombre = '';
+        def ='';
+        console.log(`[Malditas][_emitNext] J${playerId} recibe estática: "${word}"`);
       }
-      const remIdx = Math.floor(
-        Math.random() * PalabrasMalditasMode.remainingStatic.length
-      );
-      word = PalabrasMalditasMode.remainingStatic.splice(remIdx, 1)[0];
-      st.lastDeliveredFromMusa = false;
-      console.log(`[Malditas][_emitNext] J${playerId} recibe estática: "${word}"`);
     }
 
     // Construir y enviar payload
     const payload = {
       modo_actual:           'palabras malditas',
       palabras_var:          [word],
-      palabra_bonus:         [[word], ''],
+      palabra_bonus:         [[word], def],
       tiempo_palabras_bonus: this._puntuacionPalabra(word)
     };
+    if (st.lastDeliveredFromMusa) {
+      payload.origen_musa = 'musa_enemiga';
+      payload.musa_nombre = st.ultimoMusaNombre || '';
+    }
     console.log(`[Malditas][_emitNext] Emite ${evento}:`, payload);
     this.io.emit(evento, payload);
 
