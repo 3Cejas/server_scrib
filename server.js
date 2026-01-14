@@ -317,6 +317,182 @@ let contador_musas = {
     escritxr1: 0,
     escritxr2: 0
   };
+
+// Estado del calentamiento entre musas.
+const musas_por_equipo = { 1: new Map(), 2: new Map() };
+const crearEstadoCalentamiento = (aciertos = 0) => ({
+    semillas: { 1: null, 2: null },
+    semillas_ts: 0,
+    asignadas: { 1: null, 2: null },
+    pendiente: null,
+    usadas: new Map(),
+    intentos: 0,
+    aciertos,
+    estado: 'inactivo',
+    historial: [],
+    ultimo_intento: null
+});
+const calentamiento = {
+    activo: false,
+    vista: false,
+    equipos: {
+        1: crearEstadoCalentamiento(),
+        2: crearEstadoCalentamiento()
+    }
+};
+const REGEX_LIMPIEZA_PALABRA = /[^a-z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1\s-]/gi;
+const MAX_PALABRA_CALENTAMIENTO = 10;
+const COOLDOWN_MUSA_CORAZON_MS = 900;
+const normalizarPalabra = (valor) => {
+    if (typeof valor !== 'string') return '';
+    const limpio = valor.trim().toLowerCase().replace(/\s+/g, ' ');
+    return limpio.replace(REGEX_LIMPIEZA_PALABRA, '').trim();
+};
+const limpiarPalabra = (valor) => (typeof valor === 'string' ? valor.trim() : '');
+const obtenerSemillasPublicas = (data) => {
+    if (data.semillas[1] && data.semillas[2]) {
+        return data.semillas;
+    }
+    return { 1: null, 2: null };
+};
+const estadoEquipoCalentamiento = (equipo) => {
+    const data = calentamiento.equipos[equipo];
+    return {
+        semillas: obtenerSemillasPublicas(data),
+        semillasTs: data.semillas_ts,
+        semillasRecibidas: {
+            1: Boolean(data.semillas[1]),
+            2: Boolean(data.semillas[2])
+        },
+        intentos: data.intentos,
+        aciertos: data.aciertos,
+        estado: data.estado,
+        pendiente: Boolean(data.pendiente),
+        pendientePalabra: data.pendiente ? data.pendiente.palabra : null,
+        ultimoIntento: data.ultimo_intento,
+        usadas: Array.from(data.usadas.values()),
+        historial: Array.isArray(data.historial) ? data.historial.slice(-6) : []
+    };
+};
+const registrarHistorialCalentamiento = (data, palabra1, palabra2, exito) => {
+    const padres = [data.semillas[1] || "--", data.semillas[2] || "--"];
+    const hijos = exito ? [palabra1] : [palabra1, palabra2];
+    data.historial.push({
+        padres,
+        hijos,
+        exito: Boolean(exito)
+    });
+    if (data.historial.length > 8) {
+        data.historial.shift();
+    }
+};
+const reiniciarEquipoCalentamiento = (equipo, mantenerAciertos = true) => {
+    const aciertos = mantenerAciertos ? (calentamiento.equipos[equipo].aciertos || 0) : 0;
+    calentamiento.equipos[equipo] = crearEstadoCalentamiento(aciertos);
+    elegirSemillasEquipo(equipo);
+};
+const emitirEstadoCalentamiento = () => {
+    io.emit('calentamiento_estado_espectador', {
+        activo: calentamiento.activo,
+        vista: calentamiento.vista,
+        equipos: {
+            1: estadoEquipoCalentamiento(1),
+            2: estadoEquipoCalentamiento(2)
+        }
+    });
+    emitirEstadoCalentamientoMusa(1);
+    emitirEstadoCalentamientoMusa(2);
+};
+const emitirEstadoCalentamientoMusa = (equipo) => {
+    const data = calentamiento.equipos[equipo];
+    musas_por_equipo[equipo].forEach((info, socketId) => {
+        const esSemilla1 = data.asignadas[1] === socketId;
+        const esSemilla2 = data.asignadas[2] === socketId;
+        const rol = esSemilla1 && esSemilla2
+            ? 'semilla_doble'
+            : (esSemilla1 ? 'semilla1' : (esSemilla2 ? 'semilla2' : 'musa'));
+        info.socket.emit('calentamiento_estado_musa', {
+            activo: calentamiento.activo,
+            vista: calentamiento.vista,
+            equipo,
+            rol,
+            semillas: obtenerSemillasPublicas(data),
+            semillasTs: data.semillas_ts,
+            semillasRecibidas: {
+                1: Boolean(data.semillas[1]),
+                2: Boolean(data.semillas[2])
+            },
+            intentos: data.intentos,
+            aciertos: data.aciertos,
+            estado: data.estado,
+            pendiente: Boolean(data.pendiente),
+            pendientePalabra: data.pendiente ? data.pendiente.palabra : null,
+            pendienteSocketId: data.pendiente ? data.pendiente.socketId : null,
+            ultimoIntento: data.ultimo_intento,
+            usadas: Array.from(data.usadas.values())
+        });
+    });
+};
+const elegirSemillasEquipo = (equipo) => {
+    const ids = Array.from(musas_por_equipo[equipo].keys());
+    const data = calentamiento.equipos[equipo];
+    if (ids.length === 0) {
+        data.asignadas[1] = null;
+        data.asignadas[2] = null;
+        data.estado = 'sin_musas';
+        return;
+    }
+    if (ids.length === 1) {
+        data.asignadas[1] = ids[0];
+        data.asignadas[2] = ids[0];
+        data.estado = 'esperando_semillas';
+        return;
+    }
+    const idx1 = Math.floor(Math.random() * ids.length);
+    let idx2 = idx1;
+    while (idx2 === idx1) {
+        idx2 = Math.floor(Math.random() * ids.length);
+    }
+    data.asignadas[1] = ids[idx1];
+    data.asignadas[2] = ids[idx2];
+    data.estado = 'esperando_semillas';
+};
+const revisarAsignacionesEquipo = (equipo) => {
+    if (!calentamiento.activo) return;
+    const data = calentamiento.equipos[equipo];
+    const ids = Array.from(musas_por_equipo[equipo].keys());
+    if (ids.length === 0) {
+        data.asignadas[1] = null;
+        data.asignadas[2] = null;
+        if (!data.semillas[1] || !data.semillas[2]) {
+            data.estado = 'sin_musas';
+        }
+        return;
+    }
+    [1, 2].forEach((posicion) => {
+        if (data.semillas[posicion]) {
+            return;
+        }
+        const asignada = data.asignadas[posicion];
+        if (asignada && musas_por_equipo[equipo].has(asignada)) {
+            return;
+        }
+        const otra = posicion === 2 ? data.asignadas[1] : data.asignadas[2];
+        const candidatos = ids.filter((id) => id !== otra || ids.length === 1);
+        const elegido = candidatos[Math.floor(Math.random() * candidatos.length)];
+        data.asignadas[posicion] = elegido || ids[0];
+    });
+    if (!data.semillas[1] || !data.semillas[2]) {
+        data.estado = 'esperando_semillas';
+    }
+};
+const iniciarCalentamiento = () => {
+    calentamiento.activo = true;
+    [1, 2].forEach((equipo) => {
+        reiniciarEquipoCalentamiento(equipo, true);
+    });
+    emitirEstadoCalentamiento();
+};
   
 
 const frecuencia_letras = {
@@ -355,6 +531,25 @@ servidor.listen(puerto, () => console.log(`Servidor escuchando en el puerto: ${p
 io.on('connection', (socket) => {
 
     socket.emit('actualizar_contador_musas', contador_musas);
+    socket.emit('calentamiento_vista', { activo: calentamiento.vista });
+    socket.emit('calentamiento_estado_espectador', {
+        activo: calentamiento.activo,
+        vista: calentamiento.vista,
+        equipos: {
+            1: estadoEquipoCalentamiento(1),
+            2: estadoEquipoCalentamiento(2)
+        }
+    });
+    socket.on('pedir_calentamiento_estado', () => {
+        socket.emit('calentamiento_estado_espectador', {
+            activo: calentamiento.activo,
+            vista: calentamiento.vista,
+            equipos: {
+                1: estadoEquipoCalentamiento(1),
+                2: estadoEquipoCalentamiento(2)
+            }
+        });
+    });
 
     // Registro de roles y salas.
     socket.on('registrar_espectador', () => {
@@ -390,6 +585,26 @@ io.on('connection', (socket) => {
         else             contador_musas.escritxr2++;
         registrar('[servidor] contador_musas →', contador_musas);
         io.emit('actualizar_contador_musas', contador_musas);
+        musas_por_equipo[id_jugador].set(socket.id, { socket, nombre: nombre_musa });
+        if (calentamiento.activo) {
+            revisarAsignacionesEquipo(id_jugador);
+            emitirEstadoCalentamiento();
+        } else {
+            emitirEstadoCalentamientoMusa(id_jugador);
+        }
+  });
+
+  socket.on('musa_corazon', () => {
+    const equipo = obtenerIdJugadorValido(socket.musa);
+    if (!equipo) {
+        return;
+    }
+    const ahora = Date.now();
+    if (socket._ultimo_corazon && (ahora - socket._ultimo_corazon) < COOLDOWN_MUSA_CORAZON_MS) {
+        return;
+    }
+    socket._ultimo_corazon = ahora;
+    io.to(`j${equipo}`).emit('musa_corazon', { equipo, ts: ahora });
   });
 
   socket.on('disconnect', () => {
@@ -414,6 +629,17 @@ io.on('connection', (socket) => {
   
     // Emite el estado actualizado del contador.
     io.emit('actualizar_contador_musas', contador_musas);
+    if (id === 1 || id === 2) {
+        musas_por_equipo[id].delete(socket.id);
+        const data = calentamiento.equipos[id];
+        if (data.pendiente && data.pendiente.socketId === socket.id) {
+            data.pendiente = null;
+        }
+        if (!data.semillas[1] || !data.semillas[2]) {
+            revisarAsignacionesEquipo(id);
+        }
+        emitirEstadoCalentamiento();
+    }
   });
   
     // Envía nombres actuales al conectar.
@@ -488,6 +714,183 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('envío_nombre2', (nombre) => {
         escritxr2 = nombre;
         socket.broadcast.emit('nombre2', nombre);
+    });
+
+    socket.on('cambiar_vista_calentamiento', (payload = {}) => {
+        if (payload && typeof payload.activo === 'boolean') {
+            calentamiento.vista = payload.activo;
+        } else {
+            calentamiento.vista = !calentamiento.vista;
+        }
+        if (calentamiento.vista && !calentamiento.activo) {
+            iniciarCalentamiento();
+        }
+        io.emit('calentamiento_vista', { activo: calentamiento.vista });
+        emitirEstadoCalentamiento();
+    });
+
+    socket.on('reiniciar_calentamiento', () => {
+        iniciarCalentamiento();
+    });
+    socket.on('reiniciar_marcador_calentamiento', () => {
+        [1, 2].forEach((equipo) => {
+            const data = calentamiento.equipos[equipo];
+            data.intentos = 0;
+            data.aciertos = 0;
+        });
+        emitirEstadoCalentamiento();
+    });
+
+    socket.on('calentamiento_semilla', (payload = {}) => {
+        const equipo = obtenerIdJugadorValido(socket.musa);
+        if (!equipo || !calentamiento.activo) {
+            return;
+        }
+        const data = calentamiento.equipos[equipo];
+        if (data.estado === 'sin_musas') {
+            socket.emit('calentamiento_error', { mensaje: 'No hay musas suficientes.' });
+            return;
+        }
+        const posicion = Number(payload.posicion);
+        if (posicion !== 1 && posicion !== 2) {
+            socket.emit('calentamiento_error', { mensaje: 'Posicion invalida.' });
+            return;
+        }
+        if (data.asignadas[posicion] !== socket.id) {
+            socket.emit('calentamiento_error', { mensaje: 'No eres musa semilla.' });
+            return;
+        }
+        if (data.semillas[posicion]) {
+            return;
+        }
+        const palabra = limpiarPalabra(payload.palabra);
+        if (/\s/.test(palabra)) {
+            socket.emit('calentamiento_error', { mensaje: 'Solo una palabra, sin espacios.' });
+            return;
+        }
+        const normalizada = normalizarPalabra(palabra);
+        if (!normalizada) {
+            socket.emit('calentamiento_error', { mensaje: 'Escribe una palabra valida.' });
+            return;
+        }
+        if (palabra.length > MAX_PALABRA_CALENTAMIENTO) {
+            socket.emit('calentamiento_error', { mensaje: 'La palabra es demasiado larga.' });
+            return;
+        }
+        if (data.usadas.has(normalizada)) {
+            socket.emit('calentamiento_error', { mensaje: 'Esa palabra ya esta usada.' });
+            return;
+        }
+        data.semillas[posicion] = palabra;
+        if (data.semillas[1] && data.semillas[2]) {
+            data.semillas_ts = Date.now();
+            const normalizada1 = normalizarPalabra(data.semillas[1]);
+            const normalizada2 = normalizarPalabra(data.semillas[2]);
+            if (normalizada1 === normalizada2) {
+                registrarHistorialCalentamiento(data, data.semillas[1], data.semillas[2], true);
+                data.intentos += 1;
+                data.aciertos += 1;
+                data.estado = 'ganado';
+                data.usadas.set(normalizada1, data.semillas[1]);
+                data.pendiente = null;
+                io.to(`j${equipo}`).emit('calentamiento_ganado', {
+                    equipo,
+                    palabra: data.semillas[1]
+                });
+                emitirEstadoCalentamiento();
+                setTimeout(() => {
+                    if (!calentamiento.activo) return;
+                    reiniciarEquipoCalentamiento(equipo, true);
+                    emitirEstadoCalentamiento();
+                }, 2500);
+                return;
+            }
+            data.usadas.set(normalizada1, data.semillas[1]);
+            data.usadas.set(normalizada2, data.semillas[2]);
+            data.estado = 'jugando';
+            data.pendiente = null;
+        } else {
+            data.estado = 'esperando_semillas';
+        }
+        emitirEstadoCalentamiento();
+    });
+
+    socket.on('calentamiento_intento', (payload = {}) => {
+        const equipo = obtenerIdJugadorValido(socket.musa);
+        if (!equipo || !calentamiento.activo) {
+            return;
+        }
+        const data = calentamiento.equipos[equipo];
+        if (data.estado !== 'jugando') {
+            socket.emit('calentamiento_error', { mensaje: 'El calentamiento no esta listo.' });
+            return;
+        }
+        const palabra = limpiarPalabra(payload.palabra);
+        if (/\s/.test(palabra)) {
+            socket.emit('calentamiento_error', { mensaje: 'Solo una palabra, sin espacios.' });
+            return;
+        }
+        const normalizada = normalizarPalabra(palabra);
+        if (!normalizada) {
+            socket.emit('calentamiento_error', { mensaje: 'Escribe una palabra valida.' });
+            return;
+        }
+        if (palabra.length > MAX_PALABRA_CALENTAMIENTO) {
+            socket.emit('calentamiento_error', { mensaje: 'La palabra es demasiado larga.' });
+            return;
+        }
+        if (data.usadas.has(normalizada)) {
+            socket.emit('calentamiento_error', { mensaje: 'Esa palabra ya esta usada.' });
+            return;
+        }
+        if (data.pendiente && data.pendiente.socketId === socket.id) {
+            socket.emit('calentamiento_error', { mensaje: 'Espera a otra musa.' });
+            return;
+        }
+        if (!data.pendiente) {
+            data.pendiente = { socketId: socket.id, palabra, normalizada };
+            emitirEstadoCalentamiento();
+            return;
+        }
+        data.intentos += 1;
+        if (data.pendiente.normalizada === normalizada) {
+            data.ultimo_intento = {
+                palabras: [data.pendiente.palabra, palabra],
+                exito: true,
+                id: Date.now(),
+                ts: Date.now()
+            };
+            registrarHistorialCalentamiento(data, data.pendiente.palabra, palabra, true);
+            data.aciertos += 1;
+            data.estado = 'ganado';
+            data.usadas.set(normalizada, palabra);
+            data.pendiente = null;
+            io.to(`j${equipo}`).emit('calentamiento_ganado', {
+                equipo,
+                palabra
+            });
+            emitirEstadoCalentamiento();
+            setTimeout(() => {
+                if (!calentamiento.activo) return;
+                reiniciarEquipoCalentamiento(equipo, true);
+                emitirEstadoCalentamiento();
+            }, 11000);
+            return;
+        }
+        data.ultimo_intento = {
+            palabras: [data.pendiente.palabra, palabra],
+            exito: false,
+            id: Date.now(),
+            ts: Date.now()
+        };
+        registrarHistorialCalentamiento(data, data.pendiente.palabra, palabra, false);
+        data.usadas.set(data.pendiente.normalizada, data.pendiente.palabra);
+        data.usadas.set(normalizada, palabra);
+        data.semillas[1] = data.pendiente.palabra;
+        data.semillas[2] = palabra;
+        data.pendiente = null;
+        data.estado = 'jugando';
+        emitirEstadoCalentamiento();
     });
     // Activa sockets extratextuales.
     activar_sockets_extratextuales(socket);
@@ -612,6 +1015,10 @@ socket.on('pedir_nombre', (payload = {}) => {
         nueva_palabra_j2 = false;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         socket.broadcast.emit('limpiar', evento);
+    });
+
+    socket.on('borrar_texto_guardado', () => {
+        io.emit('borrar_texto_guardado');
     });
 
     socket.on('pausar', (evento) => {
