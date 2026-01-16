@@ -256,6 +256,25 @@ const reiniciarEstadoPartida = (socket) => {
     modo_actual = "";
 };
 
+const finalizarPartida = (socket) => {
+    fin_j1 = true;
+    fin_j2 = true;
+    estado_jugadores[1].finished = true;
+    estado_jugadores[2].finished = true;
+    fin_del_juego = true;
+    limpiarTimersPalabras();
+    limpiarTimersRonda();
+    if (modo_actual && LIMPIEZAS_MODO[modo_actual]) {
+        LIMPIEZAS_MODO[modo_actual](socket);
+    }
+    activar_sockets_extratextuales(socket);
+    modos_pendientes = [...lista_modos];
+    indice_modo = 0;
+    modo_anterior = "";
+    modo_actual = "";
+    io.emit('fin_a_control');
+};
+
 // Helpers para reenviar eventos sin duplicar listeners.
 function reenviarAOtros(socket, evento, evento_salida = null) {
     if (!socket._forwarded_events) socket._forwarded_events = new Set();
@@ -993,7 +1012,7 @@ socket.on('pedir_nombre', (payload = {}) => {
         MODOS[modo_actual](socket);
         //repentizado()
         temp_modos();
-        }, 10000);
+        }, 4000);
     });
 
     // Resetea el tablero de juego.
@@ -1096,6 +1115,15 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('reanudar_modo', (evento) => {
         modos_de_juego(socket);
         socket.broadcast.emit('reanudar_js', evento);
+    });
+
+    socket.on('activar_temporizador_gigante', (evento) => {
+        const duracion = Number(evento?.duracion) || (10 * 60);
+        io.emit('temporizador_gigante_inicio', { duracion });
+    });
+
+    socket.on('temporizador_gigante_detener', () => {
+        io.emit('temporizador_gigante_detener');
     });
 
     socket.on('enviar_putada_a_jx', (evento) => {
@@ -1284,24 +1312,17 @@ function temp_modos() {
     //console.log(modos_pendientes)
       // Si alcanza la duración, avanza de modo.
       if (segundos_transcurridos >= TIEMPO_CAMBIO_MODOS) {
-        if(modo_actual == "frase final"){
-            fin_del_juego = true;
-            clearInterval(id_intervalo_modos);
+        if (modo_actual == "frase final") {
+            finalizarPartida(socket);
+        } else {
+            segundos_transcurridos = 0;
             LIMPIEZAS_MODO[modo_actual](socket);
-            activar_sockets_extratextuales(socket);
-            modos_pendientes = [...lista_modos];
-            modo_anterior = "";
-            modo_actual = "";
-        }
-        else{
-        segundos_transcurridos = 0;
-        LIMPIEZAS_MODO[modo_actual](socket);
-        modos_de_juego(socket);
-        //console.log(modo_actual)
-        //console.log(modo_anterior)
-        //console.log(modos_pendientes)
-        //console.log(modos_pendientes.length)
-        //console.log('Se alcanzó el tiempo límite. Reiniciando temporizador.');
+            modos_de_juego(socket);
+            //console.log(modo_actual)
+            //console.log(modo_anterior)
+            //console.log(modos_pendientes)
+            //console.log(modos_pendientes.length)
+            //console.log('Se alcanzó el tiempo límite. Reiniciando temporizador.');
         }
         
         // Hook opcional al reiniciar.
@@ -1345,6 +1366,10 @@ function modos_de_juego(socket) {
   // Selecciona el siguiente modo en O(1).
   const prev       = modo_actual;
   const curr       = modos_pendientes[indice_modo++] || '';
+  if (!curr) {
+    finalizarPartida(socket);
+    return;
+  }
   modo_anterior    = prev;
   modo_actual      = curr;
   registrar(`MODO ANTERIOR: ${prev} | MODO ACTUAL: ${curr}`);
