@@ -145,8 +145,8 @@ const repentizados = [
   ];
   
 
-const DEFINICION_MUSA_BONUS = "<span style='color:lime;'>MUSA</span>: <span style='color: orange;'>Podrías escribir esta palabra ⬆️</span>";
-const DEFINICION_MUSA_PROHIBIDA= "<span style='color:red;'>MUSA ENEMIGA</span>: <span style='color: orange;'>Podrías escribir esta palabra ⬆️</span>";
+const DEFINICION_MUSA_BONUS = "<span style='color:lime;'>MUSA</span><span style='color: white;'>: </span><span style='color: white;'>Podrías escribir esta palabra ⬆️</span>";
+const DEFINICION_MUSA_PROHIBIDA= "<span style='color:red;'>MUSA ENEMIGA</span><span style='color: white;'>: </span><span style='color: white;'>Podrías escribir esta palabra ⬆️</span>";
 
 const convertirADivsASpans = repentizados.map(frase =>
     frase.replace(/<div(.*?)>/g, '<span$1>').replace(/<\/div>/g, '</span>')
@@ -1343,7 +1343,15 @@ function debeLanzarVentaja(prev, curr, locura) {
 // Lanza la votación para el jugador ganador y programa el timeout de envío.
 function lanzarVentaja(socket, ganador, perdedor) {
   votos_ventaja = { '🐢': 0, '⚡': 0, '🌪️': 0, '🙃': 0, '🖊️': 0 };
-  io.emit(`elegir_ventaja_${ganador}`);
+  const opciones_ventaja = (() => {
+    const emojis = Object.keys(votos_ventaja);
+    for (let i = emojis.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [emojis[i], emojis[j]] = [emojis[j], emojis[i]];
+    }
+    return emojis.slice(0, 3);
+  })();
+  io.emit(`elegir_ventaja_${ganador}`, { opciones: opciones_ventaja });
 
   tiempo_voto = setTimeout(() => {
     socket.removeAllListeners('enviar_voto_ventaja');

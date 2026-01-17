@@ -103,7 +103,7 @@ class PalabrasBonusMode extends MusasMode {
 
       palabras_var          = rawPalabra;
       const musaLabel = musaNombre ? escapeHtml(musaNombre) : 'MUSA';
-      palabra_bonus         = [[rawPalabra], `<span style="color:lime;">${musaLabel}</span>: <span style='color: orange;'>Podrías escribir esta palabra ⬆️</span>`];
+      palabra_bonus         = [[rawPalabra], `<span style="color:lime;">${musaLabel}</span><span style="color: white;">: </span><span style='color: white;'>Podrías escribir esta palabra ⬆️</span>`];
       tiempo_palabras_bonus = this._puntuacionPalabra(rawPalabra);
       st.ultimoMusaNombre = musaNombre;
 
