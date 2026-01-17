@@ -8,7 +8,7 @@ const https = require('https');
 
 // Entorno de ejecución (local vs producción).
 //const es_produccion = process.env.NODE_ENV === 'production';
-const es_produccion = false;
+const es_produccion = true;
 let servidor;
 let io;
 
