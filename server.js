@@ -7,8 +7,8 @@ const https = require('https');
 //require('dotenv').config();
 
 // Entorno de ejecución (local vs producción).
-//const es_produccion = process.env.NODE_ENV === 'production';
-const es_produccion = true;
+const es_produccion = process.env.NODE_ENV === 'production';
+//const es_produccion = false;
 let servidor;
 let io;
 
