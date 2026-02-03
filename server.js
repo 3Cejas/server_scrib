@@ -117,6 +117,45 @@ const estado_jugadores = {
     1: { inserts: -1, finished: false },
     2: { inserts: -1, finished: false }
   };
+// Estado del teleprompter compartido con espectador.
+const TELEPROMPTER_TEXT_MAX = 50000;
+const teleprompter_limites = {
+    fontMin: 18,
+    fontMax: 96,
+    speedMin: 5,
+    speedMax: 300
+};
+let teleprompter_state = {
+    visible: false,
+    text: "",
+    fontSize: 36,
+    speed: 25,
+    playing: false,
+    scroll: 0
+};
+const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
+const normalizarTeleprompterPayload = (payload = {}) => {
+    const salida = { ...teleprompter_state };
+    if (typeof payload.visible === 'boolean') {
+        salida.visible = payload.visible;
+    }
+    if (typeof payload.text === 'string') {
+        salida.text = payload.text.slice(0, TELEPROMPTER_TEXT_MAX);
+    }
+    if (Number.isFinite(payload.fontSize)) {
+        salida.fontSize = clampNumber(payload.fontSize, teleprompter_limites.fontMin, teleprompter_limites.fontMax);
+    }
+    if (Number.isFinite(payload.speed)) {
+        salida.speed = clampNumber(payload.speed, teleprompter_limites.speedMin, teleprompter_limites.speedMax);
+    }
+    if (Number.isFinite(payload.scroll)) {
+        salida.scroll = payload.scroll;
+    }
+    if (typeof payload.playing === 'boolean') {
+        salida.playing = payload.playing;
+    }
+    return salida;
+};
 let tiempo_modos;
 let atributos = {1: {}, 2: {}};
 // Contador global de segundos del temporizador de modos.
@@ -336,6 +375,8 @@ let contador_musas = {
     escritxr1: 0,
     escritxr2: 0
   };
+
+const regalos_pdf_musas = { 1: null, 2: null };
 
 // Estado del calentamiento entre musas.
 const musas_por_equipo = { 1: new Map(), 2: new Map() };
@@ -574,6 +615,7 @@ io.on('connection', (socket) => {
     socket.on('registrar_espectador', () => {
         socket.join(`j${1}`);
         socket.join(`j${2}`);
+        socket.emit('teleprompter_state', { state: teleprompter_state });
   });
     socket.on('registrar_escritor', (escritxr) => {
 
@@ -599,18 +641,28 @@ io.on('connection', (socket) => {
           return;
         }
         socket.join(`j${id_jugador}`);
+        socket.join(`musa_j${id_jugador}`);
         // Actualiza contador solo si la musa es válida.
         if (id_jugador === 1) contador_musas.escritxr1++;
         else             contador_musas.escritxr2++;
         registrar('[servidor] contador_musas →', contador_musas);
         io.emit('actualizar_contador_musas', contador_musas);
         musas_por_equipo[id_jugador].set(socket.id, { socket, nombre: nombre_musa });
+        if (regalos_pdf_musas[id_jugador]) {
+            socket.emit('regalo_pdf_musas', regalos_pdf_musas[id_jugador]);
+        }
         if (calentamiento.activo) {
             revisarAsignacionesEquipo(id_jugador);
             emitirEstadoCalentamiento();
         } else {
             emitirEstadoCalentamientoMusa(id_jugador);
         }
+  });
+
+  socket.on('teleprompter_control', (payload = {}) => {
+    const state = normalizarTeleprompterPayload(payload.state || {});
+    teleprompter_state = state;
+    io.emit('teleprompter_state', { state: teleprompter_state });
   });
 
   socket.on('musa_corazon', () => {
@@ -969,6 +1021,10 @@ socket.on('pedir_nombre', (payload = {}) => {
 
     socket.on('inicio', (datos) => {
         clearInterval(id_intervalo_modos);
+        regalos_pdf_musas[1] = null;
+        regalos_pdf_musas[2] = null;
+        io.to('musa_j1').emit('regalo_pdf_musas_reset');
+        io.to('musa_j2').emit('regalo_pdf_musas_reset');
         TIEMPO_CAMBIO_PALABRAS = datos.parametros.TIEMPO_CAMBIO_PALABRAS;
         DURACION_TIEMPO_MODOS = datos.parametros.DURACION_TIEMPO_MODOS;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
@@ -1023,6 +1079,10 @@ socket.on('pedir_nombre', (payload = {}) => {
         limpiarTimersRonda();
         estado_jugadores[1].finished = true;
         estado_jugadores[2].finished = true;
+        regalos_pdf_musas[1] = null;
+        regalos_pdf_musas[2] = null;
+        io.to('musa_j1').emit('regalo_pdf_musas_reset');
+        io.to('musa_j2').emit('regalo_pdf_musas_reset');
         limpiarTodosLosModos();
         fin_del_juego = true;
         locura = false;
@@ -1038,6 +1098,20 @@ socket.on('pedir_nombre', (payload = {}) => {
 
     socket.on('borrar_texto_guardado', () => {
         io.emit('borrar_texto_guardado');
+    });
+
+    socket.on('regalo_pdf_musas', (payload = {}) => {
+        const playerId = obtenerIdJugadorValido(payload && payload.player);
+        if (!playerId || !payload || !payload.data) {
+            return;
+        }
+        const salida = {
+            player: playerId,
+            data: payload.data,
+            filename: payload.filename || `regalo_j${playerId}.pdf`
+        };
+        regalos_pdf_musas[playerId] = salida;
+        io.to(`musa_j${playerId}`).emit('regalo_pdf_musas', salida);
     });
 
     socket.on('pausar', (evento) => {
@@ -1183,6 +1257,15 @@ socket.on('pedir_nombre', (payload = {}) => {
         ['feedback_de_j1', 'feedback_a_j2', 'j2'],
         ['feedback_de_j2', 'feedback_a_j1', 'j1'],
     ]);
+
+    socket.on('intento_prohibido', (payload) => {
+        const playerId = obtenerIdJugadorValido(payload && payload.player);
+        if (!playerId) {
+            return;
+        }
+        const salida = { ...(payload || {}), player: playerId };
+        io.emit('intento_prohibido', salida);
+    });
    
     /*socket.on('psico', (evt1) => {
         if (evt1 == 1){
@@ -1292,6 +1375,10 @@ socket.on('enviar_inspiracion', (evento) => {
     socket.on('resucitar', (evento) => {
         io.emit('resucitar_control', evento);
         MODOS[modo_actual](socket);
+    });
+
+    socket.on('resucitar_menu', (evento) => {
+        io.emit('resucitar_menu', evento);
     });
 
 
