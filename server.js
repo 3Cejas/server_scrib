@@ -6,6 +6,9 @@ const fs = require('fs');
 const https = require('https');
 //require('dotenv').config();
 
+// Password de acceso para roles protegidos (solo servidor).
+const PASSWORD_ROLES = process.env.SCRIBSHOW_PASSWORD || process.env.PASSWORD_ROLES || "ScribshowAD1*";
+
 // Entorno de ejecución (local vs producción).
 const es_produccion = process.env.NODE_ENV === 'production';
 //const es_produccion = false;
@@ -131,7 +134,8 @@ let teleprompter_state = {
     fontSize: 36,
     speed: 25,
     playing: false,
-    scroll: 0
+    scroll: 0,
+    source: 0
 };
 const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 const normalizarTeleprompterPayload = (payload = {}) => {
@@ -153,6 +157,19 @@ const normalizarTeleprompterPayload = (payload = {}) => {
     }
     if (typeof payload.playing === 'boolean') {
         salida.playing = payload.playing;
+    }
+    if (payload.source !== undefined) {
+        const fuente = Number(payload.source);
+        salida.source = fuente === 1 || fuente === 2 ? fuente : 0;
+    } else if (typeof salida.text === 'string' && salida.text.trim().length > 0) {
+        const textoPlano = salida.text.trim();
+        const textoJ1 = (texto_escritor[1] || "").trim();
+        const textoJ2 = (texto_escritor[2] || "").trim();
+        if (textoPlano && textoPlano === textoJ1 && textoPlano !== textoJ2) {
+            salida.source = 1;
+        } else if (textoPlano && textoPlano === textoJ2 && textoPlano !== textoJ1) {
+            salida.source = 2;
+        }
     }
     return salida;
 };
@@ -589,6 +606,18 @@ const frecuencia_letras = {
 servidor.listen(puerto, () => console.log(`Servidor escuchando en el puerto: ${puerto}`));
 
 io.on('connection', (socket) => {
+
+    socket.on('validar_password_roles', (payload, callback) => {
+        const pass = (typeof payload === 'string')
+            ? payload
+            : (payload && typeof payload.password === 'string' ? payload.password : '');
+        const ok = pass === PASSWORD_ROLES;
+        if (typeof callback === 'function') {
+            callback({ ok });
+        } else {
+            socket.emit('validar_password_roles', { ok });
+        }
+    });
 
     socket.emit('actualizar_contador_musas', contador_musas);
     socket.emit('calentamiento_vista', { activo: calentamiento.vista });
