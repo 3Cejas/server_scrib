@@ -202,26 +202,81 @@ class PalabrasBonusMode extends MusasMode {
   /** Genera variante de la palabra. */
   _extraccionPalabraVar(raw) {
     if (!raw) return [''];
-    const partes = raw.split(', ');
-    const palabra = partes[0];
-    if (partes.length < 2) return [palabra];
-    const term = partes[1];
-    let idx = palabra.length - 1;
-    if (term.length === 1) {
-      while (idx >= 0 && !/[aeiouáéíóúü]/i.test(palabra[idx])) idx--;
-    } else {
-      while (idx >= 0 && palabra[idx] !== term[0]) idx--;
+    const limpio = String(raw).trim();
+    if (!limpio) return [''];
+
+    const partes = limpio.split(',');
+    const palabra = (partes.shift() || '').trim();
+    if (!palabra) return [''];
+    if (!partes.length) return [palabra];
+
+    const sufijoCrudo = partes.join(',').trim();
+    if (!sufijoCrudo) return [palabra];
+
+    const DEACCENT_MAP = {
+      '\u00e1': 'a', '\u00e9': 'e', '\u00ed': 'i', '\u00f3': 'o', '\u00fa': 'u',
+      '\u00c1': 'A', '\u00c9': 'E', '\u00cd': 'I', '\u00d3': 'O', '\u00da': 'U'
+    };
+    const REGEX_VOCAL = /[aeiou\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc]/i;
+    const deacentuarUltimaVocal = (texto) => {
+      if (!texto) return texto;
+      const last = texto[texto.length - 1];
+      if (DEACCENT_MAP[last]) {
+        return texto.slice(0, -1) + DEACCENT_MAP[last];
+      }
+      return texto;
+    };
+    const construirVariante = (base, sufijo) => {
+      if (!sufijo) return '';
+      let idx = base.length - 1;
+      if (sufijo.length === 1) {
+        while (idx >= 0 && !REGEX_VOCAL.test(base[idx])) idx--;
+      } else {
+        const primer = sufijo[0].toLowerCase();
+        while (idx >= 0 && base[idx].toLowerCase() !== primer) idx--;
+      }
+      if (idx < 0) {
+        return base + sufijo;
+      }
+      let prefix = base.slice(0, idx);
+      prefix = deacentuarUltimaVocal(prefix);
+      return prefix + sufijo;
+    };
+    const extraerSufijos = (texto) => {
+      const limpio = texto
+        .replace(/[.;:]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!limpio) return [];
+      const partes = limpio
+        .split(/\s+(?:y|o|u)\s+|\/|;/i)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const sufijos = [];
+      for (const parte of partes) {
+        const tokens = parte.match(/[A-Za-z\u00c1\u00c9\u00cd\u00d3\u00da\u00dc\u00d1\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1]+/g);
+        if (!tokens) continue;
+        for (const token of tokens) {
+          if (token) sufijos.push(token);
+        }
+      }
+      return sufijos;
+    };
+
+    const sufijos = extraerSufijos(sufijoCrudo);
+    if (!sufijos.length) return [palabra];
+
+    const variantes = [palabra];
+    for (const sufijo of sufijos) {
+      const variante = construirVariante(palabra, sufijo);
+      if (variante && !variantes.includes(variante)) {
+        variantes.push(variante);
+      }
     }
-    const prefix = palabra.slice(0, idx);
-    let variante;
-    if (idx > 0 && /[áéíóú]/.test(prefix[idx - 1])) {
-      const sinA = prefix.slice(0, idx - 1).normalize('NFD').replace(/[\u0300-\u036f]/, '');
-      variante = sinA + palabra.slice(idx);
-    } else variante = prefix + term;
-    return [palabra, variante];
+    return variantes;
   }
 
-  /** Calcula “tiempo” según frecuencias de letras. */
+/** Calcula “tiempo” según frecuencias de letras. */
   _puntuacionPalabra(word) {
     if (!word) return 10;
     const freq = { a:1,b:2,c:3,d:4,e:5,f:1,g:2,h:1,i:5,j:1,k:1,l:1,m:2,n:2,o:5,p:1,q:1,r:1,s:1,t:1,u:5,v:1,w:1,x:1,y:1,z:1 };
