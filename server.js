@@ -137,6 +137,26 @@ let teleprompter_state = {
     scroll: 0,
     source: 0
 };
+let estado_banderas_musas = {
+    activa: false,
+    bloqueado_por_control: false,
+    actualizado_en: 0
+};
+const payloadEstadoBanderasMusas = () => ({
+    activa: Boolean(estado_banderas_musas.activa),
+    bloqueado_por_control: Boolean(estado_banderas_musas.bloqueado_por_control),
+    actualizado_en: Number(estado_banderas_musas.actualizado_en) || 0
+});
+const emitirEstadoBanderasMusas = (socketDestino = null) => {
+    const payload = payloadEstadoBanderasMusas();
+    if (socketDestino && typeof socketDestino.emit === 'function') {
+        socketDestino.emit('estado_banderas_musas', payload);
+        return;
+    }
+    if (io) {
+        io.emit('estado_banderas_musas', payload);
+    }
+};
 const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 const normalizarTeleprompterPayload = (payload = {}) => {
     const salida = { ...teleprompter_state };
@@ -236,15 +256,30 @@ let votos_ventaja = {
 let votacion_ventaja_activa = false;
 let votacion_ventaja_equipo = "";
 let votacion_ventaja_opciones = [];
+let votacion_ventaja_duracion_ms = 0;
+let votacion_ventaja_termina_en_ts = 0;
 
-const emitirEstadoVotacionVentaja = (override = null) => {
-    if (!io) return;
-    const payload = override || {
+const construirPayloadEstadoVotacionVentaja = () => {
+    const tiempo_restante_ms = (votacion_ventaja_activa && votacion_ventaja_termina_en_ts > 0)
+        ? Math.max(0, votacion_ventaja_termina_en_ts - Date.now())
+        : 0;
+    return {
         activa: votacion_ventaja_activa,
         equipo: votacion_ventaja_equipo,
         opciones: Array.isArray(votacion_ventaja_opciones) ? [...votacion_ventaja_opciones] : [],
-        votos: { ...votos_ventaja }
+        votos: { ...votos_ventaja },
+        duracion_ms: Math.max(0, Number(votacion_ventaja_duracion_ms) || 0),
+        tiempo_restante_ms,
+        termina_en_ts: votacion_ventaja_termina_en_ts || 0
     };
+};
+
+const emitirEstadoVotacionVentaja = (override = null) => {
+    if (!io) return;
+    const basePayload = construirPayloadEstadoVotacionVentaja();
+    const payload = (override && typeof override === 'object')
+        ? { ...basePayload, ...override }
+        : basePayload;
     io.emit('votacion_ventaja_estado', payload);
 };
 
@@ -312,6 +347,37 @@ const extraerTextoPlano = (evento) => {
     if (evento && typeof evento.text === 'string') return evento.text;
     return '';
 };
+const construirEventoFeedbackMusaInspiracion = (payload, escritxrId) => {
+    if (!payload || typeof payload !== 'object') return null;
+    const tipo = typeof payload.tipo === 'string'
+        ? payload.tipo.trim().toLowerCase()
+        : '';
+    if (tipo !== 'inspiracion') return null;
+    if (escritxrId !== 1 && escritxrId !== 2) return null;
+
+    const origenRaw = typeof payload.origen_musa === 'string'
+        ? payload.origen_musa.trim().toLowerCase()
+        : '';
+    const origenMusa = (origenRaw === 'musa_enemiga') ? 'musa_enemiga' : 'musa';
+    const musaObjetivo = origenMusa === 'musa_enemiga'
+        ? (escritxrId === 1 ? 2 : 1)
+        : escritxrId;
+    const musaNombre = normalizarNombreMusa(payload.musa_nombre) || '';
+    const palabra = typeof payload.palabra === 'string'
+        ? payload.palabra.trim().slice(0, 64)
+        : '';
+
+    return {
+        ...payload,
+        tipo: 'inspiracion',
+        origen_musa: origenMusa,
+        musa_nombre: musaNombre,
+        palabra,
+        escritxr: escritxrId,
+        musa_objetivo: musaObjetivo,
+        ts: Date.now()
+    };
+};
 const reiniciarEstadoPartida = (socket) => {
     fin_j1 = false;
     fin_j2 = false;
@@ -325,6 +391,9 @@ const reiniciarEstadoPartida = (socket) => {
     modos_pendientes = [...lista_modos];
     modo_anterior = "";
     modo_actual = "";
+    estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
+    emitirStatsLive();
+    emitirNubeInspiracionEstado(null, true);
 };
 
 const finalizarPartida = (socket) => {
@@ -343,6 +412,9 @@ const finalizarPartida = (socket) => {
     indice_modo = 0;
     modo_anterior = "";
     modo_actual = "";
+    estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
+    emitirStatsLive();
+    emitirNubeInspiracionEstado(null, true);
     io.emit('fin_a_control');
 };
 
@@ -437,7 +509,9 @@ const crearEstadoCalentamiento = (aciertos = 0) => ({
     estado: 'inactivo',
     historial: [],
     ultimo_intento: null,
-    palabras: []
+    palabras: [],
+    bloqueado: false,
+    final: null
 });
 const crearCursorCalentamiento = () => ({
     x: 50,
@@ -468,6 +542,203 @@ const DURACION_PALABRA_CAMBIO_CONSIGNA_MS = 900;
 const INTERVALO_PURGA_CALENTAMIENTO_MS = 1000;
 const COOLDOWN_MUSA_CORAZON_MS = 900;
 const TIPOS_SOLICITUD_CALENTAMIENTO = new Set(['libre', 'lugares', 'acciones', 'frase_final']);
+const MODOS_VISTA_ESPECTADOR = new Set(['partida', 'stats', 'nube_inspiracion']);
+const MAX_PALABRAS_NUBE_INSPIRACION = 120;
+let vista_espectador_override = 'partida';
+let firma_nube_inspiracion = '';
+const normalizarModoVistaEspectador = (valor) => {
+    const modo = typeof valor === 'string' ? valor.trim().toLowerCase() : '';
+    return MODOS_VISTA_ESPECTADOR.has(modo) ? modo : 'partida';
+};
+const resolverModoVistaEspectador = () => {
+    const override = normalizarModoVistaEspectador(vista_espectador_override);
+    if (override === 'stats' || override === 'nube_inspiracion') {
+        return override;
+    }
+    return calentamiento.vista ? 'calentamiento' : 'partida';
+};
+const payloadVistaEspectadorModo = () => ({
+    modo: resolverModoVistaEspectador(),
+    override: normalizarModoVistaEspectador(vista_espectador_override),
+    calentamiento_vista: Boolean(calentamiento.vista),
+    ts: Date.now()
+});
+const emitirVistaEspectadorModo = (socketDestino = null) => {
+    const payload = payloadVistaEspectadorModo();
+    if (socketDestino && typeof socketDestino.emit === 'function') {
+        socketDestino.emit('vista_espectador_modo', payload);
+        return payload;
+    }
+    io.emit('vista_espectador_modo', payload);
+    return payload;
+};
+const recortarTextoStatsLive = (valor, max = 64) => {
+    if (typeof valor !== 'string') return '';
+    return valor.trim().slice(0, max);
+};
+const normalizarArrayTextoStatsLive = (arr, maxItems = 40, maxLen = 64) => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+        .map((valor) => recortarTextoStatsLive(String(valor), maxLen))
+        .filter(Boolean)
+        .slice(0, maxItems);
+};
+const normalizarTopTeclasStatsLive = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+        .map((item) => ({
+            code: recortarTextoStatsLive(item && item.code ? String(item.code) : '', 24),
+            count: Math.max(0, Number(item && item.count) || 0)
+        }))
+        .filter((item) => item.code)
+        .slice(0, 8);
+};
+const normalizarNumeroStatsLive = (valor, fallback = 0) => {
+    const num = Number(valor);
+    if (!Number.isFinite(num)) return fallback;
+    return num;
+};
+const crearJugadorStatsLiveVacio = (playerId) => ({
+    id: playerId,
+    nombre: `ESCRITXR ${playerId}`,
+    palabrasTotal: 0,
+    pulsacionesTotal: 0,
+    teclasDistintas: 0,
+    topTeclas: [],
+    ritmoPpm: 0,
+    tiempoTotalMs: 0,
+    tiempoEscrituraMs: 0,
+    vida: { actual: null, min: null, max: null, media: null },
+    letrasBenditas: [],
+    letrasMalditas: [],
+    palabrasBenditas: [],
+    palabrasMalditas: [],
+    intentosLetraProhibida: 0,
+    intentosPalabraProhibida: 0
+});
+const normalizarJugadorStatsLive = (entrada, playerId) => {
+    const base = crearJugadorStatsLiveVacio(playerId);
+    const data = (entrada && typeof entrada === 'object') ? entrada : {};
+    const vidaEntrada = (data.vida && typeof data.vida === 'object') ? data.vida : {};
+    return {
+        ...base,
+        id: playerId,
+        nombre: recortarTextoStatsLive(data.nombre || base.nombre, 28) || base.nombre,
+        palabrasTotal: Math.max(0, normalizarNumeroStatsLive(data.palabrasTotal, 0)),
+        pulsacionesTotal: Math.max(0, normalizarNumeroStatsLive(data.pulsacionesTotal, 0)),
+        teclasDistintas: Math.max(0, normalizarNumeroStatsLive(data.teclasDistintas, 0)),
+        topTeclas: normalizarTopTeclasStatsLive(data.topTeclas),
+        ritmoPpm: Math.max(0, normalizarNumeroStatsLive(data.ritmoPpm, 0)),
+        tiempoTotalMs: Math.max(0, normalizarNumeroStatsLive(data.tiempoTotalMs, 0)),
+        tiempoEscrituraMs: Math.max(0, normalizarNumeroStatsLive(data.tiempoEscrituraMs, 0)),
+        vida: {
+            actual: Number.isFinite(normalizarNumeroStatsLive(vidaEntrada.actual, NaN)) ? normalizarNumeroStatsLive(vidaEntrada.actual, NaN) : null,
+            min: Number.isFinite(normalizarNumeroStatsLive(vidaEntrada.min, NaN)) ? normalizarNumeroStatsLive(vidaEntrada.min, NaN) : null,
+            max: Number.isFinite(normalizarNumeroStatsLive(vidaEntrada.max, NaN)) ? normalizarNumeroStatsLive(vidaEntrada.max, NaN) : null,
+            media: Number.isFinite(normalizarNumeroStatsLive(vidaEntrada.media, NaN)) ? normalizarNumeroStatsLive(vidaEntrada.media, NaN) : null
+        },
+        letrasBenditas: normalizarArrayTextoStatsLive(data.letrasBenditas, 26, 8),
+        letrasMalditas: normalizarArrayTextoStatsLive(data.letrasMalditas, 26, 8),
+        palabrasBenditas: normalizarArrayTextoStatsLive(data.palabrasBenditas, 48, 26),
+        palabrasMalditas: normalizarArrayTextoStatsLive(data.palabrasMalditas, 48, 26),
+        intentosLetraProhibida: Math.max(0, normalizarNumeroStatsLive(data.intentosLetraProhibida, 0)),
+        intentosPalabraProhibida: Math.max(0, normalizarNumeroStatsLive(data.intentosPalabraProhibida, 0))
+    };
+};
+const normalizarPayloadStatsLive = (payload = {}) => {
+    const data = (payload && typeof payload === 'object') ? payload : {};
+    const players = (data.players && typeof data.players === 'object') ? data.players : {};
+    return {
+        ts: Date.now(),
+        modo_actual: recortarTextoStatsLive(data.modo_actual || modo_actual || '', 32),
+        players: {
+            1: normalizarJugadorStatsLive(players[1], 1),
+            2: normalizarJugadorStatsLive(players[2], 2)
+        }
+    };
+};
+let estado_stats_live = normalizarPayloadStatsLive({});
+const payloadStatsLive = () => ({
+    ts: estado_stats_live.ts || Date.now(),
+    modo_actual: estado_stats_live.modo_actual || '',
+    players: {
+        1: { ...(estado_stats_live.players && estado_stats_live.players[1] ? estado_stats_live.players[1] : crearJugadorStatsLiveVacio(1)) },
+        2: { ...(estado_stats_live.players && estado_stats_live.players[2] ? estado_stats_live.players[2] : crearJugadorStatsLiveVacio(2)) }
+    }
+});
+const emitirStatsLive = (socketDestino = null) => {
+    const payload = payloadStatsLive();
+    if (socketDestino && typeof socketDestino.emit === 'function') {
+        socketDestino.emit('stats_live_estado', payload);
+        return payload;
+    }
+    io.emit('stats_live_estado', payload);
+    return payload;
+};
+const extraerPalabrasNubeInspiracion = (cola = [], limite = MAX_PALABRAS_NUBE_INSPIRACION) => {
+    const lista = Array.isArray(cola) ? cola : [];
+    const inicio = Math.max(0, lista.length - limite);
+    const salida = [];
+    const vistos = new Set();
+    for (let i = inicio; i < lista.length; i += 1) {
+        const item = lista[i];
+        const palabra = typeof item === 'string'
+            ? item.trim()
+            : (item && typeof item.palabra === 'string' ? item.palabra.trim() : '');
+        if (!palabra) continue;
+        const clave = palabra.toLowerCase();
+        if (vistos.has(clave)) continue;
+        vistos.add(clave);
+        salida.push(palabra);
+    }
+    return salida.slice(-limite);
+};
+const construirSnapshotNubeInspiracion = () => {
+    let palabrasJ1 = [];
+    let palabrasJ2 = [];
+    if (modo_actual === 'palabras prohibidas' && modo_malditas && modo_malditas.players) {
+        palabrasJ1 = extraerPalabrasNubeInspiracion(modo_malditas.players[2] && modo_malditas.players[2].queue);
+        palabrasJ2 = extraerPalabrasNubeInspiracion(modo_malditas.players[1] && modo_malditas.players[1].queue);
+    } else {
+        const motor = (modo_actual === 'palabras bonus') ? modo_bonus : modo_musas;
+        if (motor && motor.players) {
+            palabrasJ1 = extraerPalabrasNubeInspiracion(motor.players[1] && motor.players[1].queue);
+            palabrasJ2 = extraerPalabrasNubeInspiracion(motor.players[2] && motor.players[2].queue);
+        }
+    }
+    return {
+        ts: Date.now(),
+        modo_actual: recortarTextoStatsLive(modo_actual || '', 32),
+        equipos: {
+            1: {
+                nombre: recortarTextoStatsLive(escritxr1 || 'ESCRITXR 1', 28) || 'ESCRITXR 1',
+                palabras: palabrasJ1
+            },
+            2: {
+                nombre: recortarTextoStatsLive(escritxr2 || 'ESCRITXR 2', 28) || 'ESCRITXR 2',
+                palabras: palabrasJ2
+            }
+        }
+    };
+};
+const emitirNubeInspiracionEstado = (socketDestino = null, forzar = false) => {
+    const payload = construirSnapshotNubeInspiracion();
+    const firma = JSON.stringify({
+        modo: payload.modo_actual,
+        j1: payload.equipos[1].palabras,
+        j2: payload.equipos[2].palabras
+    });
+    if (!socketDestino && !forzar && firma === firma_nube_inspiracion) {
+        return payload;
+    }
+    firma_nube_inspiracion = firma;
+    if (socketDestino && typeof socketDestino.emit === 'function') {
+        socketDestino.emit('nube_inspiracion_estado', payload);
+        return payload;
+    }
+    io.emit('nube_inspiracion_estado', payload);
+    return payload;
+};
 const normalizarPalabra = (valor) => {
     if (typeof valor !== 'string') return '';
     const limpio = valor.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -508,6 +779,17 @@ const serializarPalabrasCalentamiento = (palabras = []) => {
         duracionMs: normalizarDuracionPalabraCalentamiento(entrada.duracionMs)
     }));
 };
+const serializarFinalCalentamiento = (entrada) => {
+    if (!entrada || typeof entrada !== 'object') return null;
+    if (typeof entrada.id !== 'string' || !entrada.id) return null;
+    if (typeof entrada.palabra !== 'string' || !entrada.palabra) return null;
+    return {
+        id: entrada.id,
+        palabra: entrada.palabra,
+        ts: Number(entrada.ts) || 0,
+        animTs: Number(entrada.animTs) || 0
+    };
+};
 const generarPosicionCalentamiento = (equipo) => {
     const todas = [
         ...(calentamiento.equipos[1]?.palabras || []),
@@ -544,6 +826,9 @@ const acelerarPalabrasCambioSolicitudCalentamiento = () => {
     [1, 2].forEach((equipo) => {
         const data = calentamiento.equipos[equipo];
         if (!data || !Array.isArray(data.palabras)) return;
+        data.bloqueado = false;
+        data.final = null;
+        data.estado = musas_por_equipo[equipo].size > 0 ? 'jugando' : 'sin_musas';
         data.palabras.forEach((entrada) => {
             if (!entrada) return;
             const duracionActual = normalizarDuracionPalabraCalentamiento(entrada.duracionMs);
@@ -564,6 +849,9 @@ const agregarPalabraCalentamiento = (equipo, socketId, valorPalabra) => {
     const data = calentamiento.equipos[equipo];
     if (!data) {
         return { ok: false, mensaje: 'Equipo invalido.' };
+    }
+    if (data.bloqueado) {
+        return { ok: false, mensaje: 'Tu escritxr cerro esta consigna. Espera a la siguiente.' };
     }
     const palabra = limpiarPalabra(valorPalabra);
     if (!palabra) {
@@ -608,12 +896,62 @@ const agregarPalabraCalentamiento = (equipo, socketId, valorPalabra) => {
     };
     return { ok: true, registro };
 };
+const bloquearEquipoCalentamiento = (equipo) => {
+    if (equipo !== 1 && equipo !== 2) {
+        return { ok: false, mensaje: 'Equipo invalido.' };
+    }
+    const data = calentamiento.equipos[equipo];
+    if (!data || !Array.isArray(data.palabras)) {
+        return { ok: false, mensaje: 'Equipo invalido.' };
+    }
+    if (data.bloqueado) {
+        return { ok: false, mensaje: 'La consigna ya esta cerrada para tu equipo.' };
+    }
+    const destacadas = data.palabras.filter((entrada) => entrada && entrada.destacada);
+    if (destacadas.length === 0) {
+        return { ok: false, mensaje: 'Selecciona al menos una palabra antes de cerrar.' };
+    }
+    data.palabras = destacadas;
+    data.bloqueado = true;
+    data.final = null;
+    data.estado = 'bloqueado';
+    return { ok: true, seleccionadas: data.palabras.length };
+};
+const seleccionarPalabraFinalCalentamiento = (equipo, idPalabra) => {
+    if (!idPalabra || (equipo !== 1 && equipo !== 2)) {
+        return { ok: false, mensaje: 'Seleccion invalida.' };
+    }
+    const data = calentamiento.equipos[equipo];
+    if (!data || !data.bloqueado || !Array.isArray(data.palabras)) {
+        return { ok: false, mensaje: 'Primero cierra la consigna de tu equipo.' };
+    }
+    const palabra = data.palabras.find((item) => item && item.id === idPalabra && item.destacada);
+    if (!palabra) {
+        return { ok: false, mensaje: 'Solo puedes elegir entre las palabras seleccionadas.' };
+    }
+    const ahora = Date.now();
+    const previa = serializarFinalCalentamiento(data.final);
+    data.final = {
+        id: palabra.id,
+        palabra: palabra.palabra,
+        ts: ahora,
+        animTs: (previa && previa.id === palabra.id) ? (previa.animTs || ahora) : ahora
+    };
+    data.estado = 'final';
+    return {
+        ok: true,
+        cambio: !previa || previa.id !== palabra.id,
+        final: serializarFinalCalentamiento(data.final)
+    };
+};
 const alternarPalabraDestacadaCalentamiento = (equipo, idPalabra) => {
     if (!idPalabra || (equipo !== 1 && equipo !== 2)) return false;
     const data = calentamiento.equipos[equipo];
     if (!data || !Array.isArray(data.palabras)) return false;
+    if (data.bloqueado) return false;
     const palabra = data.palabras.find((item) => item.id === idPalabra);
     if (!palabra) return false;
+    data.final = null;
     const destacada = !Boolean(palabra.destacada);
     const ahora = Date.now();
     palabra.destacada = destacada;
@@ -695,6 +1033,10 @@ const payloadCursoresCalentamiento = () => ({
 });
 const estadoEquipoCalentamiento = (equipo) => {
     const data = calentamiento.equipos[equipo];
+    const palabrasSerializadas = serializarPalabrasCalentamiento(data.palabras || []);
+    const seleccionadas = (data.palabras || []).reduce((total, entrada) => (
+        total + (entrada && entrada.destacada ? 1 : 0)
+    ), 0);
     return {
         semillas: { 1: null, 2: null },
         semillasTs: data.semillas_ts,
@@ -710,7 +1052,10 @@ const estadoEquipoCalentamiento = (equipo) => {
         ultimoIntento: data.ultimo_intento,
         usadas: [],
         historial: [],
-        palabras: serializarPalabrasCalentamiento(data.palabras || [])
+        palabras: palabrasSerializadas,
+        seleccionadas,
+        bloqueado: Boolean(data.bloqueado),
+        final: serializarFinalCalentamiento(data.final)
     };
 };
 const payloadEstadoCalentamiento = () => ({
@@ -734,7 +1079,10 @@ const payloadEstadoCalentamientoMusa = (equipo) => {
         estado: data.estado,
         intentos: data.intentos,
         aciertos: data.aciertos,
-        palabras: data.palabras
+        palabras: data.palabras,
+        seleccionadas: data.seleccionadas,
+        bloqueado: data.bloqueado,
+        final: data.final
     };
 };
 const reiniciarEquipoCalentamiento = (equipo, mantenerAciertos = true) => {
@@ -781,6 +1129,9 @@ setInterval(() => {
     if (!depurarPalabrasCalentamiento()) return;
     emitirEstadoCalentamiento();
 }, INTERVALO_PURGA_CALENTAMIENTO_MS);
+setInterval(() => {
+    emitirNubeInspiracionEstado();
+}, 1000);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Canal de calentamiento independiente para BOLZANO (sin mezcla con players_scrib)
@@ -997,8 +1348,28 @@ io.on('connection', (socket) => {
     socket.emit('actualizar_contador_musas', contador_musas);
     socket.emit('calentamiento_vista', { activo: calentamiento.vista });
     socket.emit('calentamiento_estado_espectador', payloadEstadoCalentamiento());
+    emitirVistaEspectadorModo(socket);
+    emitirStatsLive(socket);
+    emitirNubeInspiracionEstado(socket, true);
+    emitirEstadoBanderasMusas(socket);
     socket.on('pedir_calentamiento_estado', () => {
         socket.emit('calentamiento_estado_espectador', payloadEstadoCalentamiento());
+    });
+    socket.on('pedir_vista_espectador_modo', () => {
+        emitirVistaEspectadorModo(socket);
+    });
+    socket.on('pedir_stats_live', () => {
+        emitirStatsLive(socket);
+    });
+    socket.on('stats_live_actualizar', (payload = {}) => {
+        estado_stats_live = normalizarPayloadStatsLive(payload);
+        emitirStatsLive();
+    });
+    socket.on('pedir_nube_inspiracion', () => {
+        emitirNubeInspiracionEstado(socket, true);
+    });
+    socket.on('pedir_estado_banderas_musas', () => {
+        emitirEstadoBanderasMusas(socket);
     });
     socket.on('pedir_calentamiento_estado_bolzano', () => {
         const equipo = obtenerIdJugadorValido(socket.musa_bolzano);
@@ -1056,6 +1427,7 @@ io.on('connection', (socket) => {
         } else {
             emitirEstadoCalentamientoMusa(id_jugador);
         }
+        emitirEstadoBanderasMusas(socket);
   });
 
     socket.on('registrar_musa_bolzano', (evento) => {
@@ -1229,6 +1601,7 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('envío_nombre1', (nombre) => {
         escritxr1 = nombre;
         socket.broadcast.emit('nombre1', nombre);
+        emitirNubeInspiracionEstado(null, true);
     });
 
     // Actualiza nombre del jugador 2.
@@ -1236,6 +1609,7 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('envío_nombre2', (nombre) => {
         escritxr2 = nombre;
         socket.broadcast.emit('nombre2', nombre);
+        emitirNubeInspiracionEstado(null, true);
     });
 
     socket.on('cambiar_vista_calentamiento', (payload = {}) => {
@@ -1249,6 +1623,18 @@ socket.on('pedir_nombre', (payload = {}) => {
         }
         io.emit('calentamiento_vista', { activo: calentamiento.vista });
         emitirEstadoCalentamiento();
+        emitirVistaEspectadorModo();
+    });
+
+    socket.on('cambiar_vista_espectador_modo', (payload = {}) => {
+        const modoSolicitado = normalizarModoVistaEspectador(payload && payload.modo);
+        vista_espectador_override = modoSolicitado;
+        emitirVistaEspectadorModo();
+        if (modoSolicitado === 'stats') {
+            emitirStatsLive();
+        } else if (modoSolicitado === 'nube_inspiracion') {
+            emitirNubeInspiracionEstado(null, true);
+        }
     });
 
     socket.on('reiniciar_calentamiento', () => {
@@ -1259,9 +1645,14 @@ socket.on('pedir_nombre', (payload = {}) => {
             const data = calentamiento.equipos[equipo];
             data.intentos = 0;
             data.aciertos = 0;
+            data.bloqueado = false;
+            data.final = null;
+            data.estado = musas_por_equipo[equipo].size > 0 ? 'jugando' : 'sin_musas';
             if (Array.isArray(data.palabras)) {
                 data.palabras.forEach((palabra) => {
                     palabra.destacada = false;
+                    palabra.animOnTs = 0;
+                    palabra.animOffTs = Date.now();
                 });
             }
         });
@@ -1290,10 +1681,24 @@ socket.on('pedir_nombre', (payload = {}) => {
         bolzano_emitirEstadoCalentamiento();
     });
 
-    socket.on('activar_banderas_musas', () => {
-        // Solo enviar a musas registradas en salas de equipo.
-        io.to('musa_j1').emit('activar_banderas_musas');
-        io.to('musa_j2').emit('activar_banderas_musas');
+    socket.on('activar_banderas_musas', (payload = {}) => {
+        const datos = (payload && typeof payload === 'object') ? payload : {};
+        const activaSolicitada = (typeof datos.activa === 'boolean')
+            ? datos.activa
+            : !estado_banderas_musas.activa;
+        const bloquearDesactivar = activaSolicitada
+            ? (typeof datos.bloquear_desactivar === 'boolean' ? datos.bloquear_desactivar : true)
+            : false;
+        estado_banderas_musas = {
+            activa: activaSolicitada,
+            bloqueado_por_control: bloquearDesactivar,
+            actualizado_en: Date.now()
+        };
+        const estadoPayload = payloadEstadoBanderasMusas();
+        // Compatibilidad con clientes antiguos que solo escuchan este evento.
+        io.to('musa_j1').emit('activar_banderas_musas', estadoPayload);
+        io.to('musa_j2').emit('activar_banderas_musas', estadoPayload);
+        emitirEstadoBanderasMusas();
     });
 
     socket.on('calentamiento_semilla', (payload = {}) => {
@@ -1324,14 +1729,50 @@ socket.on('pedir_nombre', (payload = {}) => {
         if (!calentamiento.activo || !calentamiento.vista) return;
         const id = typeof payload.id === 'string' ? payload.id : '';
         if (!id) return;
+        const dataEquipo = calentamiento.equipos[equipo];
+        if (dataEquipo && dataEquipo.bloqueado) {
+            const seleccion = seleccionarPalabraFinalCalentamiento(equipo, id);
+            if (!seleccion.ok) {
+                socket.emit('calentamiento_error_escritor', {
+                    mensaje: seleccion.mensaje || 'No se pudo fijar la palabra final.'
+                });
+                return;
+            }
+            emitirEstadoCalentamiento();
+            return;
+        }
         const cambio = alternarPalabraDestacadaCalentamiento(equipo, id);
-        if (!cambio) return;
+        if (!cambio) {
+            socket.emit('calentamiento_error_escritor', {
+                mensaje: 'No se pudo actualizar esa palabra.'
+            });
+            return;
+        }
         if (cambio.destacada && cambio.socketId) {
             io.to(cambio.socketId).emit('calentamiento_ganado', {
                 equipo: cambio.equipo,
                 palabra: cambio.palabra,
                 id: cambio.id
             });
+        }
+        emitirEstadoCalentamiento();
+    });
+
+    socket.on('calentamiento_bloquear_equipo', () => {
+        const equipo = obtenerIdJugadorValido(socket.escritxr);
+        if (!equipo) return;
+        if (!calentamiento.activo || !calentamiento.vista) {
+            socket.emit('calentamiento_error_escritor', {
+                mensaje: 'El calentamiento no esta activo.'
+            });
+            return;
+        }
+        const resultado = bloquearEquipoCalentamiento(equipo);
+        if (!resultado.ok) {
+            socket.emit('calentamiento_error_escritor', {
+                mensaje: resultado.mensaje || 'No se pudo cerrar la consigna.'
+            });
+            return;
         }
         emitirEstadoCalentamiento();
     });
@@ -1588,15 +2029,19 @@ socket.on('pedir_nombre', (payload = {}) => {
         letras_prohibidas_pendientes = [...letras_prohibidas];
         modo_anterior = "";
         modo_actual = "";
+        estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
+        emitirStatsLive();
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         socket.broadcast.emit('inicio', datos);
         registrar(modos_pendientes)
         modo_anterior = modo_actual;
         modo_actual = modos_pendientes[0];
         modos_pendientes.splice(0, 1);
+        emitirNubeInspiracionEstado(null, true);
         timeout_inicio = setTimeout(() => {
         socket.broadcast.emit('post-inicio', {borrar_texto : datos.borrar_texto});
         MODOS[modo_actual](socket);
+        emitirNubeInspiracionEstado(null, true);
         //repentizado()
         temp_modos();
         }, 4000);
@@ -1621,9 +2066,12 @@ socket.on('pedir_nombre', (payload = {}) => {
         indice_modo = 0
         modo_anterior = "";
         modo_actual = "";
+        estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
+        emitirStatsLive();
         nueva_palabra_j1 = false;
         nueva_palabra_j2 = false;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
+        emitirNubeInspiracionEstado(null, true);
         socket.broadcast.emit('limpiar', evento);
     });
 
@@ -1789,6 +2237,22 @@ socket.on('pedir_nombre', (payload = {}) => {
         ['feedback_de_j2', 'feedback_a_j1', 'j1'],
     ]);
 
+    const reenviarFeedbackInspiracionMusa = (eventoEntrada, escritxrId) => {
+        socket.on(eventoEntrada, (payload) => {
+            const salida = construirEventoFeedbackMusaInspiracion(payload, escritxrId);
+            if (!salida) return;
+            io.to(`musa_j${salida.musa_objetivo}`).emit('feedback_musa_inspiracion', salida);
+        });
+    };
+    reenviarFeedbackInspiracionMusa('feedback_de_j1', 1);
+    reenviarFeedbackInspiracionMusa('feedback_de_j2', 2);
+    socket.on('feedback_musa_inspiracion', (payload = {}) => {
+        const escritxrId = obtenerIdJugadorValido(payload.player) || socket.escritxr;
+        const salida = construirEventoFeedbackMusaInspiracion(payload, escritxrId);
+        if (!salida) return;
+        io.to(`musa_j${salida.musa_objetivo}`).emit('feedback_musa_inspiracion', salida);
+    });
+
     socket.on('intento_prohibido', (payload) => {
         const playerId = obtenerIdJugadorValido(payload && payload.player);
         if (!playerId) {
@@ -1813,6 +2277,7 @@ socket.on('pedir_nombre', (payload = {}) => {
             return;
         }
         modo_bonus.handleRequest(id_jugador_valido);
+        emitirNubeInspiracionEstado(null, true);
       });
 
     socket.on('nueva_palabra_prohibida', (id_jugador) => {
@@ -1821,6 +2286,7 @@ socket.on('pedir_nombre', (payload = {}) => {
             return;
         }
         modo_malditas.handleRequest(id_jugador_valido);
+        emitirNubeInspiracionEstado(null, true);
       });
       
 
@@ -1832,6 +2298,7 @@ socket.on('pedir_nombre', (payload = {}) => {
         }
         registrar(`[socket] petición de musa para jugador ${id_jugador}`);
         modo_musas.handleRequest(id_jugador);
+        emitirNubeInspiracionEstado(null, true);
   });
 
   socket.on('nueva_palabra_bonus', ({ jugador } = {}) => {
@@ -1840,6 +2307,7 @@ socket.on('pedir_nombre', (payload = {}) => {
         return;
     }
     modo_bonus.handleRequest(id_jugador);
+    emitirNubeInspiracionEstado(null, true);
   });
   
       
@@ -1907,6 +2375,7 @@ socket.on('enviar_inspiracion', (evento) => {
           registrar(`[modo_musas] Se añadió musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
         break;
     }
+    emitirNubeInspiracionEstado(null, true);
   });
       
 
@@ -2001,10 +2470,19 @@ function lanzarVentaja(socket, ganador, perdedor) {
     }
     return emojis.slice(0, 3);
   })();
+  const duracion_votacion_ms = Math.max(0, Number(TIEMPO_VOTACION) || 0);
   votacion_ventaja_activa = true;
   votacion_ventaja_equipo = ganador;
   votacion_ventaja_opciones = [...opciones_ventaja];
-  io.emit(`elegir_ventaja_${ganador}`, { opciones: opciones_ventaja });
+  votacion_ventaja_duracion_ms = duracion_votacion_ms;
+  votacion_ventaja_termina_en_ts = duracion_votacion_ms > 0 ? Date.now() + duracion_votacion_ms : 0;
+  io.emit(`elegir_ventaja_${ganador}`, {
+    opciones: opciones_ventaja,
+    equipo: ganador,
+    duracion_ms: votacion_ventaja_duracion_ms,
+    tiempo_restante_ms: votacion_ventaja_duracion_ms,
+    termina_en_ts: votacion_ventaja_termina_en_ts
+  });
   emitirEstadoVotacionVentaja();
 
   tiempo_voto = setTimeout(() => {
@@ -2019,17 +2497,21 @@ function lanzarVentaja(socket, ganador, perdedor) {
         : [];
     const votosFinal = { ...votos_ventaja };
     votacion_ventaja_activa = false;
+    votacion_ventaja_termina_en_ts = 0;
     emitirEstadoVotacionVentaja({
         activa: false,
         equipo: votacion_ventaja_equipo,
         opciones: opcionesFinal,
-        votos: votosFinal
+        votos: votosFinal,
+        tiempo_restante_ms: 0,
+        termina_en_ts: 0
     });
     votacion_ventaja_equipo = "";
     votacion_ventaja_opciones = [];
+    votacion_ventaja_duracion_ms = 0;
     sincro_modos();
     repentizado_enviado = true;
-  }, TIEMPO_VOTACION);
+  }, duracion_votacion_ms);
 }
 
 // Avanza el estado global de modos.
@@ -2055,6 +2537,12 @@ function modos_de_juego(socket) {
 
   // Ejecuta la lógica del modo actual.
   MODOS[curr](socket);
+  emitirNubeInspiracionEstado(null, true);
+  estado_stats_live = normalizarPayloadStatsLive({
+    ...payloadStatsLive(),
+    modo_actual: curr
+  });
+  emitirStatsLive();
   repentizado_enviado = false;
 
 

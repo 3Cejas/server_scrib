@@ -18,6 +18,21 @@ class PalabrasBonusMode extends MusasMode {
   // Puppeteer singleton y caché de última palabra buscada
   static _navegador      = null;
   static _palabraBuscada = null;
+  static _fallbackBonus = [
+    { palabra: 'historia', definicion: 'Narracion de hechos, reales o imaginarios.' },
+    { palabra: 'viaje', definicion: 'Traslado de un lugar a otro.' },
+    { palabra: 'memoria', definicion: 'Facultad de recordar.' },
+    { palabra: 'destino', definicion: 'Meta o punto de llegada.' },
+    { palabra: 'refugio', definicion: 'Lugar que protege o ampara.' },
+    { palabra: 'latido', definicion: 'Golpe ritmico del corazon.' },
+    { palabra: 'ventana', definicion: 'Abertura para dar luz y ventilacion.' },
+    { palabra: 'tormenta', definicion: 'Perturbacion atmosferica intensa.' },
+    { palabra: 'misterio', definicion: 'Cosa secreta o dificil de comprender.' },
+    { palabra: 'promesa', definicion: 'Expresion de la voluntad de cumplir algo.' },
+    { palabra: 'horizonte', definicion: 'Linea aparente que separa cielo y tierra.' },
+    { palabra: 'silencio', definicion: 'Ausencia de ruido.' }
+  ];
+  static _fallbackPendientes = [...PalabrasBonusMode._fallbackBonus];
 
   /**
    * @param {import('socket.io').Server} io
@@ -131,9 +146,13 @@ class PalabrasBonusMode extends MusasMode {
         console.error('[PalabrasBonusMode] Error RAE:', err);
         st.lastDeliveredFromMusa = false;
         st.ultimoMusaNombre = '';
-        palabras_var          = '';
-        palabra_bonus         = [[''], ''];
-        tiempo_palabras_bonus = 10;
+        const fallback = this._palabraFallbackLocal();
+        palabras_var          = fallback.palabra;
+        palabra_bonus         = [[fallback.palabra], fallback.definicion];
+        tiempo_palabras_bonus = this._puntuacionPalabra(fallback.palabra);
+        console.warn(
+          `[PalabrasBonusMode] Usando fallback local para J${playerId}: "${fallback.palabra}"`
+        );
       }
     }
 
@@ -277,6 +296,18 @@ class PalabrasBonusMode extends MusasMode {
   }
 
 /** Calcula “tiempo” según frecuencias de letras. */
+  _palabraFallbackLocal() {
+    if (!Array.isArray(PalabrasBonusMode._fallbackPendientes) || !PalabrasBonusMode._fallbackPendientes.length) {
+      PalabrasBonusMode._fallbackPendientes = [...PalabrasBonusMode._fallbackBonus];
+    }
+    const idx = Math.floor(Math.random() * PalabrasBonusMode._fallbackPendientes.length);
+    const elegido = PalabrasBonusMode._fallbackPendientes.splice(idx, 1)[0];
+    if (!elegido || !elegido.palabra) {
+      return { palabra: 'palabra', definicion: 'Termino usado en una lengua.' };
+    }
+    return elegido;
+  }
+
   _puntuacionPalabra(word) {
     if (!word) return 10;
     const freq = { a:1,b:2,c:3,d:4,e:5,f:1,g:2,h:1,i:5,j:1,k:1,l:1,m:2,n:2,o:5,p:1,q:1,r:1,s:1,t:1,u:5,v:1,w:1,x:1,y:1,z:1 };
