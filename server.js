@@ -137,6 +137,79 @@ let teleprompter_state = {
     scroll: 0,
     source: 0
 };
+const CREDITOS_TEXT_MAX = 80;
+const CREDITOS_AGRADECIMIENTOS_MAX = 420;
+const ESTADO_CREDITOS_POR_DEFECTO = {
+    escritxr_rojo: "",
+    escritxr_azul: "",
+    interprete_azul_1: "",
+    interprete_azul_2: "",
+    interprete_rojo_1: "",
+    interprete_rojo_2: "",
+    programacion: "",
+    dramaturgia: "",
+    iluminacion: "",
+    musica: "",
+    voz_off: "",
+    agradecimientos: ""
+};
+const CAMPOS_CREDITOS_ESTADO = [
+    "escritxr_rojo",
+    "escritxr_azul",
+    "interprete_azul_1",
+    "interprete_azul_2",
+    "interprete_rojo_1",
+    "interprete_rojo_2",
+    "programacion",
+    "dramaturgia",
+    "iluminacion",
+    "musica",
+    "voz_off"
+];
+let estado_creditos_show = { ...ESTADO_CREDITOS_POR_DEFECTO };
+let creditos_animacion_id = 0;
+
+const normalizarTextoCreditoShow = (valor, max = CREDITOS_TEXT_MAX) => String(valor ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+
+const normalizarTextoAgradecimientosShow = (valor, max = CREDITOS_AGRADECIMIENTOS_MAX) => String(valor ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((linea) => linea.trim())
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, max);
+
+const normalizarCreditosShow = (entrada = {}) => {
+    const data = (entrada && typeof entrada === "object") ? entrada : {};
+    const salida = { ...ESTADO_CREDITOS_POR_DEFECTO };
+    CAMPOS_CREDITOS_ESTADO.forEach((campo) => {
+        salida[campo] = normalizarTextoCreditoShow(data[campo], CREDITOS_TEXT_MAX);
+    });
+    salida.agradecimientos = normalizarTextoAgradecimientosShow(data.agradecimientos, CREDITOS_AGRADECIMIENTOS_MAX);
+    return salida;
+};
+
+const payloadCreditosShow = () => ({
+    creditos: { ...estado_creditos_show },
+    mostrar: String(vista_espectador_override || "").trim().toLowerCase() === "creditos",
+    animacion_id: Number(creditos_animacion_id) || 0,
+    ts: Date.now()
+});
+
+const emitirCreditosShow = (socketDestino = null) => {
+    const payload = payloadCreditosShow();
+    if (socketDestino && typeof socketDestino.emit === "function") {
+        socketDestino.emit("creditos_estado", payload);
+        return payload;
+    }
+    io.emit("creditos_estado", payload);
+    return payload;
+};
+
 let estado_banderas_musas = {
     activa: false,
     bloqueado_por_control: false,
@@ -282,6 +355,50 @@ const emitirEstadoVotacionVentaja = (override = null) => {
         : basePayload;
     io.emit('votacion_ventaja_estado', payload);
 };
+
+function construirPayloadInspiracionMusaActual() {
+    if (modo_actual === "letra prohibida") {
+        return { modo_actual, letra_prohibida };
+    }
+    if (modo_actual === "letra bendita") {
+        return { modo_actual, letra_bendita };
+    }
+    if (
+        modo_actual === "palabras bonus" ||
+        modo_actual === "palabras prohibidas" ||
+        modo_actual === "tertulia" ||
+        modo_actual === "frase final"
+    ) {
+        return { modo_actual };
+    }
+    return null;
+}
+
+function sincronizarEstadoMusa(socket) {
+    if (!socket) return;
+    const equipo = obtenerIdJugadorValido(socket.musa);
+
+    if (equipo === 1) {
+        socket.emit('texto1', texto1);
+    } else if (equipo === 2) {
+        socket.emit('texto2', texto2);
+    }
+
+    if (typeof sincro_modos === 'function') {
+        sincro_modos(socket);
+    }
+
+    const payloadInspiracion = construirPayloadInspiracionMusaActual();
+    if (payloadInspiracion) {
+        socket.emit('pedir_inspiracion_musa', payloadInspiracion);
+    }
+
+    socket.emit('votacion_ventaja_estado', construirPayloadEstadoVotacionVentaja());
+
+    if (equipo && typeof emitirEstadoCalentamientoMusa === 'function') {
+        emitirEstadoCalentamientoMusa(equipo, socket);
+    }
+}
 
 let votos_repentizado = {
     "1": 0,
@@ -522,7 +639,7 @@ const crearCursorCalentamiento = () => ({
 const calentamiento = {
     activo: false,
     vista: false,
-    solicitud: 'libre',
+    solicitud: 'lugares',
     cursores: {
         1: crearCursorCalentamiento(),
         2: crearCursorCalentamiento()
@@ -541,8 +658,10 @@ const DURACION_PALABRA_CALENTAMIENTO_MS = 10000;
 const DURACION_PALABRA_CAMBIO_CONSIGNA_MS = 900;
 const INTERVALO_PURGA_CALENTAMIENTO_MS = 1000;
 const COOLDOWN_MUSA_CORAZON_MS = 900;
-const TIPOS_SOLICITUD_CALENTAMIENTO = new Set(['libre', 'lugares', 'acciones', 'frase_final']);
-const MODOS_VISTA_ESPECTADOR = new Set(['partida', 'stats', 'nube_inspiracion']);
+const ORDEN_SOLICITUD_CALENTAMIENTO = ['lugares', 'acciones', 'frase_final'];
+const SOLICITUD_CALENTAMIENTO_POR_DEFECTO = ORDEN_SOLICITUD_CALENTAMIENTO[0];
+const TIPOS_SOLICITUD_CALENTAMIENTO = new Set(ORDEN_SOLICITUD_CALENTAMIENTO);
+const MODOS_VISTA_ESPECTADOR = new Set(['partida', 'stats', 'nube_inspiracion', 'creditos']);
 const MAX_PALABRAS_NUBE_INSPIRACION = 120;
 let vista_espectador_override = 'partida';
 let firma_nube_inspiracion = '';
@@ -552,7 +671,7 @@ const normalizarModoVistaEspectador = (valor) => {
 };
 const resolverModoVistaEspectador = () => {
     const override = normalizarModoVistaEspectador(vista_espectador_override);
-    if (override === 'stats' || override === 'nube_inspiracion') {
+    if (override === 'stats' || override === 'nube_inspiracion' || override === 'creditos') {
         return override;
     }
     return calentamiento.vista ? 'calentamiento' : 'partida';
@@ -747,7 +866,7 @@ const normalizarPalabra = (valor) => {
 const normalizarSolicitudCalentamiento = (valor) => {
     const tipo = typeof valor === 'string' ? valor.trim().toLowerCase() : '';
     if (TIPOS_SOLICITUD_CALENTAMIENTO.has(tipo)) return tipo;
-    return 'libre';
+    return SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
 };
 const normalizarDuracionPalabraCalentamiento = (valor, fallback = DURACION_PALABRA_CALENTAMIENTO_MS) => {
     const num = Number(valor);
@@ -1117,7 +1236,7 @@ const revisarAsignacionesEquipo = (equipo) => {
 };
 const iniciarCalentamiento = () => {
     calentamiento.activo = true;
-    calentamiento.solicitud = 'libre';
+    calentamiento.solicitud = SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
     calentamiento.cursores[1] = crearCursorCalentamiento();
     calentamiento.cursores[2] = crearCursorCalentamiento();
     [1, 2].forEach((equipo) => {
@@ -1352,6 +1471,7 @@ io.on('connection', (socket) => {
     emitirStatsLive(socket);
     emitirNubeInspiracionEstado(socket, true);
     emitirEstadoBanderasMusas(socket);
+    emitirCreditosShow(socket);
     socket.on('pedir_calentamiento_estado', () => {
         socket.emit('calentamiento_estado_espectador', payloadEstadoCalentamiento());
     });
@@ -1370,6 +1490,12 @@ io.on('connection', (socket) => {
     });
     socket.on('pedir_estado_banderas_musas', () => {
         emitirEstadoBanderasMusas(socket);
+    });
+    socket.on('pedir_creditos_estado', () => {
+        emitirCreditosShow(socket);
+    });
+    socket.on('pedir_estado_musa', () => {
+        sincronizarEstadoMusa(socket);
     });
     socket.on('pedir_calentamiento_estado_bolzano', () => {
         const equipo = obtenerIdJugadorValido(socket.musa_bolzano);
@@ -1428,6 +1554,7 @@ io.on('connection', (socket) => {
             emitirEstadoCalentamientoMusa(id_jugador);
         }
         emitirEstadoBanderasMusas(socket);
+        sincronizarEstadoMusa(socket);
   });
 
     socket.on('registrar_musa_bolzano', (evento) => {
@@ -1465,6 +1592,24 @@ io.on('connection', (socket) => {
     const state = normalizarTeleprompterPayload(payload.state || {});
     teleprompter_state = state;
     io.emit('teleprompter_state', { state: teleprompter_state });
+  });
+
+  socket.on('creditos_actualizar', (payload = {}) => {
+    const creditosRecibidos = (payload && typeof payload === 'object' && payload.creditos)
+        ? payload.creditos
+        : payload;
+    estado_creditos_show = normalizarCreditosShow(creditosRecibidos);
+    emitirCreditosShow();
+  });
+
+  socket.on('mostrar_creditos_espectador', (payload = {}) => {
+    if (payload && typeof payload === 'object' && payload.creditos) {
+        estado_creditos_show = normalizarCreditosShow(payload.creditos);
+    }
+    vista_espectador_override = 'creditos';
+    creditos_animacion_id += 1;
+    emitirVistaEspectadorModo();
+    emitirCreditosShow();
   });
 
   socket.on('musa_corazon', () => {
@@ -1618,6 +1763,12 @@ socket.on('pedir_nombre', (payload = {}) => {
         } else {
             calentamiento.vista = !calentamiento.vista;
         }
+        if (calentamiento.vista) {
+            if (calentamiento.solicitud !== SOLICITUD_CALENTAMIENTO_POR_DEFECTO) {
+                acelerarPalabrasCambioSolicitudCalentamiento();
+            }
+            calentamiento.solicitud = SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
+        }
         if (calentamiento.vista && !calentamiento.activo) {
             iniciarCalentamiento();
         }
@@ -1629,7 +1780,11 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('cambiar_vista_espectador_modo', (payload = {}) => {
         const modoSolicitado = normalizarModoVistaEspectador(payload && payload.modo);
         vista_espectador_override = modoSolicitado;
+        if (modoSolicitado === 'creditos') {
+            creditos_animacion_id += 1;
+        }
         emitirVistaEspectadorModo();
+        emitirCreditosShow();
         if (modoSolicitado === 'stats') {
             emitirStatsLive();
         } else if (modoSolicitado === 'nube_inspiracion') {
@@ -2847,4 +3002,3 @@ function repentizado(){
                         sincro_modos();
                     }, TIEMPO_VOTACION);
 }
-
