@@ -17,6 +17,11 @@ class PalabrasMalditasMode extends MusasMode {
     "dos","también","fue","había","era","muy","años","hasta","desde","está"
   ];
   static remainingStatic = [...PalabrasMalditasMode.STATIC_WORDS];
+  static HTML_NOISE_WORDS = new Set([
+    'span', 'div', 'br', 'p', 'style', 'class', 'contenteditable',
+    'color', 'font', 'face', 'size', 'nbsp', 'amp', 'lt', 'gt',
+    'quot', 'href', 'http', 'https', 'width', 'height'
+  ]);
 
   constructor(io, timeoutMs) {
     super(io, timeoutMs);
@@ -42,11 +47,29 @@ class PalabrasMalditasMode extends MusasMode {
   }
 
   _normalizarTexto(texto) {
-    return (texto || '')
+    const legible = this._extraerTextoLegible(texto);
+    return legible
       .toLowerCase()
       .replace(/[^a-záéíóúüñ\s]/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  _extraerTextoLegible(texto) {
+    return String(texto || '')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&(amp|lt|gt|quot|#39);/gi, ' ')
+      .replace(/&[a-z0-9#]+;/gi, ' ');
+  }
+
+  _esTokenInvalido(palabra) {
+    if (!palabra) return true;
+    if (!/[a-záéíóúüñ]/i.test(palabra)) return true;
+    return PalabrasMalditasMode.HTML_NOISE_WORDS.has(palabra);
   }
 
   _obtenerTopPalabrasJugador(playerId, k) {
@@ -57,6 +80,7 @@ class PalabrasMalditasMode extends MusasMode {
     const conteo = new Map();
     limpio.split(' ').forEach(palabra => {
       if (palabra.length < 1) return;
+      if (this._esTokenInvalido(palabra)) return;
       conteo.set(palabra, (conteo.get(palabra) || 0) + 1);
     });
 

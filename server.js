@@ -140,18 +140,18 @@ let teleprompter_state = {
 const CREDITOS_TEXT_MAX = 80;
 const CREDITOS_AGRADECIMIENTOS_MAX = 420;
 const ESTADO_CREDITOS_POR_DEFECTO = {
-    escritxr_rojo: "",
-    escritxr_azul: "",
-    interprete_azul_1: "",
-    interprete_azul_2: "",
-    interprete_rojo_1: "",
-    interprete_rojo_2: "",
-    programacion: "",
-    dramaturgia: "",
-    iluminacion: "",
-    musica: "",
-    voz_off: "",
-    agradecimientos: ""
+    escritxr_rojo: "ÁNGELA BUENO",
+    escritxr_azul: "MIRIAM DEL VALLE",
+    interprete_azul_1: "PAULA CM",
+    interprete_azul_2: "DIEGO VALVERDE",
+    interprete_rojo_1: "ANA SEMPERE",
+    interprete_rojo_2: "PABLO PINEÑO",
+    programacion: "DAVID VIÑAS",
+    dramaturgia: "ÁNGELA BUENO",
+    iluminacion: "TERESA TIMPER",
+    musica: "ARNY RAMÍREZ",
+    voz_off: "NINACHASKA ZL",
+    agradecimientos: "SALA EXLÍMITE\nJUAN CEACERO"
 };
 const CAMPOS_CREDITOS_ESTADO = [
     "escritxr_rojo",
@@ -639,7 +639,7 @@ const crearCursorCalentamiento = () => ({
 const calentamiento = {
     activo: false,
     vista: false,
-    solicitud: 'lugares',
+    solicitud: 'ninguna',
     cursores: {
         1: crearCursorCalentamiento(),
         2: crearCursorCalentamiento()
@@ -651,6 +651,7 @@ const calentamiento = {
 };
 const REGEX_LIMPIEZA_PALABRA = /[^a-z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1\s-]/gi;
 const MAX_PALABRA_CALENTAMIENTO = 24;
+const MAX_FRASE_FINAL_CALENTAMIENTO = 48;
 const MAX_PALABRAS_PANTALLA_CALENTAMIENTO = 220;
 const MIN_Y_PALABRAS_CALENTAMIENTO = 20;
 const MAX_Y_PALABRAS_CALENTAMIENTO = 94;
@@ -659,8 +660,13 @@ const DURACION_PALABRA_CAMBIO_CONSIGNA_MS = 900;
 const INTERVALO_PURGA_CALENTAMIENTO_MS = 1000;
 const COOLDOWN_MUSA_CORAZON_MS = 900;
 const ORDEN_SOLICITUD_CALENTAMIENTO = ['lugares', 'acciones', 'frase_final'];
-const SOLICITUD_CALENTAMIENTO_POR_DEFECTO = ORDEN_SOLICITUD_CALENTAMIENTO[0];
-const TIPOS_SOLICITUD_CALENTAMIENTO = new Set(ORDEN_SOLICITUD_CALENTAMIENTO);
+const SOLICITUD_CALENTAMIENTO_SIN_ACTIVA = 'ninguna';
+const SOLICITUD_CALENTAMIENTO_POR_DEFECTO = SOLICITUD_CALENTAMIENTO_SIN_ACTIVA;
+const TIPOS_SOLICITUD_CALENTAMIENTO_ACTIVAS = new Set(ORDEN_SOLICITUD_CALENTAMIENTO);
+const TIPOS_SOLICITUD_CALENTAMIENTO = new Set([
+    SOLICITUD_CALENTAMIENTO_SIN_ACTIVA,
+    ...ORDEN_SOLICITUD_CALENTAMIENTO
+]);
 const MODOS_VISTA_ESPECTADOR = new Set(['partida', 'stats', 'nube_inspiracion', 'creditos']);
 const MAX_PALABRAS_NUBE_INSPIRACION = 120;
 let vista_espectador_override = 'partida';
@@ -712,6 +718,29 @@ const normalizarTopTeclasStatsLive = (arr) => {
         .filter((item) => item.code)
         .slice(0, 8);
 };
+const normalizarHeatmapStatsLive = (entrada) => {
+    if (!entrada || typeof entrada !== 'object') return {};
+    const salida = {};
+    const pushItem = (code, count) => {
+        const codigo = recortarTextoStatsLive(String(code || ''), 24);
+        const valor = Math.max(0, Number(count) || 0);
+        if (!codigo || !Number.isFinite(valor) || valor <= 0) return;
+        if (Object.prototype.hasOwnProperty.call(salida, codigo)) return;
+        if (Object.keys(salida).length >= 128) return;
+        salida[codigo] = valor;
+    };
+    if (Array.isArray(entrada)) {
+        entrada.forEach((item) => {
+            if (!item || typeof item !== 'object') return;
+            pushItem(item.code, item.count);
+        });
+        return salida;
+    }
+    Object.keys(entrada).forEach((code) => {
+        pushItem(code, entrada[code]);
+    });
+    return salida;
+};
 const normalizarNumeroStatsLive = (valor, fallback = 0) => {
     const num = Number(valor);
     if (!Number.isFinite(num)) return fallback;
@@ -724,6 +753,7 @@ const crearJugadorStatsLiveVacio = (playerId) => ({
     pulsacionesTotal: 0,
     teclasDistintas: 0,
     topTeclas: [],
+    heatmap: {},
     ritmoPpm: 0,
     tiempoTotalMs: 0,
     tiempoEscrituraMs: 0,
@@ -739,6 +769,12 @@ const normalizarJugadorStatsLive = (entrada, playerId) => {
     const base = crearJugadorStatsLiveVacio(playerId);
     const data = (entrada && typeof entrada === 'object') ? entrada : {};
     const vidaEntrada = (data.vida && typeof data.vida === 'object') ? data.vida : {};
+    const heatmapNormalizado = normalizarHeatmapStatsLive(data.heatmap);
+    if (!Object.keys(heatmapNormalizado).length) {
+        normalizarTopTeclasStatsLive(data.topTeclas).forEach((item) => {
+            heatmapNormalizado[item.code] = item.count;
+        });
+    }
     return {
         ...base,
         id: playerId,
@@ -747,6 +783,7 @@ const normalizarJugadorStatsLive = (entrada, playerId) => {
         pulsacionesTotal: Math.max(0, normalizarNumeroStatsLive(data.pulsacionesTotal, 0)),
         teclasDistintas: Math.max(0, normalizarNumeroStatsLive(data.teclasDistintas, 0)),
         topTeclas: normalizarTopTeclasStatsLive(data.topTeclas),
+        heatmap: heatmapNormalizado,
         ritmoPpm: Math.max(0, normalizarNumeroStatsLive(data.ritmoPpm, 0)),
         tiempoTotalMs: Math.max(0, normalizarNumeroStatsLive(data.tiempoTotalMs, 0)),
         tiempoEscrituraMs: Math.max(0, normalizarNumeroStatsLive(data.tiempoEscrituraMs, 0)),
@@ -868,6 +905,17 @@ const normalizarSolicitudCalentamiento = (valor) => {
     if (TIPOS_SOLICITUD_CALENTAMIENTO.has(tipo)) return tipo;
     return SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
 };
+const esSolicitudActivaCalentamiento = () => (
+    TIPOS_SOLICITUD_CALENTAMIENTO_ACTIVAS.has(calentamiento.solicitud)
+);
+const esSolicitudFraseFinalCalentamiento = () => (
+    esSolicitudActivaCalentamiento() && calentamiento.solicitud === 'frase_final'
+);
+const obtenerMaxLongitudCalentamiento = () => (
+    esSolicitudFraseFinalCalentamiento()
+        ? MAX_FRASE_FINAL_CALENTAMIENTO
+        : MAX_PALABRA_CALENTAMIENTO
+);
 const normalizarDuracionPalabraCalentamiento = (valor, fallback = DURACION_PALABRA_CALENTAMIENTO_MS) => {
     const num = Number(valor);
     if (!Number.isFinite(num) || num <= 0) return fallback;
@@ -965,6 +1013,9 @@ const agregarPalabraCalentamiento = (equipo, socketId, valorPalabra) => {
     if (!calentamiento.activo || !calentamiento.vista) {
         return { ok: false, mensaje: 'El calentamiento no esta disponible.' };
     }
+    if (!esSolicitudActivaCalentamiento()) {
+        return { ok: false, mensaje: 'No hay detonador activo.' };
+    }
     const data = calentamiento.equipos[equipo];
     if (!data) {
         return { ok: false, mensaje: 'Equipo invalido.' };
@@ -972,19 +1023,22 @@ const agregarPalabraCalentamiento = (equipo, socketId, valorPalabra) => {
     if (data.bloqueado) {
         return { ok: false, mensaje: 'Tu escritxr cerro esta consigna. Espera a la siguiente.' };
     }
-    const palabra = limpiarPalabra(valorPalabra);
+    const esFraseFinal = esSolicitudFraseFinalCalentamiento();
+    const etiqueta = esFraseFinal ? 'frase' : 'palabra';
+    const palabra = limpiarPalabra(valorPalabra).replace(/\s+/g, ' ');
     if (!palabra) {
-        return { ok: false, mensaje: 'Escribe una palabra.' };
+        return { ok: false, mensaje: `Escribe una ${etiqueta}.` };
     }
-    if (/\s/.test(palabra)) {
+    if (!esFraseFinal && /\s/.test(palabra)) {
         return { ok: false, mensaje: 'Solo una palabra, sin espacios.' };
     }
     const normalizada = normalizarPalabra(palabra);
     if (!normalizada) {
-        return { ok: false, mensaje: 'Escribe una palabra valida.' };
+        return { ok: false, mensaje: `Escribe una ${etiqueta} valida.` };
     }
-    if (palabra.length > MAX_PALABRA_CALENTAMIENTO) {
-        return { ok: false, mensaje: 'La palabra es demasiado larga.' };
+    const maxLongitud = obtenerMaxLongitudCalentamiento();
+    if (palabra.length > maxLongitud) {
+        return { ok: false, mensaje: `Maximo ${maxLongitud} caracteres.` };
     }
     const posicion = generarPosicionCalentamiento(equipo);
     const registro = {
@@ -1763,12 +1817,10 @@ socket.on('pedir_nombre', (payload = {}) => {
         } else {
             calentamiento.vista = !calentamiento.vista;
         }
-        if (calentamiento.vista) {
-            if (calentamiento.solicitud !== SOLICITUD_CALENTAMIENTO_POR_DEFECTO) {
-                acelerarPalabrasCambioSolicitudCalentamiento();
-            }
-            calentamiento.solicitud = SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
+        if (calentamiento.solicitud !== SOLICITUD_CALENTAMIENTO_POR_DEFECTO) {
+            acelerarPalabrasCambioSolicitudCalentamiento();
         }
+        calentamiento.solicitud = SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
         if (calentamiento.vista && !calentamiento.activo) {
             iniciarCalentamiento();
         }
@@ -2254,20 +2306,27 @@ socket.on('pedir_nombre', (payload = {}) => {
         //socket.broadcast.emit('pausar_js', evento);
     });
 
-    socket.on('fin_de_control', (player) => {
-        const id_jugador = obtenerIdJugadorValido(player);
+    socket.on('fin_de_control', (evento) => {
+        const payload = (evento && typeof evento === 'object') ? evento : { player: evento };
+        const id_jugador = obtenerIdJugadorValido(payload && payload.player);
         if (!id_jugador) {
             return;
         }
+        const finPayload = {
+            player: id_jugador,
+            forzar_fin: payload.forzar_fin !== false,
+            origen: 'control',
+            suprimir_confetti_espectador: payload.suprimir_confetti_espectador !== false
+        };
         if(id_jugador == 1){
             fin_j1 = true;
             clearTimeout(cambio_palabra_j1);
-            socket.broadcast.emit('fin', id_jugador);
+            socket.broadcast.emit('fin', finPayload);
         }
         else if(id_jugador == 2){
             fin_j2 = true;
             clearTimeout(cambio_palabra_j2);
-            socket.broadcast.emit('fin', id_jugador);
+            socket.broadcast.emit('fin', finPayload);
         }
         clearTimeout(listener_cambio_letra);
         if(fin_j1 && fin_j2){
@@ -2275,21 +2334,26 @@ socket.on('pedir_nombre', (payload = {}) => {
         }
     });
 
-    socket.on('fin_de_player', (player) => {
-        const id_jugador = obtenerIdJugadorValido(player);
+    socket.on('fin_de_player', (evento) => {
+        const payload = (evento && typeof evento === 'object') ? evento : { player: evento };
+        const id_jugador = obtenerIdJugadorValido(payload && payload.player);
         if (!id_jugador) {
             return;
         }
+        const finPayload = {
+            player: id_jugador,
+            motivo: payload && payload.motivo === 'sin_palabras' ? 'sin_palabras' : undefined
+        };
         socket.broadcast.emit('fin_de_player_a_control', id_jugador);
         if(id_jugador == 1){
             fin_j1 = true;
             clearTimeout(cambio_palabra_j1);
-            socket.broadcast.emit('fin', id_jugador);
+            socket.broadcast.emit('fin', finPayload);
         }
         else if(id_jugador == 2){
             fin_j2 = true;
             clearTimeout(cambio_palabra_j2);
-            socket.broadcast.emit('fin', id_jugador);
+            socket.broadcast.emit('fin', finPayload);
         }
         clearTimeout(listener_cambio_letra);
         if(fin_j1 && fin_j2){
@@ -2486,8 +2550,8 @@ socket.on('pedir_nombre', (payload = {}) => {
         if (!Number.isFinite(secs) || secs === 0) {
             return;
         }
-        // En frase final no se permite ganar tiempo (solo perderlo por inactividad).
-        if (modo_actual === "frase final" && secs > 0) {
+        // En frase final no se modifica el tiempo: ni se gana ni se pierde.
+        if (modo_actual === "frase final") {
             return;
         }
         io.emit('aumentar_tiempo_control', {
