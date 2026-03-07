@@ -135,7 +135,8 @@ let teleprompter_state = {
     speed: 25,
     playing: false,
     scroll: 0,
-    source: 0
+    source: 0,
+    loadId: 0
 };
 const CREDITOS_TEXT_MAX = 80;
 const CREDITOS_AGRADECIMIENTOS_MAX = 420;
@@ -264,6 +265,9 @@ const normalizarTeleprompterPayload = (payload = {}) => {
             salida.source = 2;
         }
     }
+    if (Number.isFinite(payload.loadId)) {
+        salida.loadId = Math.max(0, Math.trunc(Number(payload.loadId)));
+    }
     return salida;
 };
 let tiempo_modos;
@@ -311,8 +315,8 @@ let repentizados_pendientes = [...repentizados];
 
 var tiempos = [];
 
-// const lista_modos = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "ortografía perfecta",  "locura"];
-let lista_modos = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "tertulia", "locura"];
+// const lista_modos = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "ortografía perfecta",  "locura"];
+let lista_modos = ["letra bendita","letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas", "locura"];
 let lista_modos_locura = [ "letra bendita", "letra prohibida", "palabras bonus", "palabras prohibidas"];
 let modos_pendientes;
 let escritxr1 = "";
@@ -1648,6 +1652,24 @@ io.on('connection', (socket) => {
     io.emit('teleprompter_state', { state: teleprompter_state });
   });
 
+  socket.on('teleprompter_ack', (payload = {}) => {
+    const loadId = Number(payload.loadId);
+    if (!Number.isFinite(loadId) || loadId <= 0) {
+        return;
+    }
+    const source = Number(payload.source) === 2 ? 2 : 1;
+    io.emit('teleprompter_ack', {
+        loadId: Math.max(1, Math.trunc(loadId)),
+        source,
+        rendered: Boolean(payload.rendered),
+        overlayActive: Boolean(payload.overlayActive),
+        timerActive: Boolean(payload.timerActive),
+        visible: Boolean(payload.visible),
+        textLength: Math.max(0, Math.trunc(Number(payload.textLength) || 0)),
+        ts: Date.now()
+    });
+  });
+
   socket.on('creditos_actualizar', (payload = {}) => {
     const creditosRecibidos = (payload && typeof payload === 'object' && payload.creditos)
         ? payload.creditos
@@ -2387,6 +2409,18 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('reanudar_modo', (evento) => {
         modos_de_juego(socket);
         socket.broadcast.emit('reanudar_js', evento);
+    });
+
+    socket.on('saltar_tertulia', () => {
+        if (modo_actual !== 'tertulia') {
+            return;
+        }
+        segundos_transcurridos = 0;
+        if (modo_actual && LIMPIEZAS_MODO[modo_actual]) {
+            LIMPIEZAS_MODO[modo_actual](socket);
+        }
+        modos_de_juego(socket);
+        io.emit('temp_modos', { segundos_transcurridos, modo_actual });
     });
 
     socket.on('activar_temporizador_gigante', (evento) => {
