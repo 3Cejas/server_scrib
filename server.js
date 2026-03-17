@@ -250,6 +250,41 @@ const emitirEstadoBanderasMusas = (socketDestino = null) => {
         io.emit('estado_banderas_musas', payload);
     }
 };
+const FEEDBACK_MUSAS_URL_POR_DEFECTO = '/feedback/';
+let estado_feedback_musas = {
+    activa: false,
+    url: FEEDBACK_MUSAS_URL_POR_DEFECTO,
+    solicitado_en: 0
+};
+const normalizarUrlFeedbackMusas = (valor) => {
+    const url = typeof valor === 'string' ? valor.trim() : '';
+    return url.startsWith('/') ? url : FEEDBACK_MUSAS_URL_POR_DEFECTO;
+};
+const payloadFeedbackMusas = () => ({
+    activa: Boolean(estado_feedback_musas.activa),
+    url: normalizarUrlFeedbackMusas(estado_feedback_musas.url),
+    solicitado_en: Number(estado_feedback_musas.solicitado_en) || 0
+});
+const emitirFeedbackMusas = (socketDestino = null) => {
+    const payload = payloadFeedbackMusas();
+    if (socketDestino && typeof socketDestino.emit === 'function') {
+        socketDestino.emit('feedback_musas_estado', payload);
+        return payload;
+    }
+    if (io) {
+        io.to('musa_j1').emit('feedback_musas_estado', payload);
+        io.to('musa_j2').emit('feedback_musas_estado', payload);
+    }
+    return payload;
+};
+const resetearFeedbackMusas = () => {
+    estado_feedback_musas = {
+        activa: false,
+        url: FEEDBACK_MUSAS_URL_POR_DEFECTO,
+        solicitado_en: 0
+    };
+    return payloadFeedbackMusas();
+};
 const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 const normalizarTeleprompterPayload = (payload = {}) => {
     const salida = { ...teleprompter_state };
@@ -1590,6 +1625,9 @@ io.on('connection', (socket) => {
     socket.on('pedir_creditos_estado', () => {
         emitirCreditosShow(socket);
     });
+    socket.on('pedir_feedback_musas_estado', () => {
+        emitirFeedbackMusas(socket);
+    });
     socket.on('pedir_idioma_actual', () => {
         emitirIdiomaJuego(socket);
     });
@@ -2318,6 +2356,7 @@ socket.on('pedir_nombre', (payload = {}) => {
 
     socket.on('inicio', (datos) => {
         clearInterval(id_intervalo_modos);
+        resetearFeedbackMusas();
         regalos_pdf_musas[1] = null;
         regalos_pdf_musas[2] = null;
         io.to('musa_j1').emit('regalo_pdf_musas_reset');
@@ -2378,6 +2417,7 @@ socket.on('pedir_nombre', (payload = {}) => {
         activar_sockets_extratextuales(socket);
         limpiarTimersPalabras();
         limpiarTimersRonda();
+        resetearFeedbackMusas();
         estado_jugadores[1].finished = true;
         estado_jugadores[2].finished = true;
         regalos_pdf_musas[1] = null;
@@ -2416,6 +2456,15 @@ socket.on('pedir_nombre', (payload = {}) => {
         };
         regalos_pdf_musas[playerId] = salida;
         io.to(`musa_j${playerId}`).emit('regalo_pdf_musas', salida);
+    });
+
+    socket.on('pedir_feedback_musas', (payload = {}) => {
+        estado_feedback_musas = {
+            activa: true,
+            url: normalizarUrlFeedbackMusas(payload && payload.url),
+            solicitado_en: Date.now()
+        };
+        emitirFeedbackMusas();
     });
 
     socket.on('pausar', (evento) => {
