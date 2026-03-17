@@ -169,6 +169,25 @@ const CAMPOS_CREDITOS_ESTADO = [
 ];
 let estado_creditos_show = { ...ESTADO_CREDITOS_POR_DEFECTO };
 let creditos_animacion_id = 0;
+const IDIOMAS_JUEGO_VALIDOS = new Set(["es", "en", "fr"]);
+let idioma_global_juego = "es";
+
+const normalizarIdiomaJuego = (valor) => {
+    const idioma = typeof valor === "string" ? valor.trim().toLowerCase() : "";
+    return IDIOMAS_JUEGO_VALIDOS.has(idioma) ? idioma : "es";
+};
+
+const emitirIdiomaJuego = (socketDestino = null) => {
+    const payload = { idioma: idioma_global_juego };
+    if (socketDestino && typeof socketDestino.emit === "function") {
+        socketDestino.emit("idioma_actual", payload);
+        return payload;
+    }
+    if (io) {
+        io.emit("idioma_actual", payload);
+    }
+    return payload;
+};
 
 const normalizarTextoCreditoShow = (valor, max = CREDITOS_TEXT_MAX) => String(valor ?? "")
     .replace(/\s+/g, " ")
@@ -673,11 +692,27 @@ const TIPOS_SOLICITUD_CALENTAMIENTO = new Set([
 ]);
 const MODOS_VISTA_ESPECTADOR = new Set(['partida', 'stats', 'nube_inspiracion', 'creditos']);
 const MAX_PALABRAS_NUBE_INSPIRACION = 120;
+const ESCALA_UI_ESPECTADOR_MIN = 0.82;
+const ESCALA_UI_ESPECTADOR_MAX = 1.28;
+const ESCALA_UI_ESPECTADOR_PASO = 0.06;
 let vista_espectador_override = 'partida';
+let stats_slide_step_vista_espectador = 0;
+let escala_ui_espectador = ESCALA_UI_ESPECTADOR_MAX;
 let firma_nube_inspiracion = '';
 const normalizarModoVistaEspectador = (valor) => {
     const modo = typeof valor === 'string' ? valor.trim().toLowerCase() : '';
     return MODOS_VISTA_ESPECTADOR.has(modo) ? modo : 'partida';
+};
+const normalizarEscalaUiEspectador = (valor, fallback = ESCALA_UI_ESPECTADOR_MAX) => {
+    const numero = Number(valor);
+    if (!Number.isFinite(numero)) {
+        return fallback;
+    }
+    return clampNumber(numero, ESCALA_UI_ESPECTADOR_MIN, ESCALA_UI_ESPECTADOR_MAX);
+};
+const normalizarPasoSlideStats = (valor) => {
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? Math.trunc(numero) : 0;
 };
 const resolverModoVistaEspectador = () => {
     const override = normalizarModoVistaEspectador(vista_espectador_override);
@@ -690,6 +725,8 @@ const payloadVistaEspectadorModo = () => ({
     modo: resolverModoVistaEspectador(),
     override: normalizarModoVistaEspectador(vista_espectador_override),
     calentamiento_vista: Boolean(calentamiento.vista),
+    stats_slide_step: normalizarPasoSlideStats(stats_slide_step_vista_espectador),
+    escala_ui: normalizarEscalaUiEspectador(escala_ui_espectador),
     ts: Date.now()
 });
 const emitirVistaEspectadorModo = (socketDestino = null) => {
@@ -1525,6 +1562,7 @@ io.on('connection', (socket) => {
     socket.emit('actualizar_contador_musas', contador_musas);
     socket.emit('calentamiento_vista', { activo: calentamiento.vista });
     socket.emit('calentamiento_estado_espectador', payloadEstadoCalentamiento());
+    emitirIdiomaJuego(socket);
     emitirVistaEspectadorModo(socket);
     emitirStatsLive(socket);
     emitirNubeInspiracionEstado(socket, true);
@@ -1551,6 +1589,9 @@ io.on('connection', (socket) => {
     });
     socket.on('pedir_creditos_estado', () => {
         emitirCreditosShow(socket);
+    });
+    socket.on('pedir_idioma_actual', () => {
+        emitirIdiomaJuego(socket);
     });
     socket.on('pedir_estado_musa', () => {
         sincronizarEstadoMusa(socket);
@@ -1676,6 +1717,14 @@ io.on('connection', (socket) => {
         : payload;
     estado_creditos_show = normalizarCreditosShow(creditosRecibidos);
     emitirCreditosShow();
+  });
+
+  socket.on('cambiar_idioma_global', (payload = {}) => {
+    const idiomaRecibido = (payload && typeof payload === 'object')
+        ? payload.idioma
+        : payload;
+    idioma_global_juego = normalizarIdiomaJuego(idiomaRecibido);
+    emitirIdiomaJuego();
   });
 
   socket.on('mostrar_creditos_espectador', (payload = {}) => {
@@ -1854,6 +1903,7 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('cambiar_vista_espectador_modo', (payload = {}) => {
         const modoSolicitado = normalizarModoVistaEspectador(payload && payload.modo);
         vista_espectador_override = modoSolicitado;
+        stats_slide_step_vista_espectador = 0;
         if (modoSolicitado === 'creditos') {
             creditos_animacion_id += 1;
         }
@@ -1864,6 +1914,52 @@ socket.on('pedir_nombre', (payload = {}) => {
         } else if (modoSolicitado === 'nube_inspiracion') {
             emitirNubeInspiracionEstado(null, true);
         }
+    });
+
+    socket.on('stats_slide_control_navegar', (payload = {}) => {
+        if (resolverModoVistaEspectador() !== 'stats') {
+            return;
+        }
+        const direccion = payload && payload.direccion === 'prev'
+            ? -1
+            : payload && payload.direccion === 'next'
+                ? 1
+                : 0;
+        if (!direccion) {
+            return;
+        }
+        stats_slide_step_vista_espectador = normalizarPasoSlideStats(
+            stats_slide_step_vista_espectador + direccion
+        );
+        emitirVistaEspectadorModo();
+    });
+
+    socket.on('ajustar_escala_espectador', (payload = {}) => {
+        const accion = typeof payload?.accion === 'string'
+            ? payload.accion.trim().toLowerCase()
+            : '';
+        const escalaActual = normalizarEscalaUiEspectador(escala_ui_espectador);
+        if (accion === 'reset') {
+            escala_ui_espectador = ESCALA_UI_ESPECTADOR_MAX;
+        } else if (accion === 'down') {
+            escala_ui_espectador = normalizarEscalaUiEspectador(
+                escalaActual - ESCALA_UI_ESPECTADOR_PASO,
+                escalaActual
+            );
+        } else if (accion === 'up') {
+            escala_ui_espectador = normalizarEscalaUiEspectador(
+                escalaActual + ESCALA_UI_ESPECTADOR_PASO,
+                escalaActual
+            );
+        } else if (Object.prototype.hasOwnProperty.call(payload || {}, 'valor')) {
+            escala_ui_espectador = normalizarEscalaUiEspectador(
+                payload.valor,
+                escalaActual
+            );
+        } else {
+            return;
+        }
+        emitirVistaEspectadorModo();
     });
 
     socket.on('reiniciar_calentamiento', () => {
