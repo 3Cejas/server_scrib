@@ -240,113 +240,6 @@ const payloadEstadoBanderasMusas = () => ({
     bloqueado_por_control: Boolean(estado_banderas_musas.bloqueado_por_control),
     actualizado_en: Number(estado_banderas_musas.actualizado_en) || 0
 });
-const REGALO_BANDERA_SHAKES_BASE = 10;
-const REGALO_BANDERA_SHAKES_POR_MUSA_EXTRA = 4;
-const REGALO_BANDERA_SHAKES_MAX = 22;
-const REGALO_BANDERA_SEGS_EXTRA_DESDE = 4;
-const REGALO_BANDERA_SEGS_MAX = 2;
-const REGALO_BANDERA_COOLDOWN_MS = 8500;
-const crearEstadoRegaloBanderaMusa = () => ({
-    progreso: 0,
-    objetivo: REGALO_BANDERA_SHAKES_BASE,
-    musas: 0,
-    regalo_secs: 1,
-    cooldown_hasta: 0,
-    ultima_actualizacion: 0
-});
-const estado_regalo_banderas_musas = {
-    1: crearEstadoRegaloBanderaMusa(),
-    2: crearEstadoRegaloBanderaMusa()
-};
-const contarMusasEquipo = (equipo) => {
-    if (equipo !== 1 && equipo !== 2) return 0;
-    const grupo = musas_por_equipo[equipo];
-    return grupo && typeof grupo.size === 'number' ? grupo.size : 0;
-};
-const calcularObjetivoRegaloBanderaMusa = (musas = 0) => {
-    const total = REGALO_BANDERA_SHAKES_BASE + (Math.max(0, Number(musas) - 1) * REGALO_BANDERA_SHAKES_POR_MUSA_EXTRA);
-    return Math.max(REGALO_BANDERA_SHAKES_BASE, Math.min(REGALO_BANDERA_SHAKES_MAX, total));
-};
-const calcularSegundosRegaloBanderaMusa = (musas = 0) => {
-    return Math.max(1, Math.min(REGALO_BANDERA_SEGS_MAX, Number(musas) >= REGALO_BANDERA_SEGS_EXTRA_DESDE ? 2 : 1));
-};
-const puedeRecibirRegaloBanderaMusa = (equipo) => {
-    if (equipo !== 1 && equipo !== 2) return false;
-    return Boolean(
-        estado_banderas_musas.activa &&
-        !fin_del_juego &&
-        modo_actual &&
-        modo_actual !== 'frase final' &&
-        !estado_jugadores[equipo].finished &&
-        escritores_conectados[equipo] &&
-        escritores_conectados[equipo].size > 0
-    );
-};
-const recalcularEstadoRegaloBanderaEquipo = (equipo, opciones = {}) => {
-    if (equipo !== 1 && equipo !== 2) return null;
-    const estado = estado_regalo_banderas_musas[equipo];
-    const objetivoPrevio = Math.max(1, Number(estado.objetivo) || REGALO_BANDERA_SHAKES_BASE);
-    const musas = contarMusasEquipo(equipo);
-    const objetivo = calcularObjetivoRegaloBanderaMusa(musas);
-    let progreso = opciones.reset ? 0 : Math.max(0, Number(estado.progreso) || 0);
-    if (!opciones.reset && progreso > 0 && objetivoPrevio !== objetivo) {
-        progreso = Math.round((progreso / objetivoPrevio) * objetivo);
-    }
-    let cooldownHasta = opciones.reset ? 0 : Math.max(0, Number(estado.cooldown_hasta) || 0);
-    if (!puedeRecibirRegaloBanderaMusa(equipo)) {
-        progreso = 0;
-        cooldownHasta = 0;
-    } else {
-        progreso = Math.min(Math.max(0, objetivo - 1), progreso);
-    }
-    estado.musas = musas;
-    estado.objetivo = objetivo;
-    estado.regalo_secs = calcularSegundosRegaloBanderaMusa(musas);
-    estado.progreso = progreso;
-    estado.cooldown_hasta = cooldownHasta;
-    estado.ultima_actualizacion = Date.now();
-    return estado;
-};
-const payloadEstadoRegaloBanderaEquipo = (equipo) => {
-    const estado = recalcularEstadoRegaloBanderaEquipo(equipo);
-    if (!estado) return null;
-    const ahora = Date.now();
-    return {
-        equipo,
-        visible: Boolean(estado_banderas_musas.activa && estado.musas > 0),
-        disponible: puedeRecibirRegaloBanderaMusa(equipo),
-        progreso: estado.progreso,
-        objetivo: estado.objetivo,
-        progreso_pct: estado.objetivo > 0 ? Math.max(0, Math.min(100, Math.round((estado.progreso / estado.objetivo) * 100))) : 0,
-        musas: estado.musas,
-        regalo_secs: estado.regalo_secs,
-        cooldown_ms: Math.max(0, estado.cooldown_hasta - ahora),
-        ultima_actualizacion: estado.ultima_actualizacion
-    };
-};
-const payloadEstadoRegaloBanderaMusas = () => ({
-    activa: Boolean(estado_banderas_musas.activa),
-    ts: Date.now(),
-    equipos: {
-        1: payloadEstadoRegaloBanderaEquipo(1),
-        2: payloadEstadoRegaloBanderaEquipo(2)
-    }
-});
-const emitirEstadoRegaloBanderaMusas = (socketDestino = null) => {
-    const payload = payloadEstadoRegaloBanderaMusas();
-    if (socketDestino && typeof socketDestino.emit === 'function') {
-        socketDestino.emit('musa_regalo_bandera_estado', payload);
-        return payload;
-    }
-    if (io) {
-        io.emit('musa_regalo_bandera_estado', payload);
-    }
-    return payload;
-};
-const resetearEstadoRegaloBanderaMusas = () => {
-    recalcularEstadoRegaloBanderaEquipo(1, { reset: true });
-    recalcularEstadoRegaloBanderaEquipo(2, { reset: true });
-};
 const emitirEstadoBanderasMusas = (socketDestino = null) => {
     const payload = payloadEstadoBanderasMusas();
     if (socketDestino && typeof socketDestino.emit === 'function') {
@@ -430,19 +323,6 @@ const normalizarTeleprompterPayload = (payload = {}) => {
         salida.loadId = Math.max(0, Math.trunc(Number(payload.loadId)));
     }
     return salida;
-};
-const normalizarTeleprompterFeedback = (payload = {}) => {
-    const type = typeof payload.type === 'string' ? payload.type.trim().toLowerCase() : '';
-    const id = typeof payload.id === 'string' ? payload.id.trim() : '';
-    if (!id || (type !== 'press' && type !== 'held')) {
-        return null;
-    }
-    return {
-        type,
-        id: id.slice(0, 64),
-        active: Boolean(payload.active),
-        duration: clampNumber(Math.trunc(Number(payload.duration) || 160), 60, 1200)
-    };
 };
 let tiempo_modos;
 let atributos = {1: {}, 2: {}};
@@ -689,8 +569,6 @@ const reiniciarEstadoPartida = (socket) => {
     estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
     emitirStatsLive();
     emitirNubeInspiracionEstado(null, true);
-    resetearEstadoRegaloBanderaMusas();
-    emitirEstadoRegaloBanderaMusas();
 };
 
 const finalizarPartida = (socket) => {
@@ -712,8 +590,6 @@ const finalizarPartida = (socket) => {
     estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
     emitirStatsLive();
     emitirNubeInspiracionEstado(null, true);
-    resetearEstadoRegaloBanderaMusas();
-    emitirEstadoRegaloBanderaMusas();
     io.emit('fin_a_control');
 };
 
@@ -1746,9 +1622,6 @@ io.on('connection', (socket) => {
     socket.on('pedir_estado_banderas_musas', () => {
         emitirEstadoBanderasMusas(socket);
     });
-    socket.on('pedir_estado_regalo_bandera_musas', () => {
-        emitirEstadoRegaloBanderaMusas(socket);
-    });
     socket.on('pedir_creditos_estado', () => {
         emitirCreditosShow(socket);
     });
@@ -1786,7 +1659,6 @@ io.on('connection', (socket) => {
         if (escritores_conectados[id_jugador]) {
             escritores_conectados[id_jugador].add(socket.id);
         }
-        emitirEstadoRegaloBanderaMusas();
         registrar(`[servidor] socket ${socket.id} registrado como escritor ${id_jugador}`);
       });
 
@@ -1809,7 +1681,6 @@ io.on('connection', (socket) => {
         registrar('[servidor] contador_musas →', contador_musas);
         io.emit('actualizar_contador_musas', contador_musas);
         musas_por_equipo[id_jugador].set(socket.id, { socket, nombre: nombre_musa });
-        emitirEstadoRegaloBanderaMusas();
         if (regalos_pdf_musas[id_jugador]) {
             socket.emit('regalo_pdf_musas', regalos_pdf_musas[id_jugador]);
         }
@@ -1858,21 +1729,6 @@ io.on('connection', (socket) => {
     const state = normalizarTeleprompterPayload(payload.state || {});
     teleprompter_state = state;
     io.emit('teleprompter_state', { state: teleprompter_state });
-  });
-
-  socket.on('pedir_teleprompter_estado', () => {
-    socket.emit('teleprompter_state', { state: teleprompter_state });
-  });
-
-  socket.on('teleprompter_feedback', (payload = {}) => {
-    const feedback = normalizarTeleprompterFeedback(payload);
-    if (!feedback) {
-        return;
-    }
-    socket.broadcast.emit('teleprompter_feedback', {
-        ...feedback,
-        ts: Date.now()
-    });
   });
 
   socket.on('teleprompter_ack', (payload = {}) => {
@@ -1930,32 +1786,6 @@ io.on('connection', (socket) => {
     }
     socket._ultimo_corazon = ahora;
     io.to(`j${equipo}`).emit('musa_corazon', { equipo, ts: ahora });
-    const estadoEquipo = recalcularEstadoRegaloBanderaEquipo(equipo);
-    if (!estadoEquipo || !estado_banderas_musas.activa || !puedeRecibirRegaloBanderaMusa(equipo)) {
-        emitirEstadoRegaloBanderaMusas();
-        return;
-    }
-    if (estadoEquipo.cooldown_hasta && ahora < estadoEquipo.cooldown_hasta) {
-        emitirEstadoRegaloBanderaMusas();
-        return;
-    }
-    estadoEquipo.progreso += 1;
-    estadoEquipo.ultima_actualizacion = ahora;
-    if (estadoEquipo.progreso >= estadoEquipo.objetivo) {
-        const secs = calcularSegundosRegaloBanderaMusa(estadoEquipo.musas);
-        estadoEquipo.progreso = 0;
-        estadoEquipo.regalo_secs = secs;
-        estadoEquipo.cooldown_hasta = ahora + REGALO_BANDERA_COOLDOWN_MS;
-        io.emit('aumentar_tiempo_control', {
-            player: equipo,
-            secs,
-            origen: 'musa_bandera',
-            musa_regalo: true,
-            musas: estadoEquipo.musas,
-            objetivo_regalo: estadoEquipo.objetivo
-        });
-    }
-    emitirEstadoRegaloBanderaMusas();
   });
 
   socket.on('disconnect', () => {
@@ -1982,7 +1812,6 @@ io.on('connection', (socket) => {
     io.emit('actualizar_contador_musas', contador_musas);
     if (id === 1 || id === 2) {
         musas_por_equipo[id].delete(socket.id);
-        emitirEstadoRegaloBanderaMusas();
         const data = calentamiento.equipos[id];
         if (data.pendiente && data.pendiente.socketId === socket.id) {
             data.pendiente = null;
@@ -2009,7 +1838,6 @@ io.on('connection', (socket) => {
     const escritorId = Number(socket.escritxr);
     if (escritorId === 1 || escritorId === 2) {
         escritores_conectados[escritorId].delete(socket.id);
-        emitirEstadoRegaloBanderaMusas();
         if (ocultarCursorCalentamiento(escritorId)) {
             io.emit('calentamiento_cursor', { equipo: escritorId, ...calentamiento.cursores[escritorId] });
         }
@@ -2234,8 +2062,6 @@ socket.on('pedir_nombre', (payload = {}) => {
         io.to('musa_j1').emit('activar_banderas_musas', estadoPayload);
         io.to('musa_j2').emit('activar_banderas_musas', estadoPayload);
         emitirEstadoBanderasMusas();
-        resetearEstadoRegaloBanderaMusas();
-        emitirEstadoRegaloBanderaMusas();
     });
 
     socket.on('calentamiento_semilla', (payload = {}) => {
@@ -2531,7 +2357,6 @@ socket.on('pedir_nombre', (payload = {}) => {
     socket.on('inicio', (datos) => {
         clearInterval(id_intervalo_modos);
         resetearFeedbackMusas();
-        resetearEstadoRegaloBanderaMusas();
         regalos_pdf_musas[1] = null;
         regalos_pdf_musas[2] = null;
         io.to('musa_j1').emit('regalo_pdf_musas_reset');
@@ -2570,7 +2395,6 @@ socket.on('pedir_nombre', (payload = {}) => {
         modo_actual = "";
         estado_stats_live = normalizarPayloadStatsLive({ modo_actual: "" });
         emitirStatsLive();
-        emitirEstadoRegaloBanderaMusas();
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         socket.broadcast.emit('inicio', datos);
         registrar(modos_pendientes)
@@ -2983,44 +2807,8 @@ socket.on('enviar_inspiracion', (evento) => {
         MODOS[modo_actual](socket);
     });
 
-    socket.on('resucitar_menu', (evento = {}) => {
-        const escritorId = obtenerIdJugadorValido(socket.escritxr);
-        const payload = (evento && typeof evento === 'object') ? evento : {};
-        const playerId = obtenerIdJugadorValido(payload.player) || escritorId;
-        if (!escritorId || !playerId || playerId !== escritorId) {
-            return;
-        }
-
-        const rondaActiva = Boolean(
-            !fin_del_juego
-            && typeof modo_actual === 'string'
-            && modo_actual.trim().length > 0
-        );
-
-        if (!rondaActiva) {
-            io.emit('resucitar_menu', {
-                player: playerId,
-                menu: 'hidden',
-                visible: false,
-                mainIndex: 0,
-                quantityIndex: 0,
-                palabras: 0,
-                max: 0,
-                segundos: 0
-            });
-            return;
-        }
-
-        io.emit('resucitar_menu', {
-            player: playerId,
-            menu: typeof payload.menu === 'string' ? payload.menu : 'hidden',
-            visible: Boolean(payload.visible),
-            mainIndex: Number.isInteger(payload.mainIndex) ? payload.mainIndex : 0,
-            quantityIndex: Number.isInteger(payload.quantityIndex) ? payload.quantityIndex : 0,
-            palabras: Math.max(0, Number(payload.palabras) || 0),
-            max: Math.max(0, Number(payload.max) || 0),
-            segundos: Math.max(0, Number(payload.segundos) || 0)
-        });
+    socket.on('resucitar_menu', (evento) => {
+        io.emit('resucitar_menu', evento);
     });
 
 
