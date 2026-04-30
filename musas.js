@@ -7,9 +7,13 @@ class Musas {
    * @param {import('socket.io').Server} io
    * @param {number} TIEMPO_CAMBIO_PALABRAS en milisegundos
    */
-  constructor(io, TIEMPO_CAMBIO_PALABRAS) {
+  constructor(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload = null) {
     this.io      = io
     this.timeout = TIEMPO_CAMBIO_PALABRAS
+    this.generation = 0
+    this.decoratePayload = typeof decoratePayload === 'function'
+      ? decoratePayload
+      : (payload) => payload
 
     // Estado por jugador: cola de palabras, timers, flag pending y contador de peticiones
     this.players = {
@@ -18,6 +22,20 @@ class Musas {
     }
 
     console.log('[MusasMode] Inicializado con timeout de petición:', this.timeout)
+  }
+
+  _nextGeneration() {
+    this.generation = (Number(this.generation) || 0) + 1
+    return this.generation
+  }
+
+  _isGenerationActive(generation) {
+    return generation === this.generation
+  }
+
+  _withModePayload(payload) {
+    const base = (payload && typeof payload === 'object') ? payload : {}
+    return this.decoratePayload({ ...base })
   }
 
   _normalizarMusaItem(item) {
@@ -43,6 +61,7 @@ class Musas {
    * Úsalo al cambiar de modo para mantener el historial de peticiones.
    */
   clearAll() {
+    this._nextGeneration()
     console.log('[MusasMode] clearMode() → colas, timers y flags limpiados (contadores intactos)')
     Object.values(this.players).forEach(st => {
       // 1) vaciar cola
@@ -98,8 +117,9 @@ class Musas {
 
     if (st.pending) {
       st.pending = false
-      this._emitNext(playerId)
-      this._schedulePending(playerId)
+      const generation = this.generation
+      this._emitNext(playerId, generation)
+      this._schedulePending(playerId, generation)
     }
   }
 
@@ -128,13 +148,13 @@ class Musas {
 
     // ③ Si hay cola, emito; si no, marco pending
     if (st.queue.length > 0) {
-      this._emitNext(playerId)
+      this._emitNext(playerId, this.generation)
     } else {
       st.pending = true
     }
 
     // ④ Reprogramo el siguiente timeout
-    this._schedulePending(playerId)
+    this._schedulePending(playerId, this.generation)
   }
 
   /**
@@ -151,7 +171,7 @@ class Musas {
       clearTimeout(st.pendingTimer)
       st.pendingTimer = null
     }
-    this._schedulePending(playerId)
+    this._schedulePending(playerId, this.generation)
   }
 
   // ─── Métodos privados de emisión y timeout ─────────────────────---
@@ -160,7 +180,8 @@ class Musas {
    * Emite la siguiente musa de la cola, si existe.
    * @private
    */
-  _emitNext(playerId) {
+  _emitNext(playerId, generation = this.generation) {
+    if (!this._isGenerationActive(generation)) return
     const st = this.players[playerId]
     if (!st || st.queue.length === 0) return
 
@@ -169,10 +190,10 @@ class Musas {
     const word = typeof item === 'string' ? item : item.palabra
     const musa = (item && typeof item === 'object') ? item.musa : ''
     console.log(`[MusasMode] _emitNext() J${playerId} → emitiendo "${word}"`)
-    this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, {
+    this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, this._withModePayload({
       palabra: word,
       musa_nombre: musa
-    })
+    }))
   }
 
   /**
@@ -182,22 +203,25 @@ class Musas {
    * Y vuelve a reprogramarse a sí mismo.
    * @private
    */
-  _schedulePending(playerId) {
+  _schedulePending(playerId, generation = this.generation) {
     const st = this.players[playerId]
     if (!st) return
 
     if (st.pendingTimer) clearTimeout(st.pendingTimer)
 
     st.pendingTimer = setTimeout(() => {
+      if (!this._isGenerationActive(generation)) {
+        return
+      }
       console.log(`[MusasMode] _schedulePending expirado para J${playerId}`)
 
       if (st.queue.length > 0) {
-        this._emitNext(playerId)
+        this._emitNext(playerId, generation)
       } else {
         st.pending = true
       }
       // Reprograma siempre
-      this._schedulePending(playerId)
+      this._schedulePending(playerId, generation)
     }, this.timeout)
   }
 }

@@ -1,0 +1,19 @@
+{
+  "creditos": {
+    "escritxr_rojo": "ESCRITORA ROJA TEST",
+    "escritxr_azul": "ESCRITORA AZUL TEST",
+    "interprete_azul_1": "",
+    "interprete_azul_2": "",
+    "interprete_rojo_1": "",
+    "interprete_rojo_2": "",
+    "programacion": "PROGRAMACION TEST",
+    "dramaturgia": "",
+    "iluminacion": "",
+    "musica": "",
+    "voz_off": "VOZ TEST",
+    "agradecimientos": "Ana,Luis,Marta"
+  },
+  "mostrar": true,
+  "animacion_id": 1,
+  "ts": "__TS__"
+}

@@ -23,8 +23,8 @@ class PalabrasMalditasMode extends MusasMode {
     'quot', 'href', 'http', 'https', 'width', 'height'
   ]);
 
-  constructor(io, timeoutMs) {
-    super(io, timeoutMs);
+  constructor(io, timeoutMs, decoratePayload = null) {
+    super(io, timeoutMs, decoratePayload);
     this.texto_por_jugador = { 1: '', 2: '' };
     this.palabras_usadas = { 1: new Set(), 2: new Set() };
     this.TOP_K_PALABRAS = 5;
@@ -125,12 +125,13 @@ class PalabrasMalditasMode extends MusasMode {
    */
   start(playerId) {
     const st = this.players[playerId];
+    const generation = this.generation;
     clearTimeout(st.emitTimer);
     clearTimeout(st.pendingTimer);
     st.emitTimer    = null;
     st.pendingTimer = null;
     st.pending      = false;
-    this._emitNext(playerId);
+    this._emitNext(playerId, generation);
   }
 
   /**
@@ -142,7 +143,8 @@ class PalabrasMalditasMode extends MusasMode {
    * @param {1|2} playerId
    * @private
    */
-  _emitNext(playerId) {
+  _emitNext(playerId, generation = this.generation) {
+    if (!this._isGenerationActive(generation)) return;
     const st        = this.players[playerId];
     const queueSelf = st.queue;
     const evento    = `enviar_palabra_j${playerId}`;
@@ -193,7 +195,7 @@ class PalabrasMalditasMode extends MusasMode {
 
     // Construir y enviar payload
     const payload = {
-      modo_actual:           'palabras malditas',
+      modo_actual:           'palabras prohibidas',
       palabras_var:          [word],
       palabra_bonus:         [[word], def],
       tiempo_palabras_bonus: this._puntuacionPalabra(word)
@@ -203,11 +205,12 @@ class PalabrasMalditasMode extends MusasMode {
       payload.musa_nombre = st.ultimoMusaNombre || '';
     }
     console.log(`[Malditas][_emitNext] Emite ${evento}:`, payload);
-    this.io.emit(evento, payload);
+    if (!this._isGenerationActive(generation)) return;
+    this.io.emit(evento, this._withModePayload(payload));
 
     // Reprogramar siguiente emisión
     st.emitTimer = setTimeout(
-      () => this._emitNext(playerId),
+      () => this._emitNext(playerId, generation),
       this.timeout
     );
   }
@@ -222,6 +225,7 @@ class PalabrasMalditasMode extends MusasMode {
   async handleRequest(playerId) {
     const st        = this.players[playerId];
     const opponent  = 3 - playerId;
+    const generation = this.generation;
 
     // 1) Si la última entrega fue de musa, sumamos al otro
     if (st.lastDeliveredFromMusa) {
@@ -235,7 +239,7 @@ class PalabrasMalditasMode extends MusasMode {
     // 2) Limpiar timer automático y disparar nueva emisión
     clearTimeout(st.emitTimer);
     st.emitTimer = null;
-    this._emitNext(playerId);
+    this._emitNext(playerId, generation);
   }
 
   /**

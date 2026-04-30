@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-20T16:43:25.263Z",
+  "sourceSummary": ".soak-artifacts\\latest-soak-summary.json",
+  "description": "Baseline latencies for soak regression detection. Refresh after an intentionally accepted performance change.",
+  "comparisons": {
+    "vote-broadcast": {
+      "field": "maxLatencyMs",
+      "baseline": 8
+    },
+    "teleprompter-broadcast": {
+      "field": "maxLatencyMs",
+      "baseline": 6
+    }
+  }
+}

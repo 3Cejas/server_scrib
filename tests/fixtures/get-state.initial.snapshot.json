@@ -1,0 +1,305 @@
+{
+  "ts": "__TS__",
+  "enabled": true,
+  "connections": {
+    "control": {
+      "count": 0,
+      "connected": false
+    },
+    "spectator": {
+      "count": 0,
+      "connected": false
+    },
+    "writers": {
+      "1": {
+        "count": 0,
+        "connected": false
+      },
+      "2": {
+        "count": 0,
+        "connected": false
+      }
+    },
+    "musas": {
+      "1": {
+        "count": 0,
+        "connected": false
+      },
+      "2": {
+        "count": 0,
+        "connected": false
+      }
+    },
+    "actors": {
+      "1": {
+        "count": 0,
+        "connected": false
+      },
+      "2": {
+        "count": 0,
+        "connected": false
+      }
+    }
+  },
+  "partida": {
+    "modo_actual": "",
+    "modo_anterior": "",
+    "modos_pendientes": [
+      "letra bendita",
+      "letra prohibida",
+      "tertulia",
+      "palabras bonus",
+      "palabras prohibidas"
+    ],
+    "indice_modo": 0,
+    "fin_j1": false,
+    "fin_j2": false,
+    "fin_del_juego": true,
+    "letra_prohibida": "",
+    "letra_bendita": "",
+    "timeline": []
+  },
+  "textos": {
+    "1": {
+      "html": "",
+      "plano": ""
+    },
+    "2": {
+      "html": "",
+      "plano": ""
+    }
+  },
+  "inspiracion": {
+    "preview": null,
+    "nube": {
+      "ts": "__TS__",
+      "modo_actual": "",
+      "equipos": {
+        "1": {
+          "nombre": "ESCRITXR 1",
+          "palabras": []
+        },
+        "2": {
+          "nombre": "ESCRITXR 2",
+          "palabras": []
+        }
+      }
+    },
+    "ultimas": {
+      "1": null,
+      "2": null
+    }
+  },
+  "tutorial": {
+    "activo": false,
+    "vista": false,
+    "solicitud": "ninguna",
+    "cursores": {
+      "1": {
+        "x": 50,
+        "y": 50,
+        "visible": false,
+        "ts": 0
+      },
+      "2": {
+        "x": 50,
+        "y": 50,
+        "visible": false,
+        "ts": 0
+      }
+    },
+    "equipos": {
+      "1": {
+        "semillas": {
+          "1": null,
+          "2": null
+        },
+        "semillasTs": 0,
+        "semillasRecibidas": {
+          "1": false,
+          "2": false
+        },
+        "intentos": 0,
+        "aciertos": 0,
+        "estado": "inactivo",
+        "pendiente": false,
+        "pendientePalabra": null,
+        "ultimoIntento": null,
+        "usadas": [],
+        "historial": [],
+        "palabras": [],
+        "seleccionadas": 0,
+        "bloqueado": false,
+        "final": null
+      },
+      "2": {
+        "semillas": {
+          "1": null,
+          "2": null
+        },
+        "semillasTs": 0,
+        "semillasRecibidas": {
+          "1": false,
+          "2": false
+        },
+        "intentos": 0,
+        "aciertos": 0,
+        "estado": "inactivo",
+        "pendiente": false,
+        "pendientePalabra": null,
+        "ultimoIntento": null,
+        "usadas": [],
+        "historial": [],
+        "palabras": [],
+        "seleccionadas": 0,
+        "bloqueado": false,
+        "final": null
+      }
+    }
+  },
+  "espectador": {
+    "modo": "partida",
+    "override": "partida",
+    "calentamiento_vista": false,
+    "stats_slide_step": 0,
+    "escala_ui": 1.28,
+    "ts": "__TS__"
+  },
+  "votacion_ventaja": {
+    "activa": false,
+    "equipo": "",
+    "opciones": [],
+    "votos": {
+      "🐢": 0,
+      "⚡": 0,
+      "🌪️": 0,
+      "🙃": 0,
+      "🖊️": 0
+    },
+    "duracion_ms": 0,
+    "tiempo_restante_ms": 0,
+    "termina_en_ts": 0
+  },
+  "teleprompter": {
+    "state": {
+      "visible": false,
+      "text": "",
+      "fontSize": 36,
+      "speed": 25,
+      "playing": false,
+      "scroll": 0,
+      "source": 0,
+      "loadId": 0,
+      "revision": "__SEQ__"
+    },
+    "feedback": null,
+    "ackBySource": {
+      "1": null,
+      "2": null
+    }
+  },
+  "resurreccion": {
+    "1": {
+      "player": 1,
+      "menu": "hidden",
+      "visible": false,
+      "mainIndex": 0,
+      "quantityIndex": 0,
+      "palabras": 0,
+      "max": 0,
+      "segundos": 0,
+      "ts": 0
+    },
+    "2": {
+      "player": 2,
+      "menu": "hidden",
+      "visible": false,
+      "mainIndex": 0,
+      "quantityIndex": 0,
+      "palabras": 0,
+      "max": 0,
+      "segundos": 0,
+      "ts": 0
+    }
+  },
+  "musas": {
+    "contador": {
+      "escritxr1": 0,
+      "escritxr2": 0
+    },
+    "banderas": {
+      "activa": false,
+      "bloqueado_por_control": false,
+      "actualizado_en": 0
+    },
+    "feedback": {
+      "activa": false,
+      "url": "/feedback/",
+      "solicitado_en": 0
+    },
+    "corazones": {
+      "1": {
+        "count": 0,
+        "ts": 0
+      },
+      "2": {
+        "count": 0,
+        "ts": 0
+      }
+    }
+  },
+  "stats": {
+    "ts": "__TS__",
+    "modo_actual": "",
+    "players": {
+      "1": {
+        "id": 1,
+        "nombre": "ESCRITXR 1",
+        "palabrasTotal": 0,
+        "pulsacionesTotal": 0,
+        "teclasDistintas": 0,
+        "topTeclas": [],
+        "heatmap": {},
+        "ritmoPpm": 0,
+        "tiempoTotalMs": 0,
+        "tiempoEscrituraMs": 0,
+        "vida": {
+          "actual": null,
+          "min": null,
+          "max": null,
+          "media": null
+        },
+        "letrasBenditas": [],
+        "letrasMalditas": [],
+        "palabrasBenditas": [],
+        "palabrasMalditas": [],
+        "intentosLetraProhibida": 0,
+        "intentosPalabraProhibida": 0
+      },
+      "2": {
+        "id": 2,
+        "nombre": "ESCRITXR 2",
+        "palabrasTotal": 0,
+        "pulsacionesTotal": 0,
+        "teclasDistintas": 0,
+        "topTeclas": [],
+        "heatmap": {},
+        "ritmoPpm": 0,
+        "tiempoTotalMs": 0,
+        "tiempoEscrituraMs": 0,
+        "vida": {
+          "actual": null,
+          "min": null,
+          "max": null,
+          "media": null
+        },
+        "letrasBenditas": [],
+        "letrasMalditas": [],
+        "palabrasBenditas": [],
+        "palabrasMalditas": [],
+        "intentosLetraProhibida": 0,
+        "intentosPalabraProhibida": 0
+      }
+    }
+  }
+}

@@ -2,7 +2,11 @@
     "name": "scrib",
     "version": "1.0.0",
     "scripts": {
-        "start": "node server.js"
+        "start": "node server.js",
+        "test": "node --test \"tests/**/*.test.js\"",
+        "test:unit": "node --test \"tests/**/*.test.js\"",
+        "test:soak": "node --test tests/server-load.soak.js",
+        "test:soak:update-baseline": "node scripts/update-soak-baseline.js"
     },
     "engines": {
         "node": ">=16"

@@ -1,0 +1,73 @@
+name: Soak Tests
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-soak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SCRIB_SOAK_REPEAT_ROUNDS: 5
+      SCRIB_SOAK_BROADCAST_MAX_LATENCY_MS: 2000
+      SCRIB_SOAK_REGRESSION_MAX_DELTA_MS: 150
+      SCRIB_SOAK_REGRESSION_MAX_RATIO: 8
+    steps:
+      - name: Checkout server_scrib
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install server_scrib dependencies
+        run: npm ci
+
+      - name: Restore soak history cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .soak-artifacts/soak-history.ndjson
+          key: server-soak-history-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            server-soak-history-${{ runner.os }}-${{ github.ref_name }}-
+            server-soak-history-${{ runner.os }}-
+
+      - name: Run soak tests
+        run: npm run test:soak
+
+      - name: Publish soak summary
+        if: always()
+        run: |
+          if [ -f ".soak-artifacts/latest-soak-summary.json" ]; then
+            node -e "const fs=require('fs'); const s=JSON.parse(fs.readFileSync('.soak-artifacts/latest-soak-summary.json','utf8')); const lines=['## Soak Summary','', '- Timestamp: ' + s.ts, '- Repeat rounds: ' + s.repeatRounds, '- Broadcast threshold: ' + s.broadcastMaxLatencyMs + 'ms', '- Regression budget: +' + s.regressionBudget.deltaMs + 'ms or x' + s.regressionBudget.ratio, '- History entries before append: ' + s.historyLengthBeforeAppend, '', '### Metrics']; for (const metric of s.metrics) { const copy={...metric}; const name=copy.name; delete copy.name; lines.push('- ' + name + ': ' + JSON.stringify(copy)); } lines.push('', '### Trends'); if ((s.trends || []).length === 0) { lines.push('- No previous run available.'); } else { for (const trend of s.trends) { lines.push('- ' + trend.metric + ' (' + trend.field + '): current=' + trend.current + ' previous=' + trend.previous + ' delta=' + trend.deltaMs + ' deltaPct=' + trend.deltaPct); } } lines.push('', '### Regression checks'); if ((s.regressions || []).length === 0) { lines.push('- No regressions detected.'); } else { for (const regression of s.regressions) { lines.push('- REGRESSION ' + regression.metric + ' (' + regression.field + '): current=' + regression.current + ' baseline=' + regression.baseline + ' allowed=' + regression.allowed); } } fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');"
+          else
+            echo "No soak summary file found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Save soak history cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .soak-artifacts/soak-history.ndjson
+          key: server-soak-history-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Upload soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-artifacts-${{ github.run_id }}
+          path: .soak-artifacts
+          if-no-files-found: ignore
+          retention-days: 21

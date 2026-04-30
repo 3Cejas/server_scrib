@@ -38,8 +38,8 @@ class PalabrasBonusMode extends MusasMode {
    * @param {import('socket.io').Server} io
    * @param {number} TIEMPO_CAMBIO_PALABRAS en ms
    */
-  constructor(io, TIEMPO_CAMBIO_PALABRAS) {
-    super(io, TIEMPO_CAMBIO_PALABRAS);
+  constructor(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload = null) {
+    super(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload);
   }
 
   /**
@@ -77,11 +77,14 @@ class PalabrasBonusMode extends MusasMode {
   /**
    * Programa la próxima entrega automática tras timeout ms.
    */
-  _scheduleNext(playerId) {
+  _scheduleNext(playerId, generation = this.generation) {
     const st = this.players[playerId];
     if (!st) return;
     if (st.emitTimer) clearTimeout(st.emitTimer);
-    st.emitTimer = setTimeout(() => this.handleRequest(playerId), this.timeout);
+    st.emitTimer = setTimeout(() => {
+      if (!this._isGenerationActive(generation)) return;
+      this.handleRequest(playerId);
+    }, this.timeout);
   }
 
   /**
@@ -96,6 +99,7 @@ class PalabrasBonusMode extends MusasMode {
   async handleRequest(playerId) {
     const st = this.players[playerId];
     if (!st) return;
+    const generation = this.generation;
 
     if (st.pendingTimer) {
       clearTimeout(st.pendingTimer);
@@ -130,6 +134,7 @@ class PalabrasBonusMode extends MusasMode {
       try {
         await PalabrasBonusMode._inicializarNavegador();
         const [rawPalabra, rawDef] = await this._palabraRAE();
+        if (!this._isGenerationActive(generation)) return;
         const variante = this._extraccionPalabraVar(rawPalabra);
 
         st.lastDeliveredFromMusa = false;
@@ -143,6 +148,7 @@ class PalabrasBonusMode extends MusasMode {
           `[PalabrasBonusMode] J${playerId} recibe RAE: "${rawPalabra}" → variante ${JSON.stringify(variante)}`
         );
       } catch (err) {
+        if (!this._isGenerationActive(generation)) return;
         console.error('[PalabrasBonusMode] Error RAE:', err);
         st.lastDeliveredFromMusa = false;
         st.ultimoMusaNombre = '';
@@ -167,10 +173,11 @@ class PalabrasBonusMode extends MusasMode {
       payload.origen_musa = 'musa';
       payload.musa_nombre = st.ultimoMusaNombre || '';
     }
-    this.io.emit(evento, payload);
+    if (!this._isGenerationActive(generation)) return;
+    this.io.emit(evento, this._withModePayload(payload));
 
     // 4) Programar siguiente entrega automática
-    this._scheduleNext(playerId);
+    this._scheduleNext(playerId, generation);
   }
 
   /** Inicializa Puppeteer solo una vez. */

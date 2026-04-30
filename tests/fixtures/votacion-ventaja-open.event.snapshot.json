@@ -1,0 +1,17 @@
+{
+  "activa": true,
+  "equipo": "j1",
+  "opciones": [
+    "UNO",
+    "DOS",
+    "TRES"
+  ],
+  "votos": {
+    "UNO": 0,
+    "DOS": 0,
+    "TRES": 0
+  },
+  "duracion_ms": 9000,
+  "tiempo_restante_ms": "__POSITIVE_MS__",
+  "termina_en_ts": "__TS__"
+}

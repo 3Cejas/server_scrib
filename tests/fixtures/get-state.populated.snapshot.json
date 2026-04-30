@@ -1,0 +1,340 @@
+{
+  "ts": "__TS__",
+  "enabled": true,
+  "connections": {
+    "control": {
+      "count": 1,
+      "connected": true
+    },
+    "spectator": {
+      "count": 1,
+      "connected": true
+    },
+    "writers": {
+      "1": {
+        "count": 1,
+        "connected": true
+      },
+      "2": {
+        "count": 1,
+        "connected": true
+      }
+    },
+    "musas": {
+      "1": {
+        "count": 1,
+        "connected": true
+      },
+      "2": {
+        "count": 1,
+        "connected": true
+      }
+    },
+    "actors": {
+      "1": {
+        "count": 1,
+        "connected": true
+      },
+      "2": {
+        "count": 1,
+        "connected": true
+      }
+    }
+  },
+  "partida": {
+    "modo_actual": "letra bendita",
+    "modo_anterior": "",
+    "modos_pendientes": [
+      "letra bendita",
+      "letra prohibida",
+      "tertulia",
+      "palabras bonus",
+      "palabras prohibidas"
+    ],
+    "indice_modo": 0,
+    "fin_j1": false,
+    "fin_j2": false,
+    "fin_del_juego": false,
+    "letra_prohibida": "",
+    "letra_bendita": "K",
+    "timeline": [
+      {
+        "modo": "letra bendita",
+        "origen": "scrib_test:force_mode",
+        "ts": "__TS__"
+      }
+    ]
+  },
+  "textos": {
+    "1": {
+      "html": {
+        "text": "texto azul",
+        "points": "2 palabras",
+        "caretPos": 0,
+        "caretLine": 0,
+        "caretRatio": 1,
+        "caretPath": null,
+        "caretOffset": 0,
+        "texto_guardado": "texto azul"
+      },
+      "plano": "texto azul"
+    },
+    "2": {
+      "html": {
+        "text": "texto rojo",
+        "points": "2 palabras",
+        "caretPos": 0,
+        "caretLine": 0,
+        "caretRatio": 1,
+        "caretPath": null,
+        "caretOffset": 0,
+        "texto_guardado": "texto rojo"
+      },
+      "plano": "texto rojo"
+    }
+  },
+  "inspiracion": {
+    "preview": {
+      "modo_actual": "letra bendita",
+      "letra_bendita": "K",
+      "modo_seq": "__SEQ__"
+    },
+    "nube": {
+      "ts": "__TS__",
+      "modo_actual": "letra bendita",
+      "equipos": {
+        "1": {
+          "nombre": "ESCRITXR 1",
+          "palabras": []
+        },
+        "2": {
+          "nombre": "ESCRITXR 2",
+          "palabras": []
+        }
+      }
+    },
+    "ultimas": {
+      "1": null,
+      "2": null
+    }
+  },
+  "tutorial": {
+    "activo": true,
+    "vista": true,
+    "solicitud": "lugares",
+    "cursores": {
+      "1": {
+        "x": 50,
+        "y": 50,
+        "visible": false,
+        "ts": 0
+      },
+      "2": {
+        "x": 50,
+        "y": 50,
+        "visible": false,
+        "ts": 0
+      }
+    },
+    "equipos": {
+      "1": {
+        "semillas": {
+          "1": null,
+          "2": null
+        },
+        "semillasTs": 0,
+        "semillasRecibidas": {
+          "1": false,
+          "2": false
+        },
+        "intentos": 0,
+        "aciertos": 0,
+        "estado": "jugando",
+        "pendiente": false,
+        "pendientePalabra": null,
+        "ultimoIntento": null,
+        "usadas": [],
+        "historial": [],
+        "palabras": [],
+        "seleccionadas": 0,
+        "bloqueado": false,
+        "final": null
+      },
+      "2": {
+        "semillas": {
+          "1": null,
+          "2": null
+        },
+        "semillasTs": 0,
+        "semillasRecibidas": {
+          "1": false,
+          "2": false
+        },
+        "intentos": 0,
+        "aciertos": 0,
+        "estado": "jugando",
+        "pendiente": false,
+        "pendientePalabra": null,
+        "ultimoIntento": null,
+        "usadas": [],
+        "historial": [],
+        "palabras": [],
+        "seleccionadas": 0,
+        "bloqueado": false,
+        "final": null
+      }
+    }
+  },
+  "espectador": {
+    "modo": "calentamiento",
+    "override": "partida",
+    "calentamiento_vista": true,
+    "stats_slide_step": 0,
+    "escala_ui": 1.28,
+    "ts": "__TS__"
+  },
+  "votacion_ventaja": {
+    "activa": true,
+    "equipo": "j1",
+    "opciones": [
+      "UNO",
+      "DOS"
+    ],
+    "votos": {
+      "UNO": 0,
+      "DOS": 0
+    },
+    "duracion_ms": 9000,
+    "tiempo_restante_ms": "__POSITIVE_MS__",
+    "termina_en_ts": "__TS__"
+  },
+  "teleprompter": {
+    "state": {
+      "visible": true,
+      "text": "teleprompter snapshot",
+      "fontSize": 40,
+      "speed": 30,
+      "playing": true,
+      "scroll": 12,
+      "source": 1,
+      "loadId": 7,
+      "revision": "__SEQ__"
+    },
+    "feedback": null,
+    "ackBySource": {
+      "1": {
+        "loadId": 7,
+        "source": 1,
+        "rendered": true,
+        "overlayActive": true,
+        "timerActive": false,
+        "ts": "__TS__"
+      },
+      "2": null
+    }
+  },
+  "resurreccion": {
+    "1": {
+      "player": 1,
+      "menu": "quantity",
+      "visible": true,
+      "mainIndex": 1,
+      "quantityIndex": 2,
+      "palabras": 3,
+      "max": 10,
+      "segundos": 15,
+      "ts": "__TS__"
+    },
+    "2": {
+      "player": 2,
+      "menu": "hidden",
+      "visible": false,
+      "mainIndex": 0,
+      "quantityIndex": 0,
+      "palabras": 0,
+      "max": 0,
+      "segundos": 0,
+      "ts": 0
+    }
+  },
+  "musas": {
+    "contador": {
+      "escritxr1": 1,
+      "escritxr2": 1
+    },
+    "banderas": {
+      "activa": true,
+      "bloqueado_por_control": true,
+      "actualizado_en": "__TS__"
+    },
+    "feedback": {
+      "activa": false,
+      "url": "/feedback/",
+      "solicitado_en": 0
+    },
+    "corazones": {
+      "1": {
+        "count": 1,
+        "ts": "__TS__"
+      },
+      "2": {
+        "count": 0,
+        "ts": 0
+      }
+    }
+  },
+  "stats": {
+    "ts": "__TS__",
+    "modo_actual": "letra bendita",
+    "players": {
+      "1": {
+        "id": 1,
+        "nombre": "ESCRITXR 1",
+        "palabrasTotal": 0,
+        "pulsacionesTotal": 0,
+        "teclasDistintas": 0,
+        "topTeclas": [],
+        "heatmap": {},
+        "ritmoPpm": 0,
+        "tiempoTotalMs": 0,
+        "tiempoEscrituraMs": 0,
+        "vida": {
+          "actual": 0,
+          "min": 0,
+          "max": 0,
+          "media": 0
+        },
+        "letrasBenditas": [],
+        "letrasMalditas": [],
+        "palabrasBenditas": [],
+        "palabrasMalditas": [],
+        "intentosLetraProhibida": 0,
+        "intentosPalabraProhibida": 0
+      },
+      "2": {
+        "id": 2,
+        "nombre": "ESCRITXR 2",
+        "palabrasTotal": 0,
+        "pulsacionesTotal": 0,
+        "teclasDistintas": 0,
+        "topTeclas": [],
+        "heatmap": {},
+        "ritmoPpm": 0,
+        "tiempoTotalMs": 0,
+        "tiempoEscrituraMs": 0,
+        "vida": {
+          "actual": 0,
+          "min": 0,
+          "max": 0,
+          "media": 0
+        },
+        "letrasBenditas": [],
+        "letrasMalditas": [],
+        "palabrasBenditas": [],
+        "palabrasMalditas": [],
+        "intentosLetraProhibida": 0,
+        "intentosPalabraProhibida": 0
+      }
+    }
+  }
+}

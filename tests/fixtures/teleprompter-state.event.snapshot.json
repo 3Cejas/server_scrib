@@ -1,0 +1,13 @@
+{
+  "state": {
+    "visible": true,
+    "text": "Teleprompter contract payload con texto estable",
+    "fontSize": 44,
+    "speed": 28,
+    "playing": false,
+    "scroll": 120,
+    "source": 2,
+    "loadId": 42,
+    "revision": "__SEQ__"
+  }
+}

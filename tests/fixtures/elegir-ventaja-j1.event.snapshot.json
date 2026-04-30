@@ -1,0 +1,11 @@
+{
+  "opciones": [
+    "UNO",
+    "DOS",
+    "TRES"
+  ],
+  "equipo": "j1",
+  "duracion_ms": 9000,
+  "tiempo_restante_ms": "__POSITIVE_MS__",
+  "termina_en_ts": "__TS__"
+}

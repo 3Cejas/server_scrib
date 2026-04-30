@@ -2,6 +2,9 @@
 
 \<SCRI\> es un videojuego de escritura en vivo creado por la compañía de teatro SUTURA en el cual dos escritores se enfrentan para ver quién escribe el mejor texto. Actualmente se encuentra en desarrollo, por lo que toda ayuda es bienvenida.
 
+## Testing
+La documentacion de tests y CI esta en [TESTING.md](./TESTING.md).
+
 ## EL JUEGO
 A continuación se explica en mayor profundidad el videojuego.
 ### ROLES 

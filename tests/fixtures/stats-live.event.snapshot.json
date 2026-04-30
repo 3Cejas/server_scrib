@@ -1,0 +1,75 @@
+{
+  "ts": "__TS__",
+  "modo_actual": "palabras bonus",
+  "players": {
+    "1": {
+      "id": 1,
+      "nombre": "AZUL TEST",
+      "palabrasTotal": 12,
+      "pulsacionesTotal": 58,
+      "teclasDistintas": 14,
+      "topTeclas": [],
+      "heatmap": {
+        "a": 9,
+        "e": 7
+      },
+      "ritmoPpm": 61,
+      "tiempoTotalMs": 30000,
+      "tiempoEscrituraMs": 21000,
+      "vida": {
+        "actual": 13,
+        "min": 8,
+        "max": 20,
+        "media": 14
+      },
+      "letrasBenditas": [
+        "A"
+      ],
+      "letrasMalditas": [
+        "K"
+      ],
+      "palabrasBenditas": [
+        "aurora"
+      ],
+      "palabrasMalditas": [
+        "tormenta"
+      ],
+      "intentosLetraProhibida": 2,
+      "intentosPalabraProhibida": 1
+    },
+    "2": {
+      "id": 2,
+      "nombre": "ROJO TEST",
+      "palabrasTotal": 9,
+      "pulsacionesTotal": 41,
+      "teclasDistintas": 11,
+      "topTeclas": [],
+      "heatmap": {
+        "o": 6
+      },
+      "ritmoPpm": 47,
+      "tiempoTotalMs": 28000,
+      "tiempoEscrituraMs": 18000,
+      "vida": {
+        "actual": 11,
+        "min": 6,
+        "max": 18,
+        "media": 12
+      },
+      "letrasBenditas": [
+        "O"
+      ],
+      "letrasMalditas": [
+        "P"
+      ],
+      "palabrasBenditas": [
+        "brasa"
+      ],
+      "palabrasMalditas": [
+        "humo"
+      ],
+      "intentosLetraProhibida": 1,
+      "intentosPalabraProhibida": 3
+    }
+  }
+}

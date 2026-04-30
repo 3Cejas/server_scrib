@@ -1,0 +1,16 @@
+{
+  "ts": "__TS__",
+  "modo_actual": "palabras bonus",
+  "equipos": {
+    "1": {
+      "nombre": "ESCRITXR 1",
+      "palabras": [
+        "cometa"
+      ]
+    },
+    "2": {
+      "nombre": "ESCRITXR 2",
+      "palabras": []
+    }
+  }
+}
