@@ -25,6 +25,7 @@ function crearGestorVotacionVentaja({
     construirPayloadBase,
     obtenerIdJugadorValido,
     getDuracionMs = () => 0,
+    onAplicarVentaja = null,
     scheduleTimer,
     cancelTimer,
     escogerGanador
@@ -88,6 +89,25 @@ function crearGestorVotacionVentaja({
         votos = crearEstadoVotosVentaja();
     };
 
+    const construirPayloadVentajaAplicada = (perdedor, seleccion) => {
+        const player = perdedor === "j1" ? 1 : (perdedor === "j2" ? 2 : null);
+        return {
+            player,
+            perdedor,
+            seleccion,
+            putada: seleccion,
+            duracion_ms: Math.max(0, Number(getDuracionMs()) || 0)
+        };
+    };
+
+    const registrarVentajaAplicada = (perdedor, seleccion) => {
+        if (!perdedor || !seleccion || typeof onAplicarVentaja !== "function") {
+            return null;
+        }
+        const payload = construirPayloadVentajaAplicada(perdedor, seleccion);
+        return onAplicarVentaja(payload) || payload;
+    };
+
     const cerrarConSeleccion = (payload = {}) => {
         const emitirResultado = payload.emitir_resultado !== false;
         if (typeof cancelTimer === "function") {
@@ -111,7 +131,9 @@ function crearGestorVotacionVentaja({
             termina_en_ts: 0
         });
         if (emitirResultado && perdedor && seleccion) {
-            io.emit(`enviar_ventaja_${perdedor}`, seleccion);
+            const payloadVentaja = registrarVentajaAplicada(perdedor, seleccion)
+                || construirPayloadVentajaAplicada(perdedor, seleccion);
+            io.emit(`enviar_ventaja_${perdedor}`, payloadVentaja);
         }
         equipo = "";
         opciones = [];
@@ -195,7 +217,9 @@ function crearGestorVotacionVentaja({
                     socket.removeAllListeners("enviar_voto_ventaja");
                 }
                 const seleccion = escogerGanador(votos);
-                io.emit(`enviar_ventaja_${perdedor}`, seleccion);
+                const payloadVentaja = registrarVentajaAplicada(perdedor, seleccion)
+                    || construirPayloadVentajaAplicada(perdedor, seleccion);
+                io.emit(`enviar_ventaja_${perdedor}`, payloadVentaja);
                 const opcionesFinal = Array.isArray(opciones) ? [...opciones] : [];
                 const votosFinal = { ...votos };
                 activa = false;

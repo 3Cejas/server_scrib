@@ -2,9 +2,10 @@ const Musas = require('./musas');
 const PalabrasBonusMode = require('./palabras_bonus.js');
 const PalabrasMalditasMode = require('./palabras_malditas.js');
 const { crearGestorTimersPartida } = require('./partida_timers.js');
+const { ALFABETO_ES } = require('./letter_frequency.js');
 
-const LETRAS_PROHIBIDAS = ['e', 'a', 'o', 's', 'r', 'n', 'i', 'd', 'l', 'c'];
-const LETRAS_BENDITAS = ['z', 'j', 'ÃƒÂ±', 'x', 'k', 'w', 'y', 'q', 'h', 'f'];
+const LETRAS_PROHIBIDAS = [...ALFABETO_ES];
+const LETRAS_BENDITAS_PONDERADAS = [...ALFABETO_ES];
 const LISTA_MODOS_DEFAULT = ["letra bendita", "letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas"];
 
 function crearRuntimeModos({
@@ -23,10 +24,11 @@ function crearRuntimeModos({
     let segundos_transcurridos = 0;
     let modo_actual = "";
     let modo_anterior = "";
+    let modo_pendiente_ventaja = "";
     let indice_modo = 0;
     let letra_prohibida = "";
     let letra_bendita = "";
-    let letras_benditas_pendientes = [...LETRAS_BENDITAS];
+    let letras_benditas_pendientes = [...LETRAS_BENDITAS_PONDERADAS];
     let letras_prohibidas_pendientes = [...LETRAS_PROHIBIDAS];
     let tiempos = [];
     let lista_modos = [...LISTA_MODOS_DEFAULT];
@@ -41,7 +43,7 @@ function crearRuntimeModos({
     let DURACION_TIEMPO_MODOS;
     let TIEMPO_CAMBIO_MODOS;
     let TIEMPO_BORROSO;
-    let PALABRAS_INSERTADAS_META;
+    let TIEMPO_MODIFICADOR;
     let TIEMPO_VOTACION;
     let TIEMPO_CAMBIO_LETRA;
     let repentizado_enviado = false;
@@ -54,9 +56,61 @@ function crearRuntimeModos({
         return partidaSync ? partidaSync.withModoSeq(salida) : { ...salida, modo_seq: 0 };
     };
 
-    let modo_bonus = new PalabrasBonusMode(io, 300000, decorarPayloadModoMotor);
-    let modo_malditas = new PalabrasMalditasMode(io, 30000, decorarPayloadModoMotor);
-    let modo_musas = new Musas(io, 30000, decorarPayloadModoMotor);
+    let emitirEstadoPalabrasMusasControlActual = () => {};
+    const notificarEstadoPalabrasMusasControl = () => emitirEstadoPalabrasMusasControlActual();
+
+    let modo_bonus = new PalabrasBonusMode(io, 300000, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
+    let modo_malditas = new PalabrasMalditasMode(io, 30000, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
+    let modo_musas = new Musas(io, 30000, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
+
+    const construirEstadoPalabraMusaVacio = (player) => ({
+        player,
+        activa: false,
+        palabra: "",
+        modo: "",
+        musa_nombre: "",
+        superbonus: false,
+        tiempo_restante_ms: 0,
+        caduca_en_ts: 0,
+        cola: 0,
+        cola_palabras_musas: 0
+    });
+
+    const obtenerModoPalabrasMusasActivo = () => {
+        if (modo_actual === "palabras bonus") return modo_bonus;
+        if (modo_actual === "palabras prohibidas") return modo_malditas;
+        if (modo_actual === "letra bendita" || modo_actual === "letra prohibida") return modo_musas;
+        return null;
+    };
+
+    function payloadEstadoPalabrasMusasControl(now = Date.now()) {
+        const motor = obtenerModoPalabrasMusasActivo();
+        const base = motor && typeof motor.obtenerEstadoPalabrasMusasControl === "function"
+            ? motor.obtenerEstadoPalabrasMusasControl(now)
+            : {
+                now,
+                players: {
+                    1: construirEstadoPalabraMusaVacio(1),
+                    2: construirEstadoPalabraMusaVacio(2)
+                }
+            };
+        const salida = {
+            ...base,
+            modo_actual
+        };
+        return partidaSync ? partidaSync.withModoSeq(salida) : salida;
+    }
+
+    function emitirEstadoPalabrasMusasControl(socketDestino = null) {
+        const salida = payloadEstadoPalabrasMusasControl();
+        const destino = socketDestino && typeof socketDestino.emit === "function" ? socketDestino : io;
+        if (destino && typeof destino.emit === "function") {
+            destino.emit("estado_palabras_musas_control", salida);
+        }
+        return salida;
+    }
+
+    emitirEstadoPalabrasMusasControlActual = () => emitirEstadoPalabrasMusasControl();
 
     const actualizarTimeoutModo = (modo, tiempoMs) => {
         if (!modo) return;
@@ -172,7 +226,17 @@ function crearRuntimeModos({
     }
 
     function emitirTempModos(socketDestino = null) {
-        return emitirEventoModo("temp_modos", { segundos_transcurridos, modo_actual }, socketDestino);
+        const duracionModoSegundos = Math.max(0, Math.trunc(Number(TIEMPO_CAMBIO_MODOS || DURACION_TIEMPO_MODOS) || 0));
+        const segundosTranscurridos = Math.max(0, Math.trunc(Number(segundos_transcurridos) || 0));
+        const tiempoRestanteModoSegundos = duracionModoSegundos > 0
+            ? Math.max(0, duracionModoSegundos - segundosTranscurridos)
+            : 0;
+        return emitirEventoModo("temp_modos", {
+            segundos_transcurridos: segundosTranscurridos,
+            duracion_modo_segundos: duracionModoSegundos,
+            tiempo_restante_modo_segundos: tiempoRestanteModoSegundos,
+            modo_actual
+        }, socketDestino);
     }
 
     function emitirNuevaLetra(tipo, letra, socketDestino = null) {
@@ -192,6 +256,7 @@ function crearRuntimeModos({
             ? socketDestino
             : io;
         destino.emit("modo_actual", payload);
+        emitirEstadoPalabrasMusasControl(socketDestino);
         return payload;
     }
 
@@ -233,6 +298,8 @@ function crearRuntimeModos({
         set modoActual(valor) { modo_actual = typeof valor === 'string' ? valor : ''; },
         get modoAnterior() { return modo_anterior; },
         set modoAnterior(valor) { modo_anterior = typeof valor === 'string' ? valor : ''; },
+        get modoPendienteVentaja() { return modo_pendiente_ventaja; },
+        set modoPendienteVentaja(valor) { modo_pendiente_ventaja = typeof valor === 'string' ? valor : ''; },
         get indiceModo() { return Number(indice_modo) || 0; },
         set indiceModo(valor) { indice_modo = Math.max(0, Math.trunc(Number(valor) || 0)); },
         get modosPendientes() { return Array.isArray(modos_pendientes) ? modos_pendientes : []; },
@@ -244,7 +311,7 @@ function crearRuntimeModos({
         get letrasProhibidasPendientes() { return letras_prohibidas_pendientes; },
         set letrasProhibidasPendientes(valor) { letras_prohibidas_pendientes = Array.isArray(valor) ? valor : [...LETRAS_PROHIBIDAS]; },
         get letrasBenditasPendientes() { return letras_benditas_pendientes; },
-        set letrasBenditasPendientes(valor) { letras_benditas_pendientes = Array.isArray(valor) ? valor : [...LETRAS_BENDITAS]; },
+        set letrasBenditasPendientes(valor) { letras_benditas_pendientes = Array.isArray(valor) ? valor : [...LETRAS_BENDITAS_PONDERADAS]; },
         get tiempoCambioModos() { return TIEMPO_CAMBIO_MODOS; },
         set tiempoCambioModos(valor) { TIEMPO_CAMBIO_MODOS = Number(valor) || 0; },
         get tiempoCambioLetra() { return TIEMPO_CAMBIO_LETRA; },
@@ -258,14 +325,14 @@ function crearRuntimeModos({
         DURACION_TIEMPO_MODOS = parametros.DURACION_TIEMPO_MODOS;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         TIEMPO_BORROSO = parametros.TIEMPO_BORROSO;
-        PALABRAS_INSERTADAS_META = parametros.PALABRAS_INSERTADAS_META;
+        TIEMPO_MODIFICADOR = parametros.TIEMPO_MODIFICADOR;
         TIEMPO_VOTACION = parametros.TIEMPO_VOTACION;
         TIEMPO_CAMBIO_LETRA = parametros.TIEMPO_CAMBIO_LETRA;
         lista_modos = parametros.LISTA_MODOS || parametros.lista_modos || lista_modos;
 
-        if (!modo_bonus) modo_bonus = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor);
-        if (!modo_malditas) modo_malditas = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor);
-        if (!modo_musas) modo_musas = new Musas(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor);
+        if (!modo_bonus) modo_bonus = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
+        if (!modo_malditas) modo_malditas = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
+        if (!modo_musas) modo_musas = new Musas(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
         actualizarTimeoutModo(modo_bonus, TIEMPO_CAMBIO_PALABRAS);
         actualizarTimeoutModo(modo_malditas, TIEMPO_CAMBIO_PALABRAS);
         actualizarTimeoutModo(modo_musas, TIEMPO_CAMBIO_PALABRAS);
@@ -289,6 +356,8 @@ function crearRuntimeModos({
         set modoActual(valor) { modo_actual = typeof valor === 'string' ? valor : ''; },
         get modoAnterior() { return modo_anterior; },
         set modoAnterior(valor) { modo_anterior = typeof valor === 'string' ? valor : ''; },
+        get modoPendienteVentaja() { return modo_pendiente_ventaja; },
+        set modoPendienteVentaja(valor) { modo_pendiente_ventaja = typeof valor === 'string' ? valor : ''; },
         get indiceModo() { return Number(indice_modo) || 0; },
         set indiceModo(valor) { indice_modo = Math.max(0, Math.trunc(Number(valor) || 0)); },
         get listaModos() { return Array.isArray(lista_modos) ? lista_modos : []; },
@@ -309,7 +378,7 @@ function crearRuntimeModos({
             if (player === 2) nueva_palabra_j2 = Boolean(valor);
         },
         reiniciarLetrasPendientes: () => {
-            letras_benditas_pendientes = [...LETRAS_BENDITAS];
+            letras_benditas_pendientes = [...LETRAS_BENDITAS_PONDERADAS];
             letras_prohibidas_pendientes = [...LETRAS_PROHIBIDAS];
         }
     };
@@ -332,7 +401,7 @@ function crearRuntimeModos({
         limpiezasModo,
         estadoMotorModos,
         estadoCicloPartida,
-        letrasBenditas: LETRAS_BENDITAS,
+        letrasBenditas: LETRAS_BENDITAS_PONDERADAS,
         letrasProhibidas: LETRAS_PROHIBIDAS,
         estadoJugadores: estado_jugadores,
         construirPayloadInspiracionMusaActual,
@@ -342,6 +411,8 @@ function crearRuntimeModos({
         emitirTempModos,
         emitirNuevaLetra,
         emitirModoActual,
+        emitirEstadoPalabrasMusasControl,
+        payloadEstadoPalabrasMusasControl,
         construirPayloadCount,
         prepararParametrosInicio,
         limpiarTodosLosModos,
@@ -354,8 +425,8 @@ function crearRuntimeModos({
         getModoBonus: () => modo_bonus,
         getModoMalditas: () => modo_malditas,
         getModoMusas: () => modo_musas,
-        getTiempoVotacion: () => TIEMPO_VOTACION,
-        getPalabrasInsertadasMeta: () => PALABRAS_INSERTADAS_META
+        getTiempoModificador: () => TIEMPO_MODIFICADOR,
+        getTiempoVotacion: () => TIEMPO_VOTACION
     };
 }
 

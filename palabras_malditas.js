@@ -23,8 +23,8 @@ class PalabrasMalditasMode extends MusasMode {
     'quot', 'href', 'http', 'https', 'width', 'height'
   ]);
 
-  constructor(io, timeoutMs, decoratePayload = null) {
-    super(io, timeoutMs, decoratePayload);
+  constructor(io, timeoutMs, decoratePayload = null, onStateChange = null) {
+    super(io, timeoutMs, decoratePayload, onStateChange);
     this.texto_por_jugador = { 1: '', 2: '' };
     this.palabras_usadas = { 1: new Set(), 2: new Set() };
     this.TOP_K_PALABRAS = 5;
@@ -33,6 +33,9 @@ class PalabrasMalditasMode extends MusasMode {
       this.players[id].insertedCount         = 0;
       this.players[id].lastDeliveredFromMusa = false;
       this.players[id].ultimoMusaNombre = '';
+      this.players[id].ultimaEntregaMusa = null;
+      this.players[id].ultimaEntregaMusaCaducaEnTs = 0;
+      this.players[id].entregaActualAutomatica = false;
     });
   }
 
@@ -107,15 +110,22 @@ class PalabrasMalditasMode extends MusasMode {
     }
     const destinatario = remitente === 1 ? 2 : 1;
     const st     = this.players[destinatario];
-    const item = this._normalizarMusaItem(word);
+    const item = this._prepararMusaItemParaCola(word);
     if (!item) {
       return;
     }
     st.queue.push(item);
+    this._notifyStateChange(destinatario);
     console.log(
       `[Malditas][addMusa] J${remitente} ➡ encolada para J${destinatario}: "${item.palabra}"`
     );
-    // No emitimos aquí: se entregará cuando toque (petición o timer).
+    if (st.entregaActualAutomatica) {
+      if (st.emitTimer) {
+        clearTimeout(st.emitTimer);
+        st.emitTimer = null;
+      }
+      this._emitNext(destinatario, this.generation);
+    }
   }
 
   /**
@@ -146,6 +156,7 @@ class PalabrasMalditasMode extends MusasMode {
   _emitNext(playerId, generation = this.generation) {
     if (!this._isGenerationActive(generation)) return;
     const st        = this.players[playerId];
+    this._podarColaMusaCaducada(st);
     const queueSelf = st.queue;
     const evento    = `enviar_palabra_j${playerId}`;
 
@@ -154,14 +165,30 @@ class PalabrasMalditasMode extends MusasMode {
     if (queueSelf.length > 0) {
       // Musa de cola propia (sugerida por el otro)
       const idx = Math.floor(Math.random() * queueSelf.length);
-      const item = queueSelf.splice(idx, 1)[0];
-      word      = (item && typeof item === 'object') ? item.palabra : item;
-      const musaNombre = (item && typeof item === 'object') ? item.musa : '';
+      const item = this._normalizarMusaItemConMeta(queueSelf.splice(idx, 1)[0]) || { palabra: '', musa: '' };
+      word      = item.palabra;
+      const musaNombre = item.musa || '';
       st.lastDeliveredFromMusa = true;
+      st.entregaActualAutomatica = false;
       console.log(`[Malditas][_emitNext] J${playerId} usa musa: "${word}"`);
       const musaLabel = musaNombre ? escapeHtml(musaNombre) : 'MUSA ENEMIGA';
       def = `<span style="color:red;">${musaLabel}</span>: <span style='color: orange;'>me pega esta palabra ⬆️</span>`;
       st.ultimoMusaNombre = musaNombre;
+      st.ultimaEntregaMusa = {
+        player: playerId === 1 ? 2 : 1,
+        target_player: playerId,
+        modo: 'palabras prohibidas',
+        palabra: word,
+        musa_nombre: musaNombre,
+        client_id: item.client_id || '',
+        client_ids: item.client_id ? [item.client_id] : [],
+        musas: musaNombre ? [musaNombre] : [],
+        tiempo: this._puntuacionPalabra(word),
+        superbonus: false
+      };
+      const now = Date.now();
+      const caducaEnTs = this._obtenerCaducidadMusaItem(item, now);
+      st.ultimaEntregaMusaCaducaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout;
     } else {
       const top = this._obtenerTopPalabrasJugador(playerId, this.TOP_K_PALABRAS);
       const usadas = this.palabras_usadas[playerId];
@@ -171,7 +198,10 @@ class PalabrasMalditasMode extends MusasMode {
         word = candidata;
         usadas.add(word);
         st.lastDeliveredFromMusa = false;
+        st.entregaActualAutomatica = true;
         st.ultimoMusaNombre = '';
+        st.ultimaEntregaMusa = null;
+        st.ultimaEntregaMusaCaducaEnTs = 0;
         def = '';
         console.log(`[Malditas][_emitNext] J${playerId} usa top oponente: "${word}"`);
       } else {
@@ -187,7 +217,10 @@ class PalabrasMalditasMode extends MusasMode {
         );
         word = PalabrasMalditasMode.remainingStatic.splice(remIdx, 1)[0];
         st.lastDeliveredFromMusa = false;
+        st.entregaActualAutomatica = true;
         st.ultimoMusaNombre = '';
+        st.ultimaEntregaMusa = null;
+        st.ultimaEntregaMusaCaducaEnTs = 0;
         def ='';
         console.log(`[Malditas][_emitNext] J${playerId} recibe estática: "${word}"`);
       }
@@ -207,6 +240,7 @@ class PalabrasMalditasMode extends MusasMode {
     console.log(`[Malditas][_emitNext] Emite ${evento}:`, payload);
     if (!this._isGenerationActive(generation)) return;
     this.io.emit(evento, this._withModePayload(payload));
+    this._notifyStateChange(playerId);
 
     // Reprogramar siguiente emisión
     st.emitTimer = setTimeout(

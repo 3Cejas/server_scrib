@@ -14,6 +14,7 @@ const { crearRegistroSesionesEscritor } = require('./writer_sessions.js');
 const {
     construirPayloadEstadoVotacionVentaja: construirPayloadEstadoVotacionVentajaBase
 } = require('./server_state_utils');
+const { aplicarAjusteTiempo } = require('./time_adjustments.js');
 
 function crearGestoresBase({
     io,
@@ -22,6 +23,7 @@ function crearGestoresBase({
     onVistaCambiada,
     construirPayloadEstadoVotacionVentaja,
     getTiempoVotacion,
+    onAplicarVentaja,
     programarVotacionTimer,
     cancelarVotacionTimer,
     syncMode,
@@ -47,6 +49,7 @@ function crearGestoresBase({
         construirPayloadBase: construirPayloadEstadoVotacionVentajaBase,
         obtenerIdJugadorValido,
         getDuracionMs: getTiempoVotacion,
+        onAplicarVentaja,
         scheduleTimer: programarVotacionTimer,
         cancelTimer: cancelarVotacionTimer,
         escogerGanador: (votos) => opcionConMasVotos(votos, registrar)
@@ -73,21 +76,42 @@ function crearGestoresBase({
 function crearGestoresAuxiliares({
     obtenerIdJugadorValido,
     calentamientoGestor,
-    io
+    io,
+    partidaSync,
+    getModoActual = () => "",
+    isFinDelJuego = () => false,
+    construirPayloadCount = (payload) => payload
 }) {
     const sesionesEscritor = crearRegistroSesionesEscritor(obtenerIdJugadorValido);
+    const rolesConectados = crearRegistroRoles({
+        validarJugador: obtenerIdJugadorValido
+    });
     const musasAuxiliares = crearGestorMusasAuxiliares({
         io,
-        validarEquipo: obtenerIdJugadorValido
-    });
-    const rolesConectados = crearRegistroRoles({
-        validarJugador: obtenerIdJugadorValido,
-        contarMusas: (equipo) => calentamientoGestor ? calentamientoGestor.contarMusas(equipo) : 0
+        validarEquipo: obtenerIdJugadorValido,
+        contarMusas: (equipo) => {
+            const contador = rolesConectados.obtenerContadorMusas();
+            return Number(equipo) === 2 ? contador.escritxr2 : contador.escritxr1;
+        },
+        getPartidaActiva: () => {
+            const modoActual = typeof getModoActual === "function" ? getModoActual() : "";
+            return Boolean(modoActual) && modoActual !== "frase final" && !isFinDelJuego();
+        },
+        aplicarRegaloBanderaTiempo: (evento) => aplicarAjusteTiempo({
+            io,
+            evento,
+            obtenerIdJugadorValido,
+            getModoActual,
+            partidaSync,
+            construirPayloadCount,
+            permitirSinModo: false
+        })
     });
 
     return {
         emitirEstadoBanderasMusas: musasAuxiliares.emitirBanderas,
         emitirFeedbackMusas: musasAuxiliares.emitirFeedback,
+        emitirEstadoRegaloBanderaMusas: musasAuxiliares.emitirEstadoRegaloBandera,
         musasAuxiliares,
         obtenerContadorMusas: rolesConectados.obtenerContadorMusas,
         obtenerEstadoEscritores: rolesConectados.estadoEscritores,
@@ -102,7 +126,8 @@ function crearGestoresVistaEstado({
     calentamiento,
     getModoActual,
     getNombreEquipo,
-    getMotores
+    getMotores,
+    getMusasCreditos = () => null
 }) {
     const espectador = crearGestorVistaEspectador({
         io,
@@ -110,7 +135,8 @@ function crearGestoresVistaEstado({
     });
     const creditosShow = crearGestorCreditosShow({
         io,
-        isVisible: () => espectador.getOverride() === "creditos"
+        isVisible: () => espectador.getOverride() === "creditos",
+        getMusasCreditos
     });
     const statsLive = crearGestorStatsLive({
         io,
@@ -148,7 +174,8 @@ function crearGestorResurreccionRuntime({
     estadoJugadores,
     construirPayloadCount,
     activarModo,
-    getTextoPlano
+    getTextoPlano,
+    reanudarTertuliaTrasResurreccion
 }) {
     return crearGestorResurreccion({
         io,
@@ -160,7 +187,8 @@ function crearGestorResurreccionRuntime({
         estadoJugadores,
         construirPayloadCount,
         activarModo,
-        getTextoPlano
+        getTextoPlano,
+        reanudarTertuliaTrasResurreccion
     });
 }
 

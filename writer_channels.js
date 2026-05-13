@@ -69,10 +69,14 @@ function crearCanalesEscritor({
         destino.emit("nombre2", estado.nombres[2]);
     };
 
+    const esSocketActivoParaJugador = (socket, player) => (
+        !sesionesEscritor || sesionesEscritor.esActiva(socket, player)
+    );
+
     const actualizarTexto = (socket, player, evento) => {
         const id = validarJugador(player);
         if (!id) return false;
-        if (sesionesEscritor && !sesionesEscritor.esActiva(socket, id)) {
+        if (!esSocketActivoParaJugador(socket, id)) {
             return false;
         }
         estado.html[id] = evento;
@@ -109,10 +113,13 @@ function crearCanalesEscritor({
         return true;
     };
 
-    const actualizarAtributos = (datos = {}) => {
+    const actualizarAtributos = (socket, datos = {}) => {
         if (!datos || !datos.atributos) return false;
         const id = validarJugador(datos.player);
         if (!id) return false;
+        if (!esSocketActivoParaJugador(socket, id)) {
+            return false;
+        }
         estado.atributos[id] = datos.atributos;
         return true;
     };
@@ -126,7 +133,7 @@ function crearCanalesEscritor({
         socket.on("env\u00edo_nombre2", (nombre) => actualizarNombre(socket, 2, nombre));
         socket.on("envÃ­o_nombre1", (nombre) => actualizarNombre(socket, 1, nombre));
         socket.on("envÃ­o_nombre2", (nombre) => actualizarNombre(socket, 2, nombre));
-        socket.on("enviar_atributos", (datos) => actualizarAtributos(datos));
+        socket.on("enviar_atributos", (datos) => actualizarAtributos(socket, datos));
         socket.on("pedir_atributos", () => socket.emit("recibir_atributos", snapshotAtributos()));
     };
 

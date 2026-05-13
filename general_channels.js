@@ -1,3 +1,28 @@
+const { aplicarAjusteTiempo } = require("./time_adjustments.js");
+const { ROLE_ROOMS } = require("./role_connections.js");
+
+const DESTINOS_REINICIO_ROL = Object.freeze({
+    escritxr1: { rol: "escritxr1", room: ROLE_ROOMS.writer(1) },
+    escritxr2: { rol: "escritxr2", room: ROLE_ROOMS.writer(2) },
+    espectador: { rol: "espectador", room: ROLE_ROOMS.SPECTATOR },
+    jurado: { rol: "jurado", room: ROLE_ROOMS.JURY },
+    actorxs1: { rol: "actorxs1", room: ROLE_ROOMS.actor(1) },
+    actorxs2: { rol: "actorxs2", room: ROLE_ROOMS.actor(2) }
+});
+
+function normalizarDestinoReinicioRol(valor) {
+    const normalizado = String(valor || "")
+        .toLowerCase()
+        .replace(/[\s_-]+/g, "");
+    if (normalizado === "escritora1" || normalizado === "escritor1" || normalizado === "writer1") return "escritxr1";
+    if (normalizado === "escritora2" || normalizado === "escritor2" || normalizado === "writer2") return "escritxr2";
+    if (normalizado === "spectator") return "espectador";
+    if (normalizado === "jury" || normalizado === "judge") return "jurado";
+    if (normalizado === "actor1" || normalizado === "actores1") return "actorxs1";
+    if (normalizado === "actor2" || normalizado === "actores2") return "actorxs2";
+    return Object.prototype.hasOwnProperty.call(DESTINOS_REINICIO_ROL, normalizado) ? normalizado : "";
+}
+
 function registrarCanalesGenerales({
     socket,
     io,
@@ -6,8 +31,19 @@ function registrarCanalesGenerales({
     obtenerIdJugadorValido,
     getModoActual = () => "",
     partidaSync,
-    construirPayloadCount
+    construirPayloadCount,
+    sesionesEscritor = null,
+    controlState = null,
+    emitirEstadoPalabrasMusasControl = null,
+    payloadEstadoPalabrasMusasControl = null
 }) {
+    const esEventoEscritorInactivo = (player) => (
+        sesionesEscritor
+        && socket
+        && socket.escritxr
+        && !sesionesEscritor.esActiva(socket, player)
+    );
+
     socket.on("validar_password_roles", (payload, callback) => {
         const pass = (typeof payload === "string")
             ? payload
@@ -22,6 +58,9 @@ function registrarCanalesGenerales({
 
     socket.on("health_ping", (_payload, callback) => {
         const estado = obtenerEstadoEscritores();
+        if (typeof payloadEstadoPalabrasMusasControl === "function") {
+            estado.palabras_musas_control = payloadEstadoPalabrasMusasControl();
+        }
         if (typeof callback === "function") {
             callback(estado);
         } else {
@@ -29,8 +68,48 @@ function registrarCanalesGenerales({
         }
     });
 
+    socket.on("reiniciar_rol_remoto", (payload = {}) => {
+        if (!socket.control) {
+            return;
+        }
+        const valor = typeof payload === "string"
+            ? payload
+            : (payload.rol || payload.role || payload.destino || payload.target);
+        const clave = normalizarDestinoReinicioRol(valor);
+        const destino = DESTINOS_REINICIO_ROL[clave];
+        if (!destino || !io || typeof io.to !== "function") {
+            return;
+        }
+        io.to(destino.room).emit("recargar_rol_remoto", {
+            rol: destino.rol,
+            ts: Date.now()
+        });
+    });
+
     socket.on("borrar_texto_guardado", () => {
         io.emit("borrar_texto_guardado");
+    });
+
+    socket.on("pedir_estado_control", () => {
+        if (controlState && typeof controlState.emitir === "function") {
+            controlState.emitir(socket);
+        }
+    });
+
+    socket.on("pedir_estado_palabras_musas_control", () => {
+        if (typeof emitirEstadoPalabrasMusasControl === "function") {
+            emitirEstadoPalabrasMusasControl(socket);
+        }
+    });
+
+    socket.on("control_estado_actualizar", (payload = {}) => {
+        if (!socket.control || !controlState || typeof controlState.actualizar !== "function") {
+            return;
+        }
+        controlState.actualizar(payload);
+        if (typeof controlState.emitir === "function") {
+            controlState.emitir();
+        }
     });
 
     socket.on("activar_temporizador_gigante", (evento) => {
@@ -50,52 +129,22 @@ function registrarCanalesGenerales({
     });
 
     socket.on("aumentar_tiempo", (evento) => {
-        if (!evento) {
+        const id_jugador = obtenerIdJugadorValido(evento && evento.player);
+        if (!id_jugador || esEventoEscritorInactivo(id_jugador)) {
             return;
         }
-        const id_jugador = obtenerIdJugadorValido(evento.player);
-        if (!id_jugador) {
-            return;
-        }
-        const secs = Number(evento.secs);
-        if (!Number.isFinite(secs) || secs === 0) {
-            return;
-        }
-        if (getModoActual() === "frase final") {
-            return;
-        }
-        const tiempoSeq = partidaSync.siguienteTiempoSeq(id_jugador);
-        const payloadAjuste = {
-            ...evento,
-            player: id_jugador,
-            secs,
-            tiempo_seq: tiempoSeq
-        };
-        const estadoConteo = partidaSync.obtenerConteo(id_jugador) || { count_seq: 0, count_seconds: null };
-        if (Number.isFinite(estadoConteo.count_seconds)) {
-            const segundosActualizados = Math.max(0, Number(estadoConteo.count_seconds) + secs);
-            const siguienteCountSeq = (Number(estadoConteo.count_seq) || 0) + 1;
-            payloadAjuste.count_seconds_after = segundosActualizados;
-            payloadAjuste.count_after = partidaSync.formatearTextoCountDesdeSegundos(segundosActualizados);
-            const conteoActualizado = partidaSync.guardarConteo(id_jugador, {
-                ...estadoConteo,
-                modo_seq: partidaSync.obtenerModoSeq(),
-                tiempo_seq: tiempoSeq,
-                count_seq: siguienteCountSeq,
-                count_seconds: segundosActualizados,
-                count_text: payloadAjuste.count_after
-            });
-            io.emit("count", construirPayloadCount({
-                player: id_jugador,
-                count: conteoActualizado.count_text,
-                count_seq: siguienteCountSeq,
-                tiempo_seq: tiempoSeq
-            }));
-        }
-        io.emit("aumentar_tiempo_control", payloadAjuste);
+        aplicarAjusteTiempo({
+            io,
+            evento,
+            obtenerIdJugadorValido,
+            getModoActual,
+            partidaSync,
+            construirPayloadCount
+        });
     });
 }
 
 module.exports = {
-    registrarCanalesGenerales
+    registrarCanalesGenerales,
+    normalizarDestinoReinicioRol
 };

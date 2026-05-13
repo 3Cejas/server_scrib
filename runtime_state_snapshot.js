@@ -10,6 +10,7 @@ function crearRuntimeStateSnapshot({
     payloadEstadoCalentamiento,
     payloadVistaEspectadorModo,
     construirPayloadEstadoVotacionVentaja,
+    payloadDesventajasActivas = () => [],
     teleprompter,
     payloadEstadoResurreccion,
     obtenerContadorMusas,
@@ -47,6 +48,7 @@ function crearRuntimeStateSnapshot({
         tutorial: payloadEstadoCalentamiento(),
         espectador: payloadVistaEspectadorModo(),
         votacion_ventaja: construirPayloadEstadoVotacionVentaja(),
+        desventajas: payloadDesventajasActivas(),
         teleprompter: teleprompter.snapshot(),
         resurreccion: payloadEstadoResurreccion(),
         musas: {

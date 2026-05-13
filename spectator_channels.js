@@ -12,6 +12,7 @@ function registrarCanalesEspectador({
     emitirEstadoBanderasMusas,
     emitirCreditosShow,
     emitirFeedbackMusas,
+    emitirEstadoRegaloBanderaMusas = () => {},
     sincronizarEstadoMusa,
     espectador,
     creditosShow,
@@ -25,6 +26,7 @@ function registrarCanalesEspectador({
     emitirStatsLive(socket);
     emitirNubeInspiracionEstado(socket, true);
     emitirEstadoBanderasMusas(socket);
+    emitirEstadoRegaloBanderaMusas(socket);
     emitirCreditosShow(socket);
 
     socket.on("pedir_calentamiento_estado", () => {
@@ -50,6 +52,10 @@ function registrarCanalesEspectador({
 
     socket.on("pedir_estado_banderas_musas", () => {
         emitirEstadoBanderasMusas(socket);
+    });
+
+    socket.on("pedir_estado_regalo_bandera_musas", () => {
+        emitirEstadoRegaloBanderaMusas(socket);
     });
 
     socket.on("pedir_creditos_estado", () => {

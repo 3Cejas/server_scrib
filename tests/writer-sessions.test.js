@@ -18,8 +18,24 @@ test("writer sessions keep only the latest socket active per writer", () => {
 
   const segunda = sesiones.activar(socketNuevo, 1);
   assert.equal(segunda.revision, 2);
+  assert.equal(segunda.previousSocketId, "old");
+  assert.equal(sesiones.obtenerSocketActivo(1), "new");
   assert.equal(sesiones.esActiva(socketNuevo, 1), true);
   assert.equal(sesiones.esActiva(socketViejo, 1), false);
+});
+
+test("writer sessions remember tab client ids across reconnects", () => {
+  const sesiones = crearRegistroSesionesEscritor();
+  const socketViejo = { id: "old", escritxr: 1, escritxr_client_id: "tab-a" };
+  const socketNuevo = { id: "new", escritxr: 1, escritxr_client_id: "tab-a" };
+
+  const primera = sesiones.activar(socketViejo, 1);
+  const segunda = sesiones.activar(socketNuevo, 1);
+
+  assert.equal(primera.clientId, "tab-a");
+  assert.equal(segunda.previousSocketId, "old");
+  assert.equal(segunda.previousClientId, "tab-a");
+  assert.equal(segunda.clientId, "tab-a");
 });
 
 test("writer sessions isolate writers and ignore inactive disconnects", () => {

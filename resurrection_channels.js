@@ -9,6 +9,14 @@ const crearEstadoInicial = () => ({
     2: crearEstadoResurreccionVacio(2)
 });
 
+const PALABRAS_A_SEGUNDOS_RESURRECCION = 3;
+
+function contarPalabrasTexto(textoPlano) {
+    const texto = String(textoPlano || "").trim();
+    if (!texto) return 0;
+    return texto.split(/\s+/).filter(Boolean).length;
+}
+
 function crearGestorResurreccion({
     io,
     partidaSync,
@@ -19,7 +27,8 @@ function crearGestorResurreccion({
     estadoJugadores = {},
     construirPayloadCount = (payload) => payload,
     activarModo = () => {},
-    getTextoPlano = () => ""
+    getTextoPlano = () => "",
+    reanudarTertuliaTrasResurreccion = () => false
 } = {}) {
     let estado = crearEstadoInicial();
 
@@ -64,8 +73,10 @@ function crearGestorResurreccion({
         if (!playerId || !modoActual || modoActual === "frase final") {
             return null;
         }
-        const texto = String(textoPlano ?? getTextoPlano(playerId) ?? "").trim();
-        const palabras = texto ? texto.split(/\s+/).filter(Boolean).length : 0;
+        const palabras = contarPalabrasTexto(textoPlano ?? getTextoPlano(playerId));
+        if (palabras <= 0) {
+            return emitirOculto(playerId);
+        }
         const estadoVisible = actualizarEstado(playerId, {
             player: playerId,
             menu: "quantity",
@@ -86,14 +97,17 @@ function crearGestorResurreccion({
         const id_jugador = validarJugador(evento && evento.player);
         const payloadEvento = (evento && typeof evento === "object") ? evento : {};
         const estadoResurreccion = payload()[id_jugador];
+        const palabrasDisponibles = contarPalabrasTexto(getTextoPlano(id_jugador));
+        if (palabrasDisponibles <= 0) {
+            emitirOculto(id_jugador);
+            return false;
+        }
         let palabrasSolicitadas = Math.max(0, Math.trunc(Number(payloadEvento.palabras) || 0));
         if (!palabrasSolicitadas && estadoResurreccion && estadoResurreccion.visible) {
             palabrasSolicitadas = Math.max(0, Math.trunc(Number(estadoResurreccion.palabras) || 0));
         }
-        let secs = Number(payloadEvento.secs);
-        if ((!Number.isFinite(secs) || secs <= 0) && palabrasSolicitadas > 0) {
-            secs = palabrasSolicitadas * 3;
-        }
+        palabrasSolicitadas = Math.min(palabrasSolicitadas, palabrasDisponibles);
+        const secs = palabrasSolicitadas * PALABRAS_A_SEGUNDOS_RESURRECCION;
         if (!id_jugador || !Number.isFinite(secs) || secs <= 0) {
             return false;
         }
@@ -130,6 +144,16 @@ function crearGestorResurreccion({
             tiempo_seq: tiempoSeq
         }));
         io.emit("resucitar_control", { player: id_jugador, secs, tiempo_seq: tiempoSeq });
+        if (
+            modoActual === "tertulia"
+            && reanudarTertuliaTrasResurreccion(socket, {
+                player: id_jugador,
+                secs,
+                tiempo_seq: tiempoSeq
+            })
+        ) {
+            return true;
+        }
         activarModo(modoActual, socket);
         return true;
     };

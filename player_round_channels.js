@@ -15,11 +15,30 @@ function registrarCanalesRonda({
     reiniciarEstadoPartida,
     emitirTempModos,
     cancelarCambioPalabra,
+    registrarDesventajaAplicada = null,
+    pausarDesventajasActivas = null,
+    reanudarDesventajasActivas = null,
+    setPartidaPausada = null,
+    sesionesEscritor = null,
     registrar = () => {}
 }) {
+    const esEventoEscritorInactivo = (player = socket && socket.escritxr) => {
+        const idJugador = obtenerIdJugadorValido(player);
+        return Boolean(
+            idJugador
+            && sesionesEscritor
+            && socket
+            && socket.escritxr
+            && !sesionesEscritor.esActiva(socket, idJugador)
+        );
+    };
+
     socket.on('count', (datos = {}) => {
         const idJugador = obtenerIdJugadorValido(datos.player);
         if (!idJugador) {
+            return;
+        }
+        if (esEventoEscritorInactivo(idJugador)) {
             return;
         }
         const modoSeqActual = partidaSync.obtenerModoSeq();
@@ -82,8 +101,19 @@ function registrarCanalesRonda({
     });
 
     socket.on('pausar', (evento) => {
+        if (esEventoEscritorInactivo()) {
+            return;
+        }
+        timersPartida.cancelarIntervaloModos();
         limpiarTimersPalabras();
+        if (typeof setPartidaPausada === 'function') {
+            setPartidaPausada(true);
+        }
+        if (typeof pausarDesventajasActivas === 'function') {
+            pausarDesventajasActivas();
+        }
         activarSocketsExtratextuales(socket);
+        socket.broadcast.emit('pausar_js', evento);
     });
 
     socket.on('fin_de_control', (evento) => {
@@ -113,6 +143,9 @@ function registrarCanalesRonda({
         if (!idJugador) {
             return;
         }
+        if (esEventoEscritorInactivo(idJugador)) {
+            return;
+        }
         const finPayload = {
             player: idJugador,
             motivo: payload && payload.motivo === 'sin_palabras' ? 'sin_palabras' : undefined
@@ -128,26 +161,61 @@ function registrarCanalesRonda({
     });
 
     socket.on('reanudar', (evento) => {
+        if (esEventoEscritorInactivo()) {
+            return;
+        }
         if (!state.modoActual) {
             return;
         }
+        if (typeof reanudarDesventajasActivas === 'function') {
+            reanudarDesventajasActivas();
+        }
+        if (typeof setPartidaPausada === 'function') {
+            setPartidaPausada(false);
+        }
         partidaSync.siguienteModoSeq();
         motorModos.activarModo(state.modoActual, socket);
+        motorModos.temp_modos(socket, { continuar: true });
         socket.broadcast.emit('reanudar_js', evento);
     });
 
     socket.on('reanudar_modo', (evento) => {
+        if (esEventoEscritorInactivo()) {
+            return;
+        }
+        if (state.modoActual !== 'tertulia') {
+            return;
+        }
+        if (typeof reanudarDesventajasActivas === 'function') {
+            reanudarDesventajasActivas();
+        }
+        if (typeof setPartidaPausada === 'function') {
+            setPartidaPausada(false);
+        }
+        state.segundosTranscurridos = 0;
         avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'reanudar_modo');
+        motorModos.temp_modos(socket);
         socket.broadcast.emit('reanudar_js', evento);
     });
 
     socket.on('saltar_tertulia', () => {
+        if (esEventoEscritorInactivo()) {
+            return;
+        }
         if (state.modoActual !== 'tertulia') {
             return;
         }
+        if (typeof reanudarDesventajasActivas === 'function') {
+            reanudarDesventajasActivas();
+        }
+        if (typeof setPartidaPausada === 'function') {
+            setPartidaPausada(false);
+        }
         state.segundosTranscurridos = 0;
         avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'saltar_tertulia');
+        motorModos.temp_modos(socket);
         emitirTempModos();
+        socket.broadcast.emit('reanudar_js', { motivo: 'saltar_tertulia' });
     });
 
     socket.on('enviar_putada_a_jx', (evento) => {
@@ -159,9 +227,33 @@ function registrarCanalesRonda({
             return;
         }
         if (idJugador === 1) {
-            socket.broadcast.emit('enviar_putada_de_j1', evento.putada);
+            let payloadDesventaja = null;
+            if (typeof registrarDesventajaAplicada === 'function') {
+                payloadDesventaja = registrarDesventajaAplicada({
+                    player: 1,
+                    putada: evento.putada,
+                    duracion_ms: evento.duracion_ms
+                });
+            }
+            socket.broadcast.emit('enviar_putada_de_j1', payloadDesventaja || {
+                player: 1,
+                putada: evento.putada,
+                duracion_ms: evento.duracion_ms
+            });
         } else {
-            socket.broadcast.emit('enviar_putada_de_j2', evento.putada);
+            let payloadDesventaja = null;
+            if (typeof registrarDesventajaAplicada === 'function') {
+                payloadDesventaja = registrarDesventajaAplicada({
+                    player: 2,
+                    putada: evento.putada,
+                    duracion_ms: evento.duracion_ms
+                });
+            }
+            socket.broadcast.emit('enviar_putada_de_j2', payloadDesventaja || {
+                player: 2,
+                putada: evento.putada,
+                duracion_ms: evento.duracion_ms
+            });
         }
     });
 

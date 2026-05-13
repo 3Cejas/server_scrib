@@ -39,7 +39,7 @@ const construirEventoFeedbackMusaInspiracion = (
     };
 };
 
-const reenviarASalaUnaVez = (socket, io, entrada, salida, sala) => {
+const reenviarASalaUnaVez = (socket, io, entrada, salida, sala, permitir = () => true) => {
     if (!socket._inspiration_forwarded_room_events) {
         socket._inspiration_forwarded_room_events = new Set();
     }
@@ -48,6 +48,7 @@ const reenviarASalaUnaVez = (socket, io, entrada, salida, sala) => {
     socket._inspiration_forwarded_room_events.add(key);
 
     socket.on(entrada, (payload) => {
+        if (!permitir(payload)) return;
         io.to(sala).emit(salida, payload);
     });
 };
@@ -63,11 +64,55 @@ function registrarCanalesInspiracion({
     getModoMusas = () => null,
     obtenerIdJugadorValido,
     normalizarNombreMusa = normalizarNombreMusaPorDefecto,
+    normalizarMusaClientId = () => "",
     emitirNubeInspiracionEstado = () => {},
     emitirEstadoBanderasMusas = () => {},
     emitirFeedbackMusas = () => {},
+    emitirEstadoRegaloBanderaMusas = () => {},
+    sesionesEscritor = null,
     registrar = () => {}
 }) {
+    const esEscritorActivo = (player) => {
+        const id = obtenerIdJugadorValido(player);
+        if (!id) return false;
+        if (!sesionesEscritor || !socket.escritxr) return true;
+        return sesionesEscritor.esActiva(socket, id);
+    };
+
+    const hayEscritorActivo = (player) => {
+        const id = obtenerIdJugadorValido(player);
+        if (!id) return false;
+        if (sesionesEscritor && typeof sesionesEscritor.obtenerSocketActivo === "function") {
+            return Boolean(sesionesEscritor.obtenerSocketActivo(id));
+        }
+        return true;
+    };
+
+    const entregarInspiracionEnColaAEscritoraActiva = (modo, player) => {
+        const id = obtenerIdJugadorValido(player);
+        if (!id || !modo || !hayEscritorActivo(id)) {
+            return false;
+        }
+        if (
+            typeof modo.obtenerEstadoPalabrasMusas !== "function" ||
+            typeof modo.handleRequest !== "function"
+        ) {
+            return false;
+        }
+        const estado = modo.obtenerEstadoPalabrasMusas(id);
+        const hayPalabraEnColaVisible = Boolean(
+            estado &&
+            estado.activa === true &&
+            estado.origen_estado === "cola" &&
+            Number(estado.cola || estado.cola_palabras_musas || 0) > 0
+        );
+        if (!hayPalabraEnColaVisible) {
+            return false;
+        }
+        modo.handleRequest(id);
+        return true;
+    };
+
     socket.on("musa_corazon", () => {
         const equipo = obtenerIdJugadorValido(socket.musa);
         if (!equipo) {
@@ -81,6 +126,7 @@ function registrarCanalesInspiracion({
         // Compatibilidad con clientes antiguos que solo escuchan este evento.
         musasAuxiliares.emitirBanderasCompat(estadoPayload);
         emitirEstadoBanderasMusas();
+        emitirEstadoRegaloBanderaMusas();
     });
 
     socket.on("regalo_pdf_musas", (payload = {}) => {
@@ -88,7 +134,26 @@ function registrarCanalesInspiracion({
         if (!salida) {
             return;
         }
+        if (salida.client_id) {
+            io.to(`musa_client_${salida.client_id}`).emit("regalo_pdf_musas", salida);
+            return;
+        }
         io.to(`musa_j${salida.player}`).emit("regalo_pdf_musas", salida);
+    });
+
+    socket.on("pedir_resumen_musas_pdf", (payload = {}, responder = null) => {
+        let callback = responder;
+        if (typeof payload === "function") {
+            callback = payload;
+        }
+        const resumen = typeof musasAuxiliares.payloadResumenPdf === "function"
+            ? musasAuxiliares.payloadResumenPdf()
+            : { equipos: { 1: { musas: [] }, 2: { musas: [] } } };
+        if (typeof callback === "function") {
+            callback(resumen);
+            return;
+        }
+        socket.emit("resumen_musas_pdf", resumen);
     });
 
     socket.on("pedir_feedback_musas", (payload = {}) => {
@@ -105,14 +170,18 @@ function registrarCanalesInspiracion({
         if (!id_jugador) {
             return;
         }
+        if (!esEscritorActivo(id_jugador)) {
+            return;
+        }
         socket.broadcast.emit("recibir_feedback_modificador", { id_mod, player: id_jugador });
     });
 
-    reenviarASalaUnaVez(socket, io, "feedback_de_j1", "feedback_a_j2", "j2");
-    reenviarASalaUnaVez(socket, io, "feedback_de_j2", "feedback_a_j1", "j1");
+    reenviarASalaUnaVez(socket, io, "feedback_de_j1", "feedback_a_j2", "j2", () => esEscritorActivo(1));
+    reenviarASalaUnaVez(socket, io, "feedback_de_j2", "feedback_a_j1", "j1", () => esEscritorActivo(2));
 
     const reenviarFeedbackInspiracionMusa = (eventoEntrada, escritxrId) => {
         socket.on(eventoEntrada, (payload) => {
+            if (!esEscritorActivo(escritxrId)) return;
             const salida = construirEventoFeedbackMusaInspiracion(payload, escritxrId, normalizarNombreMusa);
             if (!salida) return;
             io.to(`musa_j${salida.musa_objetivo}`).emit("feedback_musa_inspiracion", salida);
@@ -123,6 +192,7 @@ function registrarCanalesInspiracion({
 
     socket.on("feedback_musa_inspiracion", (payload = {}) => {
         const escritxrId = obtenerIdJugadorValido(payload.player) || socket.escritxr;
+        if (!esEscritorActivo(escritxrId)) return;
         const salida = construirEventoFeedbackMusaInspiracion(payload, escritxrId, normalizarNombreMusa);
         if (!salida) return;
         io.to(`musa_j${salida.musa_objetivo}`).emit("feedback_musa_inspiracion", salida);
@@ -133,16 +203,34 @@ function registrarCanalesInspiracion({
         if (!playerId) {
             return;
         }
+        if (!esEscritorActivo(playerId)) {
+            return;
+        }
         const salida = { ...(payload || {}), player: playerId };
         io.emit("intento_prohibido", salida);
     });
+
+    const registrarInspiracionIntroducidaDesdeModo = (modo, playerId) => {
+        if (!modo || typeof modo.consumirEntregaMusaIntroducida !== "function") {
+            return;
+        }
+        const entrega = modo.consumirEntregaMusaIntroducida(playerId);
+        if (entrega && typeof musasAuxiliares.registrarInspiracionIntroducida === "function") {
+            musasAuxiliares.registrarInspiracionIntroducida(entrega);
+        }
+    };
 
     socket.on("nueva_palabra", (id_jugador) => {
         const id_jugador_valido = obtenerIdJugadorValido(id_jugador);
         if (!id_jugador_valido) {
             return;
         }
-        getModoBonus().handleRequest(id_jugador_valido);
+        if (!esEscritorActivo(id_jugador_valido)) {
+            return;
+        }
+        const modoBonus = getModoBonus();
+        registrarInspiracionIntroducidaDesdeModo(modoBonus, id_jugador_valido);
+        modoBonus.handleRequest(id_jugador_valido);
         emitirNubeInspiracionEstado(null, true);
     });
 
@@ -151,7 +239,12 @@ function registrarCanalesInspiracion({
         if (!id_jugador_valido) {
             return;
         }
-        getModoMalditas().handleRequest(id_jugador_valido);
+        if (!esEscritorActivo(id_jugador_valido)) {
+            return;
+        }
+        const modoMalditas = getModoMalditas();
+        registrarInspiracionIntroducidaDesdeModo(modoMalditas, id_jugador_valido);
+        modoMalditas.handleRequest(id_jugador_valido);
         emitirNubeInspiracionEstado(null, true);
     });
 
@@ -160,8 +253,13 @@ function registrarCanalesInspiracion({
         if (!id_jugador) {
             return;
         }
+        if (!esEscritorActivo(id_jugador)) {
+            return;
+        }
         registrar(`[socket] peticion de musa para jugador ${id_jugador}`);
-        getModoMusas().handleRequest(id_jugador);
+        const modoMusas = getModoMusas();
+        registrarInspiracionIntroducidaDesdeModo(modoMusas, id_jugador);
+        modoMusas.handleRequest(id_jugador);
         emitirNubeInspiracionEstado(null, true);
     });
 
@@ -170,7 +268,12 @@ function registrarCanalesInspiracion({
         if (!id_jugador) {
             return;
         }
-        getModoBonus().handleRequest(id_jugador);
+        if (!esEscritorActivo(id_jugador)) {
+            return;
+        }
+        const modoBonus = getModoBonus();
+        registrarInspiracionIntroducidaDesdeModo(modoBonus, id_jugador);
+        modoBonus.handleRequest(id_jugador);
         emitirNubeInspiracionEstado(null, true);
     });
 
@@ -185,13 +288,31 @@ function registrarCanalesInspiracion({
             return;
         }
         const nombre_musa = normalizarNombreMusa(datos.nombre) || socket.nombre_musa || "MUSA";
-        const payload_musa = { palabra, musa: nombre_musa };
+        const musa_client_id = normalizarMusaClientId(datos.client_id || socket.musa_client_id || "");
+        const payload_musa = { palabra, musa: nombre_musa, client_id: musa_client_id };
         const modo_actual = getModoActual();
+        const target_player = modo_actual === "palabras prohibidas"
+            ? (id_jugador === 1 ? 2 : 1)
+            : id_jugador;
         nubeInspiracion.registrarInspiracion(id_jugador, {
             palabra,
             musa: nombre_musa,
+            client_id: musa_client_id,
             modo_actual
         });
+        if (
+            typeof musasAuxiliares.registrarInspiracionEnviada === "function"
+            && ["palabras bonus", "palabras prohibidas", "letra bendita", "letra prohibida"].includes(modo_actual)
+        ) {
+            musasAuxiliares.registrarInspiracionEnviada({
+                player: id_jugador,
+                target_player,
+                palabra,
+                musa: nombre_musa,
+                client_id: musa_client_id,
+                modo: modo_actual
+            });
+        }
 
         switch (modo_actual) {
             case "palabras bonus":
@@ -206,7 +327,11 @@ function registrarCanalesInspiracion({
 
             case "letra bendita":
             case "letra prohibida":
-                getModoMusas().addMusa(id_jugador, payload_musa);
+                {
+                    const modoMusas = getModoMusas();
+                    modoMusas.addMusa(id_jugador, payload_musa);
+                    entregarInspiracionEnColaAEscritoraActiva(modoMusas, id_jugador);
+                }
                 registrar(`[modo_musas] Se anadio musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
                 break;
         }

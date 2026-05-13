@@ -5,6 +5,7 @@ function jugadorValidoPorDefecto(valor) {
 
 function crearRegistroSesionesEscritor(validarJugador = jugadorValidoPorDefecto) {
     const socketActivo = { 1: null, 2: null };
+    const clientActivo = { 1: "", 2: "" };
     const revisionActiva = { 1: 0, 2: 0 };
 
     const obtenerJugador = (valor) => {
@@ -18,13 +19,20 @@ function crearRegistroSesionesEscritor(validarJugador = jugadorValidoPorDefecto)
             if (!id || !socket || !socket.id) {
                 return null;
             }
+            const previousSocketId = socketActivo[id];
+            const previousClientId = clientActivo[id];
+            const clientId = String(socket.escritxr_client_id || "").trim();
             revisionActiva[id] += 1;
             socketActivo[id] = socket.id;
+            clientActivo[id] = clientId;
             socket.escritxr_revision = revisionActiva[id];
             return {
                 jugador: id,
                 socketId: socket.id,
-                revision: revisionActiva[id]
+                clientId,
+                revision: revisionActiva[id],
+                previousClientId,
+                previousSocketId: previousSocketId && previousSocketId !== socket.id ? previousSocketId : null
             };
         },
 
@@ -47,12 +55,19 @@ function crearRegistroSesionesEscritor(validarJugador = jugadorValidoPorDefecto)
                 return false;
             }
             socketActivo[id] = null;
+            clientActivo[id] = "";
             return true;
+        },
+
+        obtenerSocketActivo(jugador) {
+            const id = obtenerJugador(jugador);
+            return id ? socketActivo[id] : null;
         },
 
         snapshot() {
             return {
                 socketActivo: { ...socketActivo },
+                clientActivo: { ...clientActivo },
                 revisionActiva: { ...revisionActiva }
             };
         }

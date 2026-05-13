@@ -12,6 +12,7 @@
  *     el random de la RAE lo permita).
  ******************************************************/
 const puppeteer = require('puppeteer');
+const { createPuppeteerLaunchOptions } = require('./puppeteer_launch_options');
 
 let navegador = null;
 
@@ -19,7 +20,7 @@ let navegador = null;
 async function inicializarNavegador() {
   if (!navegador) {
     // Importante usar "puppeteer" completo, no "puppeteer-core"
-    navegador = await puppeteer.launch({ headless: true });
+    navegador = await puppeteer.launch(createPuppeteerLaunchOptions({ headless: true }));
   }
 }
 

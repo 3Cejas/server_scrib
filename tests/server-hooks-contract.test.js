@@ -7,6 +7,7 @@ const net = require("node:net");
 const { spawn } = require("node:child_process");
 
 const io = require("socket.io-client");
+const { REGALO_BANDERA_MUSAS_OBJETIVO } = require("../musas_auxiliares.js");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const FIXTURES_DIR = path.join(__dirname, "fixtures");
@@ -166,7 +167,7 @@ function sanitizeState(value, key = "") {
     if ((key === "revision" || key === "modo_seq" || key === "count_seq" || key === "tiempo_seq") && Number.isFinite(Number(value)) && Number(value) > 0) {
       return "__SEQ__";
     }
-    if (key === "tiempo_restante_ms" && Number(value) > 0) {
+    if ((key === "tiempo_restante_ms" || key === "restante_ms") && Number(value) > 0) {
       return "__POSITIVE_MS__";
     }
     return value;
@@ -245,6 +246,10 @@ async function seedPopulatedState() {
     textLength: 21
   });
   control.emit("activar_banderas_musas", { activa: true });
+  await waitForState(
+    "flags active before seeded musa heart",
+    (nextState) => nextState.musas.banderas.activa === true
+  );
   writer1.emit("resucitar_menu", {
     player: 1,
     visible: true,
@@ -411,10 +416,17 @@ test("stale writer sockets cannot overwrite the active writer text", async () =>
     (state) => state.connections.writers[1].count === 1
   );
 
+  const replacementNotice = waitForSocketEvent(
+    staleWriter,
+    "escritor_reemplazado",
+    (payload) => payload && payload.player === 1
+  );
   const currentWriter = await connectRole("registrar_escritor", 1);
+  const replacedPayload = await replacementNotice;
+  assert.match(replacedPayload.mensaje, /Otra sesi\u00f3n activa/);
   await waitForState(
-    "second writer socket registered",
-    (state) => state.connections.writers[1].count === 2
+    "second writer socket replaced first writer socket",
+    (state) => state.connections.writers[1].count === 1
   );
 
   const currentEvent = waitForSocketEvent(
@@ -500,6 +512,109 @@ test("scrib_test:simulate_musa_heart rejects invalid teams and accumulates feedb
   assert.equal(second.ok, true);
   assert.equal(second.state.musas.corazones[1].count, 2);
   assert.equal(second.state.musas.corazones[2].count, 0);
+});
+
+test("musa counters stay idempotent across duplicate registration and team changes", async () => {
+  const musa = await connectPassiveSocket();
+
+  musa.emit("registrar_musa", { musa: 1, nombre: "Luna", client_id: "luna" });
+  await waitForState(
+    "single musa counted for team 1",
+    (state) => state.musas.contador.escritxr1 === 1
+      && state.musas.contador.escritxr2 === 0
+      && state.connections.musas[1].count === 1
+      && state.musas.regalo_bandera.equipos[1].musas === 1
+  );
+
+  musa.emit("registrar_musa", { musa: 1, nombre: "Luna", client_id: "luna" });
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const duplicated = await emitAck(adminSocket, "scrib_test:get_state", {});
+  assert.equal(duplicated.musas.contador.escritxr1, 1);
+  assert.equal(duplicated.connections.musas[1].count, 1);
+  assert.equal(duplicated.musas.regalo_bandera.equipos[1].musas, 1);
+
+  musa.emit("registrar_musa", { musa: 2, nombre: "Sol", client_id: "sol" });
+  await waitForState(
+    "musa moved from team 1 to team 2",
+    (state) => state.musas.contador.escritxr1 === 0
+      && state.musas.contador.escritxr2 === 1
+      && state.connections.musas[1].count === 0
+      && state.connections.musas[2].count === 1
+      && state.musas.regalo_bandera.equipos[1].musas === 0
+      && state.musas.regalo_bandera.equipos[2].musas === 1
+  );
+
+  musa.close();
+  await waitForState(
+    "musa counter clears after disconnect",
+    (state) => state.musas.contador.escritxr1 === 0
+      && state.musas.contador.escritxr2 === 0
+      && state.connections.musas[1].count === 0
+      && state.connections.musas[2].count === 0
+  );
+});
+
+test("musa flag hearts add time only while a match is running", async () => {
+  const watcher = await connectPassiveSocket();
+  const writer1 = await connectRole("registrar_escritor", 1);
+
+  adminSocket.emit("activar_banderas_musas", { activa: true });
+  await waitForState(
+    "musa flags active outside a match",
+    (state) => state.musas.banderas.activa === true
+  );
+
+  const sinRegaloFueraDePartida = assertNoSocketEvent(watcher, "aumentar_tiempo_control", 1000);
+  for (let i = 0; i < REGALO_BANDERA_MUSAS_OBJETIVO; i += 1) {
+    await emitAck(adminSocket, "scrib_test:simulate_musa_heart", { team: 1 });
+  }
+  await sinRegaloFueraDePartida;
+
+  const inactiveState = await emitAck(adminSocket, "scrib_test:get_state", {});
+  assert.equal(inactiveState.musas.regalo_bandera.equipos[1].visible, false);
+  assert.equal(inactiveState.musas.regalo_bandera.equipos[1].progreso, 0);
+
+  await emitAck(adminSocket, "scrib_test:reset", {});
+  await emitAck(adminSocket, "scrib_test:force_mode", { mode: "letra bendita", letra: "K" });
+  adminSocket.emit("activar_banderas_musas", { activa: true });
+  await waitForState(
+    "musa flags active during a match",
+    (state) => state.partida.modo_actual === "letra bendita" && state.musas.banderas.activa === true
+  );
+
+  const countSeen = waitForSocketEvent(
+    watcher,
+    "count",
+    (payload) => payload && Number(payload.player) === 1 && payload.count === "00:20"
+  );
+  writer1.emit("count", {
+    player: 1,
+    count: "00:20",
+    count_seq: 1
+  });
+  await countSeen;
+
+  const regaloPromise = waitForSocketEvent(
+    watcher,
+    "aumentar_tiempo_control",
+    (payload) => payload
+      && payload.origen === "musa_bandera"
+      && Number(payload.player) === 1
+  );
+
+  for (let i = 0; i < REGALO_BANDERA_MUSAS_OBJETIVO; i += 1) {
+    await emitAck(adminSocket, "scrib_test:simulate_musa_heart", { team: 1 });
+  }
+
+  const regalo = await regaloPromise;
+  assert.equal(regalo.secs, 1);
+  assert.equal(regalo.count_seconds_after, 21);
+  assert.equal(regalo.count_after, "00:21");
+
+  const activeState = await emitAck(adminSocket, "scrib_test:get_state", {});
+  assert.equal(activeState.musas.regalo_bandera.equipos[1].visible, true);
+  assert.equal(activeState.musas.regalo_bandera.equipos[1].progreso, 0);
+  assert.equal(activeState.musas.regalo_bandera.equipos[1].regalo_secs, 1);
 });
 
 test("scrib_test:force_warmup_state toggles tutorial state and spectator view coherently", async () => {
@@ -807,6 +922,44 @@ test("creditos_estado event payload matches contract when spectator credits are 
 
   const payload = await payloadPromise;
   await assertSnapshot("creditos-estado.event.snapshot.json", sanitizeState(payload));
+});
+
+test("creditos_estado includes current match muses grouped by team", async () => {
+  const watcher = await connectPassiveSocket();
+  const control = await connectRole("registrar_control");
+  const oldMusa = await connectRole("registrar_musa", {
+    musa: 1,
+    nombre: "Musa Antigua",
+    client_id: "musa-antigua"
+  });
+  oldMusa.close();
+
+  await emitAck(adminSocket, "scrib_test:force_mode", { mode: "letra bendita", letra: "K" });
+  await connectRole("registrar_musa", {
+    musa: 1,
+    nombre: "Luna Azul",
+    client_id: "luna-azul"
+  });
+  await connectRole("registrar_musa", {
+    musa: 2,
+    nombre: "Sol Roja",
+    client_id: "sol-roja"
+  });
+  await waitForState(
+    "current match muses registered",
+    (state) => state.musas.contador.escritxr1 === 1 && state.musas.contador.escritxr2 === 1
+  );
+
+  const payloadPromise = waitForSocketEvent(watcher, "creditos_estado");
+
+  control.emit("mostrar_creditos_espectador", { creditos: {} });
+
+  const payload = await payloadPromise;
+  assert.equal(payload.mostrar, true);
+  assert.deepEqual(payload.creditos.musas, {
+    azules: ["LUNA AZUL"],
+    rojas: ["SOL ROJA"]
+  });
 });
 
 test("vista_espectador_modo event payload matches contract when control changes the view", async () => {

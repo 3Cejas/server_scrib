@@ -1,4 +1,6 @@
+const { crearGestorDesventajasActivas } = require('./active_disadvantages.js');
 const { crearSincronizadorConexion } = require('./connection_sync.js');
+const { crearGestorEstadoControl } = require('./control_state.js');
 const { registrarConexionScrib } = require('./connection_handlers.js');
 const { activarSocketsExtratextuales } = require('./extratextual_channels.js');
 const { crearRuntimeModos } = require('./mode_runtime.js');
@@ -35,7 +37,9 @@ function crearRuntimeScrib({
     let votacionRepentizado;
     let calentamientoGestor;
     let calentamiento;
+    let partidaPausada = false;
 
+    const controlState = crearGestorEstadoControl({ io });
     const partidaSync = crearGestorSincronizacionPartida({ validarJugador: obtenerIdJugadorValido });
     const runtimeModos = crearRuntimeModos({
         io,
@@ -55,6 +59,8 @@ function crearRuntimeScrib({
         emitirTempModos,
         emitirNuevaLetra,
         emitirModoActual,
+        emitirEstadoPalabrasMusasControl,
+        payloadEstadoPalabrasMusasControl,
         construirPayloadCount,
         prepararParametrosInicio,
         limpiarTodosLosModos,
@@ -66,10 +72,38 @@ function crearRuntimeScrib({
         getModoBonus,
         getModoMalditas,
         getModoMusas,
+        getTiempoModificador,
         getTiempoVotacion
     } = runtimeModos;
 
     const { emitirIdiomaJuego, setIdiomaJuego } = crearGestorIdioma({ io });
+    const desventajasActivas = crearGestorDesventajasActivas({
+        validarJugador: obtenerIdJugadorValido,
+        getDuracionMs: () => getTiempoModificador()
+    });
+    const registrarDesventajaAplicada = (evento = {}) => {
+        const player = obtenerIdJugadorValido(
+            evento.player
+            || evento.target
+            || (evento.perdedor === 'j1' ? 1 : (evento.perdedor === 'j2' ? 2 : null))
+        );
+        const putada = evento.putada || evento.seleccion || evento.ventaja;
+        return desventajasActivas.registrar(player, putada, {
+            duracion_ms: evento.duracion_ms,
+            duracionMs: evento.duracionMs
+        });
+    };
+    const emitirEstadoDesventajasActivas = (socketDestino = null) => {
+        const snapshots = desventajasActivas.snapshotActivas();
+        if (!snapshots.length) {
+            return snapshots;
+        }
+        const destino = socketDestino && typeof socketDestino.emit === 'function' ? socketDestino : io;
+        snapshots.forEach((payload) => {
+            destino.emit('desventaja_activa_estado', payload);
+        });
+        return snapshots;
+    };
 
     const construirPayloadEstadoVotacionVentaja = (socketDestino = null) => (
         votacionVentaja.construirPayloadEstado(socketDestino)
@@ -90,6 +124,7 @@ function crearRuntimeScrib({
         onVistaCambiada: () => emitirVistaEspectadorModo(),
         construirPayloadEstadoVotacionVentaja,
         getTiempoVotacion: () => getTiempoVotacion(),
+        onAplicarVentaja: registrarDesventajaAplicada,
         programarVotacionTimer,
         cancelarVotacionTimer: () => timersPartida.cancelarVotacion(),
         syncMode: () => sincro_modos(),
@@ -106,10 +141,15 @@ function crearRuntimeScrib({
         obtenerIdJugadorValido,
         calentamientoGestor,
         io,
+        partidaSync,
+        getModoActual: () => estadoCicloPartida.modoActual,
+        isFinDelJuego: () => estadoCicloPartida.finDelJuego,
+        construirPayloadCount
     });
     const {
         emitirEstadoBanderasMusas,
         emitirFeedbackMusas,
+        emitirEstadoRegaloBanderaMusas,
         musasAuxiliares,
         obtenerContadorMusas,
         obtenerEstadoEscritores,
@@ -139,7 +179,19 @@ function crearRuntimeScrib({
         estadoJugadores,
         construirPayloadCount,
         activarModo: (modo, socket) => motorModos.activarModo(modo, socket),
-        getTextoPlano: (player) => writerChannels.getTextoPlano(player)
+        getTextoPlano: (player) => writerChannels.getTextoPlano(player),
+        reanudarTertuliaTrasResurreccion: (_socket, payload = {}) => {
+            if (estadoCicloPartida.modoActual !== 'tertulia') {
+                return false;
+            }
+            io.emit('reanudar_tertulia_control', {
+                motivo: 'resurreccion',
+                player: obtenerIdJugadorValido(payload.player),
+                secs: Number(payload.secs) || 0,
+                tiempo_seq: Number(payload.tiempo_seq) || 0
+            });
+            return true;
+        }
     });
 
     const activarSocketsExtratextualesConIo = (socket) => activarSocketsExtratextuales(socket, io);
@@ -153,7 +205,8 @@ function crearRuntimeScrib({
             bonus: getModoBonus(),
             malditas: getModoMalditas(),
             musas: getModoMusas()
-        })
+        }),
+        getMusasCreditos: () => rolesConectados.obtenerMusasCreditosPartida()
     });
     const {
         creditosShow,
@@ -191,6 +244,7 @@ function crearRuntimeScrib({
         payloadEstadoCalentamiento,
         payloadVistaEspectadorModo,
         construirPayloadEstadoVotacionVentaja,
+        payloadDesventajasActivas: () => desventajasActivas.snapshotActivas(),
         teleprompter,
         payloadEstadoResurreccion,
         obtenerContadorMusas,
@@ -208,11 +262,15 @@ function crearRuntimeScrib({
         resurreccion.reset();
         nubeInspiracion.reset();
         musasAuxiliares.resetEstado();
+        musasAuxiliares.emitirEstadoRegaloBandera();
+        desventajasActivas.reset();
+        controlState.reset();
         estadoCicloPartida.transicionModoEnCurso = false;
         votacionVentaja.reset();
         votacionRepentizado.reset();
         espectador.reset();
         creditosShow.reset();
+        rolesConectados.limpiarMusasCreditosPartida();
         resetearTimelineModosTest();
         calentamientoGestor.reset();
     };
@@ -267,9 +325,15 @@ function crearRuntimeScrib({
         emitirStatsLive,
         emitirNubeInspiracionEstado,
         emitirModoActual,
+        limpiarDesventajasActivas: () => desventajasActivas.reset(),
+        setPartidaPausada: (valor) => {
+            partidaPausada = Boolean(valor);
+        },
         registrarTimelineModo,
         motorModos,
         programarInicioTimer,
+        reiniciarMusasCreditosPartida: () => rolesConectados.reiniciarMusasCreditosPartidaDesdeActivas(),
+        limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
         registrar
     });
 
@@ -282,8 +346,11 @@ function crearRuntimeScrib({
         emitirEstadoVotacionVentaja,
         emitirNubeInspiracionEstado,
         teleprompter,
+        emitirEstadoDesventajasActivas,
+        emitirEstadoPalabrasMusasControl,
         partidaSync,
         getModoActual: () => estadoCicloPartida.modoActual,
+        isPartidaPausada: () => partidaPausada,
         construirPayloadInspiracionMusaActual,
         emitirActivarModo,
         sincroModos: (socket) => sincro_modos(socket),
@@ -296,6 +363,7 @@ function crearRuntimeScrib({
         io,
         passwordRoles,
         testHooksEnabled,
+        controlState,
         obtenerEstadoEscritores,
         obtenerIdJugadorValido,
         getModoActual: () => estadoCicloPartida.modoActual,
@@ -313,6 +381,7 @@ function crearRuntimeScrib({
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
         emitirFeedbackMusas,
+        emitirEstadoRegaloBanderaMusas,
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
@@ -354,12 +423,21 @@ function crearRuntimeScrib({
         construirEstadoTest,
         resetearEstadoAuxiliarParaTests,
         emitirModoActual,
+        emitirEstadoPalabrasMusasControl,
+        payloadEstadoPalabrasMusasControl,
         emitirEstadoVotacionVentaja,
+        emitirEstadoDesventajasActivas,
         calentamientoState: calentamiento,
         emitirEstadoCalentamiento,
         payloadEstadoResurreccion,
         cerrarVotacionVentajaForzada,
-        abrirVotacionVentajaForzada
+        abrirVotacionVentajaForzada,
+        registrarDesventajaAplicada,
+        pausarDesventajasActivas: () => desventajasActivas.pausar(),
+        reanudarDesventajasActivas: () => desventajasActivas.reanudar(),
+        setPartidaPausada: (valor) => {
+            partidaPausada = Boolean(valor);
+        }
     };
 
     function sincro_modos(socket = null) {

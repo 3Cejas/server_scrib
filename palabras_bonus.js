@@ -6,6 +6,7 @@
 
 const puppeteer = require('puppeteer');
 const MusasMode = require('./musas.js');
+const { createPuppeteerLaunchOptions } = require('./puppeteer_launch_options');
 
 const escapeHtml = (value) => String(value)
   .replace(/&/g, '&amp;')
@@ -13,6 +14,8 @@ const escapeHtml = (value) => String(value)
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
+
+const SUPERBONUS_INCREMENTO_TIEMPO = 0.5;
 
 class PalabrasBonusMode extends MusasMode {
   // Puppeteer singleton y caché de última palabra buscada
@@ -38,8 +41,8 @@ class PalabrasBonusMode extends MusasMode {
    * @param {import('socket.io').Server} io
    * @param {number} TIEMPO_CAMBIO_PALABRAS en ms
    */
-  constructor(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload = null) {
-    super(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload);
+  constructor(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload = null, onStateChange = null) {
+    super(io, TIEMPO_CAMBIO_PALABRAS, decoratePayload, onStateChange);
   }
 
   /**
@@ -64,7 +67,13 @@ class PalabrasBonusMode extends MusasMode {
       // Reiniciar control de flag
       st.lastDeliveredFromMusa = false;
       st.ultimoMusaNombre = '';
+      st.ultimaEntregaMusa = null;
+      st.ultimaEntregaMusaCaducaEnTs = 0;
+      st.entregaActualAutomatica = false;
+      st.peticionAutomaticaPendiente = false;
+      st.bonusRequestSeq = 0;
     });
+    this._notifyStateChange();
   }
 
   /**
@@ -87,6 +96,43 @@ class PalabrasBonusMode extends MusasMode {
     }, this.timeout);
   }
 
+  _multiplicadorTiempoSuperbonus(repeticiones) {
+    const count = Math.max(1, Math.trunc(Number(repeticiones) || 1));
+    return 1 + ((count - 1) * SUPERBONUS_INCREMENTO_TIEMPO);
+  }
+
+  _aplicarTiempoSuperbonus(tiempoBase, repeticiones) {
+    const base = Math.max(0, Number(tiempoBase) || 0);
+    const multiplicador = this._multiplicadorTiempoSuperbonus(repeticiones);
+    return Math.max(base, Math.ceil((base * multiplicador) / 5) * 5);
+  }
+
+  _nuevaSecuenciaPeticion(st) {
+    st.bonusRequestSeq = (Number(st.bonusRequestSeq) || 0) + 1;
+    return st.bonusRequestSeq;
+  }
+
+  addMusa(playerId, word) {
+    const st = this.players[playerId];
+    if (!st) return;
+    const item = this._prepararMusaItemParaCola(word);
+    if (!item) return;
+
+    st.queue.push(item);
+    console.log(`[PalabrasBonusMode] addMusa() jugador ${playerId} recibe palabra: "${item.palabra}"`);
+
+    if (st.entregaActualAutomatica || st.peticionAutomaticaPendiente) {
+      if (st.emitTimer) {
+        clearTimeout(st.emitTimer);
+        st.emitTimer = null;
+      }
+      void this.handleRequest(playerId);
+      return;
+    }
+
+    this._notifyStateChange(playerId);
+  }
+
   /**
    * Procesa la petición de nueva palabra bonus:
    * 1) Extrae de cola si hay musas, aumenta insertedCount y setea lastDeliveredFromMusa=true.
@@ -100,6 +146,11 @@ class PalabrasBonusMode extends MusasMode {
     const st = this.players[playerId];
     if (!st) return;
     const generation = this.generation;
+    const requestSeq = this._nuevaSecuenciaPeticion(st);
+    const esPeticionActual = () => (
+      this._isGenerationActive(generation) &&
+      st.bonusRequestSeq === requestSeq
+    );
 
     if (st.pendingTimer) {
       clearTimeout(st.pendingTimer);
@@ -108,37 +159,93 @@ class PalabrasBonusMode extends MusasMode {
 
     const evento = `enviar_palabra_j${playerId}`;
     let palabras_var, palabra_bonus, tiempo_palabras_bonus;
+    let superbonusPayload = null;
+    this._podarColaMusaCaducada(st);
 
     // 1) Si hay musas en cola
     if (st.queue.length > 0) {
-      const idx = Math.floor(Math.random() * st.queue.length);
-      const item = st.queue.splice(idx, 1)[0];
-      const rawPalabra = (item && typeof item === 'object') ? item.palabra : item;
-      const musaNombre = (item && typeof item === 'object') ? item.musa : '';
+      const entrega = this._extraerMusaDeCola(st, { superbonus: true });
+      const item = entrega && entrega.item ? entrega.item : null;
+      const rawPalabra = item && item.palabra ? item.palabra : '';
+      const superbonus = entrega && entrega.superbonus && entrega.superbonus.activo
+        ? entrega.superbonus
+        : null;
+      const musasSuperbonus = superbonus && Array.isArray(superbonus.musas)
+        ? superbonus.musas.filter(Boolean)
+        : [];
+      const itemsEntrega = entrega && Array.isArray(entrega.items) ? entrega.items : (item ? [item] : []);
+      const clientIdsEntrega = Array.from(new Set(
+        itemsEntrega
+          .map((entrada) => entrada && entrada.client_id ? String(entrada.client_id).trim() : '')
+          .filter(Boolean)
+      ));
+      const musasEntrega = superbonus
+        ? musasSuperbonus
+        : (item && item.musa ? [item.musa] : []);
+      const musaNombre = superbonus
+        ? (musasSuperbonus.join(' + ') || 'MUSAS')
+        : (item && item.musa ? item.musa : '');
 
       // Actualizar flag y contador
       st.insertedCount = (st.insertedCount || 0) + 1;
       st.lastDeliveredFromMusa = true;
+      st.entregaActualAutomatica = false;
+      st.peticionAutomaticaPendiente = false;
 
       palabras_var          = rawPalabra;
       const musaLabel = musaNombre ? escapeHtml(musaNombre) : 'MUSA';
       palabra_bonus         = [[rawPalabra], `<span style="color:lime;">${musaLabel}</span><span style="color: white;">: </span><span style='color: white;'>Podrías escribir esta palabra ⬆️</span>`];
       tiempo_palabras_bonus = this._puntuacionPalabra(rawPalabra);
+      const tiempoBase = tiempo_palabras_bonus;
+      if (superbonus) {
+        const repeticiones = Math.max(2, Number(superbonus.repeticiones) || 2);
+        const multiplicador = this._multiplicadorTiempoSuperbonus(repeticiones);
+        tiempo_palabras_bonus = this._aplicarTiempoSuperbonus(tiempoBase, repeticiones);
+        superbonusPayload = {
+          activo: true,
+          repeticiones,
+          musas: musasSuperbonus,
+          tiempo_base: tiempoBase,
+          multiplicador_tiempo: Number(multiplicador.toFixed(2))
+        };
+        palabra_bonus = [[rawPalabra], `<span style="color:#ffd86f;">SUPERBONUS x${repeticiones}</span><span style="color: white;"> - </span><span style="color:lime;">${musaLabel}</span><span style="color: white;">: </span><span style='color: white;'>Podr&iacute;as escribir esta palabra</span>`];
+      }
       st.ultimoMusaNombre = musaNombre;
+      st.ultimaEntregaMusa = {
+        player: playerId,
+        target_player: playerId,
+        modo: 'palabras bonus',
+        palabra: rawPalabra,
+        musa_nombre: musaNombre,
+        client_id: clientIdsEntrega[0] || '',
+        client_ids: clientIdsEntrega,
+        musas: musasEntrega,
+        tiempo: tiempo_palabras_bonus,
+        superbonus: Boolean(superbonus),
+        repeticiones: superbonus ? Math.max(2, Number(superbonus.repeticiones) || 2) : 1
+      };
+      const now = Date.now();
+      const caducaEnTs = this._obtenerCaducidadMusaItem(item, now);
+      st.ultimaEntregaMusaCaducaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout;
 
       console.log(
-        `[PalabrasBonusMode] J${playerId} recibe musa de cola: "${rawPalabra}" (musas usadas: ${st.insertedCount})`
+        `[PalabrasBonusMode] J${playerId} recibe musa de cola: "${rawPalabra}"${superbonus ? ` SUPERBONUS x${superbonus.repeticiones}` : ''} (musas usadas: ${st.insertedCount})`
       );
     } else {
       // 2) Cola vacía → scrappear RAE
+      st.peticionAutomaticaPendiente = true;
       try {
         await PalabrasBonusMode._inicializarNavegador();
         const [rawPalabra, rawDef] = await this._palabraRAE();
-        if (!this._isGenerationActive(generation)) return;
+        if (!esPeticionActual()) return;
         const variante = this._extraccionPalabraVar(rawPalabra);
 
         st.lastDeliveredFromMusa = false;
         st.ultimoMusaNombre = '';
+        st.ultimaEntregaMusa = null;
+        st.ultimaEntregaMusaCaducaEnTs = 0;
+        st.entregaActualAutomatica = true;
+        st.peticionAutomaticaPendiente = false;
 
         palabras_var          = rawPalabra;
         palabra_bonus         = [variante, rawDef];
@@ -148,10 +255,14 @@ class PalabrasBonusMode extends MusasMode {
           `[PalabrasBonusMode] J${playerId} recibe RAE: "${rawPalabra}" → variante ${JSON.stringify(variante)}`
         );
       } catch (err) {
-        if (!this._isGenerationActive(generation)) return;
+        if (!esPeticionActual()) return;
         console.error('[PalabrasBonusMode] Error RAE:', err);
         st.lastDeliveredFromMusa = false;
         st.ultimoMusaNombre = '';
+        st.ultimaEntregaMusa = null;
+        st.ultimaEntregaMusaCaducaEnTs = 0;
+        st.entregaActualAutomatica = true;
+        st.peticionAutomaticaPendiente = false;
         const fallback = this._palabraFallbackLocal();
         palabras_var          = fallback.palabra;
         palabra_bonus         = [[fallback.palabra], fallback.definicion];
@@ -172,9 +283,14 @@ class PalabrasBonusMode extends MusasMode {
     if (st.lastDeliveredFromMusa) {
       payload.origen_musa = 'musa';
       payload.musa_nombre = st.ultimoMusaNombre || '';
+      if (superbonusPayload) {
+        payload.superbonus = superbonusPayload;
+      }
     }
     if (!this._isGenerationActive(generation)) return;
+    if (!esPeticionActual()) return;
     this.io.emit(evento, this._withModePayload(payload));
+    this._notifyStateChange(playerId);
 
     // 4) Programar siguiente entrega automática
     this._scheduleNext(playerId, generation);
@@ -183,7 +299,7 @@ class PalabrasBonusMode extends MusasMode {
   /** Inicializa Puppeteer solo una vez. */
   static async _inicializarNavegador() {
     if (!PalabrasBonusMode._navegador) {
-      PalabrasBonusMode._navegador = await puppeteer.launch({ headless: true });
+      PalabrasBonusMode._navegador = await puppeteer.launch(createPuppeteerLaunchOptions({ headless: true }));
     }
   }
 

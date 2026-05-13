@@ -7,23 +7,71 @@ const crearUltimasInspiracionesVacias = () => ({
     2: null
 });
 
-const extraerPalabrasNubeInspiracion = (cola = [], limite = MAX_PALABRAS_NUBE_INSPIRACION) => {
+const normalizarClavePalabraNubeInspiracion = (palabra) => {
+    const texto = String(palabra || "").trim().toLowerCase();
+    return texto.normalize ? texto.normalize("NFC") : texto;
+};
+
+const extraerItemPalabraNubeInspiracion = (item) => {
+    const palabra = typeof item === "string"
+        ? item.trim()
+        : (item && typeof item.palabra === "string" ? item.palabra.trim() : "");
+    if (!palabra) return null;
+    const musa = item && typeof item === "object" && typeof item.musa === "string"
+        ? item.musa.trim()
+        : "";
+    const client_id = item && typeof item === "object" && typeof item.client_id === "string"
+        ? item.client_id.trim()
+        : (item && typeof item === "object" && typeof item.clientId === "string" ? item.clientId.trim() : "");
+    const salida = { palabra, musa };
+    if (client_id) salida.client_id = client_id;
+    return salida;
+};
+
+const identidadMusaNubeInspiracion = (item, index = 0) => {
+    if (!item || typeof item !== "object") return `anon:${index}`;
+    if (item.client_id) return `client:${item.client_id}`;
+    if (item.musa) return `name:${String(item.musa).trim().toLowerCase()}`;
+    return `anon:${index}`;
+};
+
+const extraerPalabrasInfoNubeInspiracion = (cola = [], limite = MAX_PALABRAS_NUBE_INSPIRACION, opciones = {}) => {
     const lista = Array.isArray(cola) ? cola : [];
     const inicio = Math.max(0, lista.length - limite);
-    const salida = [];
-    const vistos = new Set();
+    const grupos = new Map();
+    const detectarSuperbonus = opciones && opciones.detectarSuperbonus === true;
     for (let i = inicio; i < lista.length; i += 1) {
-        const item = lista[i];
-        const palabra = typeof item === 'string'
-            ? item.trim()
-            : (item && typeof item.palabra === 'string' ? item.palabra.trim() : '');
-        if (!palabra) continue;
-        const clave = palabra.toLowerCase();
-        if (vistos.has(clave)) continue;
-        vistos.add(clave);
-        salida.push(palabra);
+        const item = extraerItemPalabraNubeInspiracion(lista[i]);
+        if (!item) continue;
+        const clave = normalizarClavePalabraNubeInspiracion(item.palabra);
+        if (!clave) continue;
+        if (!grupos.has(clave)) {
+            grupos.set(clave, {
+                palabra: item.palabra,
+                musas: [],
+                identidades: new Set(),
+                primerIndice: i
+            });
+        }
+        const grupo = grupos.get(clave);
+        grupo.identidades.add(identidadMusaNubeInspiracion(item, i));
+        if (item.musa && !grupo.musas.includes(item.musa)) {
+            grupo.musas.push(item.musa);
+        }
     }
-    return salida.slice(-limite);
+    return Array.from(grupos.values())
+        .sort((a, b) => a.primerIndice - b.primerIndice)
+        .map((grupo) => ({
+            palabra: grupo.palabra,
+            repeticiones: grupo.identidades.size || 1,
+            superbonus: Boolean(detectarSuperbonus && (grupo.identidades.size || 1) >= 2),
+            musas: grupo.musas.slice(0, 6)
+        }))
+        .slice(-limite);
+};
+
+const extraerPalabrasNubeInspiracion = (cola = [], limite = MAX_PALABRAS_NUBE_INSPIRACION, opciones = {}) => {
+    return extraerPalabrasInfoNubeInspiracion(cola, limite, opciones).map((item) => item.palabra);
 };
 
 function crearGestorNubeInspiracion({
@@ -43,17 +91,35 @@ function crearGestorNubeInspiracion({
         let palabrasJ2 = [];
 
         if (modoActual === "palabras prohibidas" && motores.malditas && motores.malditas.players) {
-            palabrasJ1 = extraerPalabrasNubeInspiracion(motores.malditas.players[2] && motores.malditas.players[2].queue);
-            palabrasJ2 = extraerPalabrasNubeInspiracion(motores.malditas.players[1] && motores.malditas.players[1].queue);
+            palabrasJ1 = extraerPalabrasInfoNubeInspiracion(motores.malditas.players[2] && motores.malditas.players[2].queue);
+            palabrasJ2 = extraerPalabrasInfoNubeInspiracion(motores.malditas.players[1] && motores.malditas.players[1].queue);
             return { 1: palabrasJ1, 2: palabrasJ2 };
         }
 
         const motor = modoActual === "palabras bonus" ? motores.bonus : motores.musas;
         if (motor && motor.players) {
-            palabrasJ1 = extraerPalabrasNubeInspiracion(motor.players[1] && motor.players[1].queue);
-            palabrasJ2 = extraerPalabrasNubeInspiracion(motor.players[2] && motor.players[2].queue);
+            const detectarSuperbonus = modoActual === "palabras bonus";
+            palabrasJ1 = extraerPalabrasInfoNubeInspiracion(motor.players[1] && motor.players[1].queue, MAX_PALABRAS_NUBE_INSPIRACION, { detectarSuperbonus });
+            palabrasJ2 = extraerPalabrasInfoNubeInspiracion(motor.players[2] && motor.players[2].queue, MAX_PALABRAS_NUBE_INSPIRACION, { detectarSuperbonus });
         }
         return { 1: palabrasJ1, 2: palabrasJ2 };
+    };
+
+    const construirEquipoPayload = (equipo, palabrasInfo) => {
+        const info = Array.isArray(palabrasInfo) ? palabrasInfo : [];
+        const salida = {
+            nombre: recortarTextoStatsLive(getNombreEquipo(equipo) || `ESCRITXR ${equipo}`, 28) || `ESCRITXR ${equipo}`,
+            palabras: info.map((item) => item.palabra)
+        };
+        if (info.some((item) => item && (item.superbonus || item.repeticiones > 1))) {
+            salida.palabras_info = info.map((item) => ({
+                palabra: item.palabra,
+                repeticiones: Math.max(1, Number(item.repeticiones) || 1),
+                superbonus: Boolean(item.superbonus),
+                musas: Array.isArray(item.musas) ? item.musas : []
+            }));
+        }
+        return salida;
     };
 
     const payload = () => {
@@ -63,14 +129,8 @@ function crearGestorNubeInspiracion({
             ts: Date.now(),
             modo_actual: recortarTextoStatsLive(modoActual || "", 32),
             equipos: {
-                1: {
-                    nombre: recortarTextoStatsLive(getNombreEquipo(1) || "ESCRITXR 1", 28) || "ESCRITXR 1",
-                    palabras: palabras[1]
-                },
-                2: {
-                    nombre: recortarTextoStatsLive(getNombreEquipo(2) || "ESCRITXR 2", 28) || "ESCRITXR 2",
-                    palabras: palabras[2]
-                }
+                1: construirEquipoPayload(1, palabras[1]),
+                2: construirEquipoPayload(2, palabras[2])
             }
         };
     };
@@ -78,7 +138,9 @@ function crearGestorNubeInspiracion({
     const construirFirma = (estado) => JSON.stringify({
         modo: estado.modo_actual,
         j1: estado.equipos[1].palabras,
-        j2: estado.equipos[2].palabras
+        j1_info: estado.equipos[1].palabras_info || [],
+        j2: estado.equipos[2].palabras,
+        j2_info: estado.equipos[2].palabras_info || []
     });
 
     const emitir = (socketDestino = null, forzar = false) => {
@@ -154,5 +216,6 @@ function crearGestorNubeInspiracion({
 module.exports = {
     MAX_PALABRAS_NUBE_INSPIRACION,
     crearGestorNubeInspiracion,
+    extraerPalabrasInfoNubeInspiracion,
     extraerPalabrasNubeInspiracion
 };

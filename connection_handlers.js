@@ -14,6 +14,7 @@ function registrarConexionScrib(socket, deps) {
         io,
         passwordRoles,
         testHooksEnabled,
+        controlState,
         obtenerEstadoEscritores,
         obtenerIdJugadorValido,
         getModoActual,
@@ -31,6 +32,7 @@ function registrarConexionScrib(socket, deps) {
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
         emitirFeedbackMusas,
+        emitirEstadoRegaloBanderaMusas,
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
@@ -72,12 +74,18 @@ function registrarConexionScrib(socket, deps) {
         construirEstadoTest,
         resetearEstadoAuxiliarParaTests,
         emitirModoActual,
+        emitirEstadoPalabrasMusasControl,
+        payloadEstadoPalabrasMusasControl,
         emitirEstadoVotacionVentaja,
         calentamientoState,
         emitirEstadoCalentamiento,
         payloadEstadoResurreccion,
         cerrarVotacionVentajaForzada,
-        abrirVotacionVentajaForzada
+        abrirVotacionVentajaForzada,
+        registrarDesventajaAplicada,
+        pausarDesventajasActivas,
+        reanudarDesventajasActivas,
+        setPartidaPausada
     } = deps;
 
     registrarCanalesGenerales({
@@ -88,7 +96,11 @@ function registrarConexionScrib(socket, deps) {
         obtenerIdJugadorValido,
         getModoActual,
         partidaSync,
-        construirPayloadCount
+        construirPayloadCount,
+        sesionesEscritor,
+        controlState,
+        emitirEstadoPalabrasMusasControl,
+        payloadEstadoPalabrasMusasControl
     });
 
     registrarCanalesEspectador({
@@ -105,6 +117,7 @@ function registrarConexionScrib(socket, deps) {
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
         emitirFeedbackMusas,
+        emitirEstadoRegaloBanderaMusas,
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
@@ -127,6 +140,8 @@ function registrarConexionScrib(socket, deps) {
         emitirEstadoBanderasMusas,
         sincronizarEstadoMusa,
         sincronizarSocketRecienConectado,
+        registrarMusaEnCreditosPartida: rolesConectados.registrarMusaEnCreditosPartida,
+        getPartidaActivaParaCreditos: () => Boolean(estadoCicloPartida && estadoCicloPartida.modoActual && !estadoCicloPartida.finDelJuego),
         registrar
     });
 
@@ -154,6 +169,11 @@ function registrarConexionScrib(socket, deps) {
         reiniciarEstadoPartida,
         emitirTempModos,
         cancelarCambioPalabra,
+        registrarDesventajaAplicada,
+        pausarDesventajasActivas,
+        reanudarDesventajasActivas,
+        setPartidaPausada,
+        sesionesEscritor,
         registrar
     });
     registrarCanalesInspiracion({
@@ -167,9 +187,12 @@ function registrarConexionScrib(socket, deps) {
         getModoMusas,
         obtenerIdJugadorValido,
         normalizarNombreMusa,
+        normalizarMusaClientId,
         emitirNubeInspiracionEstado,
         emitirEstadoBanderasMusas,
         emitirFeedbackMusas,
+        emitirEstadoRegaloBanderaMusas,
+        sesionesEscritor,
         registrar
     });
     registrarCanalesVotacion({
@@ -222,6 +245,7 @@ function registrarConexionScrib(socket, deps) {
         teleprompter,
         emitirEstadoBanderasMusas,
         emitirFeedbackMusas,
+        emitirEstadoRegaloBanderaMusas,
         emitirEstadoVotacionVentaja,
         votacionVentaja,
         calentamiento: calentamientoState,

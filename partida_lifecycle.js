@@ -17,9 +17,13 @@ function crearCicloPartida({
     emitirStatsLive,
     emitirNubeInspiracionEstado,
     emitirModoActual,
+    limpiarDesventajasActivas = () => {},
+    setPartidaPausada = () => {},
     registrarTimelineModo,
     motorModos,
     programarInicioTimer,
+    reiniciarMusasCreditosPartida = () => {},
+    limpiarMusasCreditosPartida = () => {},
     registrar = () => {}
 }) {
     const emitirMenusResurreccion = () => {
@@ -41,6 +45,7 @@ function crearCicloPartida({
         }
         state.modoAnterior = "";
         state.modoActual = "";
+        state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
         partidaSync.resetTiempoSeq();
         partidaSync.resetConteoSync();
@@ -56,9 +61,11 @@ function crearCicloPartida({
         state.estadoJugadores[1].finished = true;
         state.estadoJugadores[2].finished = true;
         state.finDelJuego = true;
+        setPartidaPausada(false);
         limpiarTimersPalabras();
         limpiarTimersRonda();
         limpiarModoActual(socket);
+        limpiarDesventajasActivas();
         activarSocketsExtratextuales(socket);
         resetearEstadoResurreccion();
         resetearCursoPartida({ reiniciarIndice: false });
@@ -72,9 +79,11 @@ function crearCicloPartida({
         state.estadoJugadores[1].finished = true;
         state.estadoJugadores[2].finished = true;
         state.finDelJuego = true;
+        setPartidaPausada(false);
         limpiarTimersPalabras();
         limpiarTimersRonda();
         limpiarModoActual(socket);
+        limpiarDesventajasActivas();
         activarSocketsExtratextuales(socket);
         resetearEstadoResurreccion();
         resetearCursoPartida({ reiniciarIndice: true });
@@ -86,7 +95,10 @@ function crearCicloPartida({
         const parametros = (datos && datos.parametros) || {};
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
+        limpiarDesventajasActivas();
+        setPartidaPausada(false);
         musasAuxiliares.resetRegalos({ emitir: true });
+        reiniciarMusasCreditosPartida();
         prepararParametrosInicio(parametros);
 
         state.modosPendientes = [...state.listaModos];
@@ -102,6 +114,7 @@ function crearCicloPartida({
         state.reiniciarLetrasPendientes();
         state.modoAnterior = "";
         state.modoActual = "";
+        state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
         statsLive.actualizar({ modo_actual: "" });
         emitirStatsLive();
@@ -129,15 +142,19 @@ function crearCicloPartida({
         limpiarTimersPalabras();
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
+        limpiarDesventajasActivas();
+        setPartidaPausada(false);
         state.estadoJugadores[1].finished = true;
         state.estadoJugadores[2].finished = true;
         musasAuxiliares.resetRegalos({ emitir: true });
+        limpiarMusasCreditosPartida();
         limpiarTodosLosModos();
         state.finDelJuego = true;
         state.modosPendientes = [...state.listaModos];
         state.indiceModo = 0;
         state.modoAnterior = "";
         state.modoActual = "";
+        state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
         statsLive.actualizar({ modo_actual: "" });
         emitirStatsLive();

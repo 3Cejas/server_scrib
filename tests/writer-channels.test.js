@@ -105,3 +105,21 @@ test("writer channels returns texts and attributes snapshots", () => {
     { event: "texto2", payload: "" }
   ]);
 });
+
+test("writer channels ignores attributes from inactive writer sessions", () => {
+  const canales = crearCanalesEscritor({
+    sesionesEscritor: { esActiva: (socket, player) => socket.id === "active" && player === 1 }
+  });
+  const stale = crearSocket("stale");
+  const active = crearSocket("active");
+
+  canales.registrarHandlers(stale);
+  canales.registrarHandlers(active);
+  stale.trigger("enviar_atributos", { player: 1, atributos: { fuerza: 10 } });
+  active.trigger("enviar_atributos", { player: 1, atributos: { fuerza: 4 } });
+
+  assert.deepEqual(canales.snapshotAtributos(), {
+    1: { fuerza: 4 },
+    2: {}
+  });
+});

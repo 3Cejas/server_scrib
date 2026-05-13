@@ -13,6 +13,8 @@ function registrarCanalesRoles({
     emitirEstadoBanderasMusas,
     sincronizarEstadoMusa,
     sincronizarSocketRecienConectado,
+    registrarMusaEnCreditosPartida = () => {},
+    getPartidaActivaParaCreditos = () => false,
     registrar = () => {}
 }) {
     socket.on("registrar_espectador", () => {
@@ -20,8 +22,14 @@ function registrarCanalesRoles({
         sincronizarSocketRecienConectado(socket);
     });
 
+    socket.on("registrar_jurado", () => {
+        rolesConectados.registrarJurado(socket);
+        sincronizarSocketRecienConectado(socket);
+    });
+
     socket.on("registrar_control", () => {
         rolesConectados.registrarControl(socket);
+        sincronizarSocketRecienConectado(socket);
     });
 
     socket.on("registrar_escritor", (escritxr) => {
@@ -31,7 +39,35 @@ function registrarCanalesRoles({
             return;
         }
         const id_jugador = registro.player;
-        sesionesEscritor.activar(socket, id_jugador);
+        const sesion = sesionesEscritor.activar(socket, id_jugador);
+        const clientIdActual = String(registro.clientId || "").trim();
+        const socketsReemplazados = new Set();
+        const debeAvisarReemplazo = (clientIdPrevio) => {
+            const previo = String(clientIdPrevio || "").trim();
+            return !clientIdActual || !previo || previo !== clientIdActual;
+        };
+        (registro.previousSessions || []).forEach((sesionPrevia) => {
+            if (!sesionPrevia || !sesionPrevia.socketId || sesionPrevia.socketId === socket.id) return;
+            if (debeAvisarReemplazo(sesionPrevia.clientId)) {
+                socketsReemplazados.add(sesionPrevia.socketId);
+            }
+        });
+        if (
+            sesion
+            && sesion.previousSocketId
+            && sesion.previousSocketId !== socket.id
+            && debeAvisarReemplazo(sesion.previousClientId)
+        ) {
+            socketsReemplazados.add(sesion.previousSocketId);
+        }
+        socketsReemplazados.forEach((socketId) => {
+            io.to(socketId).emit("escritor_reemplazado", {
+                player: id_jugador,
+                role: `escritxr ${id_jugador}`,
+                active_socket_id: socket.id,
+                mensaje: "Otra sesi\u00f3n activa de este rol est\u00e1 activa. Esta pesta\u00f1a no va a funcionar."
+            });
+        });
         registrar(`[servidor] socket ${socket.id} registrado como escritor ${id_jugador}`);
         sincronizarSocketRecienConectado(socket);
     });
@@ -57,14 +93,26 @@ function registrarCanalesRoles({
             registrar(`[servidor] enviar_musa: escritxr=${datos_musa.musa} no es escritor valido; no cuento`);
             return;
         }
+        if (typeof getPartidaActivaParaCreditos === "function" && getPartidaActivaParaCreditos()) {
+            registrarMusaEnCreditosPartida({
+                player: id_jugador,
+                nombre: nombre_musa,
+                clientId: musa_client_id,
+                socketId: socket.id
+            });
+        }
         registrar("[servidor] contador_musas", registro.contador);
         io.emit("actualizar_contador_musas", registro.contador);
+        if (registro.previous && registro.previous !== id_jugador) {
+            calentamientoGestor.desregistrarMusa(socket, registro.previous);
+        }
         calentamientoGestor.registrarMusa(socket, id_jugador, nombre_musa);
-        const regaloPdf = musasAuxiliares.obtenerRegalo(id_jugador);
+        const regaloPdf = musasAuxiliares.obtenerRegalo(id_jugador, musa_client_id);
         if (regaloPdf) {
             socket.emit("regalo_pdf_musas", regaloPdf);
         }
         emitirEstadoBanderasMusas(socket);
+        musasAuxiliares.emitirEstadoRegaloBandera();
         sincronizarEstadoMusa(socket);
     });
 
@@ -89,6 +137,7 @@ function registrarCanalesRoles({
         io.emit("actualizar_contador_musas", desconexion.contador);
         if (id === 1 || id === 2) {
             calentamientoGestor.desregistrarMusa(socket, id);
+            musasAuxiliares.emitirEstadoRegaloBandera();
         }
 
         const idBolzano = Number(socket.musa_bolzano);
@@ -98,8 +147,10 @@ function registrarCanalesRoles({
 
         const escritorId = desconexion.escritorId;
         if (escritorId === 1 || escritorId === 2) {
-            sesionesEscritor.limpiarSiActiva(socket, escritorId);
-            calentamientoGestor.desregistrarEscritor(socket, escritorId);
+            const eraSesionActiva = sesionesEscritor.limpiarSiActiva(socket, escritorId);
+            if (eraSesionActiva) {
+                calentamientoGestor.desregistrarEscritor(socket, escritorId);
+            }
         }
     });
 }

@@ -33,6 +33,7 @@ function registrarTestHooks({
     teleprompter,
     emitirEstadoBanderasMusas,
     emitirFeedbackMusas,
+    emitirEstadoRegaloBanderaMusas = () => {},
     emitirEstadoVotacionVentaja,
     votacionVentaja,
     calentamiento,
@@ -69,6 +70,7 @@ function registrarTestHooks({
         teleprompter.emitirEstado();
         emitirEstadoBanderasMusas();
         emitirFeedbackMusas();
+        emitirEstadoRegaloBanderaMusas();
         emitirEstadoVotacionVentaja({
             activa: false,
             equipo: '',
@@ -118,10 +120,11 @@ function registrarTestHooks({
             });
             return;
         }
-        musasAuxiliares.registrarCorazon({ equipo, respetarCooldown: false });
+        const resultado = musasAuxiliares.registrarCorazon({ equipo, respetarCooldown: false });
         responderHookTest(socket, args.callback, 'scrib_test:simulate_musa_heart:done', {
             ok: true,
             equipo,
+            regalo_bandera: resultado && resultado.regalo_bandera ? resultado.regalo_bandera : null,
             state: construirEstadoTest()
         });
     });

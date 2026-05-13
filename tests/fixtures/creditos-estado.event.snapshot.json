@@ -11,7 +11,11 @@
     "iluminacion": "",
     "musica": "",
     "voz_off": "VOZ TEST",
-    "agradecimientos": "Ana,Luis,Marta"
+    "agradecimientos": "Ana,Luis,Marta",
+    "musas": {
+      "azules": [],
+      "rojas": []
+    }
   },
   "mostrar": true,
   "animacion_id": 1,

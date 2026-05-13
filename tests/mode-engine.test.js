@@ -1,12 +1,14 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { crearMotorModos, debeLanzarVentaja, elegirLetraPendiente } = require("../mode_engine.js");
+const { crearMotorModos, debeLanzarVentaja, elegirLetraPendiente, obtenerModoVentaja } = require("../mode_engine.js");
 
 test("mode engine decides when advantage voting should launch", () => {
   assert.equal(debeLanzarVentaja("palabras bonus", "letra bendita"), true);
   assert.equal(debeLanzarVentaja("", "letra bendita"), false);
   assert.equal(debeLanzarVentaja("palabras bonus", "tertulia"), false);
+  assert.equal(debeLanzarVentaja("tertulia", "letra bendita"), false);
+  assert.equal(obtenerModoVentaja("tertulia", "letra bendita", "palabras bonus"), "palabras bonus");
 });
 
 test("mode engine picks pending letters and resets from base when exhausted", () => {
@@ -17,6 +19,24 @@ test("mode engine picks pending letters and resets from base when exhausted", ()
   const fallback = elegirLetraPendiente({ pendientes: [], base: ["x"] });
   assert.equal(fallback.letra, "x");
   assert.deepEqual(fallback.pendientes, ["x"]);
+});
+
+test("mode engine weights forbidden and blessed letter draws in opposite directions", () => {
+  const commonForbidden = elegirLetraPendiente({
+    pendientes: ["e", "w"],
+    base: ["e", "w"],
+    tipo: "prohibida",
+    random: () => 0.5
+  });
+  const rareBlessed = elegirLetraPendiente({
+    pendientes: ["e", "w"],
+    base: ["e", "w"],
+    tipo: "bendita",
+    random: () => 0.5
+  });
+
+  assert.equal(commonForbidden.letra, "e");
+  assert.equal(rareBlessed.letra, "w");
 });
 
 test("mode engine activates bonus mode and rejects removed chaos mode", () => {
@@ -81,6 +101,92 @@ test("mode engine changes blessed letters through the timer path", () => {
   assert.equal(timers.cambiosLetra.length, 1);
 });
 
+test("mode engine can advance from tertulia without launching a stale advantage", () => {
+  const bonus = crearModoFake();
+  const musas = crearModoFake();
+  const state = crearEstadoMotorFake({
+    modoActual: "tertulia",
+    modosPendientes: ["palabras bonus"],
+    indiceModo: 0
+  });
+  const launches = [];
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: crearTimersFake(),
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    emitirActivarModo: () => {},
+    emitirPedirInspiracionMusa: () => {},
+    emitirNubeInspiracionEstado: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    votacionVentaja: { lanzar: (payload) => launches.push(payload) },
+    getModoBonus: () => bonus,
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => musas,
+    estadoJugadores: { 1: { finished: true }, 2: { finished: true } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.modos_de_juego();
+
+  assert.equal(state.modoActual, "palabras bonus");
+  assert.equal(state.indiceModo, 1);
+  assert.deepEqual(bonus.startPlayers, [1, 2]);
+  assert.equal(launches.length, 0);
+});
+
+test("mode engine delays the previous competitive advantage across tertulia", () => {
+  const bonus = crearModoFake();
+  const musas = crearModoFake();
+  const state = crearEstadoMotorFake({
+    modoActual: "palabras bonus",
+    modosPendientes: ["tertulia", "letra bendita"],
+    indiceModo: 0
+  });
+  bonus.insertedCount = { 1: 3, 2: 1 };
+  musas.insertedCount = { 1: 0, 2: 8 };
+  const launches = [];
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: crearTimersFake(),
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    emitirActivarModo: () => {},
+    emitirPedirInspiracionMusa: () => {},
+    emitirNubeInspiracionEstado: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    votacionVentaja: { lanzar: (payload) => launches.push(payload) },
+    getModoBonus: () => bonus,
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => musas,
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.modos_de_juego();
+
+  assert.equal(state.modoActual, "tertulia");
+  assert.equal(state.modoPendienteVentaja, "palabras bonus");
+  assert.equal(launches.length, 0);
+
+  motor.modos_de_juego();
+
+  assert.equal(state.modoActual, "letra bendita");
+  assert.equal(state.modoPendienteVentaja, "");
+  assert.equal(launches.length, 1);
+  assert.equal(launches[0].ganador, "j1");
+  assert.equal(bonus.clearCounterCalls, 1);
+  assert.equal(musas.clearCounterCalls, 0);
+});
+
 function crearModoFake() {
   return {
     clearAllCalls: 0,
@@ -119,6 +225,7 @@ function crearEstadoMotorFake(overrides = {}) {
     segundosTranscurridos: 0,
     modoActual: "",
     modoAnterior: "",
+    modoPendienteVentaja: "",
     indiceModo: 0,
     modosPendientes: [],
     letraProhibida: "",

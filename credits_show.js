@@ -1,5 +1,7 @@
 const CREDITOS_TEXT_MAX = 80;
 const CREDITOS_AGRADECIMIENTOS_MAX = 420;
+const CREDITOS_MUSAS_MAX = 60;
+const CREDITOS_MUSA_NOMBRE_MAX = 48;
 
 const ESTADO_CREDITOS_POR_DEFECTO = Object.freeze({
     escritxr_rojo: "\u00c1NGELA BUENO",
@@ -13,7 +15,11 @@ const ESTADO_CREDITOS_POR_DEFECTO = Object.freeze({
     iluminacion: "TERESA TIMPER",
     musica: "ARNY RAM\u00cdREZ",
     voz_off: "NINACHASKA ZL",
-    agradecimientos: "SALA EXL\u00cdMITE\nJUAN CEACERO"
+    agradecimientos: "SALA EXL\u00cdMITE\nJUAN CEACERO",
+    musas: Object.freeze({
+        azules: Object.freeze([]),
+        rojas: Object.freeze([])
+    })
 });
 
 const CAMPOS_CREDITOS_ESTADO = Object.freeze([
@@ -44,6 +50,24 @@ const normalizarTextoAgradecimientosShow = (valor, max = CREDITOS_AGRADECIMIENTO
     .join("\n")
     .slice(0, max);
 
+const normalizarListaMusasCreditosShow = (valor = []) => (
+    Array.isArray(valor) ? valor : []
+)
+    .map((nombre) => normalizarTextoCreditoShow(nombre, CREDITOS_MUSA_NOMBRE_MAX))
+    .filter(Boolean)
+    .filter((nombre, indice, lista) => (
+        lista.findIndex((otro) => otro.toLocaleLowerCase() === nombre.toLocaleLowerCase()) === indice
+    ))
+    .slice(0, CREDITOS_MUSAS_MAX);
+
+const normalizarMusasCreditosShow = (entrada = {}) => {
+    const data = (entrada && typeof entrada === "object") ? entrada : {};
+    return {
+        azules: normalizarListaMusasCreditosShow(data.azules),
+        rojas: normalizarListaMusasCreditosShow(data.rojas)
+    };
+};
+
 const normalizarCreditosShow = (entrada = {}) => {
     const data = (entrada && typeof entrada === "object") ? entrada : {};
     const salida = { ...ESTADO_CREDITOS_POR_DEFECTO };
@@ -51,19 +75,26 @@ const normalizarCreditosShow = (entrada = {}) => {
         salida[campo] = normalizarTextoCreditoShow(data[campo], CREDITOS_TEXT_MAX);
     });
     salida.agradecimientos = normalizarTextoAgradecimientosShow(data.agradecimientos, CREDITOS_AGRADECIMIENTOS_MAX);
+    salida.musas = normalizarMusasCreditosShow(data.musas);
     return salida;
 };
 
-function crearGestorCreditosShow({ io, isVisible = () => false } = {}) {
+function crearGestorCreditosShow({ io, isVisible = () => false, getMusasCreditos = () => null } = {}) {
     let estadoCreditos = { ...ESTADO_CREDITOS_POR_DEFECTO };
     let animacionId = 0;
 
-    const payload = () => ({
-        creditos: { ...estadoCreditos },
-        mostrar: Boolean(isVisible()),
-        animacion_id: Number(animacionId) || 0,
-        ts: Date.now()
-    });
+    const payload = () => {
+        const musasActuales = typeof getMusasCreditos === "function" ? getMusasCreditos() : null;
+        const musas = normalizarMusasCreditosShow(
+            musasActuales && typeof musasActuales === "object" ? musasActuales : estadoCreditos.musas
+        );
+        return {
+            creditos: { ...estadoCreditos, musas },
+            mostrar: Boolean(isVisible()),
+            animacion_id: Number(animacionId) || 0,
+            ts: Date.now()
+        };
+    };
 
     const emitir = (socketDestino = null) => {
         const salida = payload();
@@ -105,10 +136,14 @@ function crearGestorCreditosShow({ io, isVisible = () => false } = {}) {
 module.exports = {
     CAMPOS_CREDITOS_ESTADO,
     CREDITOS_AGRADECIMIENTOS_MAX,
+    CREDITOS_MUSAS_MAX,
+    CREDITOS_MUSA_NOMBRE_MAX,
     CREDITOS_TEXT_MAX,
     ESTADO_CREDITOS_POR_DEFECTO,
     crearGestorCreditosShow,
     normalizarCreditosShow,
+    normalizarListaMusasCreditosShow,
+    normalizarMusasCreditosShow,
     normalizarTextoAgradecimientosShow,
     normalizarTextoCreditoShow
 };

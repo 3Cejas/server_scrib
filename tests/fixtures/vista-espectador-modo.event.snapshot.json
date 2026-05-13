@@ -3,6 +3,6 @@
   "override": "nube_inspiracion",
   "calentamiento_vista": false,
   "stats_slide_step": 0,
-  "escala_ui": 1.28,
+  "escala_ui": 1,
   "ts": "__TS__"
 }

@@ -10,6 +10,10 @@
       "count": 1,
       "connected": true
     },
+    "jury": {
+      "count": 0,
+      "connected": false
+    },
     "writers": {
       "1": {
         "count": 1,
@@ -190,7 +194,7 @@
     "override": "partida",
     "calentamiento_vista": true,
     "stats_slide_step": 0,
-    "escala_ui": 1.28,
+    "escala_ui": 1,
     "ts": "__TS__"
   },
   "votacion_ventaja": {
@@ -208,6 +212,7 @@
     "tiempo_restante_ms": "__POSITIVE_MS__",
     "termina_en_ts": "__TS__"
   },
+  "desventajas": [],
   "teleprompter": {
     "state": {
       "visible": true,
@@ -280,6 +285,38 @@
       "2": {
         "count": 0,
         "ts": 0
+      }
+    },
+    "regalo_bandera": {
+      "activa": true,
+      "partida_activa": true,
+      "objetivo": 10,
+      "regalo_secs": 1,
+      "equipos": {
+        "1": {
+          "equipo": 1,
+          "visible": true,
+          "partida_activa": true,
+          "musas": 1,
+          "progreso": 1,
+          "objetivo": 10,
+          "progreso_pct": 10,
+          "regalo_secs": 1,
+          "cooldown_ms": 0,
+          "ultimo_regalo_ts": 0
+        },
+        "2": {
+          "equipo": 2,
+          "visible": true,
+          "partida_activa": true,
+          "musas": 1,
+          "progreso": 0,
+          "objetivo": 10,
+          "progreso_pct": 0,
+          "regalo_secs": 1,
+          "cooldown_ms": 0,
+          "ultimo_regalo_ts": 0
+        }
       }
     }
   },
