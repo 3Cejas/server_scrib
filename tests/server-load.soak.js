@@ -417,8 +417,8 @@ test("server survives a burst of simultaneous role connections and cleans all co
     "all soak roles connected",
     (state) => state.connections.control.count === 2
       && state.connections.spectator.count === 3
-      && state.connections.writers[1].count === 2
-      && state.connections.writers[2].count === 2
+      && state.connections.writers[1].count === 1
+      && state.connections.writers[2].count === 1
       && state.connections.actors[1].count === 2
       && state.connections.actors[2].count === 2
       && state.connections.musas[1].count === 8
@@ -486,14 +486,15 @@ test("server survives a burst of simultaneous role connections and cleans all co
     peakConnections: {
       control: 2,
       spectator: 3,
-      writersPerTeam: 2,
+      activeWritersPerTeam: 1,
+      writerSocketsPerTeam: 2,
       actorsPerTeam: 2,
       musasPerTeam: 8
     },
     partialRemaining: {
       control: 1,
       spectator: 2,
-      writersPerTeam: 1,
+      activeWritersPerTeam: 1,
       musasPerTeam: 4
     }
   });
@@ -549,8 +550,8 @@ test("server survives repeated connection waves without leaking counters", async
       `all soak roles connected in round ${round}`,
       (state) => state.connections.control.count === 2
         && state.connections.spectator.count === 3
-        && state.connections.writers[1].count === 2
-        && state.connections.writers[2].count === 2
+        && state.connections.writers[1].count === 1
+        && state.connections.writers[2].count === 1
         && state.connections.actors[1].count === 2
         && state.connections.actors[2].count === 2
         && state.connections.musas[1].count === 8
@@ -592,7 +593,8 @@ test("server survives repeated connection waves without leaking counters", async
     peakConnections: {
       control: 2,
       spectator: 3,
-      writersPerTeam: 2,
+      activeWritersPerTeam: 1,
+      writerSocketsPerTeam: 2,
       actorsPerTeam: 2,
       musasPerTeam: 8
     }
