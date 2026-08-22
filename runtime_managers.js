@@ -5,6 +5,7 @@ const { crearGestorNubeInspiracion } = require('./nube_inspiracion.js');
 const { crearGestorVotacionRepentizado, opcionConMasVotos } = require('./repentizado_voting.js');
 const { crearGestorResurreccion } = require('./resurrection_channels.js');
 const { crearRegistroRoles } = require('./role_connections.js');
+const { crearGestorPuntuacionFinal } = require('./final_scoring.js');
 const { crearGestorStatsLive } = require('./stats_live.js');
 const { crearGestorVistaEspectador } = require('./spectator_state.js');
 const { crearGestorTeleprompter } = require('./teleprompter.js');
@@ -142,6 +143,10 @@ function crearGestoresVistaEstado({
         io,
         getModoActual
     });
+    const puntuacionFinal = crearGestorPuntuacionFinal({
+        io,
+        getNombreEquipo
+    });
     const nubeInspiracion = crearGestorNubeInspiracion({
         io,
         getModoActual,
@@ -153,12 +158,15 @@ function crearGestoresVistaEstado({
         creditosShow,
         emitirCreditosShow: (socketDestino = null) => creditosShow.emitir(socketDestino),
         emitirNubeInspiracionEstado: nubeInspiracion.emitir,
+        emitirPuntuacionFinal: puntuacionFinal.emitir,
         emitirStatsLive: statsLive.emitir,
         emitirVistaEspectadorModo: espectador.emitir,
         espectador,
         nubeInspiracion,
+        payloadPuntuacionFinal: puntuacionFinal.payload,
         payloadStatsLive: statsLive.payload,
         payloadVistaEspectadorModo: espectador.payload,
+        puntuacionFinal,
         resolverModoVistaEspectador: espectador.resolverModo,
         statsLive
     };

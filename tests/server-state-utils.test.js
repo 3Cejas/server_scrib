@@ -92,6 +92,7 @@ test("stats payload normalizes text lengths, falls back heatmap from top keys an
       1: {
         nombre: "ESCRITORA AZUL CON NOMBRE DEMASIADO LARGO PARA PANEL",
         palabrasTotal: -5,
+        palabrasUnicas: "7",
         pulsacionesTotal: "12",
         topTeclas: [{ code: "KeyA", count: 4 }, { code: "KeyB", count: -1 }],
         heatmap: {},
@@ -110,6 +111,7 @@ test("stats payload normalizes text lengths, falls back heatmap from top keys an
   assert.equal(payload.modo_actual, "palabras bonus con descripcion d");
   assert.equal(payload.players[1].nombre, "ESCRITORA AZUL CON NOMBRE DE");
   assert.equal(payload.players[1].palabrasTotal, 0);
+  assert.equal(payload.players[1].palabrasUnicas, 7);
   assert.equal(payload.players[1].pulsacionesTotal, 12);
   assert.deepEqual(payload.players[1].heatmap, { KeyA: 4, KeyB: 0 });
   assert.equal(payload.players[1].vida.actual, 3);

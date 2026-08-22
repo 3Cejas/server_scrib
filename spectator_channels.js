@@ -8,6 +8,8 @@ function registrarCanalesEspectador({
     emitirVistaEspectadorModo,
     emitirStatsLive,
     statsLive,
+    emitirPuntuacionFinal = () => null,
+    puntuacionFinal = null,
     emitirNubeInspiracionEstado,
     emitirEstadoBanderasMusas,
     emitirCreditosShow,
@@ -18,12 +20,37 @@ function registrarCanalesEspectador({
     creditosShow,
     resolverModoVistaEspectador
 }) {
+    const resolverCallback = (payload, callback) => (
+        typeof payload === "function" ? payload : callback
+    );
+    const opcionesDatosPuntuacion = () => ({
+        datosRecibidos: statsLive && typeof statsLive.payloadDatosRecibidos === "function"
+            ? statsLive.payloadDatosRecibidos()
+            : undefined
+    });
+    const capturarPuntuacionPendiente = () => {
+        if (!puntuacionFinal || typeof puntuacionFinal.capturarPendiente !== "function") {
+            return {
+                ok: false,
+                code: "PUNTUACION_NO_DISPONIBLE",
+                puntuacion: puntuacionFinal && typeof puntuacionFinal.payload === "function"
+                    ? puntuacionFinal.payload()
+                    : null
+            };
+        }
+        const stats = statsLive && typeof statsLive.payload === "function"
+            ? statsLive.payload()
+            : {};
+        return puntuacionFinal.capturarPendiente(stats, opcionesDatosPuntuacion());
+    };
+
     socket.emit("actualizar_contador_musas", obtenerContadorMusas());
     socket.emit("calentamiento_vista", { activo: calentamiento.vista });
     socket.emit("calentamiento_estado_espectador", payloadEstadoCalentamiento());
     emitirIdiomaJuego(socket);
     emitirVistaEspectadorModo(socket);
     emitirStatsLive(socket);
+    emitirPuntuacionFinal(socket);
     emitirNubeInspiracionEstado(socket, true);
     emitirEstadoBanderasMusas(socket);
     emitirEstadoRegaloBanderaMusas(socket);
@@ -41,9 +68,44 @@ function registrarCanalesEspectador({
         emitirStatsLive(socket);
     });
 
-    socket.on("stats_live_actualizar", (payload = {}) => {
-        statsLive.actualizar(payload);
+    socket.on("stats_live_actualizar", (payload = {}, callback = null) => {
+        if (!socket.control) {
+            if (typeof callback === "function") {
+                callback({ ok: false, code: "NOT_AUTHORIZED" });
+            }
+            return;
+        }
+        if (typeof statsLive.actualizarDesdeControl === "function") {
+            statsLive.actualizarDesdeControl(payload);
+        } else {
+            statsLive.actualizar(payload);
+        }
         emitirStatsLive();
+        if (typeof callback === "function") {
+            callback({ ok: true });
+        }
+    });
+
+    socket.on("pedir_puntuacion_final", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        const salida = emitirPuntuacionFinal(socket);
+        if (typeof responder === "function") {
+            responder(salida);
+        }
+    });
+
+    socket.on("capturar_puntuacion_final", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") {
+                responder({ ok: false, code: "NOT_AUTHORIZED" });
+            }
+            return;
+        }
+        const resultado = capturarPuntuacionPendiente();
+        if (typeof responder === "function") {
+            responder(resultado);
+        }
     });
 
     socket.on("pedir_nube_inspiracion", () => {
@@ -101,7 +163,24 @@ function registrarCanalesEspectador({
     });
 
     socket.on("cambiar_vista_espectador_modo", (payload = {}) => {
-        const modoSolicitado = espectador.cambiarModo(payload && payload.modo);
+        const modoEntrada = payload && typeof payload.modo === "string"
+            ? payload.modo.trim().toLowerCase()
+            : "";
+        if (
+            !socket.control
+            && (modoEntrada === "puntuacion" || resolverModoVistaEspectador() === "puntuacion")
+        ) {
+            return;
+        }
+        if (modoEntrada === "puntuacion") {
+            const estadoPuntuacion = puntuacionFinal && typeof puntuacionFinal.payload === "function"
+                ? puntuacionFinal.payload()
+                : null;
+            if (!estadoPuntuacion || estadoPuntuacion.disponible !== true) {
+                return;
+            }
+        }
+        const modoSolicitado = espectador.cambiarModo(modoEntrada);
         if (modoSolicitado === "creditos") {
             creditosShow.incrementarAnimacion();
         }
@@ -109,8 +188,84 @@ function registrarCanalesEspectador({
         emitirCreditosShow();
         if (modoSolicitado === "stats") {
             emitirStatsLive();
+        } else if (modoSolicitado === "puntuacion") {
+            emitirPuntuacionFinal();
         } else if (modoSolicitado === "nube_inspiracion") {
             emitirNubeInspiracionEstado(null, true);
+        }
+    });
+
+    socket.on("mostrar_puntuacion_final", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") {
+                responder({ ok: false, code: "NOT_AUTHORIZED" });
+            }
+            return;
+        }
+        let estado = puntuacionFinal && typeof puntuacionFinal.payload === "function"
+            ? puntuacionFinal.payload()
+            : null;
+        if (!estado || estado.disponible !== true) {
+            const captura = capturarPuntuacionPendiente();
+            if (captura && captura.ok && captura.puntuacion) {
+                estado = captura.puntuacion;
+            }
+        }
+        if (!estado || estado.disponible !== true) {
+            if (typeof responder === "function") {
+                responder({ ok: false, code: "PUNTUACION_NO_DISPONIBLE" });
+            }
+            return;
+        }
+        espectador.cambiarModo("puntuacion");
+        const vista = emitirVistaEspectadorModo();
+        emitirPuntuacionFinal();
+        if (typeof responder === "function") {
+            responder({ ok: true, vista, puntuacion: estado });
+        }
+    });
+
+    const navegarPuntuacion = (direccion, callback = null) => {
+        if (!socket.control) {
+            if (typeof callback === "function") {
+                callback({ ok: false, code: "NOT_AUTHORIZED" });
+            }
+            return;
+        }
+        if (resolverModoVistaEspectador() !== "puntuacion") {
+            if (typeof callback === "function") {
+                callback({ ok: false, code: "PUNTUACION_NO_VISIBLE" });
+            }
+            return;
+        }
+        const paso = espectador.navegarPuntuacion(direccion);
+        const vista = emitirVistaEspectadorModo();
+        if (typeof callback === "function") {
+            callback({ ok: true, paso, vista });
+        }
+    };
+
+    socket.on("puntuacion_final_siguiente", (_payload = {}, callback = null) => {
+        navegarPuntuacion(1, resolverCallback(_payload, callback));
+    });
+
+    socket.on("puntuacion_final_anterior", (_payload = {}, callback = null) => {
+        navegarPuntuacion(-1, resolverCallback(_payload, callback));
+    });
+
+    socket.on("ocultar_puntuacion_final", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") {
+                responder({ ok: false, code: "NOT_AUTHORIZED" });
+            }
+            return;
+        }
+        espectador.cambiarModo("partida");
+        const vista = emitirVistaEspectadorModo();
+        if (typeof responder === "function") {
+            responder({ ok: true, vista });
         }
     });
 

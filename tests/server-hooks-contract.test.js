@@ -661,7 +661,7 @@ test("scrib_test:get_state populated snapshot matches contract", async () => {
 
 test("stats_live_estado event payload matches contract after a deterministic update", async () => {
   const watcher = await connectPassiveSocket();
-  const writer1 = await connectRole("registrar_escritor", 1);
+  const control = await connectRole("registrar_control");
 
   const eventPromise = waitForSocketEvent(
     watcher,
@@ -669,13 +669,14 @@ test("stats_live_estado event payload matches contract after a deterministic upd
     (payload) => payload && payload.players && payload.players[1] && payload.players[1].nombre === "AZUL TEST"
   );
 
-  writer1.emit("stats_live_actualizar", {
+  control.emit("stats_live_actualizar", {
     modo_actual: "palabras bonus",
     players: {
       1: {
         id: 1,
         nombre: "AZUL TEST",
         palabrasTotal: 12,
+        palabrasUnicas: 9,
         pulsacionesTotal: 58,
         teclasDistintas: 14,
         topTeclas: [
@@ -703,6 +704,7 @@ test("stats_live_estado event payload matches contract after a deterministic upd
         id: 2,
         nombre: "ROJO TEST",
         palabrasTotal: 9,
+        palabrasUnicas: 7,
         pulsacionesTotal: 41,
         teclasDistintas: 11,
         topTeclas: [
@@ -730,6 +732,82 @@ test("stats_live_estado event payload matches contract after a deterministic upd
 
   const payload = await eventPromise;
   await assertSnapshot("stats-live.event.snapshot.json", sanitizeState(payload));
+});
+
+test("final score captures final control telemetry once after both players finish", async () => {
+  const control = await connectRole("registrar_control");
+  const passive = await connectPassiveSocket();
+  await emitAck(adminSocket, "scrib_test:force_mode", { mode: "frase final" });
+
+  await emitAck(control, "stats_live_actualizar", {
+    players: {
+      1: { palabrasTotal: 2, palabrasUnicas: 2, ritmoPpm: 5, vida: { media: 1 } },
+      2: { palabrasTotal: 200, palabrasUnicas: 100, ritmoPpm: 100, vida: { media: 50 } }
+    }
+  });
+  await emitAck(adminSocket, "scrib_test:force_finish_player", {
+    player: 1,
+    reiniciar: false,
+    mostrar_resurreccion: false
+  });
+  const fin = await emitAck(adminSocket, "scrib_test:force_finish_player", {
+    player: 2,
+    mostrar_resurreccion: false
+  });
+  assert.equal(fin.state.puntuacion_final.disponible, false);
+  assert.equal(fin.state.puntuacion_final.calculado_en_ts, 0);
+
+  const finalStatsAck = await emitAck(control, "stats_live_actualizar", {
+    modo_actual: "frase final",
+    players: {
+      1: {
+        palabrasTotal: 100,
+        palabrasUnicas: 70,
+        ritmoPpm: 90,
+        palabrasBenditas: ["luz", "mar", "sol"],
+        intentosLetraProhibida: 0,
+        intentosPalabraProhibida: 1,
+        vida: { media: 45 }
+      },
+      2: {
+        palabrasTotal: 40,
+        palabrasUnicas: 20,
+        ritmoPpm: 50,
+        palabrasBenditas: ["fuego"],
+        intentosLetraProhibida: 2,
+        intentosPalabraProhibida: 2,
+        vida: { media: 20 }
+      }
+    }
+  });
+  assert.deepEqual(finalStatsAck, { ok: true });
+
+  const noAutorizada = await emitAck(passive, "capturar_puntuacion_final", {});
+  assert.deepEqual(noAutorizada, { ok: false, code: "NOT_AUTHORIZED" });
+
+  const primera = await emitAck(control, "capturar_puntuacion_final", {});
+  assert.equal(primera.ok, true);
+  assert.equal(primera.capturada, true);
+  assert.equal(primera.puntuacion.disponible, true);
+  assert.equal(primera.puntuacion.datos_suficientes, true);
+  assert.equal(primera.puntuacion.ganador, 1);
+  assert.equal(primera.puntuacion.categorias.length, 6);
+  const totalFijado = primera.puntuacion.jugadores[1].total;
+  const tsFijado = primera.puntuacion.calculado_en_ts;
+
+  await emitAck(control, "stats_live_actualizar", {
+    players: {
+      1: { palabrasTotal: 1, palabrasUnicas: 1, ritmoPpm: 1, vida: { media: 1 } },
+      2: { palabrasTotal: 999, palabrasUnicas: 999, ritmoPpm: 999, vida: { media: 999 } }
+    }
+  });
+  const repetida = await emitAck(control, "capturar_puntuacion_final", {});
+  assert.equal(repetida.ok, true);
+  assert.equal(repetida.capturada, false);
+  assert.equal(repetida.ya_capturada, true);
+  assert.equal(repetida.puntuacion.jugadores[1].total, totalFijado);
+  assert.equal(repetida.puntuacion.calculado_en_ts, tsFijado);
+  assert.equal(repetida.puntuacion.ganador, 1);
 });
 
 test("teleprompter_state event payload matches contract after control update", async () => {

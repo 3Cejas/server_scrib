@@ -212,12 +212,15 @@ function crearRuntimeScrib({
         creditosShow,
         emitirCreditosShow,
         emitirNubeInspiracionEstado,
+        emitirPuntuacionFinal,
         emitirStatsLive,
         emitirVistaEspectadorModo,
         espectador,
         nubeInspiracion,
+        payloadPuntuacionFinal,
         payloadStatsLive,
         payloadVistaEspectadorModo,
+        puntuacionFinal,
         resolverModoVistaEspectador,
         statsLive
     } = gestoresVistaEstado;
@@ -249,7 +252,8 @@ function crearRuntimeScrib({
         payloadEstadoResurreccion,
         obtenerContadorMusas,
         musasAuxiliares,
-        payloadStatsLive
+        payloadStatsLive,
+        payloadPuntuacionFinal
     });
 
     const resetearEstadoAuxiliarParaTests = () => {
@@ -275,7 +279,7 @@ function crearRuntimeScrib({
         calentamientoGestor.reset();
     };
 
-    const reiniciarEstadoPartida = (socket) => partidaLifecycle.reiniciarEstadoPartida(socket);
+    const reiniciarEstadoPartida = (socket, opciones = {}) => partidaLifecycle.reiniciarEstadoPartida(socket, opciones);
     const finalizarPartida = (socket) => partidaLifecycle.finalizarPartida(socket);
 
     motorModos = crearMotorModos({
@@ -323,6 +327,8 @@ function crearRuntimeScrib({
         getRanges,
         statsLive,
         emitirStatsLive,
+        puntuacionFinal,
+        emitirPuntuacionFinal,
         emitirNubeInspiracionEstado,
         emitirModoActual,
         limpiarDesventajasActivas: () => desventajasActivas.reset(),
@@ -377,6 +383,8 @@ function crearRuntimeScrib({
         emitirVistaEspectadorModo,
         emitirStatsLive,
         statsLive,
+        emitirPuntuacionFinal,
+        puntuacionFinal,
         emitirNubeInspiracionEstado,
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
@@ -420,6 +428,7 @@ function crearRuntimeScrib({
         emitirPedirInspiracionMusa,
         emitirActivarModo,
         payloadStatsLive,
+        payloadPuntuacionFinal,
         construirEstadoTest,
         resetearEstadoAuxiliarParaTests,
         emitirModoActual,

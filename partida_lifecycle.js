@@ -15,6 +15,8 @@ function crearCicloPartida({
     getRanges,
     statsLive,
     emitirStatsLive,
+    puntuacionFinal = null,
+    emitirPuntuacionFinal = () => null,
     emitirNubeInspiracionEstado,
     emitirModoActual,
     limpiarDesventajasActivas = () => {},
@@ -38,7 +40,21 @@ function crearCicloPartida({
         }
     };
 
-    const resetearCursoPartida = ({ reiniciarIndice = true } = {}) => {
+    const prepararCapturaPuntuacionFinal = () => {
+        if (!puntuacionFinal || typeof puntuacionFinal.prepararCaptura !== "function") {
+            return false;
+        }
+        return puntuacionFinal.prepararCaptura();
+    };
+
+    const resetearPuntuacionFinal = () => {
+        if (puntuacionFinal && typeof puntuacionFinal.reset === "function") {
+            puntuacionFinal.reset();
+        }
+        return emitirPuntuacionFinal();
+    };
+
+    const resetearCursoPartida = ({ reiniciarIndice = true, resetearStats = false } = {}) => {
         state.modosPendientes = [...state.listaModos];
         if (reiniciarIndice) {
             state.indiceModo = 0;
@@ -49,12 +65,26 @@ function crearCicloPartida({
         partidaSync.siguienteModoSeq();
         partidaSync.resetTiempoSeq();
         partidaSync.resetConteoSync();
-        statsLive.actualizar({ modo_actual: "" });
-        emitirStatsLive();
+        if (resetearStats) {
+            if (typeof statsLive.reset === "function") {
+                statsLive.reset();
+            } else {
+                statsLive.actualizar({ modo_actual: "" });
+            }
+            emitirStatsLive();
+        }
         emitirNubeInspiracionEstado(null, true);
     };
 
-    const reiniciarEstadoPartida = (socket) => {
+    const reiniciarEstadoPartida = (socket, opciones = {}) => {
+        const prepararPuntuacion = opciones.prepararPuntuacion !== false
+            && opciones.capturarPuntuacion !== false;
+        const conservarStats = opciones.conservarStats !== false;
+        if (prepararPuntuacion) {
+            prepararCapturaPuntuacionFinal();
+        } else if (opciones.resetearPuntuacion === true) {
+            resetearPuntuacionFinal();
+        }
         state.finJ1 = false;
         state.finJ2 = false;
         state.transicionModoEnCurso = false;
@@ -68,11 +98,15 @@ function crearCicloPartida({
         limpiarDesventajasActivas();
         activarSocketsExtratextuales(socket);
         resetearEstadoResurreccion();
-        resetearCursoPartida({ reiniciarIndice: false });
+        resetearCursoPartida({
+            reiniciarIndice: false,
+            resetearStats: !conservarStats
+        });
         emitirMenusResurreccion();
     };
 
     const finalizarPartida = (socket) => {
+        prepararCapturaPuntuacionFinal();
         state.finJ1 = true;
         state.finJ2 = true;
         state.transicionModoEnCurso = false;
@@ -86,7 +120,7 @@ function crearCicloPartida({
         limpiarDesventajasActivas();
         activarSocketsExtratextuales(socket);
         resetearEstadoResurreccion();
-        resetearCursoPartida({ reiniciarIndice: true });
+        resetearCursoPartida({ reiniciarIndice: true, resetearStats: false });
         emitirMenusResurreccion();
         io.emit('fin_a_control');
     };
@@ -95,6 +129,7 @@ function crearCicloPartida({
         const parametros = (datos && datos.parametros) || {};
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
+        resetearPuntuacionFinal();
         limpiarDesventajasActivas();
         setPartidaPausada(false);
         musasAuxiliares.resetRegalos({ emitir: true });
@@ -116,7 +151,11 @@ function crearCicloPartida({
         state.modoActual = "";
         state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
-        statsLive.actualizar({ modo_actual: "" });
+        if (typeof statsLive.reset === "function") {
+            statsLive.reset();
+        } else {
+            statsLive.actualizar({ modo_actual: "" });
+        }
         emitirStatsLive();
         state.tiempoCambioModos = state.duracionTiempoModos;
         socket.broadcast.emit('inicio', datos);
@@ -142,6 +181,7 @@ function crearCicloPartida({
         limpiarTimersPalabras();
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
+        resetearPuntuacionFinal();
         limpiarDesventajasActivas();
         setPartidaPausada(false);
         state.estadoJugadores[1].finished = true;
@@ -156,7 +196,11 @@ function crearCicloPartida({
         state.modoActual = "";
         state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
-        statsLive.actualizar({ modo_actual: "" });
+        if (typeof statsLive.reset === "function") {
+            statsLive.reset();
+        } else {
+            statsLive.actualizar({ modo_actual: "" });
+        }
         emitirStatsLive();
         state.nuevaPalabraJ1 = false;
         state.nuevaPalabraJ2 = false;

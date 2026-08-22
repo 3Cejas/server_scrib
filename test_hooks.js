@@ -60,7 +60,11 @@ function registrarTestHooks({
 
     socket.on('scrib_test:reset', (payload, callback) => {
         const args = resolverHookTestArgs(payload, callback);
-        reiniciarEstadoPartida(socket);
+        reiniciarEstadoPartida(socket, {
+            prepararPuntuacion: false,
+            conservarStats: false,
+            resetearPuntuacion: true
+        });
         resetearEstadoAuxiliarParaTests();
         partidaSync.siguienteModoSeq();
         io.emit('texto1', '');

@@ -15,7 +15,8 @@ function crearRuntimeStateSnapshot({
     payloadEstadoResurreccion,
     obtenerContadorMusas,
     musasAuxiliares,
-    payloadStatsLive
+    payloadStatsLive,
+    payloadPuntuacionFinal = () => null
 }) {
     let timelineModosTest = [];
 
@@ -55,7 +56,8 @@ function crearRuntimeStateSnapshot({
             contador: obtenerContadorMusas(),
             ...musasAuxiliares.snapshot()
         },
-        stats: payloadStatsLive()
+        stats: payloadStatsLive(),
+        puntuacion_final: payloadPuntuacionFinal()
     });
 
     return {

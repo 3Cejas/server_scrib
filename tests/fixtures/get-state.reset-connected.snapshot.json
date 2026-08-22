@@ -166,6 +166,7 @@
     "override": "partida",
     "calentamiento_vista": false,
     "stats_slide_step": 0,
+    "puntuacion_slide_step": 0,
     "escala_ui": 1,
     "ts": "__TS__"
   },
@@ -293,6 +294,7 @@
         "id": 1,
         "nombre": "ESCRITXR 1",
         "palabrasTotal": 0,
+        "palabrasUnicas": 0,
         "pulsacionesTotal": 0,
         "teclasDistintas": 0,
         "topTeclas": [],
@@ -317,6 +319,7 @@
         "id": 2,
         "nombre": "ESCRITXR 2",
         "palabrasTotal": 0,
+        "palabrasUnicas": 0,
         "pulsacionesTotal": 0,
         "teclasDistintas": 0,
         "topTeclas": [],
@@ -338,5 +341,32 @@
         "intentosPalabraProhibida": 0
       }
     }
+  },
+  "puntuacion_final": {
+    "schema_version": 1,
+    "formula_version": "scrib-puntuacion-v1",
+    "disponible": false,
+    "datos_suficientes": false,
+    "calculado_en_ts": 0,
+    "fuentes_datos": {
+      "1": false,
+      "2": false
+    },
+    "jugadores": {
+      "1": {
+        "id": 1,
+        "nombre": "ESCRITXR 1",
+        "total": 0
+      },
+      "2": {
+        "id": 2,
+        "nombre": "ESCRITXR 2",
+        "total": 0
+      }
+    },
+    "categorias": [],
+    "ganador": null,
+    "empate": false,
+    "diferencia": 0
   }
 }

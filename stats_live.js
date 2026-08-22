@@ -10,6 +10,7 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
     });
 
     let estado = normalizar({});
+    let datosRecibidos = { 1: false, 2: false };
 
     const payload = () => ({
         ts: estado.ts || Date.now(),
@@ -25,7 +26,28 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
         return payload();
     };
 
-    const reset = () => actualizar({ modo_actual: "" });
+    const actualizarDesdeControl = (entrada = {}) => {
+        const players = entrada && entrada.players && typeof entrada.players === "object"
+            ? entrada.players
+            : {};
+        [1, 2].forEach((player) => {
+            if (
+                Object.prototype.hasOwnProperty.call(players, player)
+                && players[player]
+                && typeof players[player] === "object"
+            ) {
+                datosRecibidos[player] = true;
+            }
+        });
+        return actualizar(entrada);
+    };
+
+    const reset = () => {
+        datosRecibidos = { 1: false, 2: false };
+        return actualizar({ modo_actual: "" });
+    };
+
+    const payloadDatosRecibidos = () => ({ ...datosRecibidos });
 
     const emitir = (socketDestino = null) => {
         const salida = payload();
@@ -41,8 +63,10 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
 
     return {
         actualizar,
+        actualizarDesdeControl,
         emitir,
         payload,
+        payloadDatosRecibidos,
         reset
     };
 }
