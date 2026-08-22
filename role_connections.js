@@ -2,9 +2,33 @@ const ROLE_ROOMS = Object.freeze({
     CONTROL: "role_control",
     SPECTATOR: "role_espectador",
     JURY: "role_jurado",
+    DRAMATURGY: "role_dramaturgia",
     writer: (player) => `role_escritor_${player}`,
     actor: (player) => `role_actor_${player}`
 });
+
+const MONITOR_ROLES = new Set([
+    "control",
+    "escritor",
+    "musa",
+    "actor",
+    "espectador",
+    "jurado"
+]);
+
+function normalizarRolMonitor(valor) {
+    const rol = String(valor || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]+/g, "");
+    if (rol === "writer" || rol === "escritora" || rol === "escritor" || rol === "escritxr") return "escritor";
+    if (rol === "muse" || rol === "musa") return "musa";
+    if (rol === "actors" || rol === "actores" || rol === "actorxs" || rol === "actor") return "actor";
+    if (rol === "spectator" || rol === "publico" || rol === "espectador") return "espectador";
+    if (rol === "jury" || rol === "judge" || rol === "jurado") return "jurado";
+    if (rol === "control") return "control";
+    return "";
+}
 
 function crearRegistroRoles({
     validarJugador = (valor) => {
@@ -30,6 +54,7 @@ function crearRegistroRoles({
     const controles = new Set();
     const espectadores = new Set();
     const jurados = new Set();
+    const dramaturgos = new Set();
     const actores = {
         1: new Set(),
         2: new Set()
@@ -103,6 +128,10 @@ function crearRegistroRoles({
             count: jurados.size,
             connected: jurados.size > 0
         },
+        dramaturgia: {
+            count: dramaturgos.size,
+            connected: dramaturgos.size > 0
+        },
         writers: {
             1: {
                 count: escritores[1].size,
@@ -168,6 +197,63 @@ function crearRegistroRoles({
         socket.join("j2");
         socket.join(ROLE_ROOMS.JURY);
         return payloadConexiones();
+    };
+
+    const registrarDramaturgia = (socket) => {
+        socket.dramaturgia = true;
+        dramaturgos.add(socket.id);
+        socket.join("j1");
+        socket.join("j2");
+        socket.join(ROLE_ROOMS.DRAMATURGY);
+        return payloadConexiones();
+    };
+
+    const salasMonitor = ({ rol, player }) => {
+        if (rol === "musa") {
+            return [`j${player}`, `musa_j${player}`];
+        }
+        if (rol === "escritor") {
+            return [`j${player}`, ROLE_ROOMS.writer(player)];
+        }
+        if (rol === "actor") {
+            return [`j${player}`, ROLE_ROOMS.actor(player)];
+        }
+        if (rol === "espectador") {
+            return ["j1", "j2", ROLE_ROOMS.SPECTATOR];
+        }
+        if (rol === "jurado") {
+            return ["j1", "j2", ROLE_ROOMS.JURY];
+        }
+        return ["j1", "j2", ROLE_ROOMS.CONTROL];
+    };
+
+    const registrarMonitorPantalla = (socket, payload = {}) => {
+        const data = (payload && typeof payload === "object") ? payload : { rol: payload };
+        const rol = normalizarRolMonitor(data.rol ?? data.role ?? data.tipo);
+        const requiereEquipo = rol === "escritor" || rol === "musa" || rol === "actor";
+        const player = validarJugador(data.player ?? data.equipo ?? data.team);
+        if (!MONITOR_ROLES.has(rol) || (requiereEquipo && !player)) {
+            return { ok: false, rol: "", player: null, solo_lectura: true };
+        }
+
+        const anterior = socket.monitor_pantalla;
+        if (anterior && Array.isArray(anterior.salas)) {
+            anterior.salas.forEach((sala) => socket.leave(sala));
+        }
+        const salas = salasMonitor({ rol, player });
+        socket.monitor_pantalla = {
+            rol,
+            player: requiereEquipo ? player : null,
+            salas
+        };
+        salas.forEach((sala) => socket.join(sala));
+        return {
+            ok: true,
+            rol,
+            player: requiereEquipo ? player : null,
+            solo_lectura: true,
+            salas: [...salas]
+        };
     };
 
     const normalizarPayloadEscritor = (payload) => {
@@ -301,6 +387,9 @@ function crearRegistroRoles({
         if (socket.jurado) {
             jurados.delete(socket.id);
         }
+        if (socket.dramaturgia) {
+            dramaturgos.delete(socket.id);
+        }
         const actorId = validarJugador(socket.actor);
         if (actorId) {
             actores[actorId].delete(socket.id);
@@ -325,9 +414,11 @@ function crearRegistroRoles({
         registrarMusaEnCreditosPartida,
         registrarActor,
         registrarControl,
+        registrarDramaturgia,
         registrarEscritor,
         registrarEspectador,
         registrarJurado,
+        registrarMonitorPantalla,
         registrarMusa,
         reiniciarMusasCreditosPartidaDesdeActivas
     };
@@ -335,5 +426,7 @@ function crearRegistroRoles({
 
 module.exports = {
     crearRegistroRoles,
+    MONITOR_ROLES,
+    normalizarRolMonitor,
     ROLE_ROOMS
 };

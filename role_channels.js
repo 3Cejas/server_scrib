@@ -1,3 +1,5 @@
+const DRAMATURGIA_UI_VERSION = "dramaturgia-complete-show-v10";
+
 function registrarCanalesRoles({
     socket,
     io,
@@ -13,26 +15,101 @@ function registrarCanalesRoles({
     emitirEstadoBanderasMusas,
     sincronizarEstadoMusa,
     sincronizarSocketRecienConectado,
+    emitirEstadoDramaturgia = () => null,
+    simuladorPartidas = null,
     registrarMusaEnCreditosPartida = () => {},
     getPartidaActivaParaCreditos = () => false,
     registrar = () => {}
 }) {
+    const protegerEntradaHumana = (rol) => {
+        if (
+            simuladorPartidas
+            && typeof simuladorPartidas.abortForHumanRole === "function"
+        ) {
+            simuladorPartidas.abortForHumanRole(socket, rol);
+        }
+    };
+
     socket.on("registrar_espectador", () => {
+        protegerEntradaHumana("espectador");
         rolesConectados.registrarEspectador(socket);
         sincronizarSocketRecienConectado(socket);
     });
 
     socket.on("registrar_jurado", () => {
+        protegerEntradaHumana("jurado");
         rolesConectados.registrarJurado(socket);
         sincronizarSocketRecienConectado(socket);
     });
 
+    socket.on("registrar_dramaturgia", (payload = {}) => {
+        const uiVersion = String(
+            payload && typeof payload === "object"
+                ? (payload.ui_version ?? payload.uiVersion ?? "")
+                : payload
+        ).trim();
+        rolesConectados.registrarDramaturgia(socket);
+        sincronizarSocketRecienConectado(socket);
+        if (uiVersion !== DRAMATURGIA_UI_VERSION) {
+            socket.emit("recargar_rol_remoto", {
+                rol: "dramaturgia",
+                motivo: "ui_desactualizada",
+                ui_version: DRAMATURGIA_UI_VERSION,
+                ts: Date.now()
+            });
+        }
+    });
+
+    socket.on("registrar_monitor_pantalla", (payload = {}, callback = null) => {
+        const tieneRolReal = Boolean(
+            socket.control
+            || socket.espectador
+            || socket.jurado
+            || socket.escritxr
+            || socket.musa
+            || socket.actor
+        );
+        if (!socket.monitor_pantalla_solicitada || tieneRolReal) {
+            const rechazo = {
+                ok: false,
+                code: tieneRolReal ? "ROLE_ALREADY_REGISTERED" : "MONITOR_HANDSHAKE_REQUIRED",
+                rol: "",
+                player: null,
+                solo_lectura: true
+            };
+            if (typeof callback === "function") callback(rechazo);
+            socket.emit("monitor_pantalla_estado", rechazo);
+            return;
+        }
+        const resultado = rolesConectados.registrarMonitorPantalla(socket, payload);
+        if (!resultado.ok) {
+            if (typeof callback === "function") callback(resultado);
+            socket.emit("monitor_pantalla_estado", resultado);
+            return;
+        }
+        sincronizarSocketRecienConectado(socket);
+        if (resultado.rol === "musa") {
+            sincronizarEstadoMusa(socket);
+        }
+        socket.emit("monitor_pantalla_estado", resultado);
+        if (typeof callback === "function") callback(resultado);
+    });
+
+    socket.on("pedir_estado_dramaturgia", () => {
+        if (!socket.dramaturgia) {
+            return;
+        }
+        emitirEstadoDramaturgia(socket);
+    });
+
     socket.on("registrar_control", () => {
+        protegerEntradaHumana("control");
         rolesConectados.registrarControl(socket);
         sincronizarSocketRecienConectado(socket);
     });
 
     socket.on("registrar_escritor", (escritxr) => {
+        protegerEntradaHumana("escritor");
         const registro = rolesConectados.registrarEscritor(socket, escritxr);
         if (!registro.ok) {
             console.warn(`[servidor] register_escritor: id invalido (${escritxr})`);
@@ -73,12 +150,14 @@ function registrarCanalesRoles({
     });
 
     socket.on("registrar_actor", (payload = {}) => {
+        protegerEntradaHumana("actor");
         const registro = rolesConectados.registrarActor(socket, payload);
         if (!registro.ok) return;
         sincronizarSocketRecienConectado(socket);
     });
 
     socket.on("registrar_musa", (evento) => {
+        protegerEntradaHumana("musa");
         const datos_musa = (evento && typeof evento === "object") ? evento : { musa: evento };
         const id_jugador = obtenerIdJugadorValido(datos_musa.musa);
         const nombre_musa = normalizarNombreMusa(datos_musa.nombre) || "MUSA";
@@ -156,5 +235,6 @@ function registrarCanalesRoles({
 }
 
 module.exports = {
+    DRAMATURGIA_UI_VERSION,
     registrarCanalesRoles
 };

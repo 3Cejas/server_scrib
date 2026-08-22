@@ -13,7 +13,7 @@ function crearSocket(id) {
   };
 }
 
-test("role registry tracks writers, control, spectators, jury and actors", () => {
+test("role registry tracks writers, control, spectators, jury, dramaturgy and actors", () => {
   const roles = crearRegistroRoles({ now: () => 1234 });
   const control = crearSocket("control");
   const spectator = crearSocket("spectator");
@@ -52,6 +52,7 @@ test("role registry tracks writers, control, spectators, jury and actors", () =>
       control: { count: 1, connected: true },
       spectator: { count: 1, connected: true },
       jury: { count: 1, connected: true },
+      dramaturgia: { count: 0, connected: false },
       writers: {
         1: { count: 1, connected: true },
         2: { count: 0, connected: false }
@@ -66,6 +67,93 @@ test("role registry tracks writers, control, spectators, jury and actors", () =>
       }
     }
   });
+});
+
+test("role registry keeps dramaturgy registration idempotent and cleans it on disconnect", () => {
+  const roles = crearRegistroRoles();
+  const dramaturgy = crearSocket("dramaturgy");
+
+  roles.registrarDramaturgia(dramaturgy);
+  roles.registrarDramaturgia(dramaturgy);
+
+  assert.equal(ROLE_ROOMS.DRAMATURGY, "role_dramaturgia");
+  assert.equal(dramaturgy.dramaturgia, true);
+  assert.equal(dramaturgy.salas.has("j1"), true);
+  assert.equal(dramaturgy.salas.has("j2"), true);
+  assert.equal(dramaturgy.salas.has(ROLE_ROOMS.DRAMATURGY), true);
+  assert.deepEqual(
+    roles.payloadConexiones().dramaturgia,
+    { count: 1, connected: true }
+  );
+
+  roles.desregistrarSocket(dramaturgy);
+  assert.deepEqual(
+    roles.payloadConexiones().dramaturgia,
+    { count: 0, connected: false }
+  );
+});
+
+test("screen monitors join live rooms without becoming real roles or changing counters", () => {
+  const roles = crearRegistroRoles();
+  const writerMonitor = crearSocket("monitor-writer");
+  const museMonitor = crearSocket("monitor-muse");
+  const controlMonitor = crearSocket("monitor-control");
+
+  const writer = roles.registrarMonitorPantalla(writerMonitor, { role: "writer", player: 1 });
+  const muse = roles.registrarMonitorPantalla(museMonitor, { rol: "musa", equipo: 2 });
+  const control = roles.registrarMonitorPantalla(controlMonitor, { rol: "control" });
+
+  assert.deepEqual(writer, {
+    ok: true,
+    rol: "escritor",
+    player: 1,
+    solo_lectura: true,
+    salas: ["j1", ROLE_ROOMS.writer(1)]
+  });
+  assert.equal(writerMonitor.salas.has("j1"), true);
+  assert.equal(writerMonitor.salas.has(ROLE_ROOMS.writer(1)), true);
+  assert.equal(muse.ok, true);
+  assert.equal(museMonitor.salas.has("j2"), true);
+  assert.equal(museMonitor.salas.has("musa_j2"), true);
+  assert.equal(control.ok, true);
+  assert.equal(controlMonitor.salas.has("j1"), true);
+  assert.equal(controlMonitor.salas.has("j2"), true);
+  assert.equal(controlMonitor.salas.has(ROLE_ROOMS.CONTROL), true);
+
+  assert.deepEqual(roles.payloadConexiones(), {
+    control: { count: 0, connected: false },
+    spectator: { count: 0, connected: false },
+    jury: { count: 0, connected: false },
+    dramaturgia: { count: 0, connected: false },
+    writers: {
+      1: { count: 0, connected: false },
+      2: { count: 0, connected: false }
+    },
+    musas: {
+      1: { count: 0, connected: false },
+      2: { count: 0, connected: false }
+    },
+    actors: {
+      1: { count: 0, connected: false },
+      2: { count: 0, connected: false }
+    }
+  });
+});
+
+test("screen monitor registration validates team roles and moves rooms cleanly", () => {
+  const roles = crearRegistroRoles();
+  const monitor = crearSocket("monitor");
+
+  assert.equal(roles.registrarMonitorPantalla(monitor, { rol: "actor" }).ok, false);
+  roles.registrarMonitorPantalla(monitor, { rol: "musa", player: 1 });
+  roles.registrarMonitorPantalla(monitor, { rol: "escritxr", player: 2 });
+
+  assert.equal(monitor.salas.has("j1"), false);
+  assert.equal(monitor.salas.has("musa_j1"), false);
+  assert.equal(monitor.salas.has("j2"), true);
+  assert.equal(monitor.salas.has(ROLE_ROOMS.writer(2)), true);
+  assert.equal(monitor.monitor_pantalla.rol, "escritor");
+  assert.equal(monitor.monitor_pantalla.player, 2);
 });
 
 test("role registry moves actors between teams and cleans disconnected sockets", () => {

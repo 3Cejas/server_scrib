@@ -76,6 +76,30 @@ test("writer channels handles names, forced musa name requests and mode sync", (
   ]);
 });
 
+test("writer channels resolve actor and monitor teams when requests omit a payload", () => {
+  const canales = crearCanalesEscritor();
+  const writer = crearSocket("names");
+  const actor = crearSocket("actor-2");
+  const monitor = crearSocket("monitor-actor-2");
+  actor.actor = 2;
+  monitor.monitor_pantalla = { rol: "actor", player: 2 };
+
+  canales.registrarHandlers(writer);
+  canales.registrarHandlers(actor);
+  canales.registrarHandlers(monitor);
+  writer.trigger("env\u00edo_nombre1", "AZUL");
+  writer.trigger("env\u00edo_nombre2", "ROJO");
+  actor.trigger("pedir_nombre");
+  monitor.trigger("pedir_nombre");
+  monitor.trigger("pedir_texto");
+
+  assert.deepEqual(actor.emitidos.at(-1), { event: "dar_nombre", payload: "ROJO" });
+  assert.deepEqual(monitor.emitidos, [
+    { event: "dar_nombre", payload: "ROJO" },
+    { event: "texto2", payload: "" }
+  ]);
+});
+
 test("writer channels returns texts and attributes snapshots", () => {
   const canales = crearCanalesEscritor({
     sesionesEscritor: { esActiva: () => true },

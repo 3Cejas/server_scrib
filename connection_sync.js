@@ -4,6 +4,7 @@ function crearSincronizadorConexion({
     emitirEstadoVotacionVentaja,
     emitirNubeInspiracionEstado,
     teleprompter,
+    emitirEstadoDramaturgia = null,
     emitirEstadoDesventajasActivas = null,
     emitirEstadoPalabrasMusasControl = null,
     partidaSync,
@@ -53,7 +54,10 @@ function crearSincronizadorConexion({
 
     const sincronizarEstadoMusa = (socket) => {
         if (!socket) return;
-        const equipo = obtenerIdJugadorValido(socket.musa);
+        const monitor = socket.monitor_pantalla && socket.monitor_pantalla.rol === "musa"
+            ? socket.monitor_pantalla.player
+            : null;
+        const equipo = obtenerIdJugadorValido(socket.musa) || obtenerIdJugadorValido(monitor);
 
         if (equipo === 1) {
             socket.emit('texto1', writerChannels.getTextoHtml(1));
@@ -80,6 +84,12 @@ function crearSincronizadorConexion({
     const sincronizarSocketRecienConectado = (socket) => {
         if (!socket || typeof socket.emit !== 'function') {
             return;
+        }
+        if (
+            socket.dramaturgia
+            && typeof emitirEstadoDramaturgia === 'function'
+        ) {
+            emitirEstadoDramaturgia(socket);
         }
         writerChannels.emitirTextos(socket);
         resurreccion.sincronizarSocket(socket);

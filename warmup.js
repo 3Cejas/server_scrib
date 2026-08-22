@@ -465,9 +465,16 @@ function crearGestorCalentamiento({
             socketObjetivo.emit("calentamiento_estado_musa", payload);
             return payload;
         }
-        musasPorEquipo[equipo].forEach((info) => {
-            info.socket.emit("calentamiento_estado_musa", payload);
-        });
+        // La sala incluye tanto a las musas participantes como a sus réplicas
+        // de Dramaturgia. Así la vista de solo lectura recorre el calentamiento
+        // sin registrarse como jugadora ni alterar el estado del equipo.
+        if (io && typeof io.to === "function") {
+            io.to(`musa_j${equipo}`).emit("calentamiento_estado_musa", payload);
+        } else {
+            musasPorEquipo[equipo].forEach((info) => {
+                info.socket.emit("calentamiento_estado_musa", payload);
+            });
+        }
         return payload;
     };
 

@@ -343,6 +343,80 @@ test("scrib_test:get_state initial snapshot matches contract", async () => {
   await assertSnapshot("get-state.initial.snapshot.json", sanitizeState(state));
 });
 
+test("dramaturgy registration returns current state and replays semantic live events", async () => {
+  const dramaturgy = await connectPassiveSocket();
+  const initialPromise = waitForSocketEvent(
+    dramaturgy,
+    "dramaturgia_estado",
+    (payload) => payload && payload.connections
+      && payload.connections.dramaturgia
+      && payload.connections.dramaturgia.count === 1
+  );
+
+  dramaturgy.emit("registrar_dramaturgia");
+  const initial = await initialPromise;
+
+  assert.equal(initial.schema_version, 1);
+  assert.deepEqual(Object.keys(initial.session), ["id", "started_at", "last_seq"]);
+  assert.equal(typeof initial.session.id, "string");
+  assert.ok(initial.session.started_at > 0);
+  assert.equal(initial.partida.modo_actual, "");
+  assert.equal(Object.prototype.hasOwnProperty.call(initial, "enabled"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(initial, "actual"), false);
+  assert.deepEqual(initial.nombres, { 1: "", 2: "" });
+  assert.deepEqual(initial.atributos, { 1: {}, 2: {} });
+  assert.equal(typeof initial.conteos[1].modo_seq, "number");
+  assert.ok(Array.isArray(initial.eventos));
+
+  const modeEventPromise = waitForSocketEvent(
+    dramaturgy,
+    "dramaturgia_evento",
+    (payload) => payload && payload.tipo === "modo"
+      && payload.modo === "letra bendita"
+  );
+  await emitAck(adminSocket, "scrib_test:force_mode", {
+    mode: "letra bendita",
+    letra: "K"
+  });
+  const modeEvent = await modeEventPromise;
+  assert.equal(typeof modeEvent.checkpoint_id, "string");
+  assert.ok(modeEvent.checkpoint_id.length > 0);
+  assert.deepEqual(Object.keys(modeEvent), [
+    "id",
+    "seq",
+    "ts",
+    "checkpoint_id",
+    "tipo",
+    "titulo",
+    "detalle",
+    "espacio",
+    "fase",
+    "modo",
+    "modo_seq",
+    "causa_ids",
+    "hechos"
+  ]);
+
+  const replayPromise = waitForSocketEvent(
+    dramaturgy,
+    "dramaturgia_estado",
+    (payload) => payload && Array.isArray(payload.eventos)
+      && payload.eventos.some(({ id }) => id === modeEvent.id)
+  );
+  dramaturgy.emit("pedir_estado_dramaturgia");
+  const replay = await replayPromise;
+  assert.ok(replay.session.last_seq >= modeEvent.seq);
+  assert.equal(
+    replay.eventos.find(({ id }) => id === modeEvent.id).checkpoint_id,
+    modeEvent.checkpoint_id
+  );
+
+  const passive = await connectPassiveSocket();
+  const noState = assertNoSocketEvent(passive, "dramaturgia_estado");
+  passive.emit("pedir_estado_dramaturgia");
+  await noState;
+});
+
 test("scrib_test:force_vote open/close contracts remain stable", async () => {
   const opened = await emitAck(adminSocket, "scrib_test:force_vote", {
     team: 1,

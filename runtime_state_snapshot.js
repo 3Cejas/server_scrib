@@ -1,4 +1,5 @@
-const TIMELINE_MODOS_TEST_MAX = 80;
+const TIMELINE_MODOS_MAX = 80;
+const DRAMATURGIA_SCHEMA_VERSION = 1;
 
 function crearRuntimeStateSnapshot({
     testHooksEnabled = false,
@@ -16,31 +17,33 @@ function crearRuntimeStateSnapshot({
     obtenerContadorMusas,
     musasAuxiliares,
     payloadStatsLive,
-    payloadPuntuacionFinal = () => null
+    payloadPuntuacionFinal = () => null,
+    snapshotConteosDramaturgia = () => ({ 1: {}, 2: {} }),
+    obtenerDiarioDramaturgia = () => ({ session: null, eventos: [] })
 }) {
-    let timelineModosTest = [];
+    let timelineModos = [];
 
     const registrarTimelineModo = (modo, origen = 'runtime') => {
         const nombre = typeof modo === 'string' ? modo.trim() : '';
-        timelineModosTest.push({
+        timelineModos.push({
             modo: nombre,
             origen,
             ts: Date.now()
         });
-        if (timelineModosTest.length > TIMELINE_MODOS_TEST_MAX) {
-            timelineModosTest = timelineModosTest.slice(-TIMELINE_MODOS_TEST_MAX);
+        if (timelineModos.length > TIMELINE_MODOS_MAX) {
+            timelineModos = timelineModos.slice(-TIMELINE_MODOS_MAX);
         }
     };
 
     const resetearTimelineModosTest = () => {
-        timelineModosTest = [];
+        timelineModos = [];
     };
 
     const construirEstadoTest = () => ({
         ts: Date.now(),
         enabled: testHooksEnabled,
         connections: payloadConexionesRoles(),
-        partida: snapshotPartidaTest(timelineModosTest),
+        partida: snapshotPartidaTest(timelineModos),
         textos: writerChannels.snapshotTextos(),
         inspiracion: {
             preview: construirPayloadInspiracionMusaActual(),
@@ -60,13 +63,68 @@ function crearRuntimeStateSnapshot({
         puntuacion_final: payloadPuntuacionFinal()
     });
 
+    const construirEstadoDramaturgiaActual = () => ({
+        ts: Date.now(),
+        connections: payloadConexionesRoles(),
+        partida: snapshotPartidaTest(timelineModos),
+        textos: writerChannels.snapshotTextos(),
+        nombres: {
+            1: writerChannels.getNombre(1),
+            2: writerChannels.getNombre(2)
+        },
+        atributos: writerChannels.snapshotAtributos(),
+        conteos: snapshotConteosDramaturgia(),
+        inspiracion: {
+            preview: construirPayloadInspiracionMusaActual(),
+            ...nubeInspiracion.snapshot()
+        },
+        tutorial: payloadEstadoCalentamiento(),
+        espectador: payloadVistaEspectadorModo(),
+        votacion_ventaja: construirPayloadEstadoVotacionVentaja(),
+        desventajas: payloadDesventajasActivas(),
+        teleprompter: teleprompter.snapshot(),
+        resurreccion: payloadEstadoResurreccion(),
+        musas: {
+            contador: obtenerContadorMusas(),
+            ...musasAuxiliares.snapshot()
+        },
+        stats: payloadStatsLive(),
+        puntuacion_final: payloadPuntuacionFinal()
+    });
+
+    const construirEstadoDramaturgia = () => {
+        const actual = construirEstadoDramaturgiaActual();
+        const diario = obtenerDiarioDramaturgia() || {};
+        const { ts, ...estadoActual } = actual;
+        return {
+            schema_version: DRAMATURGIA_SCHEMA_VERSION,
+            ts,
+            session: diario.session || null,
+            ...estadoActual,
+            eventos: Array.isArray(diario.eventos) ? diario.eventos : []
+        };
+    };
+
+    const emitirEstadoDramaturgia = (socketDestino) => {
+        if (!socketDestino || typeof socketDestino.emit !== 'function') {
+            return null;
+        }
+        const payload = construirEstadoDramaturgia();
+        socketDestino.emit('dramaturgia_estado', payload);
+        return payload;
+    };
+
     return {
+        construirEstadoDramaturgia,
+        construirEstadoDramaturgiaActual,
         construirEstadoTest,
+        emitirEstadoDramaturgia,
         registrarTimelineModo,
         resetearTimelineModosTest
     };
 }
 
 module.exports = {
+    DRAMATURGIA_SCHEMA_VERSION,
     crearRuntimeStateSnapshot
 };

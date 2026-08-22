@@ -105,6 +105,9 @@ function registrarCanalesRonda({
             return;
         }
         timersPartida.cancelarIntervaloModos();
+        if (timersPartida && typeof timersPartida.cancelarInicio === 'function') {
+            timersPartida.cancelarInicio();
+        }
         limpiarTimersPalabras();
         if (typeof setPartidaPausada === 'function') {
             setPartidaPausada(true);

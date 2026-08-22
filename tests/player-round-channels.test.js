@@ -12,6 +12,7 @@ function crearCanalesRondaFake(overrides = {}) {
   const desventajasRegistradas = [];
   let pausarDesventajasCalls = 0;
   let reanudarDesventajasCalls = 0;
+  let cancelarInicioCalls = 0;
   let tempEmitidos = 0;
 
   const state = {
@@ -68,6 +69,9 @@ function crearCanalesRondaFake(overrides = {}) {
     },
     timersPartida: {
       cancelarIntervaloModos() {},
+      cancelarInicio() {
+        cancelarInicioCalls += 1;
+      },
       cancelarCambioLetra() {}
     },
     limpiezasModo: {},
@@ -112,6 +116,7 @@ function crearCanalesRondaFake(overrides = {}) {
 
   return {
     broadcasts,
+    cancelarInicioCalls: () => cancelarInicioCalls,
     desventajasRegistradas,
     handlers,
     labelsAvance,
@@ -133,6 +138,7 @@ test("pausar marks the match as paused and freezes active disadvantages", () => 
 
   assert.deepEqual(ctx.pausaEstados, [true]);
   assert.equal(ctx.pausarDesventajasCalls(), 1);
+  assert.equal(ctx.cancelarInicioCalls(), 1);
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "pausar_js", payload: { source: "pause-button" } }
   ]);

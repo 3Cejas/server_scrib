@@ -1,10 +1,12 @@
 const { crearGestorDesventajasActivas } = require('./active_disadvantages.js');
 const { crearSincronizadorConexion } = require('./connection_sync.js');
 const { crearGestorEstadoControl } = require('./control_state.js');
+const { crearEstadoDramaturgia } = require('./dramaturgia_state.js');
 const { registrarConexionScrib } = require('./connection_handlers.js');
 const { activarSocketsExtratextuales } = require('./extratextual_channels.js');
 const { crearRuntimeModos } = require('./mode_runtime.js');
 const { crearMotorModos } = require('./mode_engine.js');
+const { createMatchSimulator } = require('./match_simulator.js');
 const { crearCicloPartida } = require('./partida_lifecycle.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
@@ -37,6 +39,9 @@ function crearRuntimeScrib({
     let votacionRepentizado;
     let calentamientoGestor;
     let calentamiento;
+    let dramaturgiaState;
+    let simuladorPartidas;
+    let deps;
     let partidaPausada = false;
 
     const controlState = crearGestorEstadoControl({ io });
@@ -234,7 +239,9 @@ function crearRuntimeScrib({
     const resetearEstadoResurreccion = () => resurreccion.reset();
     const payloadEstadoResurreccion = () => resurreccion.payload();
     const {
+        construirEstadoDramaturgiaActual,
         construirEstadoTest,
+        emitirEstadoDramaturgia,
         registrarTimelineModo,
         resetearTimelineModosTest
     } = crearRuntimeStateSnapshot({
@@ -253,7 +260,29 @@ function crearRuntimeScrib({
         obtenerContadorMusas,
         musasAuxiliares,
         payloadStatsLive,
-        payloadPuntuacionFinal
+        payloadPuntuacionFinal,
+        snapshotConteosDramaturgia: () => ({
+            1: {
+                ...(partidaSync.obtenerConteo(1) || {}),
+                modo_seq: partidaSync.obtenerModoSeq(),
+                tiempo_seq: partidaSync.obtenerTiempoSeq(1)
+            },
+            2: {
+                ...(partidaSync.obtenerConteo(2) || {}),
+                modo_seq: partidaSync.obtenerModoSeq(),
+                tiempo_seq: partidaSync.obtenerTiempoSeq(2)
+            }
+        }),
+        obtenerDiarioDramaturgia: () => (
+            dramaturgiaState
+                ? dramaturgiaState.snapshot()
+                : { session: null, eventos: [] }
+        )
+    });
+    dramaturgiaState = crearEstadoDramaturgia({
+        io,
+        obtenerEstadoActual: construirEstadoDramaturgiaActual,
+        registrar
     });
 
     const resetearEstadoAuxiliarParaTests = () => {
@@ -343,6 +372,23 @@ function crearRuntimeScrib({
         registrar
     });
 
+    simuladorPartidas = createMatchSimulator({
+        io,
+        passwordRoles,
+        registerConnection: (socket) => registrarConexionScrib(socket, deps),
+        getConnections: payloadConexionesRoles,
+        getCurrentMode: () => estadoCicloPartida.modoActual,
+        getVoteState: () => construirPayloadEstadoVotacionVentaja(),
+        getWarmupState: payloadEstadoCalentamiento,
+        resetWarmup: () => {
+            calentamientoGestor.reset();
+            calentamientoGestor.emitirEstado();
+        },
+        partidaLifecycle,
+        registerDramaturgyEvent: (evento) => dramaturgiaState.registrarEvento(evento),
+        logger: registrar
+    });
+
     const {
         sincronizarEstadoMusa,
         sincronizarSocketRecienConectado
@@ -352,6 +398,7 @@ function crearRuntimeScrib({
         emitirEstadoVotacionVentaja,
         emitirNubeInspiracionEstado,
         teleprompter,
+        emitirEstadoDramaturgia,
         emitirEstadoDesventajasActivas,
         emitirEstadoPalabrasMusasControl,
         partidaSync,
@@ -365,7 +412,7 @@ function crearRuntimeScrib({
         emitirEstadoCalentamientoMusa
     });
 
-    const deps = {
+    deps = {
         io,
         passwordRoles,
         testHooksEnabled,
@@ -401,6 +448,9 @@ function crearRuntimeScrib({
         musasAuxiliares,
         normalizarNombreMusa,
         sincronizarSocketRecienConectado,
+        emitirEstadoDramaturgia,
+        dramaturgiaState,
+        simuladorPartidas,
         registrar,
         teleprompter,
         writerChannels,
@@ -456,6 +506,7 @@ function crearRuntimeScrib({
     const registrarConexion = (socket) => registrarConexionScrib(socket, deps);
 
     const iniciar = () => {
+        dramaturgiaState.iniciar();
         calentamientoGestor.iniciarIntervaloPurga();
         nubeInspiracion.iniciarIntervalo(1000);
         bolzanoCalentamientoGestor.iniciar();
@@ -467,6 +518,8 @@ function crearRuntimeScrib({
 
     return {
         deps,
+        dramaturgiaState,
+        simuladorPartidas,
         iniciar,
         registrarConexion,
         sincro_modos

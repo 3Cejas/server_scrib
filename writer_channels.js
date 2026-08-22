@@ -86,20 +86,38 @@ function crearCanalesEscritor({
         return true;
     };
 
-    const pedirTexto = (socket) => {
-        const musa = validarJugador(socket && socket.musa);
-        const player = musa || 2;
+    const jugadorSolicitado = (socket, payload = {}) => {
+        const solicitado = validarJugador(
+            payload && (payload.musa ?? payload.player ?? payload.equipo ?? payload.team)
+        );
+        if (solicitado) return solicitado;
+        const rolSocket = validarJugador(
+            socket && (socket.musa ?? socket.actor ?? socket.escritxr)
+        );
+        if (rolSocket) return rolSocket;
+        const monitor = socket && socket.monitor_pantalla;
+        if (
+            monitor
+            && ["musa", "actor", "escritor"].includes(monitor.rol)
+        ) {
+            return validarJugador(monitor.player);
+        }
+        return null;
+    };
+
+    const pedirTexto = (socket, payload = {}) => {
+        const player = jugadorSolicitado(socket, payload) || 2;
         socket.emit(`texto${player}`, estado.html[player]);
     };
 
     const pedirNombre = (socket, payload = {}) => {
         logger("te escucho pedir_nombre", payload);
-        const musaParam = Number(payload && payload.musa);
-        const hayMusaPorParametro = musaParam === 1 || musaParam === 2;
-        const musaEfectiva = hayMusaPorParametro ? musaParam : Number(socket && socket.musa);
-        const musaFinal = validarJugador(musaEfectiva) || 1;
-        socket.emit("dar_nombre", estado.nombres[musaFinal]);
-        if (!hayMusaPorParametro) {
+        const solicitado = validarJugador(
+            payload && (payload.musa ?? payload.player ?? payload.equipo ?? payload.team)
+        );
+        const player = jugadorSolicitado(socket, payload) || 1;
+        socket.emit("dar_nombre", estado.nombres[player]);
+        if (!solicitado) {
             syncMode(socket);
         }
     };
@@ -127,7 +145,7 @@ function crearCanalesEscritor({
     const registrarHandlers = (socket) => {
         socket.on("texto1", (evento) => actualizarTexto(socket, 1, evento));
         socket.on("texto2", (evento) => actualizarTexto(socket, 2, evento));
-        socket.on("pedir_texto", () => pedirTexto(socket));
+        socket.on("pedir_texto", (payload = {}) => pedirTexto(socket, payload));
         socket.on("pedir_nombre", (payload = {}) => pedirNombre(socket, payload));
         socket.on("env\u00edo_nombre1", (nombre) => actualizarNombre(socket, 1, nombre));
         socket.on("env\u00edo_nombre2", (nombre) => actualizarNombre(socket, 2, nombre));

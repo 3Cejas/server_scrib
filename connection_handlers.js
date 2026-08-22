@@ -8,6 +8,8 @@ const { registrarTestHooks } = require('./test_hooks.js');
 const { crearRuntimeTestHooks } = require('./test_runtime_hooks.js');
 const { normalizarMusaClientId } = require('./ventaja_voting.js');
 const { registrarCanalesVotacion } = require('./voting_channels.js');
+const { instalarGuardiaMonitor } = require('./monitor_guard.js');
+const { registerSimulationChannels } = require('./simulation_channels.js');
 
 function registrarConexionScrib(socket, deps) {
     const {
@@ -46,6 +48,8 @@ function registrarConexionScrib(socket, deps) {
         musasAuxiliares,
         normalizarNombreMusa,
         sincronizarSocketRecienConectado,
+        emitirEstadoDramaturgia,
+        simuladorPartidas,
         registrar,
         teleprompter,
         writerChannels,
@@ -89,6 +93,13 @@ function registrarConexionScrib(socket, deps) {
         reanudarDesventajasActivas,
         setPartidaPausada
     } = deps;
+
+    const query = socket && socket.handshake && socket.handshake.query;
+    socket.monitor_pantalla_solicitada = Boolean(
+        query
+        && String(query.dramaturgia_monitor || "") === "1"
+    );
+    instalarGuardiaMonitor(socket);
 
     registrarCanalesGenerales({
         socket,
@@ -144,6 +155,8 @@ function registrarConexionScrib(socket, deps) {
         emitirEstadoBanderasMusas,
         sincronizarEstadoMusa,
         sincronizarSocketRecienConectado,
+        emitirEstadoDramaturgia,
+        simuladorPartidas,
         registrarMusaEnCreditosPartida: rolesConectados.registrarMusaEnCreditosPartida,
         getPartidaActivaParaCreditos: () => Boolean(estadoCicloPartida && estadoCicloPartida.modoActual && !estadoCicloPartida.finDelJuego),
         registrar
@@ -205,6 +218,10 @@ function registrarConexionScrib(socket, deps) {
         votacionRepentizado
     });
     resurreccion.registrarHandlers(socket);
+    registerSimulationChannels({
+        socket,
+        simulator: simuladorPartidas
+    });
 
     const {
         forzarModoTest,
