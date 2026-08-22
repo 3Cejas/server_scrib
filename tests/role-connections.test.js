@@ -222,13 +222,12 @@ test("role registry keeps writer tab client ids for replacement decisions", () =
   assert.equal(newWriter.escritxr_client_id, "tab-a");
 });
 
-test("role registry tracks musa counters and ignores invalid musa teams", () => {
+test("role registry ignores requested musa teams and assigns the least populated team", () => {
   const roles = crearRegistroRoles();
   const musa1 = crearSocket("musa1");
   const invalid = crearSocket("invalid");
 
   const ok = roles.registrarMusa(musa1, { player: 1, nombre: "Luna", clientId: "luna" });
-  const bad = roles.registrarMusa(invalid, { player: 9, nombre: "Nadie", clientId: "nadie" });
 
   assert.equal(ok.ok, true);
   assert.equal(ok.player, 1);
@@ -239,13 +238,17 @@ test("role registry tracks musa counters and ignores invalid musa teams", () => 
   assert.equal(musa1.salas.has("musa_client_luna"), true);
   assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 0 });
 
-  assert.equal(bad.ok, false);
-  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 0 });
+  const second = roles.registrarMusa(invalid, { player: 9, nombre: "Nadie", clientId: "nadie" });
+  assert.equal(second.ok, true);
+  assert.equal(second.player, 2);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 1 });
   assert.deepEqual(roles.payloadConexiones().musas[1], { count: 1, connected: true });
+  assert.deepEqual(roles.payloadConexiones().musas[2], { count: 1, connected: true });
 
   const disconnect = roles.desregistrarSocket(musa1);
   assert.equal(disconnect.musaId, 1);
-  assert.deepEqual(disconnect.contador, { escritxr1: 0, escritxr2: 0 });
+  assert.deepEqual(disconnect.contador, { escritxr1: 0, escritxr2: 1 });
+  roles.desregistrarSocket(invalid);
 });
 
 test("role registry keeps musa registration idempotent for the same socket", () => {
@@ -288,15 +291,16 @@ test("role registry moves a musa socket between teams without leaking counters o
   assert.deepEqual(disconnect.contador, { escritxr1: 0, escritxr2: 0 });
 });
 
-test("invalid musa registration does not unregister an already counted socket", () => {
+test("duplicate musa registration keeps its authoritative team even if the requested team changes", () => {
   const roles = crearRegistroRoles();
   const musa = crearSocket("musa-invalid-after-valid");
 
   roles.registrarMusa(musa, { player: 1, nombre: "Luna", clientId: "luna" });
-  const invalid = roles.registrarMusa(musa, { player: 9, nombre: "Nadie", clientId: "nadie" });
+  const duplicate = roles.registrarMusa(musa, { player: 9, nombre: "Luna", clientId: "luna" });
 
-  assert.equal(invalid.ok, false);
-  assert.equal(invalid.previous, 1);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.idempotent, true);
+  assert.equal(duplicate.previous, 1);
   assert.equal(musa.musa, 1);
   assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 0 });
 
@@ -316,25 +320,141 @@ test("role registry keeps match muse credits isolated from previous matches", ()
   assert.deepEqual(roles.obtenerMusasCreditosPartida().azules, ["Partida anterior"]);
 
   roles.desregistrarSocket(oldMusa);
-  roles.registrarMusa(blueMusa, { player: 1, nombre: "Luna Azul", clientId: "luna" });
-  roles.registrarMusa(redMusa, { player: 2, nombre: "Sol Roja", clientId: "sol" });
+  const luna = roles.registrarMusa(blueMusa, { player: 1, nombre: "Luna Azul", clientId: "luna" });
+  const sol = roles.registrarMusa(redMusa, { player: 2, nombre: "Sol Roja", clientId: "sol" });
 
   const inicioNuevaPartida = roles.reiniciarMusasCreditosPartidaDesdeActivas();
-  assert.deepEqual(inicioNuevaPartida, {
-    azules: ["Luna Azul"],
-    rojas: ["Sol Roja"]
-  });
+  assert.deepEqual(inicioNuevaPartida[luna.player === 1 ? "azules" : "rojas"], ["Luna Azul"]);
+  assert.deepEqual(inicioNuevaPartida[sol.player === 1 ? "azules" : "rojas"], ["Sol Roja"]);
 
   roles.registrarMusaEnCreditosPartida({ player: 1, nombre: "Luna Azul reconectada", clientId: "luna", socketId: "otra" });
   roles.registrarMusaEnCreditosPartida({ player: 2, nombre: "Eva Roja", clientId: "eva", socketId: "eva" });
 
   assert.deepEqual(roles.obtenerMusasCreditosPartida(), {
-    azules: ["Luna Azul reconectada"],
-    rojas: ["Sol Roja", "Eva Roja"]
+    azules: [
+      ...(sol.player === 1 ? ["Sol Roja"] : []),
+      "Luna Azul reconectada"
+    ],
+    rojas: [
+      ...(sol.player === 2 ? ["Sol Roja"] : []),
+      "Eva Roja"
+    ]
   });
 
   assert.deepEqual(roles.limpiarMusasCreditosPartida(), {
     azules: [],
     rojas: []
   });
+});
+
+test("automatic musa assignment stays balanced and alternates the extra slot on ties", () => {
+  const roles = crearRegistroRoles();
+  const assigned = [];
+
+  for (let index = 0; index < 7; index += 1) {
+    const socket = crearSocket(`musa-${index}`);
+    const result = roles.registrarMusa(socket, {
+      player: 1,
+      nombre: `Musa ${index}`,
+      clientId: `client-${index}`
+    });
+    assigned.push(result.player);
+    const count = roles.obtenerContadorMusas();
+    assert.ok(Math.abs(count.escritxr1 - count.escritxr2) <= 1);
+  }
+
+  assert.deepEqual(assigned, [1, 2, 2, 1, 1, 2, 2]);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 3, escritxr2: 4 });
+});
+
+test("overlapping reconnect replaces the old socket by client_id without inflating counters", () => {
+  const roles = crearRegistroRoles();
+  const oldSocket = crearSocket("musa-old");
+  const newSocket = crearSocket("musa-new");
+  const first = roles.registrarMusa(oldSocket, {
+    player: 2,
+    nombre: "Luna",
+    clientId: "same-client"
+  });
+  const reconnect = roles.registrarMusa(newSocket, {
+    player: first.player === 1 ? 2 : 1,
+    nombre: "Luna",
+    clientId: "same-client"
+  });
+
+  assert.equal(reconnect.player, first.player);
+  assert.equal(reconnect.reconnected, true);
+  assert.equal(reconnect.replaced.length, 1);
+  assert.equal(reconnect.replaced[0].socketId, oldSocket.id);
+  assert.equal(oldSocket.musa, null);
+  assert.equal(oldSocket.salas.has(`j${first.player}`), false);
+  assert.equal(newSocket.salas.has(`j${first.player}`), true);
+  assert.deepEqual(roles.obtenerContadorMusas(), first.player === 1
+    ? { escritxr1: 1, escritxr2: 0 }
+    : { escritxr1: 0, escritxr2: 1 });
+
+  const staleDisconnect = roles.desregistrarSocket(oldSocket);
+  assert.equal(staleDisconnect.musaId, null);
+  assert.equal(roles.payloadConexiones().musas[first.player].count, 1);
+});
+
+test("disconnect rebalances active human muses and reports the moved socket", () => {
+  const roles = crearRegistroRoles();
+  const first = crearSocket("musa-first");
+  const second = crearSocket("musa-second");
+  const third = crearSocket("musa-third");
+  roles.registrarMusa(first, { nombre: "Primera", clientId: "first" });
+  roles.registrarMusa(second, { nombre: "Segunda", clientId: "second" });
+  roles.registrarMusa(third, { nombre: "Tercera", clientId: "third" });
+
+  const disconnect = roles.desregistrarSocket(first);
+
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 1 });
+  assert.equal(disconnect.reasignacionesMusas.length, 1);
+  assert.equal(disconnect.reasignacionesMusas[0].socketId, third.id);
+  assert.equal(disconnect.reasignacionesMusas[0].previous, 2);
+  assert.equal(disconnect.reasignacionesMusas[0].player, 1);
+  assert.equal(third.musa, 1);
+  assert.equal(third.salas.has("j2"), false);
+  assert.equal(third.salas.has("j1"), true);
+});
+
+test("test hooks keep explicit musa teams and legacy duplicate client ids", () => {
+  const roles = crearRegistroRoles({ permitirEquipoMusaExplicito: true });
+  const first = crearSocket("test-musa-1");
+  const second = crearSocket("test-musa-2");
+
+  const firstResult = roles.registrarMusa(first, {
+    player: 2,
+    nombre: "Test A",
+    clientId: "shared-browser-id"
+  });
+  const secondResult = roles.registrarMusa(second, {
+    player: 2,
+    nombre: "Test B",
+    clientId: "shared-browser-id"
+  });
+
+  assert.equal(firstResult.player, 2);
+  assert.equal(secondResult.player, 2);
+  assert.equal(secondResult.replaced.length, 0);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 0, escritxr2: 2 });
+});
+
+test("disconnecting a non-musa never rebalances explicit test teams", () => {
+  const roles = crearRegistroRoles({ permitirEquipoMusaExplicito: true });
+  const first = crearSocket("test-musa-a");
+  const second = crearSocket("test-musa-b");
+  const control = crearSocket("test-control");
+
+  roles.registrarMusa(first, { player: 2, nombre: "A", clientId: "a" });
+  roles.registrarMusa(second, { player: 2, nombre: "B", clientId: "b" });
+  roles.registrarControl(control);
+
+  const disconnected = roles.desregistrarSocket(control);
+
+  assert.deepEqual(disconnected.reasignacionesMusas, []);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 0, escritxr2: 2 });
+  assert.equal(first.musa, 2);
+  assert.equal(second.musa, 2);
 });

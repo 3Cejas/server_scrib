@@ -152,6 +152,7 @@ function registrarConexionScrib(socket, deps) {
         normalizarMusaClientId,
         obtenerIdJugadorValido,
         normalizarNombreMusa,
+        getNombreEscritxr: (player) => writerChannels.getNombreEquipo(player),
         emitirEstadoBanderasMusas,
         sincronizarEstadoMusa,
         sincronizarSocketRecienConectado,

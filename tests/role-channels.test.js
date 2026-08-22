@@ -36,15 +36,21 @@ function crearSocket(id) {
 }
 
 function registrar(socket, deps = {}) {
+  const io = deps.io || {
+    emit() {},
+    to() {
+      return { emit() {} };
+    }
+  };
   registrarCanalesRoles({
     socket,
-    io: deps.io,
+    io,
     bolzanoEvents: { REGISTER_MUSA: "bolzano_register_musa" },
     rolesConectados: deps.rolesConectados,
     sesionesEscritor: deps.sesionesEscritor,
-    calentamientoGestor: { registrarMusa() {}, desregistrarMusa() {}, desregistrarEscritor() {} },
+    calentamientoGestor: deps.calentamientoGestor || { registrarMusa() {}, desregistrarMusa() {}, desregistrarEscritor() {} },
     bolzanoCalentamientoGestor: { registrarMusa() {}, desregistrarMusa() {} },
-    musasAuxiliares: {
+    musasAuxiliares: deps.musasAuxiliares || {
       obtenerRegalo: () => null,
       emitirEstadoRegaloBandera() {}
     },
@@ -54,10 +60,13 @@ function registrar(socket, deps = {}) {
       return id === 1 || id === 2 ? id : null;
     },
     normalizarNombreMusa: (valor) => String(valor || "").trim(),
+    getNombreEscritxr: deps.getNombreEscritxr || (() => ""),
     emitirEstadoBanderasMusas() {},
     sincronizarEstadoMusa() {},
     sincronizarSocketRecienConectado: deps.sincronizarSocketRecienConectado || (() => {}),
     emitirEstadoDramaturgia: deps.emitirEstadoDramaturgia || (() => {}),
+    registrarMusaEnCreditosPartida: deps.registrarMusaEnCreditosPartida || (() => {}),
+    getPartidaActivaParaCreditos: deps.getPartidaActivaParaCreditos || (() => false),
     registrar: () => {}
   });
 }
@@ -250,4 +259,197 @@ test("role channels register a muse monitor without counting a muse and sync its
   });
   assert.equal(collision.code, "ROLE_ALREADY_REGISTERED");
   assert.equal(monitor.monitor_pantalla.player, 1);
+  assert.equal(monitor.emitted.some(({ event }) => event === "musa_asignacion"), false);
+});
+
+test("role channels return the authoritative musa assignment with writer name by event and ack", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const musa = crearSocket("musa-assignment");
+  const broadcasts = [];
+  const io = {
+    emit(event, payload) {
+      broadcasts.push({ event, payload });
+    },
+    to() {
+      return { emit() {} };
+    }
+  };
+  registrar(musa, {
+    io,
+    rolesConectados,
+    sesionesEscritor,
+    getNombreEscritxr: (player) => player === 1 ? "ANA AZUL" : "BEA ROJA"
+  });
+
+  let ack = null;
+  musa.trigger("registrar_musa", {
+    musa: 2,
+    nombre: "Luna",
+    client_id: "luna-client",
+    request_id: "request-entry-42"
+  }, (payload) => {
+    ack = payload;
+  });
+
+  const assignmentEvent = musa.emitted.find(({ event }) => event === "musa_asignacion");
+  assert.ok(assignmentEvent);
+  assert.deepEqual(ack, assignmentEvent.payload);
+  assert.equal(ack.ok, true);
+  assert.equal(ack.player, 1);
+  assert.equal(ack.equipo, 1);
+  assert.equal(ack.color, "azul");
+  assert.equal(ack.nombre_equipo, "EQUIPO AZUL");
+  assert.equal(ack.escritxr, "ANA AZUL");
+  assert.equal(ack.nombre_escritxr, "ANA AZUL");
+  assert.equal(ack.reasignada, false);
+  assert.equal(ack.reconexion, false);
+  assert.equal(ack.idempotente, false);
+  assert.equal(ack.motivo, "entrada");
+  assert.equal(ack.request_id, "request-entry-42");
+  assert.equal(typeof ack.ts, "number");
+  assert.equal(Object.prototype.hasOwnProperty.call(ack, "contador"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(ack, "replaced"), false);
+  assert.deepEqual(rolesConectados.obtenerContadorMusas(), {
+    escritxr1: 1,
+    escritxr2: 0
+  });
+  assert.equal(
+    broadcasts.some(({ event, payload }) => event === "actualizar_contador_musas"
+      && payload.escritxr1 === 1
+      && payload.escritxr2 === 0),
+    true
+  );
+});
+
+test("role channels sanitize request correlation and cap the writer name in muse assignments", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const musa = crearSocket("musa-bounded-assignment");
+  registrar(musa, {
+    rolesConectados,
+    sesionesEscritor,
+    getNombreEscritxr: () => `  ${"A".repeat(120)}  `
+  });
+
+  let ack = null;
+  musa.trigger("registrar_musa", {
+    nombre: "Luna",
+    client_id: "bounded-client",
+    request_id: " ../../request:unsafe? "
+  }, (payload) => {
+    ack = payload;
+  });
+
+  assert.equal(ack.request_id, "requestunsafe");
+  assert.equal(ack.nombre_escritxr.length, 80);
+  assert.equal(ack.escritxr, ack.nombre_escritxr);
+});
+
+test("role channels replace an overlapping musa reconnect without double counting", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const roomEvents = [];
+  const io = {
+    emit() {},
+    to(room) {
+      return {
+        emit(event, payload) {
+          roomEvents.push({ room, event, payload });
+        }
+      };
+    }
+  };
+  const oldMusa = crearSocket("old-musa");
+  const newMusa = crearSocket("new-musa");
+  registrar(oldMusa, { io, rolesConectados, sesionesEscritor });
+  registrar(newMusa, { io, rolesConectados, sesionesEscritor });
+
+  let firstAck = null;
+  oldMusa.trigger("registrar_musa", {
+    musa: 2,
+    nombre: "Luna",
+    client_id: "persistent-muse"
+  }, (payload) => {
+    firstAck = payload;
+  });
+  let reconnectAck = null;
+  newMusa.trigger("registrar_musa", {
+    musa: firstAck.player === 1 ? 2 : 1,
+    nombre: "Luna",
+    client_id: "persistent-muse"
+  }, (payload) => {
+    reconnectAck = payload;
+  });
+
+  assert.equal(reconnectAck.player, firstAck.player);
+  assert.equal(reconnectAck.reconexion, true);
+  assert.equal(reconnectAck.motivo, "reconexion");
+  assert.deepEqual(rolesConectados.obtenerContadorMusas(), firstAck.player === 1
+    ? { escritxr1: 1, escritxr2: 0 }
+    : { escritxr1: 0, escritxr2: 1 });
+  assert.equal(oldMusa.musa, null);
+  assert.equal(
+    roomEvents.some(({ room, event }) => room === oldMusa.id && event === "musa_reemplazada"),
+    true
+  );
+
+  oldMusa.trigger("disconnect");
+  assert.equal(rolesConectados.payloadConexiones().musas[firstAck.player].count, 1);
+});
+
+test("role channels propagate a disconnect rebalance to warmup and the moved musa", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const warmupCalls = [];
+  const calentamientoGestor = {
+    registrarMusa(socket, player, nombre) {
+      warmupCalls.push({ action: "register", socket: socket.id, player, nombre });
+    },
+    desregistrarMusa(socket, player) {
+      warmupCalls.push({ action: "unregister", socket: socket.id, player });
+    },
+    desregistrarEscritor() {}
+  };
+  const io = {
+    emit() {},
+    to() {
+      return { emit() {} };
+    }
+  };
+  const first = crearSocket("musa-one");
+  const second = crearSocket("musa-two");
+  const third = crearSocket("musa-three");
+  [first, second, third].forEach((musa) => registrar(musa, {
+    io,
+    rolesConectados,
+    sesionesEscritor,
+    calentamientoGestor,
+    getNombreEscritxr: (player) => `AUTORA ${player}`
+  }));
+
+  first.trigger("registrar_musa", { nombre: "Uno", client_id: "one" });
+  second.trigger("registrar_musa", { nombre: "Dos", client_id: "two" });
+  third.trigger("registrar_musa", { nombre: "Tres", client_id: "three" });
+  first.trigger("disconnect");
+
+  assert.deepEqual(rolesConectados.obtenerContadorMusas(), {
+    escritxr1: 1,
+    escritxr2: 1
+  });
+  const rebalance = third.emitted.filter(({ event }) => event === "musa_asignacion").at(-1);
+  assert.ok(rebalance);
+  assert.equal(rebalance.payload.player, 1);
+  assert.equal(rebalance.payload.nombre_escritxr, "AUTORA 1");
+  assert.equal(rebalance.payload.reasignada, true);
+  assert.equal(rebalance.payload.motivo, "reequilibrio");
+  assert.equal(
+    warmupCalls.some((call) => call.action === "unregister" && call.socket === third.id && call.player === 2),
+    true
+  );
+  assert.equal(
+    warmupCalls.some((call) => call.action === "register" && call.socket === third.id && call.player === 1),
+    true
+  );
+  assert.equal(third.emitted.some(({ event }) => event === "regalo_pdf_musas_reset"), true);
 });

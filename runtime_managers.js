@@ -79,13 +79,15 @@ function crearGestoresAuxiliares({
     calentamientoGestor,
     io,
     partidaSync,
+    permitirEquipoMusaExplicito = false,
     getModoActual = () => "",
     isFinDelJuego = () => false,
     construirPayloadCount = (payload) => payload
 }) {
     const sesionesEscritor = crearRegistroSesionesEscritor(obtenerIdJugadorValido);
     const rolesConectados = crearRegistroRoles({
-        validarJugador: obtenerIdJugadorValido
+        validarJugador: obtenerIdJugadorValido,
+        permitirEquipoMusaExplicito
     });
     const musasAuxiliares = crearGestorMusasAuxiliares({
         io,

@@ -16,6 +16,8 @@ const MONITOR_ROLES = new Set([
     "jurado"
 ]);
 
+const MAX_ASIGNACIONES_MUSA_RECORDADAS = 4096;
+
 function normalizarRolMonitor(valor) {
     const rol = String(valor || "")
         .trim()
@@ -35,7 +37,8 @@ function crearRegistroRoles({
         const id = Number(valor);
         return id === 1 || id === 2 ? id : null;
     },
-    now = () => Date.now()
+    now = () => Date.now(),
+    permitirEquipoMusaExplicito = false
 } = {}) {
     const escritores = {
         1: new Set(),
@@ -47,6 +50,10 @@ function crearRegistroRoles({
         2: new Set()
     };
     const musasActivas = new Map();
+    const socketMusaPorClientId = new Map();
+    const ultimoEquipoMusaPorClientId = new Map();
+    let proximoEquipoEmpate = 1;
+    let ordenRegistroMusa = 0;
     const musasPartida = {
         1: new Map(),
         2: new Map()
@@ -64,6 +71,18 @@ function crearRegistroRoles({
         escritxr1: musas[1].size,
         escritxr2: musas[2].size
     });
+
+    const recordarEquipoMusa = (clientId, player) => {
+        const id = validarJugador(player);
+        if (!clientId || !id) return;
+        ultimoEquipoMusaPorClientId.delete(clientId);
+        ultimoEquipoMusaPorClientId.set(clientId, id);
+        while (ultimoEquipoMusaPorClientId.size > MAX_ASIGNACIONES_MUSA_RECORDADAS) {
+            const masAntigua = ultimoEquipoMusaPorClientId.keys().next().value;
+            if (!masAntigua) break;
+            ultimoEquipoMusaPorClientId.delete(masAntigua);
+        }
+    };
 
     const normalizarNombreCreditoMusa = (valor) => String(valor ?? "")
         .replace(/\s+/g, " ")
@@ -320,27 +339,48 @@ function crearRegistroRoles({
         return { ok: true, player: id, previous: anterior || null, connections: payloadConexiones() };
     };
 
-    const registrarMusa = (socket, { player, nombre = "MUSA", clientId = "" } = {}) => {
+    const equipoMusaConMenorCarga = (preferido = null) => {
+        const equipoPreferido = validarJugador(preferido);
+        const admitePreferido = equipoPreferido && Math.abs(
+            (musas[equipoPreferido].size + 1) - musas[equipoPreferido === 1 ? 2 : 1].size
+        ) <= 1;
+        if (admitePreferido) {
+            return equipoPreferido;
+        }
+        if (musas[1].size < musas[2].size) return 1;
+        if (musas[2].size < musas[1].size) return 2;
+        const elegido = proximoEquipoEmpate;
+        proximoEquipoEmpate = elegido === 1 ? 2 : 1;
+        return elegido;
+    };
+
+    const desvincularMusa = (socket, { limpiarSocket = true } = {}) => {
+        const registro = musasActivas.get(socket.id);
+        if (!registro) return null;
+        const id = validarJugador(registro.player);
+        if (id) {
+            musas[id].delete(socket.id);
+            socket.leave(`j${id}`);
+            socket.leave(`musa_j${id}`);
+        }
+        if (registro.clientId) {
+            socket.leave(`musa_client_${registro.clientId}`);
+            if (socketMusaPorClientId.get(registro.clientId) === socket.id) {
+                socketMusaPorClientId.delete(registro.clientId);
+            }
+        }
+        musasActivas.delete(socket.id);
+        if (limpiarSocket) {
+            socket.musa = null;
+            socket.nombre_musa = "";
+            socket.musa_client_id = "";
+        }
+        return registro;
+    };
+
+    const vincularMusa = (socket, { player, nombre, clientId }) => {
         const id = validarJugador(player);
-        const anterior = validarJugador(socket.musa);
-        const clientIdAnterior = typeof socket.musa_client_id === "string" ? socket.musa_client_id : "";
-        if (!id) {
-            return {
-                ok: false,
-                player: null,
-                previous: anterior || null,
-                contador: clonarContadorMusas(),
-                connections: payloadConexiones()
-            };
-        }
-        if (anterior && anterior !== id) {
-            musas[anterior].delete(socket.id);
-            socket.leave(`j${anterior}`);
-            socket.leave(`musa_j${anterior}`);
-        }
-        if (clientIdAnterior && clientIdAnterior !== clientId) {
-            socket.leave(`musa_client_${clientIdAnterior}`);
-        }
+        if (!id) return null;
         socket.musa = id;
         socket.nombre_musa = nombre;
         socket.musa_client_id = clientId;
@@ -348,30 +388,143 @@ function crearRegistroRoles({
         socket.join(`musa_j${id}`);
         if (clientId) {
             socket.join(`musa_client_${clientId}`);
+            socketMusaPorClientId.set(clientId, socket.id);
+            recordarEquipoMusa(clientId, id);
         }
         musas[id].add(socket.id);
-        musasActivas.set(socket.id, {
+        const registro = {
             player: id,
             nombre,
             clientId,
-            socketId: socket.id
+            socketId: socket.id,
+            socket,
+            orden: ++ordenRegistroMusa
+        };
+        musasActivas.set(socket.id, registro);
+        return registro;
+    };
+
+    const moverMusaActiva = (registro, player) => {
+        const id = validarJugador(player);
+        const anterior = validarJugador(registro && registro.player);
+        const socket = registro && registro.socket;
+        if (!id || !anterior || anterior === id || !socket) return null;
+        musas[anterior].delete(socket.id);
+        socket.leave(`j${anterior}`);
+        socket.leave(`musa_j${anterior}`);
+        musas[id].add(socket.id);
+        socket.join(`j${id}`);
+        socket.join(`musa_j${id}`);
+        socket.musa = id;
+        registro.player = id;
+        registro.orden = ++ordenRegistroMusa;
+        if (registro.clientId) {
+            recordarEquipoMusa(registro.clientId, id);
+        }
+        return {
+            socket,
+            socketId: socket.id,
+            previous: anterior,
+            player: id,
+            nombre: registro.nombre,
+            clientId: registro.clientId
+        };
+    };
+
+    const reequilibrarMusasActivas = () => {
+        const reasignaciones = [];
+        while (Math.abs(musas[1].size - musas[2].size) > 1) {
+            const origen = musas[1].size > musas[2].size ? 1 : 2;
+            const destino = origen === 1 ? 2 : 1;
+            const candidata = Array.from(musasActivas.values())
+                .filter((registro) => registro.player === origen && !registro.socket.simulacion_scrib)
+                .sort((a, b) => b.orden - a.orden)[0];
+            if (!candidata) break;
+            const reasignada = moverMusaActiva(candidata, destino);
+            if (!reasignada) break;
+            reasignaciones.push(reasignada);
+        }
+        return reasignaciones;
+    };
+
+    const registrarMusa = (socket, { player, nombre = "MUSA", clientId = "" } = {}) => {
+        const equipoSolicitado = validarJugador(player);
+        const equipoConfiable = (
+            (socket && socket.simulacion_scrib) || permitirEquipoMusaExplicito
+        ) ? equipoSolicitado : null;
+        const gestionarReconexionClientId = !permitirEquipoMusaExplicito;
+        const clientIdNormalizado = normalizarClientIdCreditoMusa(clientId);
+        const nombreNormalizado = normalizarNombreCreditoMusa(nombre) || "MUSA";
+        const registroActual = musasActivas.get(socket.id) || null;
+        const mismaIdentidad = Boolean(
+            registroActual
+            && registroActual.clientId === clientIdNormalizado
+        );
+
+        if (mismaIdentidad) {
+            registroActual.nombre = nombreNormalizado;
+            socket.nombre_musa = nombreNormalizado;
+            return {
+                ok: true,
+                player: registroActual.player,
+                previous: registroActual.player,
+                changed: false,
+                idempotent: true,
+                reconnected: false,
+                replaced: [],
+                contador: clonarContadorMusas(),
+                connections: payloadConexiones()
+            };
+        }
+
+        const previous = registroActual ? registroActual.player : null;
+        if (registroActual) {
+            desvincularMusa(socket);
+        }
+
+        const replaced = [];
+        let equipoRecordado = gestionarReconexionClientId && clientIdNormalizado
+            ? validarJugador(ultimoEquipoMusaPorClientId.get(clientIdNormalizado))
+            : null;
+        if (gestionarReconexionClientId && clientIdNormalizado) {
+            const socketIdAnterior = socketMusaPorClientId.get(clientIdNormalizado);
+            const registroAnterior = socketIdAnterior ? musasActivas.get(socketIdAnterior) : null;
+            if (registroAnterior && registroAnterior.socketId !== socket.id) {
+                equipoRecordado = registroAnterior.player;
+                const retirado = desvincularMusa(registroAnterior.socket);
+                if (retirado) replaced.push(retirado);
+            }
+        }
+
+        const id = equipoConfiable || equipoMusaConMenorCarga(equipoRecordado);
+        vincularMusa(socket, {
+            player: id,
+            nombre: nombreNormalizado,
+            clientId: clientIdNormalizado
         });
         return {
             ok: true,
             player: id,
-            previous: anterior || null,
-            changed: anterior !== id,
+            previous,
+            changed: Boolean(previous && previous !== id),
+            idempotent: false,
+            reconnected: replaced.length > 0 || Boolean(equipoRecordado),
+            reassigned: Boolean(equipoRecordado && equipoRecordado !== id),
+            replaced,
             contador: clonarContadorMusas(),
             connections: payloadConexiones()
         };
     };
 
     const desregistrarSocket = (socket) => {
-        const musaId = validarJugador(socket.musa);
-        if (musaId) {
-            musas[musaId].delete(socket.id);
+        const registroMusa = musasActivas.get(socket.id) || null;
+        const musaId = validarJugador(registroMusa && registroMusa.player);
+        if (registroMusa) {
+            desvincularMusa(socket);
         }
-        musasActivas.delete(socket.id);
+        const reasignacionesMusas = registroMusa && !permitirEquipoMusaExplicito
+            ? reequilibrarMusasActivas()
+            : [];
 
         const escritorId = validarJugador(socket.escritxr);
         if (escritorId) {
@@ -397,6 +550,7 @@ function crearRegistroRoles({
 
         return {
             musaId,
+            reasignacionesMusas,
             escritorId,
             actorId,
             contador: clonarContadorMusas(),

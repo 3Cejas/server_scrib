@@ -147,6 +147,7 @@ function crearRuntimeScrib({
         calentamientoGestor,
         io,
         partidaSync,
+        permitirEquipoMusaExplicito: testHooksEnabled,
         getModoActual: () => estadoCicloPartida.modoActual,
         isFinDelJuego: () => estadoCicloPartida.finDelJuego,
         construirPayloadCount
