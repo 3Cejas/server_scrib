@@ -1,4 +1,6 @@
-const REGEX_LIMPIEZA_PALABRA = /[^a-z0-9\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1\s-]/gi;
+const { contieneLenguajeOfensivo } = require("./profanity_filter.js");
+
+const REGEX_LIMPIEZA_PALABRA = /[^\p{L}\p{N}\p{M}\s-]/gu;
 const MAX_PALABRA_CALENTAMIENTO = 24;
 const MAX_FRASE_FINAL_CALENTAMIENTO = 48;
 const MAX_PALABRAS_PANTALLA_CALENTAMIENTO = 220;
@@ -63,7 +65,7 @@ const limitarPorcentaje = (valor, min = 0, max = 100) => {
 
 const normalizarPalabra = (valor) => {
     if (typeof valor !== "string") return "";
-    const limpio = valor.trim().toLowerCase().replace(/\s+/g, " ");
+    const limpio = valor.normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/gu, " ");
     return limpio.replace(REGEX_LIMPIEZA_PALABRA, "").trim();
 };
 
@@ -113,6 +115,7 @@ const serializarPalabrasCalentamiento = (palabras = []) => palabras.map((entrada
 function crearGestorCalentamiento({
     io,
     validarJugador,
+    detectarLenguajeOfensivo = contieneLenguajeOfensivo,
     onVistaCambiada = () => {}
 }) {
     const musasPorEquipo = { 1: new Map(), 2: new Map() };
@@ -213,13 +216,20 @@ function crearGestorCalentamiento({
         if (!esFraseFinal && /\s/.test(palabra)) {
             return { ok: false, mensaje: "Solo una palabra, sin espacios." };
         }
-        const normalizada = normalizarPalabra(palabra);
-        if (!normalizada) {
-            return { ok: false, mensaje: `Escribe una ${etiqueta} valida.` };
-        }
         const maxLongitud = obtenerMaxLongitud();
         if (palabra.length > maxLongitud) {
             return { ok: false, mensaje: `Maximo ${maxLongitud} caracteres.` };
+        }
+        if (detectarLenguajeOfensivo(palabra)) {
+            return {
+                ok: false,
+                codigo: "CONTENIDO_NO_PERMITIDO",
+                mensaje: "No se permiten palabrotas ni lenguaje ofensivo."
+            };
+        }
+        const normalizada = normalizarPalabra(palabra);
+        if (!normalizada) {
+            return { ok: false, mensaje: `Escribe una ${etiqueta} valida.` };
         }
         const posicion = generarPosicion(equipo);
         const registro = {
@@ -598,6 +608,37 @@ function crearGestorCalentamiento({
     };
 
     const registrarHandlers = (socket) => {
+        const procesarPalabraMusa = (payload = {}, responder = null) => {
+            const equipo = obtenerJugador(socket.musa);
+            if (!equipo) {
+                if (typeof responder === "function") {
+                    responder({ ok: false, codigo: "MUSA_NO_REGISTRADA", mensaje: "Musa no registrada." });
+                }
+                return;
+            }
+            const resultado = agregarPalabra(equipo, socket.id, payload.palabra);
+            if (!resultado.ok) {
+                const error = {
+                    ok: false,
+                    codigo: resultado.codigo || "",
+                    mensaje: resultado.mensaje || "No se pudo enviar la palabra."
+                };
+                if (typeof responder === "function") {
+                    responder(error);
+                } else {
+                    socket.emit("calentamiento_error", {
+                        codigo: error.codigo,
+                        mensaje: error.mensaje
+                    });
+                }
+                return;
+            }
+            emitirEstado();
+            if (typeof responder === "function") {
+                responder({ ok: true });
+            }
+        };
+
         socket.on("cambiar_vista_calentamiento", (payload = {}) => {
             cambiarVista(payload);
         });
@@ -614,27 +655,9 @@ function crearGestorCalentamiento({
             cambiarSolicitud(payload.tipo);
         });
 
-        socket.on("calentamiento_semilla", (payload = {}) => {
-            const equipo = obtenerJugador(socket.musa);
-            if (!equipo) return;
-            const resultado = agregarPalabra(equipo, socket.id, payload.palabra);
-            if (!resultado.ok) {
-                socket.emit("calentamiento_error", { mensaje: resultado.mensaje || "No se pudo enviar la palabra." });
-                return;
-            }
-            emitirEstado();
-        });
+        socket.on("calentamiento_semilla", procesarPalabraMusa);
 
-        socket.on("calentamiento_intento", (payload = {}) => {
-            const equipo = obtenerJugador(socket.musa);
-            if (!equipo) return;
-            const resultado = agregarPalabra(equipo, socket.id, payload.palabra);
-            if (!resultado.ok) {
-                socket.emit("calentamiento_error", { mensaje: resultado.mensaje || "No se pudo enviar la palabra." });
-                return;
-            }
-            emitirEstado();
-        });
+        socket.on("calentamiento_intento", procesarPalabraMusa);
 
         socket.on("calentamiento_click_palabra", (payload = {}) => {
             const equipo = obtenerJugador(socket.escritxr);

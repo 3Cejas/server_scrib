@@ -17,6 +17,7 @@
     "license": "ISC",
     "dependencies": {
         "dotenv": "^16.4.5",
+        "profanity-guard": "1.1.17",
         "puppeteer": "^24.4.0",
         "socket.io": "^2.2.0",
         "socket.io-client": "^2.2.0"
