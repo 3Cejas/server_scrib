@@ -25,6 +25,8 @@ function crearGestorVotacionVentaja({
     construirPayloadBase,
     obtenerIdJugadorValido,
     getDuracionMs = () => 0,
+    getDuracionVotacionMs = null,
+    getDuracionDesventajaMs = null,
     onAplicarVentaja = null,
     scheduleTimer,
     cancelTimer,
@@ -37,6 +39,18 @@ function crearGestorVotacionVentaja({
     let duracionMs = 0;
     let terminaEnTs = 0;
     let votantes = new Set();
+
+    const leerDuracionVotacionMs = () => Math.max(0, Number(
+        typeof getDuracionVotacionMs === "function"
+            ? getDuracionVotacionMs()
+            : getDuracionMs()
+    ) || 0);
+
+    const leerDuracionDesventajaMs = () => Math.max(0, Number(
+        typeof getDuracionDesventajaMs === "function"
+            ? getDuracionDesventajaMs()
+            : getDuracionMs()
+    ) || 0);
 
     const obtenerClaveVotante = (socket, clientId = "") => {
         const persistente = normalizarMusaClientId(socket && socket.musa_client_id)
@@ -96,7 +110,7 @@ function crearGestorVotacionVentaja({
             perdedor,
             seleccion,
             putada: seleccion,
-            duracion_ms: Math.max(0, Number(getDuracionMs()) || 0)
+            duracion_ms: leerDuracionDesventajaMs()
         };
     };
 
@@ -189,7 +203,7 @@ function crearGestorVotacionVentaja({
         prepararEstadoAbierto(
             equipoDestino,
             opcionesNormalizadas,
-            Math.max(0, Number(payload.duracion_ms) || Number(getDuracionMs()) || 0)
+            Math.max(0, Number(payload.duracion_ms) || leerDuracionVotacionMs())
         );
         if (duracionMs > 0 && typeof scheduleTimer === "function") {
             scheduleTimer(() => {
@@ -210,7 +224,7 @@ function crearGestorVotacionVentaja({
 
     const lanzar = ({ socket = null, ganador, perdedor, onCierreAutomatico = null } = {}) => {
         const opcionesSeleccionadas = elegirOpcionesAleatorias();
-        prepararEstadoAbierto(ganador, opcionesSeleccionadas, Math.max(0, Number(getDuracionMs()) || 0));
+        prepararEstadoAbierto(ganador, opcionesSeleccionadas, leerDuracionVotacionMs());
         if (typeof scheduleTimer === "function") {
             scheduleTimer(() => {
                 if (socket && typeof socket.removeAllListeners === "function") {

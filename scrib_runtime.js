@@ -139,6 +139,7 @@ function crearRuntimeScrib({
         onVistaCambiada: () => emitirVistaEspectadorModo(),
         construirPayloadEstadoVotacionVentaja,
         getTiempoVotacion: () => getTiempoVotacion(),
+        getTiempoModificador: () => getTiempoModificador(),
         onAplicarVentaja: registrarDesventajaAplicada,
         programarVotacionTimer,
         cancelarVotacionTimer: () => timersPartida.cancelarVotacion(),
