@@ -23,6 +23,7 @@ const {
     crearGestoresVistaEstado
 } = require('./runtime_managers.js');
 const { crearRuntimeStateSnapshot } = require('./runtime_state_snapshot.js');
+const { aplicarAjusteTiempo } = require('./time_adjustments.js');
 const { getRanges } = require('./time_ranges.js');
 const { crearCanalesEscritor } = require('./writer_channels.js');
 
@@ -66,6 +67,7 @@ function crearRuntimeScrib({
         emitirModoActual,
         emitirEstadoPalabrasMusasControl,
         payloadEstadoPalabrasMusasControl,
+        emitirEntregaInspiracionActiva,
         construirPayloadCount,
         prepararParametrosInicio,
         limpiarTodosLosModos,
@@ -311,6 +313,15 @@ function crearRuntimeScrib({
 
     const reiniciarEstadoPartida = (socket, opciones = {}) => partidaLifecycle.reiniciarEstadoPartida(socket, opciones);
     const finalizarPartida = (socket) => partidaLifecycle.finalizarPartida(socket);
+    const aplicarAjusteTiempoInspiracion = (evento) => aplicarAjusteTiempo({
+        io,
+        evento,
+        obtenerIdJugadorValido,
+        getModoActual: () => estadoCicloPartida.modoActual,
+        partidaSync,
+        construirPayloadCount,
+        permitirSinModo: false
+    });
 
     motorModos = crearMotorModos({
         state: estadoMotorModos,
@@ -410,7 +421,8 @@ function crearRuntimeScrib({
         sincroModos: (socket) => sincro_modos(socket),
         emitirTempModos,
         obtenerIdJugadorValido,
-        emitirEstadoCalentamientoMusa
+        emitirEstadoCalentamientoMusa,
+        emitirEntregaInspiracionActiva
     });
 
     deps = {
@@ -497,7 +509,10 @@ function crearRuntimeScrib({
         reanudarDesventajasActivas: () => desventajasActivas.reanudar(),
         setPartidaPausada: (valor) => {
             partidaPausada = Boolean(valor);
-        }
+        },
+        isPartidaPausada: () => partidaPausada,
+        isFinDelJuego: () => Boolean(estadoCicloPartida.finDelJuego),
+        aplicarAjusteTiempoInspiracion
     };
 
     function sincro_modos(socket = null) {

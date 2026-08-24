@@ -2,6 +2,8 @@
 // Gestión del modo “Letra bendita” / “Letra prohibida” con control de colas,
 // timers, peticiones pendientes y contadores de solicitudes de musa.
 
+const FACTORES_DESCARTE_INSPIRACION = Object.freeze([1, 0.75, 0.5, 0.25])
+
 class Musas {
   /**
    * @param {import('socket.io').Server} io
@@ -11,6 +13,7 @@ class Musas {
     this.io      = io
     this.timeout = TIEMPO_CAMBIO_PALABRAS
     this.generation = 0
+    this.inspirationSeq = 0
     this.decoratePayload = typeof decoratePayload === 'function'
       ? decoratePayload
       : (payload) => payload
@@ -20,8 +23,8 @@ class Musas {
 
     // Estado por jugador: cola de palabras, timers, flag pending y contador de peticiones
     this.players = {
-      1: { queue: [], emitTimer: null, pendingTimer: null, pending: false, insertedCount: 0, ultimaEntregaMusa: null, ultimaEntregaMusaCaducaEnTs: 0 },
-      2: { queue: [], emitTimer: null, pendingTimer: null, pending: false, insertedCount: 0, ultimaEntregaMusa: null, ultimaEntregaMusaCaducaEnTs: 0 }
+      1: { queue: [], emitTimer: null, pendingTimer: null, pending: false, insertedCount: 0, ultimaEntregaMusa: null, ultimaEntregaMusaCaducaEnTs: 0, entregaInspiracionActual: null, descartesConsecutivos: 0, ultimoDescarteInspiracion: null, ultimoAprovechamientoInspiracion: null, protocoloInspiracionV2: false },
+      2: { queue: [], emitTimer: null, pendingTimer: null, pending: false, insertedCount: 0, ultimaEntregaMusa: null, ultimaEntregaMusaCaducaEnTs: 0, entregaInspiracionActual: null, descartesConsecutivos: 0, ultimoDescarteInspiracion: null, ultimoAprovechamientoInspiracion: null, protocoloInspiracionV2: false }
     }
 
     console.log('[MusasMode] Inicializado con timeout de petición:', this.timeout)
@@ -41,6 +44,231 @@ class Musas {
     return this.decoratePayload({ ...base })
   }
 
+  _normalizarInspiracionId(valor) {
+    const id = Number(valor)
+    return Number.isFinite(id) && id > 0 ? Math.trunc(id) : 0
+  }
+
+  _factorInspiracion(playerId) {
+    const st = this.players[playerId]
+    const descartes = st ? Math.max(0, Math.trunc(Number(st.descartesConsecutivos) || 0)) : 0
+    return FACTORES_DESCARTE_INSPIRACION[Math.min(descartes, FACTORES_DESCARTE_INSPIRACION.length - 1)]
+  }
+
+  _tiempoInspiracionPenalizado(tiempoBase, factor = 1) {
+    const base = Number(tiempoBase)
+    if (!Number.isFinite(base) || base <= 0) return 0
+    return Math.max(1, Math.ceil(base * Math.max(0.25, Number(factor) || 1)))
+  }
+
+  _limpiarEntregaInspiracionActual(playerId) {
+    const st = this.players[playerId]
+    if (!st) return
+    st.entregaInspiracionActual = null
+    st.ultimaEntregaMusa = null
+    st.ultimaEntregaMusaCaducaEnTs = 0
+  }
+
+  _prepararEntregaInspiracion(playerId, evento, payload = {}, opciones = {}) {
+    const st = this.players[playerId]
+    if (!st) return this._withModePayload(payload)
+    const factor = this._factorInspiracion(playerId)
+    const inspiracionId = ++this.inspirationSeq
+    const descartes = Math.max(0, Math.trunc(Number(st.descartesConsecutivos) || 0))
+    const caducaEnTsEntrada = Number(opciones.caducaEnTs)
+    const caducaEnTs = Number.isFinite(caducaEnTsEntrada) && caducaEnTsEntrada > 0
+      ? caducaEnTsEntrada
+      : 0
+    const tiempoBaseEntrada = Number(opciones.tiempoBase)
+    const tieneTiempo = Number.isFinite(tiempoBaseEntrada) && tiempoBaseEntrada > 0
+    const tiempoEfectivo = tieneTiempo
+      ? this._tiempoInspiracionPenalizado(tiempoBaseEntrada, factor)
+      : 0
+    const enriquecido = {
+      ...payload,
+      inspiracion_id: inspiracionId,
+      descartable: opciones.descartable !== false,
+      descartes_consecutivos: descartes,
+      factor_inspiracion: factor,
+      valor_inspiracion: factor
+    }
+    if (caducaEnTs > 0) enriquecido.caduca_en_ts = caducaEnTs
+    if (tieneTiempo) {
+      enriquecido.tiempo_base_inspiracion = tiempoBaseEntrada
+      enriquecido.tiempo_palabras_bonus = tiempoEfectivo
+    }
+    const salida = this._withModePayload(enriquecido)
+    const entregaMusa = opciones.entregaMusa && typeof opciones.entregaMusa === 'object'
+      ? {
+          ...opciones.entregaMusa,
+          inspiracion_id: inspiracionId,
+          descartes_consecutivos: descartes,
+          factor_inspiracion: factor,
+          valor_inspiracion: factor,
+          tiempo: tieneTiempo ? tiempoEfectivo : (Number(opciones.entregaMusa.tiempo) || 0)
+        }
+      : null
+    st.entregaInspiracionActual = {
+      inspiracion_id: inspiracionId,
+      evento: String(evento || ''),
+      payload: { ...salida },
+      descartable: opciones.descartable !== false,
+      caduca_en_ts: caducaEnTs,
+      entrega_musa: entregaMusa,
+      contabiliza_marcador: opciones.contabilizaMarcador !== false,
+      score_player: Number(opciones.scorePlayer) === 1 || Number(opciones.scorePlayer) === 2
+        ? Number(opciones.scorePlayer)
+        : playerId
+    }
+    st.ultimaEntregaMusa = entregaMusa
+    st.ultimaEntregaMusaCaducaEnTs = entregaMusa ? caducaEnTs : 0
+    return salida
+  }
+
+  obtenerEntregaInspiracionActiva(playerId, now = Date.now()) {
+    const st = this.players[playerId]
+    if (!st || !st.entregaInspiracionActual) return null
+    const entrega = st.entregaInspiracionActual
+    const caducaEnTs = Number(entrega.caduca_en_ts || 0)
+    if (caducaEnTs > 0 && caducaEnTs <= now) {
+      this._limpiarEntregaInspiracionActual(playerId)
+      return null
+    }
+    return {
+      ...entrega,
+      payload: { ...(entrega.payload || {}) },
+      entrega_musa: entrega.entrega_musa ? { ...entrega.entrega_musa } : null
+    }
+  }
+
+  emitirEntregaInspiracionActiva(playerId, socketDestino) {
+    const entrega = this.obtenerEntregaInspiracionActiva(playerId)
+    if (!entrega || !entrega.evento || !socketDestino || typeof socketDestino.emit !== 'function') {
+      return null
+    }
+    const payload = this._withModePayload({
+      ...entrega.payload,
+      restaurando_inspiracion: true
+    })
+    socketDestino.emit(entrega.evento, payload)
+    return payload
+  }
+
+  solicitarInspiracion(playerId) {
+    const st = this.players[playerId]
+    if (!st) return { ok: false, code: 'INVALID_PLAYER' }
+    st.protocoloInspiracionV2 = true
+    const entrega = this.obtenerEntregaInspiracionActiva(playerId)
+    if (!entrega) return { ok: true, existente: false }
+    return {
+      ok: true,
+      existente: true,
+      inspiracion_id: entrega.inspiracion_id,
+      entrega
+    }
+  }
+
+  usaProtocoloInspiracionV2(playerId) {
+    const st = this.players[playerId]
+    return Boolean(st && st.protocoloInspiracionV2)
+  }
+
+  aprovecharInspiracion(playerId, inspiracionId) {
+    const st = this.players[playerId]
+    if (!st) return { ok: false, code: 'INVALID_PLAYER' }
+    st.protocoloInspiracionV2 = true
+    const id = this._normalizarInspiracionId(inspiracionId)
+    if (!id) return { ok: false, code: 'INVALID_INSPIRATION_ID' }
+    if (st.ultimoAprovechamientoInspiracion && st.ultimoAprovechamientoInspiracion.inspiracion_id === id) {
+      return { ...st.ultimoAprovechamientoInspiracion, idempotente: true }
+    }
+    const entrega = this.obtenerEntregaInspiracionActiva(playerId)
+    if (!entrega) return { ok: false, code: 'NO_ACTIVE_INSPIRATION' }
+    if (entrega.inspiracion_id !== id) {
+      return { ok: false, code: 'STALE_INSPIRATION', inspiracion_id_actual: entrega.inspiracion_id }
+    }
+    const valor = Math.max(0.25, Number(entrega.payload && entrega.payload.valor_inspiracion) || 1)
+    const scorePlayer = entrega.score_player
+    if (entrega.contabiliza_marcador !== false && this.players[scorePlayer]) {
+      this.players[scorePlayer].insertedCount = (Number(this.players[scorePlayer].insertedCount) || 0) + valor
+    }
+    const resultado = {
+      ok: true,
+      aprovechada: true,
+      idempotente: false,
+      player: playerId,
+      inspiracion_id: id,
+      valor_inspiracion: valor,
+      descartes_consecutivos: Math.max(0, Number(st.descartesConsecutivos) || 0),
+      tiempo_otorgado: Math.max(0, Number(entrega.payload && entrega.payload.tiempo_palabras_bonus) || 0),
+      entrega_musa: entrega.entrega_musa ? { ...entrega.entrega_musa } : null
+    }
+    st.descartesConsecutivos = 0
+    this._limpiarEntregaInspiracionActual(playerId)
+    st.ultimoAprovechamientoInspiracion = { ...resultado }
+    return resultado
+  }
+
+  actualizarUltimoAprovechamientoInspiracion(playerId, inspiracionId, cambios = {}) {
+    const st = this.players[playerId]
+    const id = this._normalizarInspiracionId(inspiracionId)
+    if (
+      !st
+      || !id
+      || !st.ultimoAprovechamientoInspiracion
+      || st.ultimoAprovechamientoInspiracion.inspiracion_id !== id
+    ) {
+      return null
+    }
+    st.ultimoAprovechamientoInspiracion = {
+      ...st.ultimoAprovechamientoInspiracion,
+      ...((cambios && typeof cambios === 'object') ? cambios : {})
+    }
+    return { ...st.ultimoAprovechamientoInspiracion }
+  }
+
+  descartarInspiracion(playerId, inspiracionId) {
+    const st = this.players[playerId]
+    if (!st) return { ok: false, code: 'INVALID_PLAYER' }
+    st.protocoloInspiracionV2 = true
+    const id = this._normalizarInspiracionId(inspiracionId)
+    if (!id) return { ok: false, code: 'INVALID_INSPIRATION_ID' }
+    if (st.ultimoDescarteInspiracion && st.ultimoDescarteInspiracion.inspiracion_id === id) {
+      return { ...st.ultimoDescarteInspiracion, idempotente: true }
+    }
+    const entrega = this.obtenerEntregaInspiracionActiva(playerId)
+    if (!entrega) return { ok: false, code: 'NO_ACTIVE_INSPIRATION' }
+    if (entrega.inspiracion_id !== id) {
+      return { ok: false, code: 'STALE_INSPIRATION', inspiracion_id_actual: entrega.inspiracion_id }
+    }
+    if (entrega.descartable === false) {
+      return { ok: false, code: 'MODE_NOT_DISCARDABLE' }
+    }
+    if (st.emitTimer) {
+      clearTimeout(st.emitTimer)
+      st.emitTimer = null
+    }
+    if (st.pendingTimer) {
+      clearTimeout(st.pendingTimer)
+      st.pendingTimer = null
+    }
+    st.descartesConsecutivos = Math.max(0, Math.trunc(Number(st.descartesConsecutivos) || 0)) + 1
+    const resultado = {
+      ok: true,
+      descartada: true,
+      idempotente: false,
+      player: playerId,
+      inspiracion_id: id,
+      descartes_consecutivos: st.descartesConsecutivos,
+      factor_siguiente: this._factorInspiracion(playerId),
+      valor_siguiente: this._factorInspiracion(playerId)
+    }
+    this._limpiarEntregaInspiracionActual(playerId)
+    st.ultimoDescarteInspiracion = { ...resultado }
+    this._notifyStateChange(playerId)
+    return resultado
+  }
+
   _emitClear(playerId, entregaAnterior = null, reason = 'caducada') {
     const st = this.players[playerId]
     const payload = this._withModePayload({
@@ -57,6 +285,7 @@ class Musas {
       tiempo_restante_ms: 0,
       caduca_en_ts: 0
     })
+    this._limpiarEntregaInspiracionActual(playerId)
     this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, payload)
   }
 
@@ -298,6 +527,11 @@ class Musas {
       if (st.ultimoMusaNombre != null) st.ultimoMusaNombre = ''
       st.ultimaEntregaMusa = null
       st.ultimaEntregaMusaCaducaEnTs = 0
+      st.entregaInspiracionActual = null
+      st.descartesConsecutivos = 0
+      st.ultimoDescarteInspiracion = null
+      st.ultimoAprovechamientoInspiracion = null
+      st.protocoloInspiracionV2 = false
     })
     this._notifyStateChange()
   }
@@ -329,8 +563,8 @@ class Musas {
     const st = this.players[playerId]
     if (!st || !st.ultimaEntregaMusa) return null
     const entrega = { ...st.ultimaEntregaMusa }
-    st.ultimaEntregaMusa = null
-    st.ultimaEntregaMusaCaducaEnTs = 0
+    st.descartesConsecutivos = 0
+    this._limpiarEntregaInspiracionActual(playerId)
     this._notifyStateChange(playerId)
     return entrega
   }
@@ -363,8 +597,7 @@ class Musas {
       ? Math.max(0, Math.trunc(caducaEnTs - now))
       : 0
     if (entrega && caducaEnTs > 0 && restante <= 0) {
-      st.ultimaEntregaMusa = null
-      st.ultimaEntregaMusaCaducaEnTs = 0
+      this._limpiarEntregaInspiracionActual(player)
     }
     const activa = Boolean(st.ultimaEntregaMusa && restante > 0)
     if (activa) {
@@ -375,6 +608,10 @@ class Musas {
         modo: String(st.ultimaEntregaMusa.modo || ''),
         musa_nombre: String(st.ultimaEntregaMusa.musa_nombre || ''),
         superbonus: Boolean(st.ultimaEntregaMusa.superbonus),
+        inspiracion_id: Number(st.ultimaEntregaMusa.inspiracion_id) || 0,
+        descartes_consecutivos: Math.max(0, Number(st.ultimaEntregaMusa.descartes_consecutivos) || 0),
+        factor_inspiracion: Number(st.ultimaEntregaMusa.factor_inspiracion) || 1,
+        valor_inspiracion: Number(st.ultimaEntregaMusa.valor_inspiracion) || 1,
         tiempo_restante_ms: restante,
         caduca_en_ts: caducaEnTs,
         cola,
@@ -467,15 +704,17 @@ class Musas {
    * 3) Siempre reprograma el siguiente timeout.
    * @param {1|2} playerId
    */
-  handleRequest(playerId) {
+  handleRequest(playerId, opciones = {}) {
     const st = this.players[playerId]
     if (!st) return
 
     // ① Contabilizar solicitud
-    st.insertedCount++
-    console.log(
-      `[MusasMode] handleRequest() J${playerId} pidió musa → total peticiones: ${st.insertedCount}`
-    )
+    if (opciones.contabilizar !== false) {
+      st.insertedCount++
+      console.log(
+        `[MusasMode] handleRequest() J${playerId} pidió musa → total peticiones: ${st.insertedCount}`
+      )
+    }
 
     // ② Limpio el timer anterior de pending (si existe)
     if (st.pendingTimer) {
@@ -531,14 +770,10 @@ class Musas {
     const word = item.palabra
     const musa = item.musa || ''
     console.log(`[MusasMode] _emitNext() J${playerId} → emitiendo "${word}"`)
-    const payload = this._withModePayload({
-      palabra: word,
-      musa_nombre: musa
-    })
-    st.ultimaEntregaMusa = {
+    const entregaMusa = {
       player: playerId,
       target_player: playerId,
-      modo: payload.modo_actual || '',
+      modo: '',
       palabra: word,
       musa_nombre: musa,
       client_id: item.client_id || '',
@@ -549,7 +784,28 @@ class Musas {
     }
     const now = Date.now()
     const caducaEnTs = this._obtenerCaducidadMusaItem(item, now)
-    st.ultimaEntregaMusaCaducaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout
+    const caducaEntregaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout
+    const payload = this._prepararEntregaInspiracion(
+      playerId,
+      `inspirar_j${playerId}`,
+      {
+        palabra: word,
+        musa_nombre: musa
+      },
+      {
+        caducaEnTs: caducaEntregaEnTs,
+        entregaMusa,
+        descartable: true,
+        contabilizaMarcador: true,
+        scorePlayer: playerId
+      }
+    )
+    if (st.ultimaEntregaMusa) {
+      st.ultimaEntregaMusa.modo = payload.modo_actual || ''
+      if (st.entregaInspiracionActual && st.entregaInspiracionActual.entrega_musa) {
+        st.entregaInspiracionActual.entrega_musa.modo = payload.modo_actual || ''
+      }
+    }
     this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, payload)
     this._notifyStateChange(playerId)
   }
@@ -589,6 +845,7 @@ class Musas {
     if (st.queue.length > 0) {
       st.ultimaEntregaMusa = null
       st.ultimaEntregaMusaCaducaEnTs = 0
+      st.entregaInspiracionActual = null
       this._emitNext(playerId, generation)
       return true
     }
@@ -596,6 +853,7 @@ class Musas {
     st.pending = true
     st.ultimaEntregaMusa = null
     st.ultimaEntregaMusaCaducaEnTs = 0
+    st.entregaInspiracionActual = null
     if (entregaAnterior) {
       this._emitClear(playerId, entregaAnterior, 'caducada')
     }

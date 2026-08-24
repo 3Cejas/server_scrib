@@ -28,6 +28,41 @@ function cleanupMode(mode) {
   }
 }
 
+function withoutProtocolMetadata(payload = {}) {
+  const {
+    inspiracion_id,
+    descartable,
+    descartes_consecutivos,
+    factor_inspiracion,
+    valor_inspiracion,
+    caduca_en_ts,
+    tiempo_base_inspiracion,
+    ...rest
+  } = payload;
+  return rest;
+}
+
+function assertProtocolMetadata(payload, { id, factor = 1 } = {}) {
+  assert.equal(payload.inspiracion_id, id);
+  assert.equal(payload.descartable, true);
+  assert.equal(payload.descartes_consecutivos, 0);
+  assert.equal(payload.factor_inspiracion, factor);
+  assert.equal(payload.valor_inspiracion, factor);
+  assert.ok(payload.caduca_en_ts > Date.now());
+  assert.ok(payload.tiempo_base_inspiracion > 0);
+}
+
+function withoutDeliveryProtocolMetadata(entrega = {}) {
+  const {
+    inspiracion_id,
+    descartes_consecutivos,
+    factor_inspiracion,
+    valor_inspiracion,
+    ...rest
+  } = entrega;
+  return rest;
+}
+
 test("PalabrasBonus delivers queued musa words correctly for both writers", async () => {
   const io = createFakeIo();
   const mode = new PalabrasBonusMode(io, 10000);
@@ -44,7 +79,7 @@ test("PalabrasBonus delivers queued musa words correctly for both writers", asyn
   assert.equal(mode.getlastDeliveredFromMusa(1), true);
   assert.equal(mode.getlastDeliveredFromMusa(2), true);
   assert.equal(io.events.length, 2);
-  assert.deepEqual(io.events[0], {
+  assert.deepEqual({ ...io.events[0], payload: withoutProtocolMetadata(io.events[0].payload) }, {
     event: "enviar_palabra_j1",
     payload: {
       modo_actual: "palabras bonus",
@@ -58,11 +93,13 @@ test("PalabrasBonus delivers queued musa words correctly for both writers", asyn
       musa_nombre: "Luna"
     }
   });
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
   assert.equal(io.events[1].event, "enviar_palabra_j2");
   assert.equal(io.events[1].payload.palabras_var, "faro");
   assert.equal(io.events[1].payload.origen_musa, "musa");
   assert.equal(io.events[1].payload.musa_nombre, "Sol");
-  assert.deepEqual(mode.consumirEntregaMusaIntroducida(1), {
+  const entrega = mode.consumirEntregaMusaIntroducida(1);
+  assert.deepEqual(withoutDeliveryProtocolMetadata(entrega), {
     player: 1,
     target_player: 1,
     modo: "palabras bonus",
@@ -75,6 +112,8 @@ test("PalabrasBonus delivers queued musa words correctly for both writers", asyn
     superbonus: false,
     repeticiones: 1
   });
+  assert.equal(entrega.inspiracion_id, 1);
+  assert.equal(entrega.valor_inspiracion, 1);
 
   cleanupMode(mode);
 });
@@ -105,7 +144,8 @@ test("PalabrasBonus prioritizes repeated ally words as superbonus", async () => 
     io.events[0].payload.tiempo_palabras_bonus,
     mode._aplicarTiempoSuperbonus(mode._puntuacionPalabra("cometa"), 2)
   );
-  assert.deepEqual(mode.consumirEntregaMusaIntroducida(1), {
+  const entrega = mode.consumirEntregaMusaIntroducida(1);
+  assert.deepEqual(withoutDeliveryProtocolMetadata(entrega), {
     player: 1,
     target_player: 1,
     modo: "palabras bonus",
@@ -118,6 +158,7 @@ test("PalabrasBonus prioritizes repeated ally words as superbonus", async () => 
     superbonus: true,
     repeticiones: 2
   });
+  assert.equal(entrega.valor_inspiracion, 1);
   assert.deepEqual(mode.players[1].queue, [{ palabra: "bruma", musa: "Musa Solo", client_id: "solo" }]);
 
   cleanupMode(mode);
@@ -180,7 +221,10 @@ test("PalabrasBonus falls back to RAE when the queue is empty", async (t) => {
 
   assert.equal(mode.getInsertedCount(1), 0);
   assert.equal(mode.getlastDeliveredFromMusa(1), false);
-  assert.deepEqual(io.events, [
+  assert.deepEqual(io.events.map((entry) => ({
+    ...entry,
+    payload: withoutProtocolMetadata(entry.payload)
+  })), [
     {
       event: "enviar_palabra_j1",
       payload: {
@@ -191,6 +235,7 @@ test("PalabrasBonus falls back to RAE when the queue is empty", async (t) => {
       }
     }
   ]);
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
 
   cleanupMode(mode);
 });
@@ -244,7 +289,10 @@ test("PalabrasBonus uses the local fallback when RAE is unavailable", async (t) 
 
   assert.equal(mode.getInsertedCount(2), 0);
   assert.equal(mode.getlastDeliveredFromMusa(2), false);
-  assert.deepEqual(io.events, [
+  assert.deepEqual(io.events.map((entry) => ({
+    ...entry,
+    payload: withoutProtocolMetadata(entry.payload)
+  })), [
     {
       event: "enviar_palabra_j2",
       payload: {
@@ -255,6 +303,7 @@ test("PalabrasBonus uses the local fallback when RAE is unavailable", async (t) 
       }
     }
   ]);
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
 
   cleanupMode(mode);
 });
@@ -353,5 +402,61 @@ test("PalabrasBonus decorates emitted words with mode metadata", async () => {
   assert.equal(io.events.length, 1);
   assert.equal(io.events[0].payload.modo_seq, 9);
   assert.equal(io.events[0].payload.modo_actual, "palabras bonus");
+  cleanupMode(mode);
+});
+
+test("PalabrasBonus penalizes superbonus time and score with the cumulative factor", async () => {
+  const io = createFakeIo();
+  const mode = new PalabrasBonusMode(io, 10000);
+  mode._scheduleNext = () => {};
+  mode.addMusa(1, { palabra: "paso", musa: "Inicio", client_id: "inicio" });
+
+  mode.solicitarInspiracion(1);
+  await mode.handleRequest(1, { contabilizar: false });
+  const primera = io.events.at(-1).payload;
+  assert.equal(mode.descartarInspiracion(1, primera.inspiracion_id).factor_siguiente, 0.75);
+
+  mode.addMusa(1, { palabra: "cometa", musa: "Luna", client_id: "luna" });
+  mode.addMusa(1, { palabra: "COMETA", musa: "Sol", client_id: "sol" });
+  await mode.handleRequest(1, { contabilizar: false });
+  const penalizada = io.events.at(-1).payload;
+  const baseSuperbonus = mode._aplicarTiempoSuperbonus(mode._puntuacionPalabra("cometa"), 2);
+
+  assert.equal(penalizada.factor_inspiracion, 0.75);
+  assert.equal(penalizada.valor_inspiracion, 0.75);
+  assert.equal(penalizada.tiempo_base_inspiracion, baseSuperbonus);
+  assert.equal(penalizada.tiempo_palabras_bonus, Math.max(1, Math.ceil(baseSuperbonus * 0.75)));
+  const resultado = mode.aprovecharInspiracion(1, penalizada.inspiracion_id);
+  assert.equal(resultado.tiempo_otorgado, penalizada.tiempo_palabras_bonus);
+  assert.equal(resultado.valor_inspiracion, 0.75);
+  assert.equal(mode.getInsertedCount(1), 0.75);
+  cleanupMode(mode);
+});
+
+test("PalabrasBonus keeps RAE deliveries discardable and timed without counting inspiration score", async (t) => {
+  const io = createFakeIo();
+  const mode = new PalabrasBonusMode(io, 10000);
+  mode._scheduleNext = () => {};
+  t.mock.method(PalabrasBonusMode, "_inicializarNavegador", async () => {});
+  t.mock.method(mode, "_palabraRAE", async () => ["historia", "Narracion de hechos."]);
+
+  mode.solicitarInspiracion(1);
+  await mode.handleRequest(1, { contabilizar: false });
+  const payload = io.events[0].payload;
+  assert.equal(payload.descartable, true);
+  assert.ok(payload.tiempo_palabras_bonus > 0);
+  const resultado = mode.aprovecharInspiracion(1, payload.inspiracion_id);
+
+  assert.equal(resultado.ok, true);
+  assert.equal(resultado.entrega_musa, null);
+  assert.equal(resultado.tiempo_otorgado, payload.tiempo_palabras_bonus);
+  assert.equal(mode.getInsertedCount(1), 0);
+  cleanupMode(mode);
+});
+
+test("PalabrasBonus time penalty always rounds up and has a one-second floor", () => {
+  const mode = new PalabrasBonusMode(createFakeIo(), 10000);
+  assert.equal(mode._tiempoInspiracionPenalizado(5, 0.75), 4);
+  assert.equal(mode._tiempoInspiracionPenalizado(1, 0.25), 1);
   cleanupMode(mode);
 });

@@ -24,6 +24,39 @@ function cleanupMode(mode) {
   mode.clearAll();
 }
 
+function withoutProtocolMetadata(payload = {}) {
+  const {
+    inspiracion_id,
+    descartable,
+    descartes_consecutivos,
+    factor_inspiracion,
+    valor_inspiracion,
+    caduca_en_ts,
+    ...rest
+  } = payload;
+  return rest;
+}
+
+function assertProtocolMetadata(payload, { id, descartable = true, factor = 1 } = {}) {
+  assert.equal(payload.inspiracion_id, id);
+  assert.equal(payload.descartable, descartable);
+  assert.equal(payload.descartes_consecutivos, 0);
+  assert.equal(payload.factor_inspiracion, factor);
+  assert.equal(payload.valor_inspiracion, factor);
+  assert.ok(payload.caduca_en_ts > Date.now());
+}
+
+function withoutDeliveryProtocolMetadata(entrega = {}) {
+  const {
+    inspiracion_id,
+    descartes_consecutivos,
+    factor_inspiracion,
+    valor_inspiracion,
+    ...rest
+  } = entrega;
+  return rest;
+}
+
 test("Musas normalizes musa items from strings and objects", () => {
   const mode = new Musas(createFakeIo(), 10000);
   cleanupMode(mode);
@@ -53,7 +86,7 @@ test("Musas addMusa flushes immediately when the player was pending", () => {
 
   assert.equal(mode.players[1].pending, false);
   assert.equal(io.events.length, 1);
-  assert.deepEqual(io.events[0], {
+  assert.deepEqual({ ...io.events[0], payload: withoutProtocolMetadata(io.events[0].payload) }, {
     scope: "room",
     room: "j1",
     event: "inspirar_j1",
@@ -62,7 +95,9 @@ test("Musas addMusa flushes immediately when the player was pending", () => {
       musa_nombre: "Luna"
     }
   });
-  assert.deepEqual(mode.consumirEntregaMusaIntroducida(1), {
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
+  const entrega = mode.consumirEntregaMusaIntroducida(1);
+  assert.deepEqual(withoutDeliveryProtocolMetadata(entrega), {
     player: 1,
     target_player: 1,
     modo: "",
@@ -74,6 +109,8 @@ test("Musas addMusa flushes immediately when the player was pending", () => {
     tiempo: 0,
     superbonus: false
   });
+  assert.equal(entrega.inspiracion_id, 1);
+  assert.equal(entrega.valor_inspiracion, 1);
   cleanupMode(mode);
 });
 
@@ -93,7 +130,7 @@ test("Musas keeps pending requests isolated per writer and delivers to the match
   mode.addMusa(1, { palabra: "aurora", musa: "Luna" });
   assert.equal(mode.players[1].pending, false);
   assert.equal(io.events.length, 1);
-  assert.deepEqual(io.events[0], {
+  assert.deepEqual({ ...io.events[0], payload: withoutProtocolMetadata(io.events[0].payload) }, {
     scope: "room",
     room: "j1",
     event: "inspirar_j1",
@@ -102,6 +139,7 @@ test("Musas keeps pending requests isolated per writer and delivers to the match
       musa_nombre: "Luna"
     }
   });
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
 
   cleanupMode(mode);
 });
@@ -118,7 +156,10 @@ test("Musas emits queued musa requests independently for both writers", () => {
 
   assert.equal(mode.getInsertedCount(1), 1);
   assert.equal(mode.getInsertedCount(2), 1);
-  assert.deepEqual(io.events, [
+  assert.deepEqual(io.events.map((entry) => ({
+    ...entry,
+    payload: withoutProtocolMetadata(entry.payload)
+  })), [
     {
       scope: "room",
       room: "j1",
@@ -138,6 +179,8 @@ test("Musas emits queued musa requests independently for both writers", () => {
       }
     }
   ]);
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
+  assertProtocolMetadata(io.events[1].payload, { id: 2 });
 
   cleanupMode(mode);
 });
@@ -238,12 +281,13 @@ test("Musas decorates emitted inspiration with mode metadata", () => {
   mode.addMusa(1, { palabra: "aurora", musa: "Luna" });
 
   assert.equal(io.events.length, 1);
-  assert.deepEqual(io.events[0].payload, {
+  assert.deepEqual(withoutProtocolMetadata(io.events[0].payload), {
     palabra: "aurora",
     musa_nombre: "Luna",
     modo_seq: 7,
     modo_actual: "letra bendita"
   });
+  assertProtocolMetadata(io.events[0].payload, { id: 1 });
   cleanupMode(mode);
 });
 
@@ -293,4 +337,63 @@ test("Musas replaces expired delivered inspiration with queued muse word before 
   assert.equal(io.events[0].payload.limpiar_inspiracion, undefined);
   assert.equal(mode.obtenerEstadoPalabrasMusas(1).palabra, "brillo");
   cleanupMode(mode);
+});
+
+test("Musas applies the cumulative discard ladder once per delivery and resets it on use", (t) => {
+  const io = createFakeIo();
+  t.mock.method(global, "setTimeout", () => ({ mocked: true }));
+  t.mock.method(global, "clearTimeout", () => {});
+  const mode = new Musas(io, 10000);
+  ["uno", "dos", "tres", "cuatro", "cinco", "seis"].forEach((palabra) => {
+    mode.addMusa(1, { palabra, musa: "Luna" });
+  });
+
+  assert.deepEqual(mode.solicitarInspiracion(1), { ok: true, existente: false });
+  mode.handleRequest(1, { contabilizar: false });
+  let actual = io.events.at(-1).payload;
+  assert.equal(actual.factor_inspiracion, 1);
+  assert.equal(mode.getInsertedCount(1), 0);
+
+  for (const factorEsperado of [0.75, 0.5, 0.25, 0.25]) {
+    const descarte = mode.descartarInspiracion(1, actual.inspiracion_id);
+    assert.equal(descarte.ok, true);
+    assert.equal(descarte.factor_siguiente, factorEsperado);
+    const repetido = mode.descartarInspiracion(1, actual.inspiracion_id);
+    assert.equal(repetido.idempotente, true);
+    assert.equal(repetido.descartes_consecutivos, descarte.descartes_consecutivos);
+
+    mode.handleRequest(1, { contabilizar: false });
+    actual = io.events.at(-1).payload;
+    assert.equal(actual.factor_inspiracion, factorEsperado);
+    assert.equal(actual.valor_inspiracion, factorEsperado);
+  }
+
+  const aprovechada = mode.aprovecharInspiracion(1, actual.inspiracion_id);
+  assert.equal(aprovechada.ok, true);
+  assert.equal(aprovechada.valor_inspiracion, 0.25);
+  assert.equal(mode.getInsertedCount(1), 0.25);
+  const repetida = mode.aprovecharInspiracion(1, actual.inspiracion_id);
+  assert.equal(repetida.idempotente, true);
+  assert.equal(mode.getInsertedCount(1), 0.25);
+
+  mode.handleRequest(1, { contabilizar: false });
+  assert.equal(io.events.at(-1).payload.factor_inspiracion, 1);
+  cleanupMode(mode);
+});
+
+test("Musas clears active delivery, streak and protocol generation on mode cleanup", (t) => {
+  t.mock.method(global, "setTimeout", () => ({ mocked: true }));
+  t.mock.method(global, "clearTimeout", () => {});
+  const mode = new Musas(createFakeIo(), 10000);
+  mode.addMusa(1, { palabra: "aurora", musa: "Luna" });
+  mode.solicitarInspiracion(1);
+  mode.handleRequest(1, { contabilizar: false });
+  const activa = mode.obtenerEntregaInspiracionActiva(1);
+  mode.descartarInspiracion(1, activa.inspiracion_id);
+
+  mode.clearAll();
+
+  assert.equal(mode.obtenerEntregaInspiracionActiva(1), null);
+  assert.equal(mode.players[1].descartesConsecutivos, 0);
+  assert.equal(mode.usaProtocoloInspiracionV2(1), false);
 });

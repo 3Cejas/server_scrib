@@ -33,6 +33,17 @@ function cleanupMode(mode) {
   }
 }
 
+function withoutDeliveryProtocolMetadata(entrega = {}) {
+  const {
+    inspiracion_id,
+    descartes_consecutivos,
+    factor_inspiracion,
+    valor_inspiracion,
+    ...rest
+  } = entrega;
+  return rest;
+}
+
 test("PalabrasMalditas routes musa words to the opponent queue", (t) => {
   stubTimers(t);
   const mode = new PalabrasMalditasMode(createFakeIo(), 10000);
@@ -63,7 +74,8 @@ test("PalabrasMalditas emits musa payload with escaped musa name metadata", (t) 
   assert.equal(io.events[0].payload.origen_musa, "musa_enemiga");
   assert.equal(io.events[0].payload.musa_nombre, "<b>Ana</b>");
   assert.match(io.events[0].payload.palabra_bonus[1], /&lt;b&gt;Ana&lt;\/b&gt;/);
-  assert.deepEqual(mode.consumirEntregaMusaIntroducida(1), {
+  const entrega = mode.consumirEntregaMusaIntroducida(1);
+  assert.deepEqual(withoutDeliveryProtocolMetadata(entrega), {
     player: 2,
     target_player: 1,
     modo: "palabras prohibidas",
@@ -75,6 +87,8 @@ test("PalabrasMalditas emits musa payload with escaped musa name metadata", (t) 
     tiempo: mode._puntuacionPalabra("cometa"),
     superbonus: false
   });
+  assert.equal(entrega.inspiracion_id, 1);
+  assert.equal(entrega.valor_inspiracion, 1);
   cleanupMode(mode);
 });
 
@@ -211,5 +225,25 @@ test("PalabrasMalditas emits current mode metadata for forbidden words", (t) => 
   assert.equal(io.events.length, 1);
   assert.equal(io.events[0].payload.modo_actual, "palabras prohibidas");
   assert.equal(io.events[0].payload.modo_seq, 11);
+  cleanupMode(mode);
+});
+
+test("PalabrasMalditas assigns delivery IDs but never permits discards", (t) => {
+  stubTimers(t);
+  const io = createFakeIo();
+  const mode = new PalabrasMalditasMode(io, 10000);
+  mode.players[1].queue.push({ palabra: "cometa", musa: "Luna" });
+
+  mode.solicitarInspiracion(1);
+  mode._emitNext(1);
+  const payload = io.events[0].payload;
+
+  assert.equal(payload.inspiracion_id, 1);
+  assert.equal(payload.descartable, false);
+  assert.equal(payload.valor_inspiracion, 1);
+  assert.deepEqual(mode.descartarInspiracion(1, payload.inspiracion_id), {
+    ok: false,
+    code: "MODE_NOT_DISCARDABLE"
+  });
   cleanupMode(mode);
 });

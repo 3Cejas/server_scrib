@@ -162,6 +162,8 @@ class PalabrasMalditasMode extends MusasMode {
 
     let word;
     let def;
+    let entregaMusaActual = null;
+    let caducaEntregaEnTs = 0;
     if (queueSelf.length > 0) {
       // Musa de cola propia (sugerida por el otro)
       const idx = Math.floor(Math.random() * queueSelf.length);
@@ -174,7 +176,7 @@ class PalabrasMalditasMode extends MusasMode {
       const musaLabel = musaNombre ? escapeHtml(musaNombre) : 'MUSA ENEMIGA';
       def = `<span style="color:red;">${musaLabel}</span>: <span style='color: orange;'>me pega esta palabra ⬆️</span>`;
       st.ultimoMusaNombre = musaNombre;
-      st.ultimaEntregaMusa = {
+      entregaMusaActual = {
         player: playerId === 1 ? 2 : 1,
         target_player: playerId,
         modo: 'palabras prohibidas',
@@ -188,7 +190,7 @@ class PalabrasMalditasMode extends MusasMode {
       };
       const now = Date.now();
       const caducaEnTs = this._obtenerCaducidadMusaItem(item, now);
-      st.ultimaEntregaMusaCaducaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout;
+      caducaEntregaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout;
     } else {
       const top = this._obtenerTopPalabrasJugador(playerId, this.TOP_K_PALABRAS);
       const usadas = this.palabras_usadas[playerId];
@@ -227,19 +229,30 @@ class PalabrasMalditasMode extends MusasMode {
     }
 
     // Construir y enviar payload
-    const payload = {
+    const payloadBase = {
       modo_actual:           'palabras prohibidas',
       palabras_var:          [word],
       palabra_bonus:         [[word], def],
       tiempo_palabras_bonus: this._puntuacionPalabra(word)
     };
     if (st.lastDeliveredFromMusa) {
-      payload.origen_musa = 'musa_enemiga';
-      payload.musa_nombre = st.ultimoMusaNombre || '';
+      payloadBase.origen_musa = 'musa_enemiga';
+      payloadBase.musa_nombre = st.ultimoMusaNombre || '';
     }
-    console.log(`[Malditas][_emitNext] Emite ${evento}:`, payload);
     if (!this._isGenerationActive(generation)) return;
-    this.io.emit(evento, this._withModePayload(payload));
+    if (!caducaEntregaEnTs) {
+      caducaEntregaEnTs = Date.now() + Math.max(0, Number(this.timeout) || 0);
+    }
+    const payload = this._prepararEntregaInspiracion(playerId, evento, payloadBase, {
+      caducaEnTs: caducaEntregaEnTs,
+      tiempoBase: payloadBase.tiempo_palabras_bonus,
+      entregaMusa: entregaMusaActual,
+      descartable: false,
+      contabilizaMarcador: Boolean(entregaMusaActual),
+      scorePlayer: entregaMusaActual ? entregaMusaActual.player : playerId
+    });
+    console.log(`[Malditas][_emitNext] Emite ${evento}:`, payload);
+    this.io.emit(evento, payload);
     this._notifyStateChange(playerId);
 
     // Reprogramar siguiente emisión
@@ -256,13 +269,13 @@ class PalabrasMalditasMode extends MusasMode {
    *
    * @param {1|2} playerId
    */
-  async handleRequest(playerId) {
+  async handleRequest(playerId, opciones = {}) {
     const st        = this.players[playerId];
     const opponent  = 3 - playerId;
     const generation = this.generation;
 
     // 1) Si la última entrega fue de musa, sumamos al otro
-    if (st.lastDeliveredFromMusa) {
+    if (opciones.contabilizar !== false && st.lastDeliveredFromMusa) {
       this.players[opponent].insertedCount++;
       console.log(
         `[Malditas][handleRequest] J${playerId} pidió tras musa →` +

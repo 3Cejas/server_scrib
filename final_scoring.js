@@ -1,5 +1,5 @@
 const PUNTUACION_SCHEMA_VERSION = 1;
-const PUNTUACION_FORMULA_VERSION = "scrib-puntuacion-v1";
+const PUNTUACION_FORMULA_VERSION = "scrib-puntuacion-v2";
 
 const CATEGORIAS_PUNTUACION = Object.freeze([
     Object.freeze({
@@ -28,11 +28,11 @@ const CATEGORIAS_PUNTUACION = Object.freeze([
     }),
     Object.freeze({
         id: "bonus",
-        etiqueta: "Bonus aprovechados",
+        etiqueta: "Inspiraci\u00f3n aprovechada",
         peso: 20,
-        unidad: "bonus",
+        unidad: "puntos de inspiraci\u00f3n",
         mejor: "mayor",
-        explicacion: "Compara las palabras benditas incorporadas durante la partida."
+        explicacion: "Compara el valor de las inspiraciones incorporadas; los descartes consecutivos reducen su valor."
     }),
     Object.freeze({
         id: "precision",
@@ -160,11 +160,22 @@ function extraerMetricasJugador(entrada = {}) {
     const vidaMedia = entrada.vida && typeof entrada.vida === "object"
         ? numeroNoNegativo(entrada.vida.media)
         : 0;
+    const valorInspiracionEntrada = entrada.valorInspiracion;
+    const valorInspiracionNumero = Number(valorInspiracionEntrada);
+    const maximoValorInspiracion = Array.isArray(entrada.palabrasBenditas)
+        ? entrada.palabrasBenditas.length
+        : 0;
+    const tieneValorInspiracion = valorInspiracionEntrada !== null
+        && typeof valorInspiracionEntrada !== "undefined"
+        && String(valorInspiracionEntrada).trim() !== ""
+        && Number.isFinite(valorInspiracionNumero);
     return {
         produccion: palabrasTotal,
         ritmo: numeroNoNegativo(entrada.ritmoPpm),
         riqueza_lexica: palabrasUnicas,
-        bonus: Array.isArray(entrada.palabrasBenditas) ? entrada.palabrasBenditas.length : 0,
+        bonus: tieneValorInspiracion
+            ? Math.min(maximoValorInspiracion, Math.max(0, valorInspiracionNumero))
+            : maximoValorInspiracion,
         precision: numeroNoNegativo(entrada.intentosLetraProhibida)
             + numeroNoNegativo(entrada.intentosPalabraProhibida),
         resistencia: vidaMedia

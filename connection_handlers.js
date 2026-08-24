@@ -91,7 +91,10 @@ function registrarConexionScrib(socket, deps) {
         registrarDesventajaAplicada,
         pausarDesventajasActivas,
         reanudarDesventajasActivas,
-        setPartidaPausada
+        setPartidaPausada,
+        isPartidaPausada,
+        isFinDelJuego,
+        aplicarAjusteTiempoInspiracion
     } = deps;
 
     const query = socket && socket.handshake && socket.handshake.query;
@@ -211,6 +214,10 @@ function registrarConexionScrib(socket, deps) {
         emitirFeedbackMusas,
         emitirEstadoRegaloBanderaMusas,
         sesionesEscritor,
+        getModoSeq: () => partidaSync.obtenerModoSeq(),
+        isPartidaPausada,
+        isFinDelJuego,
+        aplicarAjusteTiempoInspiracion,
         registrar
     });
     registrarCanalesVotacion({

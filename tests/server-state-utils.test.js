@@ -100,6 +100,10 @@ test("stats payload normalizes text lengths, falls back heatmap from top keys an
         letrasBenditas: ["ABCDEFGHIJK", "Z"],
         palabrasMalditas: ["una palabra maldita larguisima que deberia recortarse"],
         intentosPalabraProhibida: -8
+      },
+      2: {
+        valorInspiracion: "2.75",
+        palabrasBenditas: ["luz", "mar", "sol"]
       }
     }
   }, {
@@ -122,4 +126,17 @@ test("stats payload normalizes text lengths, falls back heatmap from top keys an
   assert.deepEqual(payload.players[1].palabrasMalditas, ["una palabra maldita largui"]);
   assert.equal(payload.players[1].intentosPalabraProhibida, 0);
   assert.equal(payload.players[2].nombre, "ESCRITXR 2");
+  assert.equal(payload.players[2].valorInspiracion, 2.75);
+});
+
+test("stats normalization clamps weighted inspiration and omits it for legacy payloads", () => {
+  const payload = normalizarPayloadStatsLive({
+    players: {
+      1: { valorInspiracion: 99, palabrasBenditas: ["luz", "mar"] },
+      2: { palabrasBenditas: ["luz"] }
+    }
+  });
+
+  assert.equal(payload.players[1].valorInspiracion, 2);
+  assert.equal(Object.prototype.hasOwnProperty.call(payload.players[2], "valorInspiracion"), false);
 });

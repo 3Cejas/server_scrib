@@ -227,6 +227,7 @@ test("enviar_inspiracion keeps letter-mode muse words queued when the writer is 
 
 test("nueva_palabra marks the delivered muse word before requesting the next bonus", () => {
   const socket = createFakeSocket();
+  socket.escritxr = 1;
   const order = [];
   let introduced = null;
   const mode = {
@@ -362,4 +363,383 @@ test("pedir_resumen_musas_pdf responds through ack when available", () => {
   });
 
   assert.equal(ackPayload, resumen);
+});
+
+function registrarProtocoloInspiracion({
+  socket,
+  mode,
+  modoActual = "palabras bonus",
+  modoSeq = 7,
+  pausada = false,
+  finalizada = false,
+  aplicarTiempo = () => null,
+  introduced = () => {}
+}) {
+  const roomEvents = [];
+  const globalEvents = [];
+  const io = {
+    emit(event, payload) {
+      globalEvents.push({ event, payload });
+    },
+    to(room) {
+      return {
+        emit(event, payload) {
+          roomEvents.push({ room, event, payload });
+        }
+      };
+    }
+  };
+  registrarCanalesInspiracion({
+    socket,
+    io,
+    musasAuxiliares: {
+      registrarInspiracionIntroducida: introduced
+    },
+    nubeInspiracion: {},
+    getModoActual: () => modoActual,
+    getModoBonus: () => mode,
+    getModoMalditas: () => mode,
+    getModoMusas: () => mode,
+    getModoSeq: () => modoSeq,
+    isPartidaPausada: () => pausada,
+    isFinDelJuego: () => finalizada,
+    aplicarAjusteTiempoInspiracion: aplicarTiempo,
+    obtenerIdJugadorValido: (valor) => {
+      const id = Number(valor);
+      return id === 1 || id === 2 ? id : null;
+    },
+    sesionesEscritor: {
+      esActiva: (writerSocket, player) => writerSocket === socket && player === socket.escritxr
+    },
+    emitirNubeInspiracionEstado: () => {}
+  });
+  return { io, roomEvents, globalEvents };
+}
+
+test("V2 inspiration actions validate active mode and mode sequence before touching an engine", () => {
+  const socket = createFakeSocket();
+  socket.escritxr = 1;
+  let requests = 0;
+  const mode = {
+    solicitarInspiracion() {
+      requests += 1;
+      return { ok: true, existente: false };
+    },
+    handleRequest() {
+      requests += 1;
+    }
+  };
+  registrarProtocoloInspiracion({ socket, mode, modoActual: "letra bendita", modoSeq: 8 });
+
+  let wrongMode = null;
+  socket.emit("nueva_palabra", { player: 1, accion: "solicitar", modo_seq: 8 }, (payload) => {
+    wrongMode = payload;
+  });
+  assert.equal(wrongMode.code, "MODE_NOT_ACTIVE");
+
+  let stale = null;
+  socket.emit("nueva_palabra_musa", { player: 1, accion: "solicitar", modo_seq: 7 }, (payload) => {
+    stale = payload;
+  });
+  assert.equal(stale.code, "STALE_MODE");
+  assert.equal(stale.modo_seq, 8);
+  assert.equal(requests, 0);
+});
+
+test("V2 bonus use grants authoritative time once and requests next without legacy counting", () => {
+  const socket = createFakeSocket();
+  socket.escritxr = 1;
+  const handleOptions = [];
+  const timeEvents = [];
+  const introduced = [];
+  let lastUse = null;
+  const mode = {
+    solicitarInspiracion: () => ({ ok: true, existente: false }),
+    handleRequest: (_player, options) => {
+      handleOptions.push(options);
+    },
+    aprovecharInspiracion: (_player, id) => {
+      if (lastUse && lastUse.inspiracion_id === id) {
+        return { ...lastUse, idempotente: true };
+      }
+      lastUse = {
+        ok: true,
+        aprovechada: true,
+        idempotente: false,
+        player: 1,
+        inspiracion_id: id,
+        valor_inspiracion: 0.75,
+        tiempo_otorgado: 13,
+        entrega_musa: { player: 1, palabra: "cometa" }
+      };
+      return { ...lastUse };
+    },
+    actualizarUltimoAprovechamientoInspiracion: (_player, _id, patch) => {
+      lastUse = { ...lastUse, ...patch };
+    }
+  };
+  const { globalEvents } = registrarProtocoloInspiracion({
+    socket,
+    mode,
+    aplicarTiempo: (evento) => {
+      timeEvents.push(evento);
+      return { ...evento, tiempo_seq: 4 };
+    },
+    introduced: (payload) => introduced.push(payload)
+  });
+
+  let requested = null;
+  socket.emit("nueva_palabra", {
+    player: 1,
+    accion: "solicitar",
+    modo_seq: 7
+  }, (payload) => {
+    requested = payload;
+  });
+  assert.equal(requested.ok, true);
+
+  let first = null;
+  socket.emit("nueva_palabra", {
+    player: 1,
+    accion: "aprovechar",
+    inspiracion_id: 42,
+    modo_seq: 7,
+    valor_inspiracion: 999,
+    tiempo_otorgado: 999
+  }, (payload) => {
+    first = payload;
+  });
+  let retry = null;
+  socket.emit("nueva_palabra", {
+    player: 1,
+    accion: "aprovechar",
+    inspiracion_id: 42,
+    modo_seq: 7
+  }, (payload) => {
+    retry = payload;
+  });
+
+  assert.deepEqual(handleOptions, [{ contabilizar: false }, { contabilizar: false }]);
+  assert.deepEqual(timeEvents, [{
+    player: 1,
+    secs: 13,
+    origen: "inspiracion_bonus",
+    inspiracion_id: 42,
+    modo_seq: 7
+  }]);
+  assert.equal(first.tiempo_seq, 4);
+  assert.equal(first.valor_inspiracion, 0.75);
+  assert.equal(first.tiempo_otorgado, 13);
+  assert.equal(retry.tiempo_seq, 4);
+  assert.equal(retry.valor_inspiracion, 0.75);
+  assert.equal(retry.tiempo_otorgado, 13);
+  assert.equal(retry.idempotente, true);
+  assert.equal(introduced.length, 1);
+  assert.equal(globalEvents.length, 1);
+  assert.equal(globalEvents[0].event, "inspiracion_aprovechada");
+  assert.deepEqual(globalEvents[0].payload, {
+    autoritativa: true,
+    player: 1,
+    equipo: 1,
+    origen_musa: "musa",
+    inspiracion_id: 42,
+    valor_inspiracion: 0.75,
+    tiempo_otorgado: 13,
+    modo_actual: "palabras bonus",
+    modo_seq: 7,
+    palabra: "cometa",
+    ts: globalEvents[0].payload.ts
+  });
+});
+
+test("V2 discard is strict, idempotent and requests the next delivery without counting", () => {
+  const socket = createFakeSocket();
+  socket.escritxr = 1;
+  const handleOptions = [];
+  let discarded = false;
+  const mode = {
+    descartarInspiracion: (_player, id) => {
+      if (discarded) {
+        return { ok: true, descartada: true, idempotente: true, inspiracion_id: id };
+      }
+      discarded = true;
+      return { ok: true, descartada: true, idempotente: false, inspiracion_id: id };
+    },
+    handleRequest: (_player, options) => handleOptions.push(options)
+  };
+  const { roomEvents } = registrarProtocoloInspiracion({ socket, mode });
+
+  let first = null;
+  socket.emit("descartar_inspiracion", {
+    player: 1,
+    inspiracion_id: 9,
+    modo_seq: 7
+  }, (payload) => {
+    first = payload;
+  });
+  let retry = null;
+  socket.emit("descartar_inspiracion", {
+    player: 1,
+    inspiracion_id: 9,
+    modo_seq: 7
+  }, (payload) => {
+    retry = payload;
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(retry.idempotente, true);
+  assert.deepEqual(handleOptions, [{ contabilizar: false }]);
+  assert.equal(roomEvents.filter((entry) => entry.event === "inspiracion_descartada").length, 1);
+});
+
+test("legacy inspiration cannot bypass delivery IDs after a writer has entered V2", () => {
+  const socket = createFakeSocket();
+  socket.escritxr = 1;
+  let consumed = 0;
+  let requested = 0;
+  const mode = {
+    usaProtocoloInspiracionV2: () => true,
+    consumirEntregaMusaIntroducida: () => {
+      consumed += 1;
+    },
+    handleRequest: () => {
+      requested += 1;
+    }
+  };
+  registrarProtocoloInspiracion({ socket, mode });
+
+  let ack = null;
+  socket.emit("nueva_palabra", 1, (payload) => {
+    ack = payload;
+  });
+
+  assert.equal(ack.code, "V2_REQUIRED");
+  assert.equal(consumed, 0);
+  assert.equal(requested, 0);
+});
+
+test("legacy inspiration events require the socket to own the active writer role", () => {
+  const socket = createFakeSocket();
+  delete socket.escritxr;
+  let requested = 0;
+  const mode = {
+    usaProtocoloInspiracionV2: () => false,
+    consumirEntregaMusaIntroducida: () => null,
+    handleRequest: () => {
+      requested += 1;
+    }
+  };
+  registrarProtocoloInspiracion({ socket, mode });
+  socket.emit("nueva_palabra", 1);
+  assert.equal(requested, 0);
+});
+
+test("forbidden-word mode supports V2 request/use, ACKs before delivery and never permits discard", () => {
+  const socket = createFakeSocket();
+  socket.escritxr = 1;
+  const order = [];
+  let timeAdjustments = 0;
+  const mode = {
+    solicitarInspiracion: () => ({ ok: true, existente: false }),
+    handleRequest: (_player, options) => {
+      order.push(`handle:${String(options.contabilizar)}`);
+    },
+    aprovecharInspiracion: (_player, id) => ({
+      ok: true,
+      aprovechada: true,
+      idempotente: false,
+      inspiracion_id: id,
+      tiempo_otorgado: 20,
+      entrega_musa: null
+    })
+  };
+  registrarProtocoloInspiracion({
+    socket,
+    mode,
+    modoActual: "palabras prohibidas",
+    aplicarTiempo: () => {
+      timeAdjustments += 1;
+      return { tiempo_seq: 99 };
+    }
+  });
+
+  socket.emit("nueva_palabra_prohibida", {
+    player: 1,
+    accion: "solicitar",
+    modo_seq: 7
+  }, () => order.push("ack:solicitar"));
+  socket.emit("nueva_palabra_prohibida", {
+    player: 1,
+    accion: "aprovechar",
+    inspiracion_id: 5,
+    modo_seq: 7
+  }, () => order.push("ack:aprovechar"));
+  let discard = null;
+  socket.emit("descartar_inspiracion", {
+    player: 1,
+    inspiracion_id: 5,
+    modo_seq: 7
+  }, (payload) => {
+    discard = payload;
+  });
+
+  assert.deepEqual(order, [
+    "ack:solicitar",
+    "handle:false",
+    "ack:aprovechar",
+    "handle:false"
+  ]);
+  assert.equal(timeAdjustments, 0);
+  assert.equal(discard.code, "MODE_NOT_DISCARDABLE");
+});
+
+test("unregistered or false-role sockets cannot forge public writer inspiration feedback", () => {
+  for (const escritxr of [undefined, 2]) {
+    const socket = createFakeSocket();
+    if (typeof escritxr === "undefined") delete socket.escritxr;
+    else socket.escritxr = escritxr;
+    const publicEvents = [];
+    socket.broadcast = {
+      emit(event, payload) {
+        publicEvents.push({ scope: "broadcast", event, payload });
+      }
+    };
+    const io = {
+      emit(event, payload) {
+        publicEvents.push({ scope: "io", event, payload });
+      },
+      to(room) {
+        return {
+          emit(event, payload) {
+            publicEvents.push({ scope: room, event, payload });
+          }
+        };
+      }
+    };
+    registrarCanalesInspiracion({
+      socket,
+      io,
+      musasAuxiliares: {},
+      nubeInspiracion: {},
+      obtenerIdJugadorValido: (valor) => {
+        const id = Number(valor);
+        return id === 1 || id === 2 ? id : null;
+      }
+    });
+
+    socket.emit("feedback_de_j1", {
+      tipo: "inspiracion",
+      palabra: "falsificada",
+      musa_nombre: "ATAQUE"
+    });
+    socket.emit("feedback_musa_inspiracion", {
+      player: 1,
+      tipo: "inspiracion",
+      palabra: "falsificada"
+    });
+    socket.emit("enviar_feedback_modificador", { player: 1, id_mod: "mod1" });
+    socket.emit("intento_prohibido", { player: 1, palabra: "falsificada" });
+
+    assert.deepEqual(publicEvents, []);
+  }
 });

@@ -83,6 +83,18 @@ function crearRuntimeModos({
         return null;
     };
 
+    const obtenerEntregaInspiracionActiva = (player) => {
+        const motor = obtenerModoPalabrasMusasActivo();
+        if (!motor || typeof motor.obtenerEntregaInspiracionActiva !== "function") return null;
+        return motor.obtenerEntregaInspiracionActiva(player);
+    };
+
+    const emitirEntregaInspiracionActiva = (player, socketDestino) => {
+        const motor = obtenerModoPalabrasMusasActivo();
+        if (!motor || typeof motor.emitirEntregaInspiracionActiva !== "function") return null;
+        return motor.emitirEntregaInspiracionActiva(player, socketDestino);
+    };
+
     function payloadEstadoPalabrasMusasControl(now = Date.now()) {
         const motor = obtenerModoPalabrasMusasActivo();
         const base = motor && typeof motor.obtenerEstadoPalabrasMusasControl === "function"
@@ -413,6 +425,8 @@ function crearRuntimeModos({
         emitirModoActual,
         emitirEstadoPalabrasMusasControl,
         payloadEstadoPalabrasMusasControl,
+        obtenerEntregaInspiracionActiva,
+        emitirEntregaInspiracionActiva,
         construirPayloadCount,
         prepararParametrosInicio,
         limpiarTodosLosModos,

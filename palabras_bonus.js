@@ -92,7 +92,9 @@ class PalabrasBonusMode extends MusasMode {
     if (st.emitTimer) clearTimeout(st.emitTimer);
     st.emitTimer = setTimeout(() => {
       if (!this._isGenerationActive(generation)) return;
-      this.handleRequest(playerId);
+      this.handleRequest(playerId, {
+        contabilizar: st.protocoloInspiracionV2 !== true
+      });
     }, this.timeout);
   }
 
@@ -126,7 +128,9 @@ class PalabrasBonusMode extends MusasMode {
         clearTimeout(st.emitTimer);
         st.emitTimer = null;
       }
-      void this.handleRequest(playerId);
+      void this.handleRequest(playerId, {
+        contabilizar: st.protocoloInspiracionV2 !== true
+      });
       return;
     }
 
@@ -142,7 +146,7 @@ class PalabrasBonusMode extends MusasMode {
    *
    * @param {1|2} playerId
    */
-  async handleRequest(playerId) {
+  async handleRequest(playerId, opciones = {}) {
     const st = this.players[playerId];
     if (!st) return;
     const generation = this.generation;
@@ -160,6 +164,8 @@ class PalabrasBonusMode extends MusasMode {
     const evento = `enviar_palabra_j${playerId}`;
     let palabras_var, palabra_bonus, tiempo_palabras_bonus;
     let superbonusPayload = null;
+    let entregaMusaActual = null;
+    let caducaEntregaEnTs = 0;
     this._podarColaMusaCaducada(st);
 
     // 1) Si hay musas en cola
@@ -187,7 +193,9 @@ class PalabrasBonusMode extends MusasMode {
         : (item && item.musa ? item.musa : '');
 
       // Actualizar flag y contador
-      st.insertedCount = (st.insertedCount || 0) + 1;
+      if (opciones.contabilizar !== false) {
+        st.insertedCount = (st.insertedCount || 0) + 1;
+      }
       st.lastDeliveredFromMusa = true;
       st.entregaActualAutomatica = false;
       st.peticionAutomaticaPendiente = false;
@@ -211,7 +219,7 @@ class PalabrasBonusMode extends MusasMode {
         palabra_bonus = [[rawPalabra], `<span style="color:#ffd86f;">SUPERBONUS x${repeticiones}</span><span style="color: white;"> - </span><span style="color:lime;">${musaLabel}</span><span style="color: white;">: </span><span style='color: white;'>Podr&iacute;as escribir esta palabra</span>`];
       }
       st.ultimoMusaNombre = musaNombre;
-      st.ultimaEntregaMusa = {
+      entregaMusaActual = {
         player: playerId,
         target_player: playerId,
         modo: 'palabras bonus',
@@ -226,7 +234,7 @@ class PalabrasBonusMode extends MusasMode {
       };
       const now = Date.now();
       const caducaEnTs = this._obtenerCaducidadMusaItem(item, now);
-      st.ultimaEntregaMusaCaducaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout;
+      caducaEntregaEnTs = caducaEnTs > now ? caducaEnTs : now + this.timeout;
 
       console.log(
         `[PalabrasBonusMode] J${playerId} recibe musa de cola: "${rawPalabra}"${superbonus ? ` SUPERBONUS x${superbonus.repeticiones}` : ''} (musas usadas: ${st.insertedCount})`
@@ -274,22 +282,33 @@ class PalabrasBonusMode extends MusasMode {
     }
 
     // 3) Emitir payload
-    const payload = {
+    const payloadBase = {
       modo_actual:           'palabras bonus',
       palabras_var,
       palabra_bonus,
       tiempo_palabras_bonus
     };
     if (st.lastDeliveredFromMusa) {
-      payload.origen_musa = 'musa';
-      payload.musa_nombre = st.ultimoMusaNombre || '';
+      payloadBase.origen_musa = 'musa';
+      payloadBase.musa_nombre = st.ultimoMusaNombre || '';
       if (superbonusPayload) {
-        payload.superbonus = superbonusPayload;
+        payloadBase.superbonus = superbonusPayload;
       }
     }
     if (!this._isGenerationActive(generation)) return;
     if (!esPeticionActual()) return;
-    this.io.emit(evento, this._withModePayload(payload));
+    if (!caducaEntregaEnTs) {
+      caducaEntregaEnTs = Date.now() + Math.max(0, Number(this.timeout) || 0);
+    }
+    const payload = this._prepararEntregaInspiracion(playerId, evento, payloadBase, {
+      caducaEnTs: caducaEntregaEnTs,
+      tiempoBase: tiempo_palabras_bonus,
+      entregaMusa: entregaMusaActual,
+      descartable: true,
+      contabilizaMarcador: Boolean(entregaMusaActual),
+      scorePlayer: playerId
+    });
+    this.io.emit(evento, payload);
     this._notifyStateChange(playerId);
 
     // 4) Programar siguiente entrega automática

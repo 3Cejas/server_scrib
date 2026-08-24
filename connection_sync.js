@@ -15,7 +15,8 @@ function crearSincronizadorConexion({
     sincroModos,
     emitirTempModos,
     obtenerIdJugadorValido,
-    emitirEstadoCalentamientoMusa
+    emitirEstadoCalentamientoMusa,
+    emitirEntregaInspiracionActiva = null
 }) {
     const emitirConteosGuardados = (socketDestino) => {
         if (!socketDestino || typeof socketDestino.emit !== 'function' || !partidaSync) {
@@ -106,6 +107,10 @@ function crearSincronizadorConexion({
         const payloadModo = construirPayloadInspiracionMusaActual();
         emitirActivarModo(payloadModo, socket);
         sincroModos(socket);
+        const escritxrId = obtenerIdJugadorValido(socket.escritxr);
+        if (escritxrId && typeof emitirEntregaInspiracionActiva === 'function') {
+            emitirEntregaInspiracionActiva(escritxrId, socket);
+        }
         socket.emit('post-inicio', { borrar_texto: false });
         emitirConteosGuardados(socket);
         emitirTempModos(socket);

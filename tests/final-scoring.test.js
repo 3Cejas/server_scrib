@@ -105,6 +105,37 @@ test("precision rewards fewer prohibited attempts without dividing by zero", () 
   assert.deepEqual(precision.puntos, { 1: 16.67, 2: 3.33 });
 });
 
+test("weighted inspiration value takes precedence and legacy telemetry falls back to word count", () => {
+  const resultado = calcularPuntuacionFinal(crearStats({
+    valorInspiracion: 1.75,
+    palabrasBenditas: ["luz", "mar", "sol", "voz"]
+  }, {
+    palabrasBenditas: ["nube", "sal"]
+  }));
+  const bonus = resultado.categorias.find((categoria) => categoria.id === "bonus");
+
+  assert.equal(PUNTUACION_FORMULA_VERSION, "scrib-puntuacion-v2");
+  assert.deepEqual(bonus.valores, { 1: 1.75, 2: 2 });
+  assert.equal(bonus.etiqueta, "Inspiraci\u00f3n aprovechada");
+  assert.equal(bonus.unidad, "puntos de inspiraci\u00f3n");
+  assert.match(bonus.explicacion, /descartes consecutivos reducen su valor/);
+  assert.equal(bonus.ganador, 2);
+  assert.deepEqual(bonus.puntos, { 1: 9.33, 2: 10.67 });
+});
+
+test("weighted inspiration cannot exceed the number of incorporated words", () => {
+  const resultado = calcularPuntuacionFinal(crearStats({
+    valorInspiracion: 99,
+    palabrasBenditas: ["luz", "mar"]
+  }, {
+    valorInspiracion: -4,
+    palabrasBenditas: ["nube"]
+  }));
+  const bonus = resultado.categorias.find((categoria) => categoria.id === "bonus");
+
+  assert.deepEqual(bonus.valores, { 1: 2, 2: 0 });
+});
+
 test("lexical richness cannot exceed total production and invalid numbers are safe", () => {
   const resultado = calcularPuntuacionFinal(crearStats({
     palabrasTotal: 10,

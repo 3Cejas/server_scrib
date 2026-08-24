@@ -383,7 +383,7 @@
   },
   "puntuacion_final": {
     "schema_version": 1,
-    "formula_version": "scrib-puntuacion-v1",
+    "formula_version": "scrib-puntuacion-v2",
     "disponible": false,
     "datos_suficientes": false,
     "calculado_en_ts": 0,

@@ -3,10 +3,11 @@ const assert = require("node:assert/strict");
 
 const { crearSincronizadorConexion } = require("../connection_sync.js");
 
-function crearSocket({ dramaturgia = false } = {}) {
+function crearSocket({ dramaturgia = false, escritxr = null } = {}) {
   const eventos = [];
   return {
     dramaturgia,
+    escritxr,
     eventos,
     emit(event, payload) {
       eventos.push({ event, payload });
@@ -14,7 +15,7 @@ function crearSocket({ dramaturgia = false } = {}) {
   };
 }
 
-function crearSincronizador({ modo = "", llamadas = [] } = {}) {
+function crearSincronizador({ modo = "", llamadas = [], restaurar = null } = {}) {
   return crearSincronizadorConexion({
     writerChannels: {
       emitirTextos(socket) {
@@ -67,8 +68,18 @@ function crearSincronizador({ modo = "", llamadas = [] } = {}) {
       llamadas.push("temp");
       socket.emit("temp_modos", { modo_actual: modo, modo_seq: 7 });
     },
-    obtenerIdJugadorValido: () => null,
-    emitirEstadoCalentamientoMusa() {}
+    obtenerIdJugadorValido: (valor) => {
+      const id = Number(valor);
+      return id === 1 || id === 2 ? id : null;
+    },
+    emitirEstadoCalentamientoMusa() {},
+    emitirEntregaInspiracionActiva(player, socket) {
+      if (typeof restaurar === "function") {
+        llamadas.push("restaurar");
+        return restaurar(player, socket);
+      }
+      return null;
+    }
   });
 }
 
@@ -113,4 +124,31 @@ test("active-mode sync keeps dramaturgy snapshot first and then sends live delta
   assert.equal(socket.eventos[0].event, "dramaturgia_estado");
   assert.deepEqual(llamadas, ["activar", "sincro", "temp", "desventajas"]);
   assert.equal(socket.eventos.some(({ event }) => event === "post-inicio"), true);
+});
+
+test("writer reconnection restores the active delivery after mode sync without advancing it", () => {
+  const llamadas = [];
+  let restores = 0;
+  const socket = crearSocket({ escritxr: 1 });
+  const sincronizador = crearSincronizador({
+    modo: "palabras bonus",
+    llamadas,
+    restaurar(player, socketDestino) {
+      restores += 1;
+      assert.equal(player, 1);
+      socketDestino.emit("enviar_palabra_j1", {
+        inspiracion_id: 33,
+        restaurando_inspiracion: true
+      });
+    }
+  });
+
+  sincronizador.sincronizarSocketRecienConectado(socket);
+
+  assert.equal(restores, 1);
+  assert.deepEqual(llamadas, ["activar", "sincro", "restaurar", "temp", "desventajas"]);
+  assert.deepEqual(
+    socket.eventos.find(({ event }) => event === "enviar_palabra_j1").payload,
+    { inspiracion_id: 33, restaurando_inspiracion: true }
+  );
 });

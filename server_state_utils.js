@@ -158,7 +158,7 @@ function normalizarJugadorStatsLive(entrada, playerId) {
     const numero = normalizarNumeroStatsLive(valor, Number.NaN);
     return Number.isFinite(numero) ? numero : null;
   };
-  return {
+  const jugadorNormalizado = {
     ...base,
     id: playerId,
     nombre: recortarTextoStatsLive(data.nombre || base.nombre, 28) || base.nombre,
@@ -184,6 +184,13 @@ function normalizarJugadorStatsLive(entrada, playerId) {
     intentosLetraProhibida: Math.max(0, normalizarNumeroStatsLive(data.intentosLetraProhibida, 0)),
     intentosPalabraProhibida: Math.max(0, normalizarNumeroStatsLive(data.intentosPalabraProhibida, 0))
   };
+  if (Object.prototype.hasOwnProperty.call(data, "valorInspiracion")) {
+    jugadorNormalizado.valorInspiracion = Math.min(
+      jugadorNormalizado.palabrasBenditas.length,
+      Math.max(0, normalizarNumeroStatsLive(data.valorInspiracion, 0))
+    );
+  }
+  return jugadorNormalizado;
 }
 
 function normalizarPayloadStatsLive(payload = {}, options = {}) {
