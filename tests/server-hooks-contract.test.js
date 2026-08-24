@@ -974,6 +974,41 @@ test("Control orchestrates the pre-tutorial video and active muses verify each r
   assert.equal(reopened.verificacion.verificadas, 0);
 });
 
+test("muse help tickets survive ordinary match cleanup and only explicit test reset clears them", async () => {
+  await emitAck(adminSocket, "scrib_test:reset", {});
+
+  const control = await connectPassiveSocket();
+  const controlRegistration = await emitAck(control, "registrar_control", {});
+  assert.equal(controlRegistration.ok, true);
+  const muse = await connectPassiveSocket();
+  const assignment = await emitAck(muse, "registrar_musa", {
+    nombre: "Luna",
+    client_id: "help-persistence-luna",
+    request_id: "help-persistence-register"
+  });
+  assert.equal(assignment.ok, true);
+  const requested = await emitAck(muse, "ayuda_musa_solicitar", {
+    request_id: "help-persistence-request"
+  });
+  assert.equal(requested.ok, true);
+
+  let supportState = await emitAck(control, "pedir_ayuda_musas_estado", {});
+  assert.equal(supportState.ok, true);
+  assert.equal(supportState.estado.tickets.length, 1);
+  assert.equal(supportState.estado.tickets[0].ticket_id, requested.ticket.ticket_id);
+
+  control.emit("limpiar", { test: true });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  supportState = await emitAck(control, "pedir_ayuda_musas_estado", {});
+  assert.equal(supportState.estado.tickets.length, 1);
+  assert.equal(supportState.estado.tickets[0].ticket_id, requested.ticket.ticket_id);
+
+  await emitAck(adminSocket, "scrib_test:reset", {});
+  supportState = await emitAck(control, "pedir_ayuda_musas_estado", {});
+  assert.equal(supportState.estado.tickets.length, 0);
+  assert.equal(supportState.estado.historial.length, 0);
+});
+
 test("scrib_test:force_warmup_state toggles tutorial state and spectator view coherently", async () => {
   const enabled = await emitAck(adminSocket, "scrib_test:force_warmup_state", {
     activo: true,

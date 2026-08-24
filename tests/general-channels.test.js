@@ -4,6 +4,7 @@ const { EventEmitter } = require("node:events");
 
 const { registrarCanalesGenerales } = require("../general_channels.js");
 const { crearGestorSincronizacionPartida } = require("../partida_sync.js");
+const { crearGestorAccesoRoles } = require("../role_access.js");
 
 function crearSocket() {
   const socket = new EventEmitter();
@@ -53,6 +54,34 @@ test("inactive writer sessions cannot adjust writer time", () => {
 
   assert.deepEqual(ioEvents, []);
   assert.equal(partidaSync.obtenerConteo(1).count_seconds, 10);
+});
+
+test("password validation returns a temporary access token without echoing the password", () => {
+  const socket = crearSocket();
+  socket.handshake = { address: "127.0.0.1" };
+  const accesoRoles = crearGestorAccesoRoles({
+    passwordRoles: "secreta",
+    crearToken: () => "token_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  });
+  registrarCanalesGenerales({
+    socket,
+    io: { emit() {} },
+    passwordRoles: "secreta",
+    accesoRoles,
+    obtenerEstadoEscritores: () => ({}),
+    obtenerIdJugadorValido: () => null,
+    partidaSync: crearGestorSincronizacionPartida(),
+    construirPayloadCount: (payload) => payload
+  });
+
+  let respuesta = null;
+  socket.emit("validar_password_roles", { password: "secreta" }, (payload) => {
+    respuesta = payload;
+  });
+  assert.equal(respuesta.ok, true);
+  assert.match(respuesta.access_token, /^token_/);
+  assert.equal(respuesta.expires_ts > Date.now(), true);
+  assert.equal(JSON.stringify(respuesta).includes("secreta"), false);
 });
 
 test("control can remotely reload a targeted role page", () => {

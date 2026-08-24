@@ -18,7 +18,9 @@ function crearSincronizadorConexion({
     emitirEstadoCalentamientoMusa,
     emitirEntregaInspiracionActiva = null,
     emitirEstadoPreShow = null,
-    emitirEstadoVideoTutorial = null
+    emitirEstadoVideoTutorial = null,
+    sincronizarAyudaMusas = null,
+    emitirEstadoAyudaControl = null
 }) {
     const emitirConteosGuardados = (socketDestino) => {
         if (!socketDestino || typeof socketDestino.emit !== 'function' || !partidaSync) {
@@ -62,6 +64,9 @@ function crearSincronizadorConexion({
         }
         if (typeof emitirEstadoVideoTutorial === 'function') {
             emitirEstadoVideoTutorial(socket);
+        }
+        if (typeof sincronizarAyudaMusas === 'function') {
+            sincronizarAyudaMusas(socket);
         }
         const monitor = socket.monitor_pantalla && socket.monitor_pantalla.rol === "musa"
             ? socket.monitor_pantalla.player
@@ -113,6 +118,9 @@ function crearSincronizadorConexion({
         }
         if (typeof emitirEstadoVideoTutorial === 'function') {
             emitirEstadoVideoTutorial(socket);
+        }
+        if (socket.control && typeof emitirEstadoAyudaControl === 'function') {
+            emitirEstadoAyudaControl(socket);
         }
         if (!getModoActual()) {
             socket.emit('modo_actual', partidaSync.withModoSeq({ modo_actual: '' }));

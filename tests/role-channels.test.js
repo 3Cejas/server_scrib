@@ -67,9 +67,43 @@ function registrar(socket, deps = {}) {
     emitirEstadoDramaturgia: deps.emitirEstadoDramaturgia || (() => {}),
     registrarMusaEnCreditosPartida: deps.registrarMusaEnCreditosPartida || (() => {}),
     getPartidaActivaParaCreditos: deps.getPartidaActivaParaCreditos || (() => false),
+    autorizarRegistroControl: deps.autorizarRegistroControl || (() => ({ ok: true, rol: "control" })),
     registrar: () => {}
   });
 }
+
+test("control registration requires the runtime authorization result and acknowledges it explicitly", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const rechazado = crearSocket("control-rechazado");
+  registrar(rechazado, {
+    rolesConectados,
+    sesionesEscritor,
+    autorizarRegistroControl: () => ({ ok: false, code: "INVALID_ACCESS_TOKEN" })
+  });
+  let ack = null;
+  rechazado.trigger("registrar_control", { access_token: "falso" }, (payload) => { ack = payload; });
+  assert.equal(ack.code, "INVALID_ACCESS_TOKEN");
+  assert.equal(rechazado.control, undefined);
+  assert.equal(rolesConectados.payloadConexiones().control.count, 0);
+
+  const aceptado = crearSocket("control-aceptado");
+  registrar(aceptado, {
+    rolesConectados,
+    sesionesEscritor,
+    autorizarRegistroControl: (_socket, payload) => ({
+      ok: payload.access_token === "valido",
+      code: "INVALID_ACCESS_TOKEN",
+      expires_ts: Date.now() + 60000
+    })
+  });
+  aceptado.trigger("registrar_control", { access_token: "valido" }, (payload) => { ack = payload; });
+  assert.equal(ack.ok, true);
+  assert.equal(ack.rol, "control");
+  assert.equal(ack.expires_ts > Date.now(), true);
+  assert.equal(aceptado.control, true);
+  assert.equal(rolesConectados.payloadConexiones().control.count, 1);
+});
 
 test("role channels notify the old writer tab when a new session replaces it", () => {
   const rolesConectados = crearRegistroRoles();

@@ -49,7 +49,8 @@ function registrarTestHooks({
     musasAuxiliares,
     forzarCalentamientoTest,
     preShowMusas = null,
-    videoTutorialPreShow = null
+    videoTutorialPreShow = null,
+    ayudaMusas = null
 }) {
     if (!enabled) {
         return false;
@@ -68,6 +69,9 @@ function registrarTestHooks({
             resetearPuntuacion: true
         });
         resetearEstadoAuxiliarParaTests();
+        if (ayudaMusas && typeof ayudaMusas.reset === 'function') {
+            ayudaMusas.reset();
+        }
         partidaSync.siguienteModoSeq();
         io.emit('texto1', '');
         io.emit('texto2', '');

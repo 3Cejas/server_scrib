@@ -112,7 +112,7 @@ async function waitFor(description, predicate, timeoutMs = 5000) {
   throw new Error(`${description}: condición no satisfecha; último valor=${JSON.stringify(lastValue)}`);
 }
 
-async function createRuntimeHarness(t) {
+async function createRuntimeHarness(t, { testHooksEnabled = true } = {}) {
   const httpServer = http.createServer();
   const io = socketIo(httpServer, {
     serveClient: false,
@@ -121,7 +121,7 @@ async function createRuntimeHarness(t) {
   const runtime = crearRuntimeScrib({
     io,
     passwordRoles: "clave-simulacion",
-    testHooksEnabled: true
+    testHooksEnabled
   });
   runtime.iniciar();
   const port = await listen(httpServer);
@@ -898,6 +898,45 @@ test("integración real: autorización, bloqueo y ciclo start/pause/step/resume/
   assert.ok(titles.includes("Simulación pausada"));
   assert.ok(titles.includes("Simulación reanudada"));
   assert.ok(titles.includes("Simulación finalizada"));
+});
+
+test("integración real: el Control sintético obtiene y usa un token aunque los test hooks estén desactivados", async (t) => {
+  const harness = await createRuntimeHarness(t, { testHooksEnabled: false });
+  const owner = await harness.connect();
+  owner.emit("registrar_dramaturgia");
+  await waitFor("Dramaturgia de producción registrada", () => (
+    harness.runtime.deps.rolesConectados.payloadConexiones().dramaturgia.count === 1
+  ));
+
+  const authorized = await emitAck(owner, "dramaturgia_sim_autorizar", {
+    password: "clave-simulacion"
+  });
+  assert.equal(authorized.ok, true);
+  assert.equal(harness.runtime.deps.accesoRoles.snapshotSeguro().tokens_activos, 0);
+
+  const started = await emitAck(owner, "dramaturgia_sim_iniciar", {
+    config: {
+      modes: ["tertulia"],
+      total_seconds: 60,
+      mode_seconds: 30,
+      muses_per_team: 0,
+      auto_finish: false,
+      full_show: false
+    }
+  });
+  assert.equal(started.ok, true);
+  assert.equal(
+    harness.runtime.deps.rolesConectados.payloadConexiones().control.count,
+    1
+  );
+  assert.equal(harness.runtime.deps.accesoRoles.snapshotSeguro().tokens_activos, 1);
+
+  const stopped = await emitAck(owner, "dramaturgia_sim_detener", {});
+  assert.equal(stopped.ok, true);
+  assert.equal(
+    harness.runtime.deps.rolesConectados.payloadConexiones().control.count,
+    0
+  );
 });
 
 test("integración real: un rol humano aborta la simulación antes de reemplazar roles", async (t) => {

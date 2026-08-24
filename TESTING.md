@@ -57,6 +57,27 @@ Valida utilidades puras de estado:
 - payload de `votacion_ventaja` con tiempo restante y clamp a cero
 - normalización del payload `stats_live`
 
+### `tests/musa-help.test.js`
+
+Valida la asistencia individual de musas:
+
+- identidad autoritativa y tickets opacos sin filtrar IDs técnicos
+- color de bandera, atención, resolución, cancelación y reconexión
+- recarga dirigida únicamente al socket activo de la musa
+- consentimiento y caducidad del diagnóstico temporal
+- frames acotados por formato, tamaño, dimensiones, secuencia y frecuencia
+- comandos remotos limitados a toque, desplazamiento, volver y reconectar
+- sala privada exclusiva de Control, inaccesible a monitores de pantalla
+
+### `tests/role-access.test.js`
+
+Valida la autorización sensible de Control:
+
+- comparación segura de contraseña y emisión de tokens opacos con caducidad
+- propósito exclusivo `control`, almacenamiento acotado y ausencia de secretos en snapshots
+- límite de intentos fallidos compartido entre reconexiones de la misma dirección
+- rechazo de tokens ausentes, inválidos o caducados
+
 ## Contract tests de hooks y eventos
 
 Archivo: `tests/server-hooks-contract.test.js`

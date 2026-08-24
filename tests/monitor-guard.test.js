@@ -32,6 +32,8 @@ test("monitor guard permits only explicit read requests", () => {
   assert.equal(eventoPermitidoParaMonitor("pedir_texto"), true);
   assert.equal(eventoPermitidoParaMonitor("pedir_stats_live"), true);
   assert.equal(eventoPermitidoParaMonitor("pedir_video_tutorial_estado"), true);
+  assert.equal(eventoPermitidoParaMonitor("pedir_ayuda_musas_estado"), false);
+  assert.equal(eventoPermitidoParaMonitor("pedir_ayuda_musa_estado"), false);
   assert.equal(eventoPermitidoParaMonitor("registrar_monitor_pantalla"), true);
   assert.equal(eventoPermitidoParaMonitor("texto1"), false);
   assert.equal(eventoPermitidoParaMonitor("stats_live_actualizar"), false);

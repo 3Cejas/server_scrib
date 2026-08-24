@@ -1,5 +1,6 @@
 const ROLE_ROOMS = Object.freeze({
     CONTROL: "role_control",
+    CONTROL_HELP: "role_control_ayuda_musas",
     SPECTATOR: "role_espectador",
     JURY: "role_jurado",
     DRAMATURGY: "role_dramaturgia",
@@ -197,6 +198,18 @@ function crearRegistroRoles({
         socket.control = true;
         socket.join(ROLE_ROOMS.CONTROL);
         controles.add(socket.id);
+        return payloadConexiones();
+    };
+
+    const desregistrarControl = (socket) => {
+        if (!socket) return payloadConexiones();
+        controles.delete(socket.id);
+        if (typeof socket.leave === "function") {
+            socket.leave(ROLE_ROOMS.CONTROL);
+            socket.leave(ROLE_ROOMS.CONTROL_HELP);
+        }
+        socket.control = false;
+        socket.control_access_expires_ts = 0;
         return payloadConexiones();
     };
 
@@ -587,6 +600,7 @@ function crearRegistroRoles({
 
     return {
         desregistrarSocket,
+        desregistrarControl,
         estadoEscritores,
         limpiarMusasCreditosPartida,
         listarMusasActivas,

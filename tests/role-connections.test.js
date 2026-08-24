@@ -119,6 +119,7 @@ test("screen monitors join live rooms without becoming real roles or changing co
   assert.equal(controlMonitor.salas.has("j1"), true);
   assert.equal(controlMonitor.salas.has("j2"), true);
   assert.equal(controlMonitor.salas.has(ROLE_ROOMS.CONTROL), true);
+  assert.equal(controlMonitor.salas.has(ROLE_ROOMS.CONTROL_HELP), false);
 
   assert.deepEqual(roles.payloadConexiones(), {
     control: { count: 0, connected: false },
@@ -138,6 +139,19 @@ test("screen monitors join live rooms without becoming real roles or changing co
       2: { count: 0, connected: false }
     }
   });
+});
+
+test("revoking Control removes both ordinary and private support rooms", () => {
+  const roles = crearRegistroRoles();
+  const control = crearSocket("control-revocable");
+  roles.registrarControl(control);
+  control.join(ROLE_ROOMS.CONTROL_HELP);
+  assert.equal(roles.payloadConexiones().control.count, 1);
+  roles.desregistrarControl(control);
+  assert.equal(control.control, false);
+  assert.equal(control.salas.has(ROLE_ROOMS.CONTROL), false);
+  assert.equal(control.salas.has(ROLE_ROOMS.CONTROL_HELP), false);
+  assert.equal(roles.payloadConexiones().control.count, 0);
 });
 
 test("screen monitor registration validates team roles and moves rooms cleanly", () => {

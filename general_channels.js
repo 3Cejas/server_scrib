@@ -27,6 +27,7 @@ function registrarCanalesGenerales({
     socket,
     io,
     passwordRoles,
+    accesoRoles = null,
     obtenerEstadoEscritores,
     obtenerIdJugadorValido,
     getModoActual = () => "",
@@ -48,11 +49,13 @@ function registrarCanalesGenerales({
         const pass = (typeof payload === "string")
             ? payload
             : (payload && typeof payload.password === "string" ? payload.password : "");
-        const ok = pass === passwordRoles;
+        const resultado = accesoRoles && typeof accesoRoles.validarPassword === "function"
+            ? accesoRoles.validarPassword(socket, pass)
+            : { ok: pass === passwordRoles };
         if (typeof callback === "function") {
-            callback({ ok });
+            callback(resultado);
         } else {
-            socket.emit("validar_password_roles", { ok });
+            socket.emit("validar_password_roles", resultado);
         }
     });
 

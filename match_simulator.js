@@ -378,6 +378,46 @@ function createMatchSimulator({
         return socket;
     };
 
+    const registerSyntheticControl = (socket) => {
+        let validationResult = null;
+        const validationHandled = socket.receive(
+            "validar_password_roles",
+            { password: passwordRoles },
+            (result) => {
+                validationResult = result;
+            }
+        );
+
+        // Some isolated unit doubles only install the role handlers they need.
+        // Keep that legacy path working without turning it into a production
+        // bypass: real connections always install validar_password_roles.
+        if (!validationHandled) {
+            socket.receive("registrar_control");
+            return;
+        }
+
+        if (
+            !validationResult
+            || validationResult.ok !== true
+            || typeof validationResult.access_token !== "string"
+            || !validationResult.access_token
+        ) {
+            throw new Error("No se pudo autorizar el Control sintético.");
+        }
+
+        let registrationResult = null;
+        const registrationHandled = socket.receive(
+            "registrar_control",
+            { access_token: validationResult.access_token },
+            (result) => {
+                registrationResult = result;
+            }
+        );
+        if (!registrationHandled || !registrationResult || registrationResult.ok !== true) {
+            throw new Error("No se pudo registrar el Control sintético.");
+        }
+    };
+
     const setupSyntheticRoles = () => {
         const roles = {
             control: createRole("control"),
@@ -397,7 +437,7 @@ function createMatchSimulator({
             }
         };
 
-        roles.control.receive("registrar_control");
+        registerSyntheticControl(roles.control);
         roles.spectator.receive("registrar_espectador");
         roles.jury.receive("registrar_jurado");
         [1, 2].forEach((player) => {

@@ -21,6 +21,7 @@ function registrarCanalesRoles({
     registrarMusaEnCreditosPartida = () => {},
     getPartidaActivaParaCreditos = () => false,
     emitirEstadoVideoTutorial = () => null,
+    autorizarRegistroControl = () => ({ ok: true, rol: "control", expires_ts: 0 }),
     registrar = () => {}
 }) {
     const normalizarRequestIdMusa = (valor) => String(valor || "")
@@ -155,10 +156,62 @@ function registrarCanalesRoles({
         emitirEstadoDramaturgia(socket);
     });
 
-    socket.on("registrar_control", () => {
+    socket.on("registrar_control", (payload = {}, callback = null) => {
+        if (typeof payload === "function") {
+            callback = payload;
+            payload = {};
+        }
+        const autorizacion = autorizarRegistroControl(socket, payload && typeof payload === "object" ? payload : {});
+        if (!autorizacion || autorizacion.ok !== true) {
+            const rechazo = {
+                ok: false,
+                code: autorizacion && autorizacion.code ? autorizacion.code : "INVALID_ACCESS_TOKEN",
+                rol: "control",
+                ts: Date.now()
+            };
+            socket.emit("control_registro_estado", rechazo);
+            if (typeof callback === "function") callback(rechazo);
+            return;
+        }
         protegerEntradaHumana("control");
+        if (socket.control_access_timer) {
+            clearTimeout(socket.control_access_timer);
+            socket.control_access_timer = null;
+        }
         rolesConectados.registrarControl(socket);
+        const expiresTs = Number(autorizacion.expires_ts) || 0;
+        socket.control_access_expires_ts = expiresTs;
+        if (expiresTs > Date.now()) {
+            const expiracionEsperada = expiresTs;
+            socket.control_access_timer = setTimeout(() => {
+                socket.control_access_timer = null;
+                if (
+                    socket.control
+                    && Number(socket.control_access_expires_ts) === expiracionEsperada
+                    && Date.now() >= expiracionEsperada
+                ) {
+                    rolesConectados.desregistrarControl(socket);
+                    socket.emit("control_registro_estado", {
+                        ok: false,
+                        code: "ACCESS_TOKEN_EXPIRED",
+                        rol: "control",
+                        ts: Date.now()
+                    });
+                }
+            }, Math.max(1, expiresTs - Date.now()));
+            if (socket.control_access_timer && typeof socket.control_access_timer.unref === "function") {
+                socket.control_access_timer.unref();
+            }
+        }
         sincronizarSocketRecienConectado(socket);
+        const respuesta = {
+            ok: true,
+            rol: "control",
+            expires_ts: expiresTs,
+            ts: Date.now()
+        };
+        socket.emit("control_registro_estado", respuesta);
+        if (typeof callback === "function") callback(respuesta);
     });
 
     socket.on("registrar_escritor", (escritxr) => {
@@ -278,6 +331,10 @@ function registrarCanalesRoles({
     });
 
     socket.on("disconnect", () => {
+        if (socket.control_access_timer) {
+            clearTimeout(socket.control_access_timer);
+            socket.control_access_timer = null;
+        }
         const desconexion = rolesConectados.desregistrarSocket(socket);
         const id = desconexion.musaId;
         registrar(`[servidor] desconexion socket ${socket.id}, escritxr=${id}`);

@@ -15,6 +15,7 @@ function registrarConexionScrib(socket, deps) {
     const {
         io,
         passwordRoles,
+        accesoRoles,
         testHooksEnabled,
         controlState,
         obtenerEstadoEscritores,
@@ -95,6 +96,7 @@ function registrarConexionScrib(socket, deps) {
         isPartidaPausada,
         isFinDelJuego,
         aplicarAjusteTiempoInspiracion,
+        ayudaMusas,
         preShowMusas,
         videoTutorialPreShow
     } = deps;
@@ -111,11 +113,15 @@ function registrarConexionScrib(socket, deps) {
     if (videoTutorialPreShow && typeof videoTutorialPreShow.registrarHandlers === "function") {
         videoTutorialPreShow.registrarHandlers(socket);
     }
+    if (ayudaMusas && typeof ayudaMusas.registrarHandlers === "function") {
+        ayudaMusas.registrarHandlers(socket);
+    }
 
     registrarCanalesGenerales({
         socket,
         io,
         passwordRoles,
+        accesoRoles,
         obtenerEstadoEscritores,
         obtenerIdJugadorValido,
         getModoActual,
@@ -172,6 +178,11 @@ function registrarConexionScrib(socket, deps) {
         registrarMusaEnCreditosPartida: rolesConectados.registrarMusaEnCreditosPartida,
         getPartidaActivaParaCreditos: () => Boolean(estadoCicloPartida && estadoCicloPartida.modoActual && !estadoCicloPartida.finDelJuego),
         emitirEstadoVideoTutorial: () => videoTutorialPreShow && videoTutorialPreShow.emitirEstado(),
+        autorizarRegistroControl: (_socket, payload) => (
+            testHooksEnabled
+                ? { ok: true, rol: "control", expires_ts: 0 }
+                : accesoRoles.autorizarControl(payload)
+        ),
         registrar
     });
 
@@ -302,7 +313,8 @@ function registrarConexionScrib(socket, deps) {
         musasAuxiliares,
         forzarCalentamientoTest,
         preShowMusas,
-        videoTutorialPreShow
+        videoTutorialPreShow,
+        ayudaMusas
     });
 }
 

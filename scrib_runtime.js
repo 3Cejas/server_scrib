@@ -9,6 +9,8 @@ const { crearMotorModos } = require('./mode_engine.js');
 const { createMatchSimulator } = require('./match_simulator.js');
 const { crearCicloPartida } = require('./partida_lifecycle.js');
 const { crearGestorPreShowMusas } = require('./pre_show_musas.js');
+const { crearGestorAyudaMusas } = require('./musa_help.js');
+const { crearGestorAccesoRoles } = require('./role_access.js');
 const { crearGestorVideoTutorialPreShow } = require('./video_tutorial_pre_show.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
@@ -45,10 +47,12 @@ function crearRuntimeScrib({
     let dramaturgiaState;
     let simuladorPartidas;
     let preShowMusas;
+    let ayudaMusas;
     let videoTutorialPreShow;
     let deps;
     let partidaPausada = false;
 
+    const accesoRoles = crearGestorAccesoRoles({ passwordRoles });
     const controlState = crearGestorEstadoControl({ io });
     const partidaSync = crearGestorSincronizacionPartida({ validarJugador: obtenerIdJugadorValido });
     const runtimeModos = crearRuntimeModos({
@@ -177,6 +181,11 @@ function crearRuntimeScrib({
     preShowMusas = crearGestorPreShowMusas({
         io,
         obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket)
+    });
+    ayudaMusas = crearGestorAyudaMusas({
+        io,
+        obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket),
+        logger: registrar
     });
     videoTutorialPreShow = crearGestorVideoTutorialPreShow({
         io,
@@ -445,12 +454,15 @@ function crearRuntimeScrib({
         emitirEstadoCalentamientoMusa,
         emitirEntregaInspiracionActiva,
         emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino),
-        emitirEstadoVideoTutorial: (socketDestino) => videoTutorialPreShow.emitirEstado(socketDestino)
+        emitirEstadoVideoTutorial: (socketDestino) => videoTutorialPreShow.emitirEstado(socketDestino),
+        sincronizarAyudaMusas: (socketDestino) => ayudaMusas.sincronizarMusa(socketDestino),
+        emitirEstadoAyudaControl: (socketDestino) => ayudaMusas.emitirEstadoControl(socketDestino)
     });
 
     deps = {
         io,
         passwordRoles,
+        accesoRoles,
         testHooksEnabled,
         controlState,
         obtenerEstadoEscritores,
@@ -536,6 +548,7 @@ function crearRuntimeScrib({
         isPartidaPausada: () => partidaPausada,
         isFinDelJuego: () => Boolean(estadoCicloPartida.finDelJuego),
         aplicarAjusteTiempoInspiracion,
+        ayudaMusas,
         preShowMusas,
         videoTutorialPreShow
     };
@@ -560,6 +573,7 @@ function crearRuntimeScrib({
 
     return {
         deps,
+        ayudaMusas,
         dramaturgiaState,
         simuladorPartidas,
         videoTutorialPreShow,
