@@ -18,6 +18,7 @@ const MONITOR_EVENTOS_LECTURA = new Set([
     "pedir_teleprompter_estado",
     "pedir_texto",
     "pedir_vista_espectador_modo",
+    "pedir_video_tutorial_estado",
     "registrar_monitor_pantalla",
     "validar_password_roles"
 ]);

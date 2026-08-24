@@ -27,11 +27,15 @@ function crearCicloPartida({
     reiniciarMusasCreditosPartida = () => {},
     limpiarMusasCreditosPartida = () => {},
     preShowMusas = null,
+    videoTutorialPreShow = null,
     registrar = () => {}
 }) {
     const cerrarPreShow = (motivo) => {
         if (preShowMusas && typeof preShowMusas.cerrar === "function") {
             preShowMusas.cerrar(motivo);
+        }
+        if (videoTutorialPreShow && typeof videoTutorialPreShow.cerrarFase === "function") {
+            videoTutorialPreShow.cerrarFase(motivo);
         }
     };
 
@@ -219,6 +223,9 @@ function crearCicloPartida({
         socket.broadcast.emit('limpiar', evento);
         if (preShowMusas && typeof preShowMusas.abrir === "function") {
             preShowMusas.abrir();
+        }
+        if (videoTutorialPreShow && typeof videoTutorialPreShow.abrirFase === "function") {
+            videoTutorialPreShow.abrirFase();
         }
         emitirModoActual();
     };

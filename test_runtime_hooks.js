@@ -24,7 +24,8 @@ function crearRuntimeTestHooks({
     resurreccion,
     reiniciarEstadoPartida,
     calentamientoGestor,
-    preShowMusas = null
+    preShowMusas = null,
+    videoTutorialPreShow = null
 }) {
     const forzarModoTest = (payload = {}) => {
         const modoSolicitado = typeof payload.mode === 'string'
@@ -35,6 +36,9 @@ function crearRuntimeTestHooks({
         }
         if (preShowMusas && typeof preShowMusas.cerrar === 'function') {
             preShowMusas.cerrar('inicio_partida_test');
+        }
+        if (videoTutorialPreShow && typeof videoTutorialPreShow.cerrarFase === 'function') {
+            videoTutorialPreShow.cerrarFase('inicio_partida_test');
         }
         limpiarTimersPalabras();
         limpiarTimersRonda();

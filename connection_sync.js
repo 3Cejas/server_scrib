@@ -17,7 +17,8 @@ function crearSincronizadorConexion({
     obtenerIdJugadorValido,
     emitirEstadoCalentamientoMusa,
     emitirEntregaInspiracionActiva = null,
-    emitirEstadoPreShow = null
+    emitirEstadoPreShow = null,
+    emitirEstadoVideoTutorial = null
 }) {
     const emitirConteosGuardados = (socketDestino) => {
         if (!socketDestino || typeof socketDestino.emit !== 'function' || !partidaSync) {
@@ -58,6 +59,9 @@ function crearSincronizadorConexion({
         if (!socket) return;
         if (typeof emitirEstadoPreShow === 'function') {
             emitirEstadoPreShow(socket);
+        }
+        if (typeof emitirEstadoVideoTutorial === 'function') {
+            emitirEstadoVideoTutorial(socket);
         }
         const monitor = socket.monitor_pantalla && socket.monitor_pantalla.rol === "musa"
             ? socket.monitor_pantalla.player
@@ -106,6 +110,9 @@ function crearSincronizadorConexion({
         teleprompter.emitirEstado(socket);
         if (typeof emitirEstadoPreShow === 'function') {
             emitirEstadoPreShow(socket);
+        }
+        if (typeof emitirEstadoVideoTutorial === 'function') {
+            emitirEstadoVideoTutorial(socket);
         }
         if (!getModoActual()) {
             socket.emit('modo_actual', partidaSync.withModoSeq({ modo_actual: '' }));

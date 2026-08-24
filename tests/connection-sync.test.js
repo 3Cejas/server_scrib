@@ -61,6 +61,15 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null } = {})
         mensajes: []
       });
     },
+    emitirEstadoVideoTutorial(socket) {
+      socket.emit("video_tutorial_estado", {
+        activo: true,
+        session_id: "video-session-test",
+        phase_seq: 1,
+        reproduccion_seq: 0,
+        reproduciendo: false
+      });
+    },
     partidaSync: {
       withModoSeq: (payload) => ({ ...payload, modo_seq: 7 }),
       obtenerConteo: () => null
@@ -127,6 +136,27 @@ test("ordinary roles do not receive the dramaturgy snapshot", () => {
     socket.eventos.some(({ event }) => event === "pre_show_estado"),
     true
   );
+  assert.equal(
+    socket.eventos.some(({ event }) => event === "video_tutorial_estado"),
+    true
+  );
+});
+
+test("muse role sync receives the authoritative video sequence after registration", () => {
+  const socket = crearSocket();
+  socket.musa = 1;
+  const sincronizador = crearSincronizador({ modo: "" });
+
+  sincronizador.sincronizarEstadoMusa(socket);
+
+  const video = socket.eventos.find(({ event }) => event === "video_tutorial_estado");
+  assert.deepEqual(video.payload, {
+    activo: true,
+    session_id: "video-session-test",
+    phase_seq: 1,
+    reproduccion_seq: 0,
+    reproduciendo: false
+  });
 });
 
 test("active-mode sync keeps dramaturgy snapshot first and then sends live deltas", () => {

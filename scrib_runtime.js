@@ -9,6 +9,7 @@ const { crearMotorModos } = require('./mode_engine.js');
 const { createMatchSimulator } = require('./match_simulator.js');
 const { crearCicloPartida } = require('./partida_lifecycle.js');
 const { crearGestorPreShowMusas } = require('./pre_show_musas.js');
+const { crearGestorVideoTutorialPreShow } = require('./video_tutorial_pre_show.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
     crearGestorIdioma,
@@ -44,6 +45,7 @@ function crearRuntimeScrib({
     let dramaturgiaState;
     let simuladorPartidas;
     let preShowMusas;
+    let videoTutorialPreShow;
     let deps;
     let partidaPausada = false;
 
@@ -139,6 +141,7 @@ function crearRuntimeScrib({
         syncMode: () => sincro_modos(),
         onTutorialIniciado: () => {
             if (preShowMusas) preShowMusas.cerrar("tutorial");
+            if (videoTutorialPreShow) videoTutorialPreShow.cerrarFase("tutorial");
         },
         registrar,
         repentizados
@@ -174,6 +177,12 @@ function crearRuntimeScrib({
     preShowMusas = crearGestorPreShowMusas({
         io,
         obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket)
+    });
+    videoTutorialPreShow = crearGestorVideoTutorialPreShow({
+        io,
+        obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket),
+        listarMusasActivas: () => rolesConectados.listarMusasActivas(),
+        logger: registrar
     });
 
     writerChannels = crearCanalesEscritor({
@@ -392,6 +401,7 @@ function crearRuntimeScrib({
         reiniciarMusasCreditosPartida: () => rolesConectados.reiniciarMusasCreditosPartidaDesdeActivas(),
         limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
         preShowMusas,
+        videoTutorialPreShow,
         registrar
     });
 
@@ -434,7 +444,8 @@ function crearRuntimeScrib({
         obtenerIdJugadorValido,
         emitirEstadoCalentamientoMusa,
         emitirEntregaInspiracionActiva,
-        emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino)
+        emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino),
+        emitirEstadoVideoTutorial: (socketDestino) => videoTutorialPreShow.emitirEstado(socketDestino)
     });
 
     deps = {
@@ -525,7 +536,8 @@ function crearRuntimeScrib({
         isPartidaPausada: () => partidaPausada,
         isFinDelJuego: () => Boolean(estadoCicloPartida.finDelJuego),
         aplicarAjusteTiempoInspiracion,
-        preShowMusas
+        preShowMusas,
+        videoTutorialPreShow
     };
 
     function sincro_modos(socket = null) {
@@ -539,6 +551,7 @@ function crearRuntimeScrib({
         calentamientoGestor.iniciarIntervaloPurga();
         nubeInspiracion.iniciarIntervalo(1000);
         bolzanoCalentamientoGestor.iniciar();
+        videoTutorialPreShow.iniciar();
         io.on('connection', registrarConexion);
         io.on('disconnect', () => {
             registrar('Un escritxr ha abandonado la partida.');
@@ -549,6 +562,7 @@ function crearRuntimeScrib({
         deps,
         dramaturgiaState,
         simuladorPartidas,
+        videoTutorialPreShow,
         iniciar,
         registrarConexion,
         sincro_modos

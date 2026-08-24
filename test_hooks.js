@@ -48,7 +48,8 @@ function registrarTestHooks({
     obtenerIdJugadorValido,
     musasAuxiliares,
     forzarCalentamientoTest,
-    preShowMusas = null
+    preShowMusas = null,
+    videoTutorialPreShow = null
 }) {
     if (!enabled) {
         return false;
@@ -67,13 +68,16 @@ function registrarTestHooks({
             resetearPuntuacion: true
         });
         resetearEstadoAuxiliarParaTests();
-        if (preShowMusas && typeof preShowMusas.abrir === 'function') {
-            preShowMusas.abrir();
-        }
         partidaSync.siguienteModoSeq();
         io.emit('texto1', '');
         io.emit('texto2', '');
         io.emit('limpiar', { test: true });
+        if (preShowMusas && typeof preShowMusas.abrir === 'function') {
+            preShowMusas.abrir();
+        }
+        if (videoTutorialPreShow && typeof videoTutorialPreShow.abrirFase === 'function') {
+            videoTutorialPreShow.abrirFase();
+        }
         emitirModoActual();
         teleprompter.emitirEstado();
         emitirEstadoBanderasMusas();

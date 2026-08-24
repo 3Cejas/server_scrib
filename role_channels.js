@@ -20,6 +20,7 @@ function registrarCanalesRoles({
     simuladorPartidas = null,
     registrarMusaEnCreditosPartida = () => {},
     getPartidaActivaParaCreditos = () => false,
+    emitirEstadoVideoTutorial = () => null,
     registrar = () => {}
 }) {
     const normalizarRequestIdMusa = (valor) => String(valor || "")
@@ -263,6 +264,7 @@ function registrarCanalesRoles({
         emitirEstadoBanderasMusas(socket);
         musasAuxiliares.emitirEstadoRegaloBandera();
         sincronizarEstadoMusa(socket);
+        emitirEstadoVideoTutorial();
     });
 
     socket.on(bolzanoEvents.REGISTER_MUSA, (evento) => {
@@ -325,6 +327,13 @@ function registrarCanalesRoles({
             sincronizarEstadoMusa(socketReasignado);
         });
         musasAuxiliares.emitirEstadoRegaloBandera();
+        if (
+            id === 1
+            || id === 2
+            || (desconexion.reasignacionesMusas || []).length > 0
+        ) {
+            emitirEstadoVideoTutorial();
+        }
 
         const idBolzano = Number(socket.musa_bolzano);
         if (idBolzano === 1 || idBolzano === 2) {

@@ -398,6 +398,32 @@ test("overlapping reconnect replaces the old socket by client_id without inflati
   assert.equal(roles.payloadConexiones().musas[first.player].count, 1);
 });
 
+test("role registry lists only exact active muses for aggregate verification", () => {
+  const roles = crearRegistroRoles();
+  const oldSocket = crearSocket("musa-list-old");
+  const activeSocket = crearSocket("musa-list-active");
+  roles.registrarMusa(oldSocket, {
+    nombre: "Luna",
+    clientId: "stable-list-client"
+  });
+  const active = roles.registrarMusa(activeSocket, {
+    nombre: "Luna nueva",
+    clientId: "stable-list-client"
+  });
+
+  assert.deepEqual(roles.listarMusasActivas(), [{
+    player: active.player,
+    nombre: "Luna nueva",
+    clientId: "stable-list-client",
+    socketId: "musa-list-active"
+  }]);
+  assert.equal(roles.obtenerMusaActiva(oldSocket), null);
+  assert.equal(roles.obtenerMusaActiva(activeSocket).socketId, "musa-list-active");
+
+  roles.desregistrarSocket(activeSocket);
+  assert.deepEqual(roles.listarMusasActivas(), []);
+});
+
 test("disconnect rebalances active human muses and reports the moved socket", () => {
   const roles = crearRegistroRoles();
   const first = crearSocket("musa-first");

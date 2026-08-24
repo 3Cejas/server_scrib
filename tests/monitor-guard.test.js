@@ -31,11 +31,14 @@ function crearSocket() {
 test("monitor guard permits only explicit read requests", () => {
   assert.equal(eventoPermitidoParaMonitor("pedir_texto"), true);
   assert.equal(eventoPermitidoParaMonitor("pedir_stats_live"), true);
+  assert.equal(eventoPermitidoParaMonitor("pedir_video_tutorial_estado"), true);
   assert.equal(eventoPermitidoParaMonitor("registrar_monitor_pantalla"), true);
   assert.equal(eventoPermitidoParaMonitor("texto1"), false);
   assert.equal(eventoPermitidoParaMonitor("stats_live_actualizar"), false);
   assert.equal(eventoPermitidoParaMonitor("inicio"), false);
   assert.equal(eventoPermitidoParaMonitor("enviar_voto_ventaja"), false);
+  assert.equal(eventoPermitidoParaMonitor("video_tutorial_reproducir"), false);
+  assert.equal(eventoPermitidoParaMonitor("video_tutorial_verificar"), false);
 });
 
 test("monitor guard drops mutations and responds to acknowledgements", () => {

@@ -31,6 +31,14 @@ Se difumina de manera aleatoria a uno de los dos jugadores y después de alterna
 ### Comenzar a jugar
 3. Descarga el repositorio 3Cejas/players_scrib e inicia el control y los jugadores desde el dashboard de inicio (HTML).
 4. Desde control, pulsa el botón 'Escribir' y el juego comenzará.
+
+### Videotutorial previo al tutorial
+
+El servidor mantiene un ciclo autoritativo de vídeo mientras la partida siga en la fase previa al tutorial. Control puede activar la reproducción periódica, elegir su intervalo, reproducirlo en ese momento u ocultarlo. Al iniciar el tutorial o la partida, el servidor detiene el vídeo y cancela cualquier repetición pendiente.
+
+La configuración versionada inicial está en `config/pre_show_video.default.json`. Los cambios realizados por Control se guardan de forma atómica en `data/pre_show_video.json`; se puede cambiar esa ruta con `SCRIB_PRE_SHOW_VIDEO_CONFIG`. El archivo de vídeo no se guarda en este repositorio: debe desplegarse junto al frontend en `game/media/tutorial-scrib.mp4` (en Sutura, `/var/www/dashboard/scrib/game/media/tutorial-scrib.mp4`) o configurarse mediante una URL HTTPS.
+
+Los valores admitidos son de 15 a 86400 segundos para el intervalo y de 3 a 3600 segundos para la duración. La duración inicial es de 60 segundos. La reproducción automática viene desactivada hasta que Control la habilite.
 ## SUTURA
 - Twitter: @ SU.TU.RA
 - Instagram: @SU_TU_RA

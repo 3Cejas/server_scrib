@@ -77,6 +77,20 @@ function crearHarness() {
       this.cierres.push(motivo);
     }
   };
+  const videoPreShow = {
+    activo: true,
+    aperturas: 0,
+    cierres: [],
+    abrirFase() {
+      this.activo = true;
+      this.aperturas += 1;
+      ordenPreShow.push("video_tutorial_estado");
+    },
+    cerrarFase(motivo) {
+      this.activo = false;
+      this.cierres.push(motivo);
+    }
+  };
   const ciclo = crearCicloPartida({
     state,
     io,
@@ -106,12 +120,13 @@ function crearHarness() {
     registrarTimelineModo: noOp,
     motorModos: { activarModo: noOp, temp_modos: noOp },
     programarInicioTimer: noOp,
-    preShowMusas: preShow
+    preShowMusas: preShow,
+    videoTutorialPreShow: videoPreShow
   });
   const socket = {
     broadcast: { emit: noOp }
   };
-  return { ciclo, eventos, ordenPreShow, preShow, puntuacionFinal, socket, state, statsLive };
+  return { ciclo, eventos, ordenPreShow, preShow, videoPreShow, puntuacionFinal, socket, state, statsLive };
 }
 
 function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
@@ -179,20 +194,28 @@ test("only control or the internal simulator can open or close pre-show through 
   assert.equal(ctx.preShow.activo, true);
   assert.deepEqual(ctx.preShow.cierres, []);
   assert.equal(ctx.preShow.aperturas, 0);
+  assert.equal(ctx.videoPreShow.activo, true);
+  assert.deepEqual(ctx.videoPreShow.cierres, []);
+  assert.equal(ctx.videoPreShow.aperturas, 0);
 
   const control = crearSocketLifecycle({ control: true });
   ctx.ciclo.registrarHandlers(control);
   control.trigger("inicio", { count: "1:00", parametros: {} });
   assert.equal(ctx.preShow.activo, false);
   assert.equal(ctx.preShow.cierres.at(-1), "inicio_partida");
+  assert.equal(ctx.videoPreShow.activo, false);
+  assert.equal(ctx.videoPreShow.cierres.at(-1), "inicio_partida");
   control.broadcast.emit = (event) => ctx.ordenPreShow.push(event);
   control.trigger("limpiar", {});
   assert.equal(ctx.preShow.activo, true);
   assert.equal(ctx.preShow.aperturas, 1);
-  assert.deepEqual(ctx.ordenPreShow.slice(-2), ["limpiar", "pre_show_estado"]);
+  assert.equal(ctx.videoPreShow.activo, true);
+  assert.equal(ctx.videoPreShow.aperturas, 1);
+  assert.deepEqual(ctx.ordenPreShow.slice(-3), ["limpiar", "pre_show_estado", "video_tutorial_estado"]);
 
   const simulador = crearSocketLifecycle({ simulacion: true });
   ctx.ciclo.registrarHandlers(simulador);
   simulador.trigger("inicio", { count: "1:00", parametros: {} });
   assert.equal(ctx.preShow.activo, false);
+  assert.equal(ctx.videoPreShow.activo, false);
 });

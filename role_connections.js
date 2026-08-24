@@ -536,6 +536,13 @@ function crearRegistroRoles({
         };
     };
 
+    const listarMusasActivas = () => Array.from(musasActivas.values()).map((registro) => ({
+        player: validarJugador(registro.player),
+        nombre: registro.nombre,
+        clientId: registro.clientId,
+        socketId: registro.socketId
+    }));
+
     const desregistrarSocket = (socket) => {
         const registroMusa = musasActivas.get(socket.id) || null;
         const musaId = validarJugador(registroMusa && registroMusa.player);
@@ -582,6 +589,7 @@ function crearRegistroRoles({
         desregistrarSocket,
         estadoEscritores,
         limpiarMusasCreditosPartida,
+        listarMusasActivas,
         obtenerContadorMusas: clonarContadorMusas,
         obtenerMusaActiva,
         obtenerMusasCreditosPartida,

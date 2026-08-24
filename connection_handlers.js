@@ -95,7 +95,8 @@ function registrarConexionScrib(socket, deps) {
         isPartidaPausada,
         isFinDelJuego,
         aplicarAjusteTiempoInspiracion,
-        preShowMusas
+        preShowMusas,
+        videoTutorialPreShow
     } = deps;
 
     const query = socket && socket.handshake && socket.handshake.query;
@@ -106,6 +107,9 @@ function registrarConexionScrib(socket, deps) {
     instalarGuardiaMonitor(socket);
     if (preShowMusas && typeof preShowMusas.registrarHandlers === "function") {
         preShowMusas.registrarHandlers(socket);
+    }
+    if (videoTutorialPreShow && typeof videoTutorialPreShow.registrarHandlers === "function") {
+        videoTutorialPreShow.registrarHandlers(socket);
     }
 
     registrarCanalesGenerales({
@@ -167,6 +171,7 @@ function registrarConexionScrib(socket, deps) {
         simuladorPartidas,
         registrarMusaEnCreditosPartida: rolesConectados.registrarMusaEnCreditosPartida,
         getPartidaActivaParaCreditos: () => Boolean(estadoCicloPartida && estadoCicloPartida.modoActual && !estadoCicloPartida.finDelJuego),
+        emitirEstadoVideoTutorial: () => videoTutorialPreShow && videoTutorialPreShow.emitirEstado(),
         registrar
     });
 
@@ -266,7 +271,8 @@ function registrarConexionScrib(socket, deps) {
         resurreccion,
         reiniciarEstadoPartida,
         calentamientoGestor,
-        preShowMusas
+        preShowMusas,
+        videoTutorialPreShow
     });
     registrarTestHooks({
         socket,
@@ -295,7 +301,8 @@ function registrarConexionScrib(socket, deps) {
         obtenerIdJugadorValido,
         musasAuxiliares,
         forzarCalentamientoTest,
-        preShowMusas
+        preShowMusas,
+        videoTutorialPreShow
     });
 }
 

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
 const { spawn } = require("node:child_process");
@@ -15,6 +16,7 @@ const FIXTURES_DIR = path.join(__dirname, "fixtures");
 let serverProcess = null;
 let adminSocket = null;
 let serverPort = 0;
+let videoConfigDir = "";
 const roleSockets = new Set();
 
 async function ensureDir(dirPath) {
@@ -298,13 +300,15 @@ async function seedPopulatedState() {
 
 test.before(async () => {
   serverPort = await getFreePort();
+  videoConfigDir = await fsp.mkdtemp(path.join(os.tmpdir(), "scrib-video-integration-"));
   serverProcess = spawn(process.execPath, ["server.js"], {
     cwd: ROOT_DIR,
     env: {
       ...process.env,
       PORT: String(serverPort),
       NODE_ENV: "test",
-      SCRIB_TEST_HOOKS: "1"
+      SCRIB_TEST_HOOKS: "1",
+      SCRIB_PRE_SHOW_VIDEO_CONFIG: path.join(videoConfigDir, "pre-show-video.json")
     },
     windowsHide: true
   });
@@ -326,6 +330,10 @@ test.after(async () => {
   if (serverProcess) {
     serverProcess.kill();
     serverProcess = null;
+  }
+  if (videoConfigDir) {
+    await fsp.rm(videoConfigDir, { recursive: true, force: true });
+    videoConfigDir = "";
   }
 });
 
@@ -779,6 +787,191 @@ test("registered muses entertain the spectator only during the authoritative pre
   const reopened = await reopenedPromise;
   assert.notEqual(reopened.session_id, closed.session_id);
   assert.equal(reopened.phase_seq > closed.phase_seq, true);
+});
+
+test("Control orchestrates the pre-tutorial video and active muses verify each reproduction", async () => {
+  await emitAck(adminSocket, "scrib_test:reset", {});
+
+  const spectator = await connectPassiveSocket();
+  const spectatorInitialPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload && payload.activo === true
+  );
+  spectator.emit("registrar_espectador");
+  const initial = await spectatorInitialPromise;
+  assert.equal(typeof initial.session_id, "string");
+  assert.equal(initial.session_id.length > 0, true);
+  assert.equal(Number.isInteger(initial.phase_seq), true);
+  assert.equal(initial.reproduciendo, false);
+
+  const control = await connectPassiveSocket();
+  const controlSyncPromise = waitForSocketEvent(
+    control,
+    "video_tutorial_estado",
+    (payload) => payload && payload.session_id === initial.session_id
+  );
+  control.emit("registrar_control");
+  await controlSyncPromise;
+
+  const muse = await connectPassiveSocket();
+  const assignment = await emitAck(muse, "registrar_musa", {
+    nombre: "Luna",
+    client_id: "video-luna",
+    request_id: "video-register-luna"
+  });
+  assert.equal(assignment.ok, true);
+  const museSync = await emitAck(muse, "pedir_video_tutorial_estado", {});
+  assert.equal(museSync.ok, true);
+  assert.equal(museSync.estado.verificacion.conectadas, 1);
+  assert.equal(museSync.estado.verificacion.pendientes, 0);
+
+  const intruder = await connectPassiveSocket();
+  const unauthorizedConfig = await emitAck(intruder, "video_tutorial_configurar", {
+    habilitado: true
+  });
+  assert.equal(unauthorizedConfig.code, "NOT_AUTHORIZED");
+  const unauthorizedPlay = await emitAck(intruder, "video_tutorial_reproducir", {
+    session_id: initial.session_id,
+    phase_seq: initial.phase_seq
+  });
+  assert.equal(unauthorizedPlay.code, "NOT_AUTHORIZED");
+
+  const configured = await emitAck(control, "video_tutorial_configurar", {
+    video_url: "../media/tutorial-scrib.mp4",
+    intervalo_segundos: 15,
+    duracion_segundos: 3,
+    habilitado: false,
+    silenciado: true,
+    request_id: "video-config-integration"
+  });
+  assert.equal(configured.ok, true);
+  assert.equal(configured.estado.configuracion.intervalo_segundos, 15);
+  assert.equal(configured.estado.configuracion.duracion_segundos, 3);
+  assert.equal(configured.estado.configuracion.habilitado, false);
+
+  const playingEventPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload && payload.reproduciendo === true && payload.reproduccion_seq > 0
+  );
+  const play = await emitAck(control, "video_tutorial_reproducir", {
+    session_id: configured.estado.session_id,
+    phase_seq: configured.estado.phase_seq,
+    request_id: "video-play-integration"
+  });
+  assert.equal(play.ok, true);
+  assert.equal(play.estado.origen, "manual");
+  const playing = await playingEventPromise;
+  assert.equal(playing.reproduccion_seq, play.reproduccion_seq);
+  assert.deepEqual(playing.verificacion, {
+    conectadas: 1,
+    verificadas: 0,
+    pendientes: 1,
+    nombres_verificados: []
+  });
+
+  const verifiedEventPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload
+      && payload.reproduccion_seq === play.reproduccion_seq
+      && payload.verificacion
+      && payload.verificacion.verificadas === 1
+  );
+  const verified = await emitAck(muse, "video_tutorial_verificar", {
+    session_id: playing.session_id,
+    phase_seq: playing.phase_seq,
+    reproduccion_seq: playing.reproduccion_seq,
+    request_id: "video-verify-integration"
+  });
+  assert.equal(verified.ok, true);
+  assert.equal(verified.idempotente, false);
+  const verifiedState = await verifiedEventPromise;
+  assert.deepEqual(verifiedState.verificacion, {
+    conectadas: 1,
+    verificadas: 1,
+    pendientes: 0,
+    nombres_verificados: ["LUNA"]
+  });
+  assert.equal(JSON.stringify(verifiedState).includes("video-luna"), false);
+  assert.equal(JSON.stringify(verifiedState).includes(muse.id), false);
+
+  const verifiedRetry = await emitAck(muse, "video_tutorial_verificar", {
+    session_id: playing.session_id,
+    phase_seq: playing.phase_seq,
+    reproduccion_seq: playing.reproduccion_seq,
+    request_id: "video-verify-integration"
+  });
+  assert.equal(verifiedRetry.ok, true);
+  assert.equal(verifiedRetry.idempotente, true);
+
+  const reconnect = await connectPassiveSocket();
+  const reconnectStatePromise = waitForSocketEvent(
+    reconnect,
+    "video_tutorial_estado",
+    (payload) => payload && payload.reproduccion_seq === play.reproduccion_seq
+  );
+  reconnect.emit("registrar_espectador");
+  const reconnectState = await reconnectStatePromise;
+  assert.equal(reconnectState.reproduciendo, true);
+  assert.equal(reconnectState.verificacion.verificadas, 1);
+
+  const stoppedEventPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload
+      && payload.reproduccion_seq === play.reproduccion_seq
+      && payload.visible === false
+  );
+  const stopped = await emitAck(control, "video_tutorial_detener", {
+    session_id: playing.session_id,
+    phase_seq: playing.phase_seq,
+    request_id: "video-stop-integration"
+  });
+  assert.equal(stopped.ok, true);
+  await stoppedEventPromise;
+
+  const closedEventPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload && payload.activo === false
+  );
+  await emitAck(adminSocket, "scrib_test:force_warmup_state", {
+    activo: true,
+    vista: true,
+    solicitud: "acciones"
+  });
+  const closed = await closedEventPromise;
+  assert.equal(closed.visible, false);
+  assert.deepEqual(closed.verificacion, {
+    conectadas: 1,
+    verificadas: 0,
+    pendientes: 0,
+    nombres_verificados: []
+  });
+
+  const latePlay = await emitAck(control, "video_tutorial_reproducir", {
+    session_id: closed.session_id,
+    phase_seq: closed.phase_seq,
+    request_id: "video-play-late"
+  });
+  assert.equal(latePlay.code, "NOT_ACTIVE");
+
+  intruder.emit("limpiar", {});
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const stillClosed = await emitAck(spectator, "pedir_video_tutorial_estado", {});
+  assert.equal(stillClosed.estado.activo, false);
+
+  const reopenedPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload && payload.activo === true && payload.session_id !== closed.session_id
+  );
+  control.emit("limpiar", {});
+  const reopened = await reopenedPromise;
+  assert.equal(reopened.reproduciendo, false);
+  assert.equal(reopened.verificacion.verificadas, 0);
 });
 
 test("scrib_test:force_warmup_state toggles tutorial state and spectator view coherently", async () => {
