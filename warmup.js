@@ -9,6 +9,7 @@ const MAX_Y_PALABRAS_CALENTAMIENTO = 94;
 const DURACION_PALABRA_CALENTAMIENTO_MS = 10000;
 const DURACION_PALABRA_CAMBIO_CONSIGNA_MS = 900;
 const INTERVALO_PURGA_CALENTAMIENTO_MS = 1000;
+const MAX_NOMBRE_MUSA_CALENTAMIENTO = 24;
 const ORDEN_SOLICITUD_CALENTAMIENTO = ["lugares", "acciones", "frase_final"];
 const SOLICITUD_CALENTAMIENTO_SIN_ACTIVA = "ninguna";
 const SOLICITUD_CALENTAMIENTO_POR_DEFECTO = SOLICITUD_CALENTAMIENTO_SIN_ACTIVA;
@@ -57,6 +58,23 @@ const crearEstadoBase = () => ({
 
 const limpiarPalabra = (valor) => (typeof valor === "string" ? valor.trim() : "");
 
+const normalizarNombreMusaCalentamiento = (
+    valor,
+    detectarLenguajeOfensivo = contieneLenguajeOfensivo
+) => {
+    if (typeof valor !== "string") return "MUSA";
+    const limpio = valor
+        .normalize("NFKC")
+        .replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ")
+        .replace(/<[^>]*>/gu, " ")
+        .replace(/[<>]/gu, "")
+        .replace(/\s+/gu, " ")
+        .trim();
+    const acotado = Array.from(limpio).slice(0, MAX_NOMBRE_MUSA_CALENTAMIENTO).join("");
+    if (!acotado || detectarLenguajeOfensivo(acotado)) return "MUSA";
+    return acotado;
+};
+
 const limitarPorcentaje = (valor, min = 0, max = 100) => {
     const num = Number(valor);
     if (!Number.isFinite(num)) return min;
@@ -94,6 +112,7 @@ const serializarFinalCalentamiento = (entrada) => {
     return {
         id: entrada.id,
         palabra: entrada.palabra,
+        nombre_musa: normalizarNombreMusaCalentamiento(entrada.nombre_musa),
         ts: Number(entrada.ts) || 0,
         animTs: Number(entrada.animTs) || 0
     };
@@ -102,6 +121,7 @@ const serializarFinalCalentamiento = (entrada) => {
 const serializarPalabrasCalentamiento = (palabras = []) => palabras.map((entrada) => ({
     id: entrada.id,
     palabra: entrada.palabra,
+    nombre_musa: normalizarNombreMusaCalentamiento(entrada.nombre_musa),
     equipo: entrada.equipo,
     x: entrada.x,
     y: entrada.y,
@@ -194,7 +214,7 @@ function crearGestorCalentamiento({
         });
     };
 
-    const agregarPalabra = (equipo, socketId, valorPalabra) => {
+    const agregarPalabra = (equipo, socketId, valorPalabra, nombreMusa) => {
         if (!estado.activo || !estado.vista) {
             return { ok: false, mensaje: "El calentamiento no esta disponible." };
         }
@@ -233,9 +253,14 @@ function crearGestorCalentamiento({
             return { ok: false, mensaje: `Escribe una ${etiqueta} valida.` };
         }
         const posicion = generarPosicion(equipo);
+        const nombre_musa = normalizarNombreMusaCalentamiento(
+            nombreMusa,
+            detectarLenguajeOfensivo
+        );
         const registro = {
             id: `${equipo}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
             palabra,
+            nombre_musa,
             normalizada,
             equipo,
             x: posicion.x,
@@ -256,6 +281,7 @@ function crearGestorCalentamiento({
         data.ultimo_intento = {
             id: registro.id,
             palabra: registro.palabra,
+            nombre_musa: registro.nombre_musa,
             exito: false,
             ts: registro.ts
         };
@@ -301,6 +327,7 @@ function crearGestorCalentamiento({
         data.final = {
             id: palabra.id,
             palabra: palabra.palabra,
+            nombre_musa: palabra.nombre_musa,
             ts: ahora,
             animTs: (previa && previa.id === palabra.id) ? (previa.animTs || ahora) : ahora
         };
@@ -330,6 +357,7 @@ function crearGestorCalentamiento({
             return {
                 id: palabra.id,
                 palabra: palabra.palabra,
+                nombre_musa: palabra.nombre_musa,
                 equipo,
                 destacada: true,
                 socketId: palabra.socketId || null
@@ -342,6 +370,7 @@ function crearGestorCalentamiento({
         return {
             id: palabra.id,
             palabra: palabra.palabra,
+            nombre_musa: palabra.nombre_musa,
             equipo,
             destacada: false,
             socketId: palabra.socketId || null
@@ -517,7 +546,11 @@ function crearGestorCalentamiento({
     };
 
     const registrarMusa = (socket, equipo, nombre = "MUSA") => {
-        musasPorEquipo[equipo].set(socket.id, { socket, nombre });
+        const nombrePublico = normalizarNombreMusaCalentamiento(
+            nombre,
+            detectarLenguajeOfensivo
+        );
+        musasPorEquipo[equipo].set(socket.id, { socket, nombre: nombrePublico });
         if (estado.activo) {
             revisarAsignacionesEquipo(equipo);
             emitirEstado();
@@ -630,7 +663,29 @@ function crearGestorCalentamiento({
                 }
                 return;
             }
-            const resultado = agregarPalabra(equipo, socket.id, payload.palabra);
+            const registroMusa = musasPorEquipo[equipo].get(socket.id);
+            if (!registroMusa) {
+                const error = {
+                    ok: false,
+                    codigo: "MUSA_SESSION_INACTIVE",
+                    mensaje: "La sesion de la musa ya no esta activa."
+                };
+                if (typeof responder === "function") {
+                    responder(error);
+                } else {
+                    socket.emit("calentamiento_error", {
+                        codigo: error.codigo,
+                        mensaje: error.mensaje
+                    });
+                }
+                return;
+            }
+            const resultado = agregarPalabra(
+                equipo,
+                socket.id,
+                payload.palabra,
+                registroMusa.nombre
+            );
             if (!resultado.ok) {
                 const error = {
                     ok: false,
@@ -706,6 +761,7 @@ function crearGestorCalentamiento({
                 io.to(cambio.socketId).emit("calentamiento_ganado", {
                     equipo: cambio.equipo,
                     palabra: cambio.palabra,
+                    nombre_musa: cambio.nombre_musa,
                     id: cambio.id
                 });
             }
@@ -779,5 +835,6 @@ module.exports = {
     crearEstadoCalentamiento,
     crearGestorCalentamiento,
     limpiarPalabra,
+    normalizarNombreMusaCalentamiento,
     normalizarPalabra
 };

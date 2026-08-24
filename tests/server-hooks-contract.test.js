@@ -806,6 +806,73 @@ test("scrib_test:force_warmup_state toggles tutorial state and spectator view co
   assert.equal(disabled.state.espectador.calentamiento_vista, false);
 });
 
+test("tutorial state keeps the authoritative muse author after a real reconnection", async () => {
+  const watcher = await connectPassiveSocket();
+  const muse = await connectPassiveSocket();
+  const assignment = await emitAck(muse, "registrar_musa", {
+    nombre: "Luna",
+    client_id: "warmup-author-luna"
+  });
+  assert.equal(assignment.ok, true);
+  await emitAck(adminSocket, "scrib_test:force_warmup_state", {
+    activo: true,
+    vista: true,
+    solicitud: "lugares"
+  });
+
+  const acceptedStatePromise = waitForSocketEvent(
+    watcher,
+    "calentamiento_estado_espectador",
+    (payload) => payload
+      && payload.equipos
+      && payload.equipos[assignment.player]?.palabras
+        .some(({ palabra }) => palabra === "playa")
+  );
+  const accepted = await emitAck(muse, "calentamiento_intento", {
+    palabra: "playa",
+    nombre_musa: "IMPOSTORA"
+  });
+  assert.deepEqual(accepted, { ok: true });
+  const acceptedState = await acceptedStatePromise;
+  const original = acceptedState.equipos[assignment.player].palabras
+    .find(({ palabra }) => palabra === "playa");
+  assert.equal(original.nombre_musa, "LUNA");
+  assert.equal(Object.prototype.hasOwnProperty.call(original, "socketId"), false);
+
+  const disconnectedStatePromise = waitForSocketEvent(
+    watcher,
+    "calentamiento_estado_espectador",
+    (payload) => payload
+      && payload.equipos
+      && payload.equipos[assignment.player]?.palabras
+        .some(({ palabra, nombre_musa }) => palabra === "playa" && nombre_musa === "LUNA")
+  );
+  muse.close();
+  await disconnectedStatePromise;
+
+  const reconnected = await connectPassiveSocket();
+  const restoredStatePromise = waitForSocketEvent(
+    watcher,
+    "calentamiento_estado_espectador",
+    (payload) => payload
+      && payload.equipos
+      && payload.equipos[assignment.player]?.palabras
+        .some(({ palabra, nombre_musa }) => palabra === "playa" && nombre_musa === "LUNA")
+  );
+  const reconnectAssignment = await emitAck(reconnected, "registrar_musa", {
+    nombre: "Luna",
+    client_id: "warmup-author-luna"
+  });
+  assert.equal(reconnectAssignment.ok, true);
+  const restoredState = await restoredStatePromise;
+  assert.equal(
+    restoredState.equipos[assignment.player].palabras.some(({ palabra, nombre_musa }) => (
+      palabra === "playa" && nombre_musa === "LUNA"
+    )),
+    true
+  );
+});
+
 test("scrib_test:reset clears a populated state back to the initial contract", async () => {
   await seedPopulatedState();
   const reset = await emitAck(adminSocket, "scrib_test:reset", {});
@@ -1049,7 +1116,8 @@ test("nube_inspiracion_estado event payload matches contract after musa inspirat
 
   musa1.emit("enviar_inspiracion", {
     palabra: "cometa",
-    nombre: "Musa Contract"
+    nombre: "IMPOSTORA",
+    client_id: "client-falso"
   });
 
   const payload = await eventPromise;

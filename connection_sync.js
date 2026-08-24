@@ -114,10 +114,6 @@ function crearSincronizadorConexion({
         const payloadModo = construirPayloadInspiracionMusaActual();
         emitirActivarModo(payloadModo, socket);
         sincroModos(socket);
-        const escritxrId = obtenerIdJugadorValido(socket.escritxr);
-        if (escritxrId && typeof emitirEntregaInspiracionActiva === 'function') {
-            emitirEntregaInspiracionActiva(escritxrId, socket);
-        }
         socket.emit('post-inicio', { borrar_texto: false });
         emitirConteosGuardados(socket);
         emitirTempModos(socket);
@@ -126,6 +122,22 @@ function crearSincronizadorConexion({
         }
         if (typeof isPartidaPausada === 'function' && isPartidaPausada()) {
             socket.emit('pausar_js', { restaurando: true });
+        }
+        // La restauración de una inspiración debe ser el último paso visual:
+        // `post-inicio` reinicia paneles transitorios en los clientes y borraría
+        // una entrega emitida antes durante una reconexión.
+        const escritxrId = obtenerIdJugadorValido(socket.escritxr);
+        if (escritxrId && typeof emitirEntregaInspiracionActiva === 'function') {
+            emitirEntregaInspiracionActiva(escritxrId, socket);
+        } else if (
+            typeof emitirEntregaInspiracionActiva === 'function'
+            && (
+                socket.espectador
+                || (socket.monitor_pantalla && socket.monitor_pantalla.rol === 'espectador')
+            )
+        ) {
+            emitirEntregaInspiracionActiva(1, socket);
+            emitirEntregaInspiracionActiva(2, socket);
         }
     };
 

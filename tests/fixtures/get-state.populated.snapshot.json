@@ -113,11 +113,13 @@
       "equipos": {
         "1": {
           "nombre": "ESCRITXR 1",
-          "palabras": []
+          "palabras": [],
+          "palabras_info": []
         },
         "2": {
           "nombre": "ESCRITXR 2",
-          "palabras": []
+          "palabras": [],
+          "palabras_info": []
         }
       }
     },

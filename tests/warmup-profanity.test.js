@@ -74,6 +74,86 @@ test("clean non-Latin inspirations remain valid in the tutorial", () => {
   assert.equal(normalizarPalabra("  Театр  "), "театр");
 });
 
+test("tutorial words keep their authoritative muse name through selection and reconnection", () => {
+  const io = createIo();
+  const warmup = crearGestorCalentamiento({
+    io,
+    validarJugador: (value) => ([1, 2].includes(Number(value)) ? Number(value) : null)
+  });
+  const createMuse = (id, name) => {
+    const socket = new EventEmitter();
+    socket.id = id;
+    socket.musa = 1;
+    warmup.registrarMusa(socket, 1, name);
+    warmup.registrarHandlers(socket);
+    return socket;
+  };
+  const luna = createMuse("muse-luna", "LUNA");
+  const sol = createMuse("muse-sol", "SOL");
+  warmup.forzarEstado({ activo: true, vista: true, solicitud: "lugares" });
+
+  luna.emit("calentamiento_intento", { palabra: "playa", nombre_musa: "FALSA" });
+  sol.emit("calentamiento_intento", { palabra: "montaña", nombre_musa: "FALSA" });
+
+  let team = warmup.payloadEstado().equipos[1];
+  assert.deepEqual(
+    team.palabras.map(({ palabra, nombre_musa }) => ({ palabra, nombre_musa })),
+    [
+      { palabra: "playa", nombre_musa: "LUNA" },
+      { palabra: "montaña", nombre_musa: "SOL" }
+    ]
+  );
+  assert.equal(team.ultimoIntento.nombre_musa, "SOL");
+  assert.equal(Object.prototype.hasOwnProperty.call(team.palabras[0], "socketId"), false);
+
+  warmup.desregistrarMusa(luna, 1);
+  const lunaReconectada = createMuse("muse-luna-new", "LUNA");
+  lunaReconectada.emit("calentamiento_intento", { palabra: "bosque" });
+  team = warmup.payloadEstado().equipos[1];
+  assert.deepEqual(
+    team.palabras.map(({ palabra, nombre_musa }) => ({ palabra, nombre_musa })),
+    [
+      { palabra: "playa", nombre_musa: "LUNA" },
+      { palabra: "montaña", nombre_musa: "SOL" },
+      { palabra: "bosque", nombre_musa: "LUNA" }
+    ]
+  );
+
+  const writer = new EventEmitter();
+  writer.id = "writer-1";
+  writer.escritxr = 1;
+  warmup.registrarHandlers(writer);
+  const selectedId = team.palabras[0].id;
+  writer.emit("calentamiento_click_palabra", { id: selectedId });
+  writer.emit("calentamiento_bloquear_equipo");
+  writer.emit("calentamiento_click_palabra", { id: selectedId });
+
+  team = warmup.payloadEstado().equipos[1];
+  assert.equal(team.final.palabra, "playa");
+  assert.equal(team.final.nombre_musa, "LUNA");
+});
+
+test("tutorial replaces an offensive muse name with the safe public fallback", () => {
+  const io = createIo();
+  const socket = new EventEmitter();
+  socket.id = "muse-offensive-name";
+  socket.musa = 1;
+  const warmup = crearGestorCalentamiento({
+    io,
+    validarJugador: (value) => ([1, 2].includes(Number(value)) ? Number(value) : null)
+  });
+  warmup.registrarMusa(socket, 1, "<b>p.u.t.a</b>");
+  warmup.registrarHandlers(socket);
+  warmup.forzarEstado({ activo: true, vista: true, solicitud: "acciones" });
+
+  socket.emit("calentamiento_intento", { palabra: "volar" });
+
+  const payload = warmup.payloadEstado().equipos[1];
+  assert.equal(payload.palabras[0].nombre_musa, "MUSA");
+  assert.equal(payload.ultimoIntento.nombre_musa, "MUSA");
+  assert.equal(JSON.stringify(payload).includes("p.u.t.a"), false);
+});
+
 test("moderation rejections use an acknowledgement without echoing the raw input", () => {
   const { socket, warmup } = createActiveWarmup();
   let response = null;

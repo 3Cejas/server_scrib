@@ -59,7 +59,7 @@ test("nube inspiration counts distinct muses for superbonus", () => {
   ]);
 });
 
-test("nube inspiration payload keeps strings compatible and adds info when useful", () => {
+test("nube inspiration payload keeps strings compatible and always exposes muse info", () => {
   const gestor = crearGestorNubeInspiracion({
     getModoActual: () => "palabras bonus",
     getMotores: () => ({
@@ -89,5 +89,53 @@ test("nube inspiration payload keeps strings compatible and adds info when usefu
     }
   ]);
   assert.deepEqual(payload.equipos[2].palabras, []);
-  assert.equal(Object.prototype.hasOwnProperty.call(payload.equipos[2], "palabras_info"), false);
+  assert.deepEqual(payload.equipos[2].palabras_info, []);
+});
+
+test("nube inspiration exposes the author of a single ordinary queued word", () => {
+  const gestor = crearGestorNubeInspiracion({
+    getModoActual: () => "letra bendita",
+    getMotores: () => ({
+      musas: {
+        players: {
+          1: { queue: [{ palabra: "aurora", musa: "LUNA", client_id: "luna" }] },
+          2: { queue: [] }
+        }
+      }
+    })
+  });
+
+  const payload = gestor.payload();
+
+  assert.deepEqual(payload.equipos[1].palabras, ["aurora"]);
+  assert.deepEqual(payload.equipos[1].palabras_info, [{
+    palabra: "aurora",
+    repeticiones: 1,
+    superbonus: false,
+    musas: ["LUNA"]
+  }]);
+});
+
+test("forbidden inspiration cloud keeps the enemy muse author after queue routing", () => {
+  const gestor = crearGestorNubeInspiracion({
+    getModoActual: () => "palabras prohibidas",
+    getMotores: () => ({
+      malditas: {
+        players: {
+          1: { queue: [] },
+          2: { queue: [{ palabra: "sombra", musa: "LUNA", client_id: "luna" }] }
+        }
+      }
+    })
+  });
+
+  const payload = gestor.payload();
+
+  assert.deepEqual(payload.equipos[1].palabras_info, [{
+    palabra: "sombra",
+    repeticiones: 1,
+    superbonus: false,
+    musas: ["LUNA"]
+  }]);
+  assert.deepEqual(payload.equipos[2].palabras_info, []);
 });

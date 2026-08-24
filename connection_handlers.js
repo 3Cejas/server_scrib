@@ -211,6 +211,7 @@ function registrarConexionScrib(socket, deps) {
         getModoMalditas,
         getModoMusas,
         obtenerIdJugadorValido,
+        obtenerMusaActiva: rolesConectados.obtenerMusaActiva,
         normalizarNombreMusa,
         normalizarMusaClientId,
         emitirNubeInspiracionEstado,

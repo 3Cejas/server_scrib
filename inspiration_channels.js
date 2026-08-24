@@ -1,3 +1,5 @@
+const { contieneLenguajeOfensivo } = require("./profanity_filter.js");
+
 const normalizarNombreMusaPorDefecto = (valor) => {
     if (typeof valor !== "string") return "";
     return valor.trim().slice(0, 10).toUpperCase();
@@ -63,6 +65,15 @@ function registrarCanalesInspiracion({
     getModoMalditas = () => null,
     getModoMusas = () => null,
     obtenerIdJugadorValido,
+    obtenerMusaActiva = (socketActual) => {
+        const player = obtenerIdJugadorValido(socketActual && socketActual.musa);
+        if (!player) return null;
+        return {
+            player,
+            nombre: socketActual && socketActual.nombre_musa,
+            clientId: socketActual && socketActual.musa_client_id
+        };
+    },
     normalizarNombreMusa = normalizarNombreMusaPorDefecto,
     normalizarMusaClientId = () => "",
     emitirNubeInspiracionEstado = () => {},
@@ -89,6 +100,12 @@ function registrarCanalesInspiracion({
             return Boolean(sesionesEscritor.obtenerSocketActivo(id));
         }
         return true;
+    };
+
+    const nombreMusaPublico = (valor) => {
+        const nombre = normalizarNombreMusa(valor);
+        if (!nombre || contieneLenguajeOfensivo(nombre)) return "MUSA";
+        return nombre;
     };
 
     const entregarInspiracionEnColaAEscritoraActiva = (modo, player) => {
@@ -265,6 +282,16 @@ function registrarCanalesInspiracion({
                 : "",
             ts: Date.now()
         };
+        const musasEntrega = Array.isArray(resultado.entrega_musa.musas)
+            ? resultado.entrega_musa.musas
+                .map(nombreMusaPublico)
+                .filter((nombre, indice, lista) => nombre && lista.indexOf(nombre) === indice)
+            : [];
+        if (!musasEntrega.length && resultado.entrega_musa.musa_nombre) {
+            musasEntrega.push(nombreMusaPublico(resultado.entrega_musa.musa_nombre));
+        }
+        payload.musas = musasEntrega.length ? musasEntrega : ["MUSA"];
+        payload.musa_nombre = payload.musas.join(" + ");
         io.emit("inspiracion_aprovechada", payload);
         return payload;
     };
@@ -605,7 +632,10 @@ function registrarCanalesInspiracion({
     });
 
     socket.on("enviar_inspiracion", (evento) => {
-        const id_jugador = obtenerIdJugadorValido(socket.musa);
+        const musaActiva = typeof obtenerMusaActiva === "function"
+            ? obtenerMusaActiva(socket)
+            : null;
+        const id_jugador = obtenerIdJugadorValido(musaActiva && musaActiva.player);
         if (!id_jugador) {
             return;
         }
@@ -614,8 +644,8 @@ function registrarCanalesInspiracion({
         if (!palabra) {
             return;
         }
-        const nombre_musa = normalizarNombreMusa(datos.nombre) || socket.nombre_musa || "MUSA";
-        const musa_client_id = normalizarMusaClientId(datos.client_id || socket.musa_client_id || "");
+        const nombre_musa = nombreMusaPublico(musaActiva && musaActiva.nombre);
+        const musa_client_id = normalizarMusaClientId(musaActiva && musaActiva.clientId);
         const payload_musa = { palabra, musa: nombre_musa, client_id: musa_client_id };
         const modo_actual = getModoActual();
         const target_player = modo_actual === "palabras prohibidas"

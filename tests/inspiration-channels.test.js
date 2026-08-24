@@ -12,12 +12,17 @@ function createFakeSocket() {
   return socket;
 }
 
-test("enviar_inspiracion forwards muse client identity to bonus queues and cloud", () => {
+test("enviar_inspiracion uses the active muse identity and ignores spoofed payload identity", () => {
   const socket = createFakeSocket();
   let queued = null;
   let cloud = null;
   let sentSummary = null;
   let cloudEmitted = false;
+  let activeMuse = {
+    player: 1,
+    nombre: "LUNA",
+    clientId: "socket_client"
+  };
 
   registrarCanalesInspiracion({
     socket,
@@ -42,6 +47,7 @@ test("enviar_inspiracion forwards muse client identity to bonus queues and cloud
     getModoMalditas: () => null,
     getModoMusas: () => null,
     obtenerIdJugadorValido: (valor) => (Number(valor) === 1 ? 1 : null),
+    obtenerMusaActiva: () => activeMuse,
     normalizarNombreMusa: (valor) => String(valor || "").trim().toUpperCase(),
     normalizarMusaClientId: (valor) => String(valor || "").trim(),
     emitirNubeInspiracionEstado: () => {
@@ -51,8 +57,8 @@ test("enviar_inspiracion forwards muse client identity to bonus queues and cloud
 
   socket.emit("enviar_inspiracion", {
     palabra: " cometa ",
-    nombre: " luna ",
-    client_id: "client_1"
+    nombre: " impostora ",
+    client_id: "client_falso"
   });
 
   assert.deepEqual(queued, {
@@ -60,7 +66,7 @@ test("enviar_inspiracion forwards muse client identity to bonus queues and cloud
     payload: {
       palabra: "cometa",
       musa: "LUNA",
-      client_id: "client_1"
+      client_id: "socket_client"
     }
   });
   assert.deepEqual(cloud, {
@@ -68,7 +74,7 @@ test("enviar_inspiracion forwards muse client identity to bonus queues and cloud
     payload: {
       palabra: "cometa",
       musa: "LUNA",
-      client_id: "client_1",
+      client_id: "socket_client",
       modo_actual: "palabras bonus"
     }
   });
@@ -77,10 +83,29 @@ test("enviar_inspiracion forwards muse client identity to bonus queues and cloud
     target_player: 1,
     palabra: "cometa",
     musa: "LUNA",
-    client_id: "client_1",
+    client_id: "socket_client",
     modo: "palabras bonus"
   });
   assert.equal(cloudEmitted, true);
+
+  activeMuse = null;
+  socket.emit("enviar_inspiracion", {
+    palabra: "intrusion",
+    nombre: "IMPOSTORA",
+    client_id: "client_falso"
+  });
+  assert.equal(queued.payload.palabra, "cometa");
+  assert.equal(cloud.payload.palabra, "cometa");
+
+  activeMuse = {
+    player: 1,
+    nombre: "P.U.T.A",
+    clientId: "offensive-name"
+  };
+  socket.emit("enviar_inspiracion", { palabra: "luz" });
+  assert.equal(queued.payload.musa, "MUSA");
+  assert.equal(cloud.payload.musa, "MUSA");
+  assert.equal(JSON.stringify(queued).includes("P.U.T.A"), false);
 });
 
 test("enviar_inspiracion records forbidden words against the opposing writer", () => {
@@ -178,7 +203,7 @@ test("enviar_inspiracion pushes queued letter-mode muse words to active writers"
       payload: {
         palabra: "aurora",
         musa: "LUNA",
-        client_id: "client_1"
+        client_id: "socket_client"
       }
     },
     { type: "status", player: 1 },
@@ -470,7 +495,12 @@ test("V2 bonus use grants authoritative time once and requests next without lega
         inspiracion_id: id,
         valor_inspiracion: 0.75,
         tiempo_otorgado: 13,
-        entrega_musa: { player: 1, palabra: "cometa" }
+        entrega_musa: {
+          player: 1,
+          palabra: "cometa",
+          musa_nombre: "LUNA",
+          musas: ["LUNA"]
+        }
       };
       return { ...lastUse };
     },
@@ -548,6 +578,8 @@ test("V2 bonus use grants authoritative time once and requests next without lega
     modo_actual: "palabras bonus",
     modo_seq: 7,
     palabra: "cometa",
+    musas: ["LUNA"],
+    musa_nombre: "LUNA",
     ts: globalEvents[0].payload.ts
   });
 });

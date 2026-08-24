@@ -3,11 +3,14 @@ const assert = require("node:assert/strict");
 
 const { crearSincronizadorConexion } = require("../connection_sync.js");
 
-function crearSocket({ dramaturgia = false, escritxr = null } = {}) {
+function crearSocket({ dramaturgia = false, escritxr = null, espectador = false, jurado = false, monitor = null } = {}) {
   const eventos = [];
   return {
     dramaturgia,
     escritxr,
+    espectador,
+    jurado,
+    monitor_pantalla: monitor,
     eventos,
     emit(event, payload) {
       eventos.push({ event, payload });
@@ -158,9 +161,76 @@ test("writer reconnection restores the active delivery after mode sync without a
   sincronizador.sincronizarSocketRecienConectado(socket);
 
   assert.equal(restores, 1);
-  assert.deepEqual(llamadas, ["activar", "sincro", "restaurar", "temp", "desventajas"]);
+  assert.deepEqual(llamadas, ["activar", "sincro", "temp", "desventajas", "restaurar"]);
   assert.deepEqual(
     socket.eventos.find(({ event }) => event === "enviar_palabra_j1").payload,
     { inspiracion_id: 33, restaurando_inspiracion: true }
   );
+});
+
+test("spectator reconnection restores both active muse deliveries with their authors after mode sync", () => {
+  const llamadas = [];
+  const restoredPlayers = [];
+  const socket = crearSocket({ espectador: true });
+  const sincronizador = crearSincronizador({
+    modo: "palabras bonus",
+    llamadas,
+    restaurar(player, socketDestino) {
+      restoredPlayers.push(player);
+      socketDestino.emit(`enviar_palabra_j${player}`, {
+        inspiracion_id: 40 + player,
+        restaurando_inspiracion: true,
+        musa_nombre: player === 1 ? "LUNA" : "SOL",
+        musas: [player === 1 ? "LUNA" : "SOL"]
+      });
+    }
+  });
+
+  sincronizador.sincronizarSocketRecienConectado(socket);
+
+  assert.deepEqual(restoredPlayers, [1, 2]);
+  assert.deepEqual(llamadas, ["activar", "sincro", "temp", "desventajas", "restaurar", "restaurar"]);
+  assert.deepEqual(
+    socket.eventos.filter(({ event }) => event.startsWith("enviar_palabra_j")),
+    [
+      {
+        event: "enviar_palabra_j1",
+        payload: {
+          inspiracion_id: 41,
+          restaurando_inspiracion: true,
+          musa_nombre: "LUNA",
+          musas: ["LUNA"]
+        }
+      },
+      {
+        event: "enviar_palabra_j2",
+        payload: {
+          inspiracion_id: 42,
+          restaurando_inspiracion: true,
+          musa_nombre: "SOL",
+          musas: ["SOL"]
+        }
+      }
+    ]
+  );
+});
+
+test("spectator monitor restores both deliveries while unrelated roles receive no replay", () => {
+  const destinos = [
+    { socket: crearSocket({ monitor: { rol: "espectador", player: null } }), expected: [1, 2] },
+    { socket: crearSocket({ jurado: true }), expected: [] },
+    { socket: crearSocket(), expected: [] }
+  ];
+
+  destinos.forEach(({ socket, expected }) => {
+    const restoredPlayers = [];
+    const sincronizador = crearSincronizador({
+      modo: "letra bendita",
+      restaurar(player) {
+        restoredPlayers.push(player);
+      }
+    });
+    sincronizador.sincronizarSocketRecienConectado(socket);
+    assert.deepEqual(restoredPlayers, expected);
+  });
 });

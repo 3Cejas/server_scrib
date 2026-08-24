@@ -107,19 +107,16 @@ function crearGestorNubeInspiracion({
 
     const construirEquipoPayload = (equipo, palabrasInfo) => {
         const info = Array.isArray(palabrasInfo) ? palabrasInfo : [];
-        const salida = {
+        return {
             nombre: recortarTextoStatsLive(getNombreEquipo(equipo) || `ESCRITXR ${equipo}`, 28) || `ESCRITXR ${equipo}`,
-            palabras: info.map((item) => item.palabra)
-        };
-        if (info.some((item) => item && (item.superbonus || item.repeticiones > 1))) {
-            salida.palabras_info = info.map((item) => ({
+            palabras: info.map((item) => item.palabra),
+            palabras_info: info.map((item) => ({
                 palabra: item.palabra,
                 repeticiones: Math.max(1, Number(item.repeticiones) || 1),
                 superbonus: Boolean(item.superbonus),
                 musas: Array.isArray(item.musas) ? item.musas : []
-            }));
-        }
-        return salida;
+            }))
+        };
     };
 
     const payload = () => {

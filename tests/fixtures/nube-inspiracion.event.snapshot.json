@@ -6,11 +6,22 @@
       "nombre": "ESCRITXR 1",
       "palabras": [
         "cometa"
+      ],
+      "palabras_info": [
+        {
+          "palabra": "cometa",
+          "repeticiones": 1,
+          "superbonus": false,
+          "musas": [
+            "MUSA CONTR"
+          ]
+        }
       ]
     },
     "2": {
       "nombre": "ESCRITXR 2",
-      "palabras": []
+      "palabras": [],
+      "palabras_info": []
     }
   }
 }
