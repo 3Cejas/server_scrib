@@ -50,6 +50,14 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null } = {})
       llamadas.push("desventajas");
       socket.emit("desventaja_activa_estado", {});
     },
+    emitirEstadoPreShow(socket) {
+      socket.emit("pre_show_estado", {
+        activo: true,
+        session_id: "session-test",
+        phase_seq: 1,
+        mensajes: []
+      });
+    },
     partidaSync: {
       withModoSeq: (payload) => ({ ...payload, modo_seq: 7 }),
       obtenerConteo: () => null
@@ -110,6 +118,10 @@ test("ordinary roles do not receive the dramaturgy snapshot", () => {
   );
   assert.equal(
     socket.eventos.some(({ event }) => event === "modo_actual"),
+    true
+  );
+  assert.equal(
+    socket.eventos.some(({ event }) => event === "pre_show_estado"),
     true
   );
 });

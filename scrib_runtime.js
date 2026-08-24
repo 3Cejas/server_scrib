@@ -8,6 +8,7 @@ const { crearRuntimeModos } = require('./mode_runtime.js');
 const { crearMotorModos } = require('./mode_engine.js');
 const { createMatchSimulator } = require('./match_simulator.js');
 const { crearCicloPartida } = require('./partida_lifecycle.js');
+const { crearGestorPreShowMusas } = require('./pre_show_musas.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
     crearGestorIdioma,
@@ -42,6 +43,7 @@ function crearRuntimeScrib({
     let calentamiento;
     let dramaturgiaState;
     let simuladorPartidas;
+    let preShowMusas;
     let deps;
     let partidaPausada = false;
 
@@ -135,6 +137,9 @@ function crearRuntimeScrib({
         programarVotacionTimer,
         cancelarVotacionTimer: () => timersPartida.cancelarVotacion(),
         syncMode: () => sincro_modos(),
+        onTutorialIniciado: () => {
+            if (preShowMusas) preShowMusas.cerrar("tutorial");
+        },
         registrar,
         repentizados
     });
@@ -165,6 +170,11 @@ function crearRuntimeScrib({
         rolesConectados,
         sesionesEscritor
     } = gestoresAuxiliares;
+
+    preShowMusas = crearGestorPreShowMusas({
+        io,
+        obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket)
+    });
 
     writerChannels = crearCanalesEscritor({
         io,
@@ -381,6 +391,7 @@ function crearRuntimeScrib({
         programarInicioTimer,
         reiniciarMusasCreditosPartida: () => rolesConectados.reiniciarMusasCreditosPartidaDesdeActivas(),
         limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
+        preShowMusas,
         registrar
     });
 
@@ -422,7 +433,8 @@ function crearRuntimeScrib({
         emitirTempModos,
         obtenerIdJugadorValido,
         emitirEstadoCalentamientoMusa,
-        emitirEntregaInspiracionActiva
+        emitirEntregaInspiracionActiva,
+        emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino)
     });
 
     deps = {
@@ -512,7 +524,8 @@ function crearRuntimeScrib({
         },
         isPartidaPausada: () => partidaPausada,
         isFinDelJuego: () => Boolean(estadoCicloPartida.finDelJuego),
-        aplicarAjusteTiempoInspiracion
+        aplicarAjusteTiempoInspiracion,
+        preShowMusas
     };
 
     function sincro_modos(socket = null) {

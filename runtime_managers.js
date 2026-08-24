@@ -28,6 +28,7 @@ function crearGestoresBase({
     programarVotacionTimer,
     cancelarVotacionTimer,
     syncMode,
+    onTutorialIniciado = () => {},
     registrar = () => {},
     repentizados = []
 }) {
@@ -38,7 +39,8 @@ function crearGestoresBase({
     const calentamientoGestor = crearGestorCalentamiento({
         io,
         validarJugador: obtenerIdJugadorValido,
-        onVistaCambiada
+        onVistaCambiada,
+        onTutorialIniciado
     });
     const calentamiento = calentamientoGestor.estado;
     const bolzanoCalentamientoGestor = crearGestorCalentamientoBolzano({

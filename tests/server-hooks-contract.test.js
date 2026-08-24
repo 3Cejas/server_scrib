@@ -691,6 +691,96 @@ test("musa flag hearts add time only while a match is running", async () => {
   assert.equal(activeState.musas.regalo_bandera.equipos[1].regalo_secs, 1);
 });
 
+test("registered muses entertain the spectator only during the authoritative pre-show phase", async () => {
+  await emitAck(adminSocket, "scrib_test:reset", {});
+  const spectator = await connectPassiveSocket();
+  const spectatorInitial = waitForSocketEvent(
+    spectator,
+    "pre_show_estado",
+    (payload) => payload && payload.activo === true && Array.isArray(payload.mensajes)
+  );
+  spectator.emit("registrar_espectador");
+  const initial = await spectatorInitial;
+  assert.equal(typeof initial.session_id, "string");
+  assert.equal(initial.session_id.length > 0, true);
+  assert.equal(Number.isInteger(initial.phase_seq), true);
+  assert.deepEqual(initial.mensajes, []);
+
+  const muse = await connectPassiveSocket();
+  const assignment = await emitAck(muse, "registrar_musa", {
+    nombre: "Luna",
+    client_id: "preshow-luna"
+  });
+  assert.equal(assignment.ok, true);
+  const museStateResponse = await emitAck(muse, "pedir_pre_show_estado", {});
+  assert.equal(museStateResponse.ok, true);
+  const phase = museStateResponse.estado;
+
+  const publicMessage = waitForSocketEvent(
+    spectator,
+    "pre_show_estado",
+    (payload) => payload
+      && payload.mensajes
+      && payload.mensajes.some(({ texto }) => texto === "Hola público")
+  );
+  const accepted = await emitAck(muse, "pre_show_musa_enviar", {
+    texto: " <b>Hola público</b> ",
+    request_id: "preshow-1",
+    session_id: phase.session_id,
+    phase_seq: phase.phase_seq
+  });
+  assert.equal(accepted.ok, true);
+  const published = await publicMessage;
+  assert.equal(published.mensajes.at(-1).texto, "Hola público");
+  assert.equal(published.mensajes.at(-1).equipo, assignment.player);
+  assert.equal(published.mensajes.at(-1).nombre_musa, "LUNA");
+
+  const offensive = await emitAck(muse, "pre_show_musa_enviar", {
+    texto: "f.u.c.k",
+    request_id: "preshow-offensive",
+    session_id: phase.session_id,
+    phase_seq: phase.phase_seq
+  });
+  assert.equal(offensive.ok, false);
+  assert.equal(offensive.code, "OFFENSIVE_TEXT");
+  assert.equal(JSON.stringify(offensive).includes("f.u.c.k"), false);
+
+  const closedPromise = waitForSocketEvent(
+    spectator,
+    "pre_show_estado",
+    (payload) => payload && payload.activo === false && payload.mensajes.length === 0
+  );
+  await emitAck(adminSocket, "scrib_test:force_warmup_state", {
+    activo: true,
+    vista: true,
+    solicitud: "acciones"
+  });
+  const closed = await closedPromise;
+  const late = await emitAck(muse, "pre_show_musa_enviar", {
+    texto: "mensaje tardío",
+    session_id: closed.session_id,
+    phase_seq: closed.phase_seq
+  });
+  assert.equal(late.code, "NOT_ACTIVE");
+
+  const intruder = await connectPassiveSocket();
+  intruder.emit("limpiar", {});
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const stillClosed = await emitAck(spectator, "pedir_pre_show_estado", {});
+  assert.equal(stillClosed.estado.activo, false);
+
+  const control = await connectRole("registrar_control");
+  const reopenedPromise = waitForSocketEvent(
+    spectator,
+    "pre_show_estado",
+    (payload) => payload && payload.activo === true && payload.mensajes.length === 0
+  );
+  control.emit("limpiar", {});
+  const reopened = await reopenedPromise;
+  assert.notEqual(reopened.session_id, closed.session_id);
+  assert.equal(reopened.phase_seq > closed.phase_seq, true);
+});
+
 test("scrib_test:force_warmup_state toggles tutorial state and spectator view coherently", async () => {
   const enabled = await emitAck(adminSocket, "scrib_test:force_warmup_state", {
     activo: true,

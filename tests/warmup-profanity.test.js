@@ -95,3 +95,32 @@ test("moderation rejections use an acknowledgement without echoing the raw input
   assert.equal(legacyError, null);
   assert.equal(warmup.payloadEstado().equipos[1].intentos, 0);
 });
+
+test("only control or the internal simulator can start or reconfigure the tutorial", () => {
+  const io = createIo();
+  const socket = new EventEmitter();
+  socket.id = "intruder";
+  let starts = 0;
+  const warmup = crearGestorCalentamiento({
+    io,
+    validarJugador: (value) => ([1, 2].includes(Number(value)) ? Number(value) : null),
+    onTutorialIniciado: () => {
+      starts += 1;
+    }
+  });
+  warmup.registrarHandlers(socket);
+
+  socket.emit("reiniciar_calentamiento");
+  socket.emit("cambiar_vista_calentamiento", { activo: true });
+  socket.emit("calentamiento_solicitud", { tipo: "lugares" });
+  assert.equal(warmup.payloadEstado().activo, false);
+  assert.equal(warmup.payloadEstado().vista, false);
+  assert.equal(warmup.payloadEstado().solicitud, "ninguna");
+  assert.equal(starts, 0);
+
+  socket.control = true;
+  socket.emit("cambiar_vista_calentamiento", { activo: true });
+  assert.equal(warmup.payloadEstado().activo, true);
+  assert.equal(warmup.payloadEstado().vista, true);
+  assert.equal(starts, 1);
+});

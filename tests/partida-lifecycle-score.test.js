@@ -32,6 +32,7 @@ const telemetriaFinal = (palabras1 = 70, palabras2 = 35) => ({
 
 function crearHarness() {
   const eventos = [];
+  const ordenPreShow = [];
   const io = {
     emit(event, payload) {
       eventos.push({ event, payload });
@@ -62,6 +63,20 @@ function crearHarness() {
     reiniciarLetrasPendientes() {}
   };
   const noOp = () => {};
+  const preShow = {
+    activo: true,
+    aperturas: 0,
+    cierres: [],
+    abrir() {
+      this.activo = true;
+      this.aperturas += 1;
+      ordenPreShow.push("pre_show_estado");
+    },
+    cerrar(motivo) {
+      this.activo = false;
+      this.cierres.push(motivo);
+    }
+  };
   const ciclo = crearCicloPartida({
     state,
     io,
@@ -90,12 +105,28 @@ function crearHarness() {
     setPartidaPausada: noOp,
     registrarTimelineModo: noOp,
     motorModos: { activarModo: noOp, temp_modos: noOp },
-    programarInicioTimer: noOp
+    programarInicioTimer: noOp,
+    preShowMusas: preShow
   });
   const socket = {
     broadcast: { emit: noOp }
   };
-  return { ciclo, eventos, puntuacionFinal, socket, state, statsLive };
+  return { ciclo, eventos, ordenPreShow, preShow, puntuacionFinal, socket, state, statsLive };
+}
+
+function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
+  const handlers = {};
+  return {
+    control,
+    simulacion_scrib: simulacion,
+    broadcast: { emit() {} },
+    on(event, handler) {
+      handlers[event] = handler;
+    },
+    trigger(event, payload) {
+      handlers[event](payload);
+    }
+  };
 }
 
 test("end-of-player reset marks score pending without capturing or clearing old telemetry", () => {
@@ -136,4 +167,32 @@ test("a captured final score survives repeated finish cleanup and resets on the 
   assert.equal(ctx.puntuacionFinal.estaPendiente(), false);
   assert.deepEqual(ctx.statsLive.payloadDatosRecibidos(), { 1: false, 2: false });
   assert.equal(ctx.statsLive.payload().players[1].palabrasTotal, 0);
+});
+
+test("only control or the internal simulator can open or close pre-show through lifecycle events", () => {
+  const ctx = crearHarness();
+  const intruso = crearSocketLifecycle();
+  ctx.ciclo.registrarHandlers(intruso);
+
+  intruso.trigger("inicio", { count: "1:00" });
+  intruso.trigger("limpiar", {});
+  assert.equal(ctx.preShow.activo, true);
+  assert.deepEqual(ctx.preShow.cierres, []);
+  assert.equal(ctx.preShow.aperturas, 0);
+
+  const control = crearSocketLifecycle({ control: true });
+  ctx.ciclo.registrarHandlers(control);
+  control.trigger("inicio", { count: "1:00", parametros: {} });
+  assert.equal(ctx.preShow.activo, false);
+  assert.equal(ctx.preShow.cierres.at(-1), "inicio_partida");
+  control.broadcast.emit = (event) => ctx.ordenPreShow.push(event);
+  control.trigger("limpiar", {});
+  assert.equal(ctx.preShow.activo, true);
+  assert.equal(ctx.preShow.aperturas, 1);
+  assert.deepEqual(ctx.ordenPreShow.slice(-2), ["limpiar", "pre_show_estado"]);
+
+  const simulador = crearSocketLifecycle({ simulacion: true });
+  ctx.ciclo.registrarHandlers(simulador);
+  simulador.trigger("inicio", { count: "1:00", parametros: {} });
+  assert.equal(ctx.preShow.activo, false);
 });

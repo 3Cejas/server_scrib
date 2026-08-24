@@ -23,7 +23,8 @@ function crearRuntimeTestHooks({
     construirPayloadCount,
     resurreccion,
     reiniciarEstadoPartida,
-    calentamientoGestor
+    calentamientoGestor,
+    preShowMusas = null
 }) {
     const forzarModoTest = (payload = {}) => {
         const modoSolicitado = typeof payload.mode === 'string'
@@ -31,6 +32,9 @@ function crearRuntimeTestHooks({
             : (typeof payload.modo === 'string' ? payload.modo.trim() : '');
         if (!modoSolicitado || !motorModos.tieneModo(modoSolicitado)) {
             return { ok: false, error: `Modo invalido: ${modoSolicitado}` };
+        }
+        if (preShowMusas && typeof preShowMusas.cerrar === 'function') {
+            preShowMusas.cerrar('inicio_partida_test');
         }
         limpiarTimersPalabras();
         limpiarTimersRonda();

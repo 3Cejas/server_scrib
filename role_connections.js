@@ -516,6 +516,26 @@ function crearRegistroRoles({
         };
     };
 
+    const obtenerMusaActiva = (socket) => {
+        if (!socket || !socket.id) return null;
+        const registro = musasActivas.get(socket.id);
+        const player = validarJugador(registro && registro.player);
+        if (
+            !registro
+            || !player
+            || registro.socket !== socket
+            || validarJugador(socket.musa) !== player
+        ) {
+            return null;
+        }
+        return {
+            player,
+            nombre: registro.nombre,
+            clientId: registro.clientId,
+            socketId: registro.socketId
+        };
+    };
+
     const desregistrarSocket = (socket) => {
         const registroMusa = musasActivas.get(socket.id) || null;
         const musaId = validarJugador(registroMusa && registroMusa.player);
@@ -563,6 +583,7 @@ function crearRegistroRoles({
         estadoEscritores,
         limpiarMusasCreditosPartida,
         obtenerContadorMusas: clonarContadorMusas,
+        obtenerMusaActiva,
         obtenerMusasCreditosPartida,
         payloadConexiones,
         registrarMusaEnCreditosPartida,

@@ -116,7 +116,8 @@ function crearGestorCalentamiento({
     io,
     validarJugador,
     detectarLenguajeOfensivo = contieneLenguajeOfensivo,
-    onVistaCambiada = () => {}
+    onVistaCambiada = () => {},
+    onTutorialIniciado = () => {}
 }) {
     const musasPorEquipo = { 1: new Map(), 2: new Map() };
     const estado = crearEstadoBase();
@@ -494,6 +495,7 @@ function crearGestorCalentamiento({
 
     const iniciar = () => {
         estado.activo = true;
+        onTutorialIniciado();
         estado.solicitud = SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
         estado.cursores[1] = crearCursorCalentamiento();
         estado.cursores[2] = crearCursorCalentamiento();
@@ -557,6 +559,8 @@ function crearGestorCalentamiento({
         estado.solicitud = SOLICITUD_CALENTAMIENTO_POR_DEFECTO;
         if (estado.vista && !estado.activo) {
             iniciar();
+        } else if (estado.vista) {
+            onTutorialIniciado();
         }
         io.emit("calentamiento_vista", { activo: estado.vista });
         emitirEstado();
@@ -605,6 +609,9 @@ function crearGestorCalentamiento({
             estado.equipos[1] = crearEstadoCalentamiento();
             estado.equipos[2] = crearEstadoCalentamiento();
         }
+        if (activo || vista) {
+            onTutorialIniciado();
+        }
         if (activo) {
             revisarAsignacionesEquipo(1);
             revisarAsignacionesEquipo(2);
@@ -647,18 +654,22 @@ function crearGestorCalentamiento({
         };
 
         socket.on("cambiar_vista_calentamiento", (payload = {}) => {
+            if (!socket.control && !socket.simulacion_scrib) return;
             cambiarVista(payload);
         });
 
         socket.on("reiniciar_calentamiento", () => {
+            if (!socket.control && !socket.simulacion_scrib) return;
             iniciar();
         });
 
         socket.on("reiniciar_marcador_calentamiento", () => {
+            if (!socket.control && !socket.simulacion_scrib) return;
             reiniciarMarcador();
         });
 
         socket.on("calentamiento_solicitud", (payload = {}) => {
+            if (!socket.control && !socket.simulacion_scrib) return;
             cambiarSolicitud(payload.tipo);
         });
 

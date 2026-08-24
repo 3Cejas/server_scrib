@@ -94,7 +94,8 @@ function registrarConexionScrib(socket, deps) {
         setPartidaPausada,
         isPartidaPausada,
         isFinDelJuego,
-        aplicarAjusteTiempoInspiracion
+        aplicarAjusteTiempoInspiracion,
+        preShowMusas
     } = deps;
 
     const query = socket && socket.handshake && socket.handshake.query;
@@ -103,6 +104,9 @@ function registrarConexionScrib(socket, deps) {
         && String(query.dramaturgia_monitor || "") === "1"
     );
     instalarGuardiaMonitor(socket);
+    if (preShowMusas && typeof preShowMusas.registrarHandlers === "function") {
+        preShowMusas.registrarHandlers(socket);
+    }
 
     registrarCanalesGenerales({
         socket,
@@ -260,7 +264,8 @@ function registrarConexionScrib(socket, deps) {
         construirPayloadCount,
         resurreccion,
         reiniciarEstadoPartida,
-        calentamientoGestor
+        calentamientoGestor,
+        preShowMusas
     });
     registrarTestHooks({
         socket,
@@ -288,7 +293,8 @@ function registrarConexionScrib(socket, deps) {
         forzarFinPlayerTest,
         obtenerIdJugadorValido,
         musasAuxiliares,
-        forzarCalentamientoTest
+        forzarCalentamientoTest,
+        preShowMusas
     });
 }
 

@@ -47,7 +47,8 @@ function registrarTestHooks({
     forzarFinPlayerTest,
     obtenerIdJugadorValido,
     musasAuxiliares,
-    forzarCalentamientoTest
+    forzarCalentamientoTest,
+    preShowMusas = null
 }) {
     if (!enabled) {
         return false;
@@ -66,6 +67,9 @@ function registrarTestHooks({
             resetearPuntuacion: true
         });
         resetearEstadoAuxiliarParaTests();
+        if (preShowMusas && typeof preShowMusas.abrir === 'function') {
+            preShowMusas.abrir();
+        }
         partidaSync.siguienteModoSeq();
         io.emit('texto1', '');
         io.emit('texto2', '');

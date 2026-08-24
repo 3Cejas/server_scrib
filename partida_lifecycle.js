@@ -26,8 +26,15 @@ function crearCicloPartida({
     programarInicioTimer,
     reiniciarMusasCreditosPartida = () => {},
     limpiarMusasCreditosPartida = () => {},
+    preShowMusas = null,
     registrar = () => {}
 }) {
+    const cerrarPreShow = (motivo) => {
+        if (preShowMusas && typeof preShowMusas.cerrar === "function") {
+            preShowMusas.cerrar(motivo);
+        }
+    };
+
     const emitirMenusResurreccion = () => {
         io.emit('resucitar_menu', payloadEstadoResurreccion()[1]);
         io.emit('resucitar_menu', payloadEstadoResurreccion()[2]);
@@ -77,6 +84,7 @@ function crearCicloPartida({
     };
 
     const reiniciarEstadoPartida = (socket, opciones = {}) => {
+        cerrarPreShow("fin_partida");
         const prepararPuntuacion = opciones.prepararPuntuacion !== false
             && opciones.capturarPuntuacion !== false;
         const conservarStats = opciones.conservarStats !== false;
@@ -106,6 +114,7 @@ function crearCicloPartida({
     };
 
     const finalizarPartida = (socket) => {
+        cerrarPreShow("fin_partida");
         prepararCapturaPuntuacionFinal();
         state.finJ1 = true;
         state.finJ2 = true;
@@ -126,6 +135,7 @@ function crearCicloPartida({
     };
 
     const iniciarPartida = (socket, datos = {}) => {
+        cerrarPreShow("inicio_partida");
         const parametros = (datos && datos.parametros) || {};
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
@@ -207,12 +217,21 @@ function crearCicloPartida({
         state.tiempoCambioModos = state.duracionTiempoModos;
         emitirNubeInspiracionEstado(null, true);
         socket.broadcast.emit('limpiar', evento);
+        if (preShowMusas && typeof preShowMusas.abrir === "function") {
+            preShowMusas.abrir();
+        }
         emitirModoActual();
     };
 
     const registrarHandlers = (socket) => {
-        socket.on('inicio', (datos) => iniciarPartida(socket, datos));
-        socket.on('limpiar', (evento) => limpiarPartida(socket, evento));
+        socket.on('inicio', (datos) => {
+            if (!socket.control && !socket.simulacion_scrib) return;
+            iniciarPartida(socket, datos);
+        });
+        socket.on('limpiar', (evento) => {
+            if (!socket.control && !socket.simulacion_scrib) return;
+            limpiarPartida(socket, evento);
+        });
     };
 
     return {
