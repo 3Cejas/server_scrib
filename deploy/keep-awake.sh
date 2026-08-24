@@ -138,10 +138,33 @@ sutura_maintenance_lease_acquire() {
   fi
 
   (
-    trap 'exit 0' HUP INT TERM
+    renew_sleep_pid=""
+    stop_renewal() {
+      trap - HUP INT TERM
+      if [[ -n "$renew_sleep_pid" ]]; then
+        kill -TERM "$renew_sleep_pid" 2>/dev/null || true
+        wait "$renew_sleep_pid" 2>/dev/null || true
+        renew_sleep_pid=""
+      fi
+      exit 0
+    }
+    trap stop_renewal HUP INT TERM
     trap - EXIT
     while true; do
-      sleep "$refresh_seconds"
+      sleep "$refresh_seconds" &
+      renew_sleep_pid="$!"
+      if wait "$renew_sleep_pid"; then
+        renew_sleep_pid=""
+      else
+        sleep_status="$?"
+        renew_sleep_pid=""
+        echo "El temporizador del lease terminó inesperadamente ($sleep_status); se aborta el despliegue" >&2
+        current_start="$(_sutura_maintenance_process_start "$SUTURA_MAINTENANCE_MAIN_PID" 2>/dev/null || true)"
+        if [[ "$current_start" == "$SUTURA_MAINTENANCE_MAIN_START" ]]; then
+          kill -TERM "$SUTURA_MAINTENANCE_MAIN_PID" 2>/dev/null || true
+        fi
+        exit 1
+      fi
       current_start="$(_sutura_maintenance_process_start "$SUTURA_MAINTENANCE_MAIN_PID" 2>/dev/null || true)"
       if [[ -z "$current_start" || "$current_start" != "$SUTURA_MAINTENANCE_MAIN_START" ]]; then
         exit 0
