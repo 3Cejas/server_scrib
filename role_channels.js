@@ -1,4 +1,4 @@
-const DRAMATURGIA_UI_VERSION = "dramaturgia-complete-show-v10";
+const DRAMATURGIA_UI_VERSION = "dramaturgia-competition-clock-v11";
 
 function registrarCanalesRoles({
     socket,

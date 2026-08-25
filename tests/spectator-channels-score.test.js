@@ -33,7 +33,7 @@ const crearTelemetria = (palabras1 = 80, palabras2 = 40) => ({
   }
 });
 
-function crearContexto({ control = false, disponible = true, pendiente = false } = {}) {
+function crearContexto({ control = false, disponible = true, pendiente = false, pulsaciones = { 1: 120, 2: 80 } } = {}) {
   const socket = new EventEmitter();
   socket.control = control;
   const ioEvents = [];
@@ -77,6 +77,7 @@ function crearContexto({ control = false, disponible = true, pendiente = false }
     statsLive,
     emitirPuntuacionFinal: puntuacionFinal.emitir,
     puntuacionFinal,
+    getPulsacionesCompeticion: () => pulsaciones,
     emitirNubeInspiracionEstado: () => {},
     emitirEstadoBanderasMusas: () => {},
     emitirCreditosShow: () => {},
@@ -160,6 +161,8 @@ test("final telemetry followed by capture fixes the score and repeat calls are i
   assert.equal(primera.capturada, true);
   assert.equal(primera.puntuacion.disponible, true);
   assert.equal(primera.puntuacion.ganador, 1);
+  const categoriaPulsaciones = primera.puntuacion.categorias.find((categoria) => categoria.id === "pulsaciones");
+  assert.deepEqual(categoriaPulsaciones.valores, { 1: 120, 2: 80 });
   const totalFijado = primera.puntuacion.jugadores[1].total;
 
   ctx.socket.emit("stats_live_actualizar", crearTelemetria(1, 999));

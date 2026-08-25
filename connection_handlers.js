@@ -33,6 +33,7 @@ function registrarConexionScrib(socket, deps) {
         statsLive,
         emitirPuntuacionFinal,
         puntuacionFinal,
+        getPulsacionesCompeticion,
         emitirNubeInspiracionEstado,
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
@@ -72,7 +73,6 @@ function registrarConexionScrib(socket, deps) {
         getModoMusas,
         votacionVentaja,
         votacionRepentizado,
-        resurreccion,
         estadoMotorModos,
         registrarTimelineModo,
         emitirPedirInspiracionMusa,
@@ -86,7 +86,6 @@ function registrarConexionScrib(socket, deps) {
         emitirEstadoVotacionVentaja,
         calentamientoState,
         emitirEstadoCalentamiento,
-        payloadEstadoResurreccion,
         cerrarVotacionVentajaForzada,
         abrirVotacionVentajaForzada,
         registrarDesventajaAplicada,
@@ -95,7 +94,12 @@ function registrarConexionScrib(socket, deps) {
         setPartidaPausada,
         isPartidaPausada,
         isFinDelJuego,
-        aplicarAjusteTiempoInspiracion,
+        registrarInspiracionCompeticion,
+        registrarInfraccionCompeticion,
+        pausarRelojPartida,
+        reanudarRelojPartida,
+        registrarPulsacionCompeticion,
+        competicionRondas,
         ayudaMusas,
         preShowMusas,
         videoTutorialPreShow
@@ -145,6 +149,7 @@ function registrarConexionScrib(socket, deps) {
         statsLive,
         emitirPuntuacionFinal,
         puntuacionFinal,
+        getPulsacionesCompeticion,
         emitirNubeInspiracionEstado,
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
@@ -213,6 +218,9 @@ function registrarConexionScrib(socket, deps) {
         registrarDesventajaAplicada,
         pausarDesventajasActivas,
         reanudarDesventajasActivas,
+        pausarRelojPartida,
+        reanudarRelojPartida,
+        registrarPulsacionCompeticion,
         setPartidaPausada,
         sesionesEscritor,
         registrar
@@ -238,15 +246,14 @@ function registrarConexionScrib(socket, deps) {
         getModoSeq: () => partidaSync.obtenerModoSeq(),
         isPartidaPausada,
         isFinDelJuego,
-        aplicarAjusteTiempoInspiracion,
+        registrarInspiracionCompeticion,
+        registrarInfraccionCompeticion,
         registrar
     });
     registrarCanalesVotacion({
         socket,
-        votacionVentaja,
         votacionRepentizado
     });
-    resurreccion.registrarHandlers(socket);
     registerSimulationChannels({
         socket,
         simulator: simuladorPartidas
@@ -279,11 +286,11 @@ function registrarConexionScrib(socket, deps) {
         construirEstadoTest,
         obtenerIdJugadorValido,
         construirPayloadCount,
-        resurreccion,
         reiniciarEstadoPartida,
         calentamientoGestor,
         preShowMusas,
-        videoTutorialPreShow
+        videoTutorialPreShow,
+        iniciarRondaCompeticion: (modo) => competicionRondas && competicionRondas.iniciarRonda(modo)
     });
     registrarTestHooks({
         socket,
@@ -302,7 +309,6 @@ function registrarConexionScrib(socket, deps) {
         votacionVentaja,
         calentamiento: calentamientoState,
         emitirEstadoCalentamiento,
-        payloadEstadoResurreccion,
         emitirNubeInspiracionEstado,
         emitirStatsLive,
         forzarModoTest,

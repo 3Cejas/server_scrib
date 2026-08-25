@@ -36,8 +36,11 @@ function reenviarMapeadosASala(socket, io, pares) {
 }
 
 function activarSocketsExtratextuales(socket, io) {
+    if (!socket || typeof socket.on !== 'function') {
+        return false;
+    }
     if (socket._extratextuales_on) {
-        return;
+        return false;
     }
     socket._extratextuales_on = true;
 
@@ -52,6 +55,7 @@ function activarSocketsExtratextuales(socket, io) {
         ['enviar_postgame1', 'recibir_postgame2', 'j2'],
         ['enviar_postgame2', 'recibir_postgame1', 'j1'],
     ]);
+    return true;
 }
 
 module.exports = {

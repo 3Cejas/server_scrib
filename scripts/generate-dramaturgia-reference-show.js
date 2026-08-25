@@ -17,7 +17,14 @@ const OUTPUT_DIR = process.env.SCRIB_REFERENCE_OUTPUT_DIR
     : path.resolve(__dirname, "../../players_scrib/game/dramaturgia/reference-show");
 const CANONICAL_SCREENS = ["control", "writer1", "musa1", "spectator", "actor1"];
 const INTERACTION_CHANGES = Object.freeze({
-    control: Object.freeze(["warmup-lugares-open"]),
+    control: Object.freeze([
+        "warmup-lugares-open",
+        "competition-letra-bendita",
+        "competition-letra-prohibida",
+        "competition-palabras-bonus",
+        "competition-palabras-prohibidas",
+        "representation-preparation"
+    ]),
     writer1: Object.freeze([
         "warmup-lugares-open",
         "warmup-lugares",
@@ -25,15 +32,19 @@ const INTERACTION_CHANGES = Object.freeze({
         "warmup-acciones",
         "warmup-frase-final-open",
         "warmup-frase-final",
+        "level-letra-bendita-feedback",
         "level-letra-bendita",
+        "competition-letra-bendita",
         "level-letra-prohibida-feedback",
         "level-letra-prohibida",
+        "competition-letra-prohibida",
         "level-tertulia",
         "level-palabras-bonus-feedback",
         "level-palabras-bonus",
+        "competition-palabras-bonus",
         "level-palabras-prohibidas-feedback",
         "level-palabras-prohibidas",
-        "level-frase-final-feedback",
+        "competition-palabras-prohibidas",
         "level-frase-final",
         "representation-preparation"
     ]),
@@ -44,15 +55,19 @@ const INTERACTION_CHANGES = Object.freeze({
         "warmup-acciones",
         "warmup-frase-final-open",
         "warmup-frase-final",
+        "level-letra-bendita-feedback",
         "level-letra-bendita",
-        "vote-letra-bendita",
+        "competition-letra-bendita",
+        "level-letra-prohibida-feedback",
         "level-letra-prohibida",
+        "competition-letra-prohibida",
         "level-tertulia",
-        "vote-letra-prohibida",
+        "level-palabras-bonus-feedback",
         "level-palabras-bonus",
-        "vote-palabras-bonus",
+        "competition-palabras-bonus",
+        "level-palabras-prohibidas-feedback",
         "level-palabras-prohibidas",
-        "vote-palabras-prohibidas",
+        "competition-palabras-prohibidas",
         "level-frase-final",
         "representation-preparation"
     ]),
@@ -63,15 +78,19 @@ const INTERACTION_CHANGES = Object.freeze({
         "warmup-acciones",
         "warmup-frase-final-open",
         "warmup-frase-final",
+        "level-letra-bendita-feedback",
         "level-letra-bendita",
-        "vote-letra-bendita",
+        "competition-letra-bendita",
+        "level-letra-prohibida-feedback",
         "level-letra-prohibida",
+        "competition-letra-prohibida",
         "level-tertulia",
-        "vote-letra-prohibida",
+        "level-palabras-bonus-feedback",
         "level-palabras-bonus",
-        "vote-palabras-bonus",
+        "competition-palabras-bonus",
+        "level-palabras-prohibidas-feedback",
         "level-palabras-prohibidas",
-        "vote-palabras-prohibidas",
+        "competition-palabras-prohibidas",
         "level-frase-final",
         "representation-preparation"
     ]),
@@ -106,6 +125,8 @@ function portableSnapshot(html, screenId) {
     const base = BASE_BY_SCREEN[screenId];
     if (!base) throw new Error(`No portable base configured for ${screenId}`);
     return String(html || "")
+        .replace(/(?:https?|wss?):\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/gi, "")
+        .replace(/localhost|127\.0\.0\.1/gi, "local-snapshot.invalid")
         .replace(/<base\s+href="[^"]*"\s*>/i, `<base href="${base}">`)
         .replace(
             /<link rel="icon" href="\/favicon\.ico" type="image\/x-icon">/g,
@@ -165,14 +186,26 @@ async function captureReferenceShow() {
         const page = await browser.newPage();
         await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
         page.on("pageerror", (error) => process.stderr.write(`[browser] ${error.message}\n`));
-        await page.goto(FRONTEND_URL, { waitUntil: "networkidle2", timeout: 30000 });
+        // The real role pages keep sockets and the activity heartbeat open, so
+        // network-idle is deliberately never reached during a valid session.
+        await page.goto(FRONTEND_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
         await page.waitForFunction(() => (
             window.ScribDramaturgiaRuntime?.socket?.connected
             && window.ScribDramaturgiaScreenPool?.getSources()?.length === 9
         ), { timeout: 30000 });
-        await wait(3500);
+        await page.waitForFunction(() => {
+            const sources = window.ScribDramaturgiaScreenPool?.getSources?.() || [];
+            const archive = window.ScribDramaturgiaHistoryController?.getStatus?.();
+            return sources.length === 9
+                && sources.every(({ frame }) => frame?.contentDocument?.readyState === "complete")
+                && archive
+                && archive.state !== "capturing"
+                && archive.state !== "error";
+        }, { timeout: 45000, polling: 250 });
+        await wait(1500);
 
-        await page.evaluate((password) => {
+        await page.evaluate(async (password) => {
+            window.initializeDramaturgiaTools?.();
             document.getElementById("dramaturgia_sim_password").value = password;
             document.getElementById("dramaturgia_sim_seed").value = "sutura-recorrido-completo-v1";
             document.getElementById("dramaturgia_sim_total_seconds").value = "40";
@@ -182,19 +215,52 @@ async function captureReferenceShow() {
             document.getElementById("dramaturgia_sim_muse_interval").value = "2";
             document.getElementById("dramaturgia_sim_muses").value = "2";
             document.getElementById("dramaturgia_sim_full_show").checked = true;
-            document.getElementById("dramaturgia_sim_votes").checked = true;
             document.getElementById("dramaturgia_sim_hearts").checked = true;
             document.getElementById("dramaturgia_sim_auto_finish").checked = true;
-            document.getElementById("dramaturgia_sim_form").requestSubmit();
+            await window.ScribDramaturgiaSimulatorControls.start();
         }, ROLE_PASSWORD);
 
-        await page.waitForFunction(() => (
-            document.getElementById("dramaturgia_sim_status")?.dataset.state === "running"
-        ), { timeout: 15000 });
-        await page.waitForFunction(() => {
-            const state = document.getElementById("dramaturgia_sim_status")?.dataset.state;
-            return ["completed", "error", "blocked", "aborted"].includes(state);
-        }, { timeout: 130000, polling: 500 });
+        try {
+            await page.waitForFunction(() => {
+                const state = document.getElementById("dramaturgia_sim_status")?.dataset.state;
+                return ["running", "completed", "error", "blocked", "aborted"].includes(state);
+            }, { timeout: 15000 });
+        } catch (error) {
+            const diagnostic = await page.evaluate(() => ({
+                status: document.getElementById("dramaturgia_sim_status")?.dataset.state,
+                statusText: document.getElementById("dramaturgia_sim_status")?.textContent.trim(),
+                preflight: document.getElementById("dramaturgia_sim_preflight")?.dataset.state,
+                preflightText: document.getElementById("dramaturgia_sim_preflight")?.textContent.trim(),
+                formValid: document.getElementById("dramaturgia_sim_form")?.checkValidity(),
+                startDisabled: document.getElementById("dramaturgia_sim_start")?.disabled,
+                toolsModel: typeof window.ScribDramaturgiaToolsModel,
+                initializeTools: typeof window.initializeDramaturgiaTools
+            }));
+            throw new Error(`Simulation start timeout: ${JSON.stringify(diagnostic)}`, { cause: error });
+        }
+        const startState = await page.$eval(
+            "#dramaturgia_sim_status",
+            (node) => ({ state: node.dataset.state, message: node.textContent.trim() })
+        );
+        if (startState.state !== "running" && startState.state !== "completed") {
+            throw new Error(`Simulation could not start (${startState.state}): ${startState.message}`);
+        }
+        try {
+            await page.waitForFunction(() => {
+                const state = document.getElementById("dramaturgia_sim_status")?.dataset.state;
+                return ["completed", "error", "blocked", "aborted", "stopped"].includes(state);
+            }, { timeout: 130000, polling: 500 });
+        } catch (error) {
+            const diagnostic = await page.evaluate(() => ({
+                status: document.getElementById("dramaturgia_sim_status")?.dataset.state,
+                statusText: document.getElementById("dramaturgia_sim_status")?.textContent.trim(),
+                run: document.getElementById("dramaturgia_sim_run")?.textContent.trim(),
+                elapsed: document.getElementById("dramaturgia_sim_elapsed")?.textContent.trim(),
+                mode: document.getElementById("dramaturgia_sim_mode")?.textContent.trim(),
+                log: document.getElementById("dramaturgia_sim_log")?.textContent.trim()
+            }));
+            throw new Error(`Simulation completion timeout: ${JSON.stringify(diagnostic)}`, { cause: error });
+        }
 
         const simulationState = await page.$eval(
             "#dramaturgia_sim_status",
@@ -236,22 +302,19 @@ async function captureReferenceShow() {
                     return entries.every((team) => Boolean(team.bloqueado && team.final));
                 })
             ));
-            const modeStarts = checkpoints
-                .map((checkpoint, index) => ({ checkpoint, index }))
-                .filter(({ checkpoint }) => events(checkpoint).some((event) => (
-                    clean(event.tipo) === "modo"
-                    && clean(event.modo || eventFacts(event).modo)
-                )));
+            const announcedModes = (checkpoint) => events(checkpoint)
+                .filter((event) => clean(event.tipo) === "modo")
+                .map((event) => clean(event.modo || eventFacts(event).modo))
+                .filter(Boolean);
             const modeWindow = (mode) => {
-                const startPosition = modeStarts.findIndex(({ checkpoint }) => (
-                    events(checkpoint).some((event) => (
-                        clean(event.tipo) === "modo"
-                        && clean(event.modo || eventFacts(event).modo) === mode
-                    ))
+                const startIndex = checkpoints.findIndex((checkpoint) => announcedModes(checkpoint).includes(mode));
+                if (startIndex < 0) return [];
+                const nextRelativeIndex = checkpoints.slice(startIndex + 1).findIndex((checkpoint) => (
+                    announcedModes(checkpoint).some((announcedMode) => announcedMode !== mode)
                 ));
-                if (startPosition < 0) return [];
-                const startIndex = modeStarts[startPosition].index;
-                const endIndex = modeStarts[startPosition + 1]?.index ?? checkpoints.length;
+                const endIndex = nextRelativeIndex < 0
+                    ? checkpoints.length
+                    : startIndex + 1 + nextRelativeIndex;
                 return checkpoints.slice(startIndex, endIndex);
             };
             const modeCheckpoint = (mode) => {
@@ -267,6 +330,18 @@ async function captureReferenceShow() {
             const disadvantageInfo = (mode) => {
                 for (const checkpoint of modeWindow(mode)) {
                     for (const event of events(checkpoint)) {
+                        if (clean(event.tipo) === "competicion_ronda") {
+                            const facts = eventFacts(event);
+                            const player = teamNumber(facts.desventaja_player);
+                            if (facts.activa && clean(facts.modo) === mode && player) {
+                                return {
+                                    checkpoint,
+                                    player,
+                                    type: String(facts.desventaja || "").trim()
+                                };
+                            }
+                            continue;
+                        }
                         if (clean(event.tipo) !== "desventaja") continue;
                         const active = Array.isArray(eventFacts(event).activas)
                             ? eventFacts(event).activas
@@ -284,26 +359,44 @@ async function captureReferenceShow() {
                 }
                 return null;
             };
-            const voteCheckpoints = checkpoints.filter((checkpoint) => (
-                events(checkpoint).some((event) => (
-                    clean(event.tipo) === "votacion"
-                    && /iniciada|abierta/.test(clean(event.titulo || event.title))
-                ))
-            ));
-            const voteInfo = (checkpoint) => {
-                const event = events(checkpoint).find((candidate) => (
-                    clean(candidate.tipo) === "votacion"
-                    && /iniciada|abierta/.test(clean(candidate.titulo || candidate.title))
-                ));
-                const team = teamNumber(eventFacts(event).equipo);
-                return team ? { checkpoint, team } : null;
+            const competitionInfo = (mode) => {
+                const candidates = [];
+                const source = modeWindow(mode);
+                for (const checkpoint of source) {
+                    const event = events(checkpoint).find((candidate) => {
+                        if (clean(candidate.tipo) !== "competicion_ronda") return false;
+                        const facts = eventFacts(candidate);
+                        if (clean(facts.modo) !== mode || !facts.activa) return false;
+                        const marker = facts.marcador || {};
+                        return Math.abs(Number(marker[1]) || 0) + Math.abs(Number(marker[2]) || 0) > 0;
+                    });
+                    if (!event) continue;
+                    const facts = eventFacts(event);
+                    const marker = facts.marcador || {};
+                    candidates.push({
+                        checkpoint,
+                        marker: {
+                            1: Number(marker[1]) || 0,
+                            2: Number(marker[2]) || 0
+                        },
+                        leader: teamNumber(facts.lider),
+                        disadvantagedPlayer: teamNumber(facts.desventaja_player),
+                        disadvantage: String(facts.desventaja || "").trim()
+                    });
+                }
+                return candidates[Math.floor(candidates.length / 2)] || null;
             };
-            const voteInfos = voteCheckpoints.map(voteInfo);
             const disadvantageByMode = {
+                "letra bendita": disadvantageInfo("letra bendita"),
                 "letra prohibida": disadvantageInfo("letra prohibida"),
                 "palabras bonus": disadvantageInfo("palabras bonus"),
-                "palabras prohibidas": disadvantageInfo("palabras prohibidas"),
-                "frase final": disadvantageInfo("frase final")
+                "palabras prohibidas": disadvantageInfo("palabras prohibidas")
+            };
+            const competitionByMode = {
+                "letra bendita": competitionInfo("letra bendita"),
+                "letra prohibida": competitionInfo("letra prohibida"),
+                "palabras bonus": competitionInfo("palabras bonus"),
+                "palabras prohibidas": competitionInfo("palabras prohibidas")
             };
             const teleprompterCheckpoints = checkpoints.filter((checkpoint) => (
                 events(checkpoint).some((event) => clean(event.tipo) === "teleprompter")
@@ -322,19 +415,19 @@ async function captureReferenceShow() {
                 "warmup-acciones": warmupCheckpoint("acciones"),
                 "warmup-frase-final-open": warmupCheckpoint("frase_final", "open"),
                 "warmup-frase-final": warmupCheckpoint("frase_final"),
+                "level-letra-bendita-feedback": disadvantageByMode["letra bendita"]?.checkpoint,
                 "level-letra-bendita": modeCheckpoint("letra bendita"),
-                "vote-letra-bendita": voteCheckpoints[0],
+                "competition-letra-bendita": competitionByMode["letra bendita"]?.checkpoint,
                 "level-letra-prohibida-feedback": disadvantageByMode["letra prohibida"]?.checkpoint,
                 "level-letra-prohibida": modeCheckpoint("letra prohibida"),
+                "competition-letra-prohibida": competitionByMode["letra prohibida"]?.checkpoint,
                 "level-tertulia": modeCheckpoint("tertulia"),
-                "vote-letra-prohibida": voteCheckpoints[1],
                 "level-palabras-bonus-feedback": disadvantageByMode["palabras bonus"]?.checkpoint,
                 "level-palabras-bonus": modeCheckpoint("palabras bonus"),
-                "vote-palabras-bonus": voteCheckpoints[2],
+                "competition-palabras-bonus": competitionByMode["palabras bonus"]?.checkpoint,
                 "level-palabras-prohibidas-feedback": disadvantageByMode["palabras prohibidas"]?.checkpoint,
                 "level-palabras-prohibidas": modeCheckpoint("palabras prohibidas"),
-                "vote-palabras-prohibidas": voteCheckpoints[3],
-                "level-frase-final-feedback": disadvantageByMode["frase final"]?.checkpoint,
+                "competition-palabras-prohibidas": competitionByMode["palabras prohibidas"]?.checkpoint,
                 "level-frase-final": modeCheckpoint("frase final"),
                 "representation-preparation": teleprompterWith((facts) => facts.visible && !facts.reproduciendo),
                 "representation-projection": teleprompterWith((facts) => facts.visible && facts.reproduciendo),
@@ -344,20 +437,21 @@ async function captureReferenceShow() {
                 .filter(([, checkpoint]) => !checkpoint)
                 .map(([milestoneId]) => milestoneId);
             if (
-                voteCheckpoints.length !== 4
-                || voteInfos.some((info) => !info)
-                || Object.values(disadvantageByMode).some((info) => !info)
+                Object.values(disadvantageByMode).some((info) => !info)
+                || Object.values(competitionByMode).some((info) => !info)
                 || missing.length
             ) {
                 throw new Error(JSON.stringify({
                     message: "Incomplete reference journey",
                     missing,
-                    votingCheckpoints: voteCheckpoints.length,
-                    votingTeams: voteInfos.map((info) => info && info.team),
                     disadvantageModes: Object.fromEntries(Object.entries(disadvantageByMode).map(([
                         mode,
                         info
                     ]) => [mode, info && info.player])),
+                    competitionModes: Object.fromEntries(Object.entries(competitionByMode).map(([
+                        mode,
+                        info
+                    ]) => [mode, info && info.marker])),
                     checkpointCount: checkpoints.length
                 }));
             }
@@ -369,8 +463,25 @@ async function captureReferenceShow() {
                 "warmup-acciones": { moment: "closed", request: "acciones" },
                 "warmup-frase-final-open": { moment: "open", request: "frase_final" },
                 "warmup-frase-final": { moment: "closed", request: "frase_final" },
-                "level-letra-bendita": { moment: "stable", mode: "letra bendita" },
-                "vote-letra-bendita": { moment: "voting", votingTeam: voteInfos[0].team },
+                "level-letra-bendita-feedback": {
+                    moment: "feedback",
+                    mode: "letra bendita",
+                    disadvantagedPlayer: disadvantageByMode["letra bendita"].player,
+                    disadvantage: disadvantageByMode["letra bendita"].type
+                },
+                "level-letra-bendita": {
+                    moment: "stable",
+                    mode: "letra bendita",
+                    disadvantagedPlayer: disadvantageByMode["letra bendita"].player
+                },
+                "competition-letra-bendita": {
+                    moment: "competition",
+                    mode: "letra bendita",
+                    marker: competitionByMode["letra bendita"].marker,
+                    leader: competitionByMode["letra bendita"].leader,
+                    disadvantagedPlayer: competitionByMode["letra bendita"].disadvantagedPlayer,
+                    disadvantage: competitionByMode["letra bendita"].disadvantage
+                },
                 "level-letra-prohibida-feedback": {
                     moment: "feedback",
                     mode: "letra prohibida",
@@ -382,8 +493,15 @@ async function captureReferenceShow() {
                     mode: "letra prohibida",
                     disadvantagedPlayer: disadvantageByMode["letra prohibida"].player
                 },
+                "competition-letra-prohibida": {
+                    moment: "competition",
+                    mode: "letra prohibida",
+                    marker: competitionByMode["letra prohibida"].marker,
+                    leader: competitionByMode["letra prohibida"].leader,
+                    disadvantagedPlayer: competitionByMode["letra prohibida"].disadvantagedPlayer,
+                    disadvantage: competitionByMode["letra prohibida"].disadvantage
+                },
                 "level-tertulia": { moment: "stable", mode: "tertulia" },
-                "vote-letra-prohibida": { moment: "voting", votingTeam: voteInfos[1].team },
                 "level-palabras-bonus-feedback": {
                     moment: "feedback",
                     mode: "palabras bonus",
@@ -395,7 +513,14 @@ async function captureReferenceShow() {
                     mode: "palabras bonus",
                     disadvantagedPlayer: disadvantageByMode["palabras bonus"].player
                 },
-                "vote-palabras-bonus": { moment: "voting", votingTeam: voteInfos[2].team },
+                "competition-palabras-bonus": {
+                    moment: "competition",
+                    mode: "palabras bonus",
+                    marker: competitionByMode["palabras bonus"].marker,
+                    leader: competitionByMode["palabras bonus"].leader,
+                    disadvantagedPlayer: competitionByMode["palabras bonus"].disadvantagedPlayer,
+                    disadvantage: competitionByMode["palabras bonus"].disadvantage
+                },
                 "level-palabras-prohibidas-feedback": {
                     moment: "feedback",
                     mode: "palabras prohibidas",
@@ -407,18 +532,15 @@ async function captureReferenceShow() {
                     mode: "palabras prohibidas",
                     disadvantagedPlayer: disadvantageByMode["palabras prohibidas"].player
                 },
-                "vote-palabras-prohibidas": { moment: "voting", votingTeam: voteInfos[3].team },
-                "level-frase-final-feedback": {
-                    moment: "feedback",
-                    mode: "frase final",
-                    disadvantagedPlayer: disadvantageByMode["frase final"].player,
-                    disadvantage: disadvantageByMode["frase final"].type
+                "competition-palabras-prohibidas": {
+                    moment: "competition",
+                    mode: "palabras prohibidas",
+                    marker: competitionByMode["palabras prohibidas"].marker,
+                    leader: competitionByMode["palabras prohibidas"].leader,
+                    disadvantagedPlayer: competitionByMode["palabras prohibidas"].disadvantagedPlayer,
+                    disadvantage: competitionByMode["palabras prohibidas"].disadvantage
                 },
-                "level-frase-final": {
-                    moment: "stable",
-                    mode: "frase final",
-                    disadvantagedPlayer: disadvantageByMode["frase final"].player
-                },
+                "level-frase-final": { moment: "stable", mode: "frase final" },
                 "representation-preparation": { moment: "preparation" },
                 "representation-projection": { moment: "projection" },
                 "representation-final": { moment: "final" }
@@ -430,9 +552,11 @@ async function captureReferenceShow() {
                 const context = contextByMilestone[milestoneId] || {};
                 for (const screenId of screenIds) {
                     let sourceScreenId = screenId;
-                    if (screenId === "musa1" && context.votingTeam) {
-                        sourceScreenId = `musa${context.votingTeam}`;
-                    } else if (screenId === "writer1" && context.disadvantagedPlayer) {
+                    if (
+                        screenId === "writer1"
+                        && ["feedback", "stable"].includes(context.moment)
+                        && context.disadvantagedPlayer
+                    ) {
                         sourceScreenId = `writer${context.disadvantagedPlayer}`;
                     }
                     const snapshot = await history.getSnapshot(checkpoint.id, sourceScreenId);
@@ -440,11 +564,11 @@ async function captureReferenceShow() {
                         throw new Error(`Missing ${milestoneId}/${screenId} from ${sourceScreenId}`);
                     }
                     if (
-                        screenId === "musa1"
-                        && context.moment === "voting"
-                        && !/id="votacion_ventaja_modal"[^>]*class="[^"]*\bactiva\b/i.test(snapshot.html)
+                        context.moment === "competition"
+                        && ["control", "writer1", "spectator"].includes(screenId)
+                        && !/id="scrib_competition_hud"[^>]*data-active="1"/i.test(snapshot.html)
                     ) {
-                        throw new Error(`${milestoneId}/${sourceScreenId}: voting modal is not active`);
+                        throw new Error(`${milestoneId}/${sourceScreenId}: competition marker is not active`);
                     }
                     if (
                         screenId === "writer1"
@@ -452,14 +576,6 @@ async function captureReferenceShow() {
                         && !/DESVENTAJA!/i.test(snapshot.html)
                     ) {
                         throw new Error(`${milestoneId}/${sourceScreenId}: disadvantage feedback is missing`);
-                    }
-                    if (
-                        screenId === "writer1"
-                        && context.moment === "stable"
-                        && context.disadvantagedPlayer
-                        && /DESVENTAJA!/i.test(snapshot.html)
-                    ) {
-                        throw new Error(`${milestoneId}/${sourceScreenId}: transient feedback survived stable state`);
                     }
                     roles[screenId] = snapshot.html;
                     sources[screenId] = sourceScreenId;

@@ -18,6 +18,9 @@ function registrarCanalesRonda({
     registrarDesventajaAplicada = null,
     pausarDesventajasActivas = null,
     reanudarDesventajasActivas = null,
+    pausarRelojPartida = null,
+    reanudarRelojPartida = null,
+    registrarPulsacionCompeticion = null,
     setPartidaPausada = null,
     sesionesEscritor = null,
     registrar = () => {}
@@ -115,52 +118,11 @@ function registrarCanalesRonda({
         if (typeof pausarDesventajasActivas === 'function') {
             pausarDesventajasActivas();
         }
+        if (typeof pausarRelojPartida === 'function') {
+            pausarRelojPartida();
+        }
         activarSocketsExtratextuales(socket);
         socket.broadcast.emit('pausar_js', evento);
-    });
-
-    socket.on('fin_de_control', (evento) => {
-        const payload = (evento && typeof evento === 'object') ? evento : { player: evento };
-        const idJugador = obtenerIdJugadorValido(payload && payload.player);
-        if (!idJugador) {
-            return;
-        }
-        const finPayload = {
-            player: idJugador,
-            forzar_fin: payload.forzar_fin !== false,
-            origen: 'control',
-            suprimir_confetti_espectador: payload.suprimir_confetti_espectador !== false
-        };
-        state.marcarFinJugador(idJugador, true);
-        cancelarCambioPalabra(idJugador);
-        socket.broadcast.emit('fin', finPayload);
-        timersPartida.cancelarCambioLetra();
-        if (state.finJ1 && state.finJ2) {
-            reiniciarEstadoPartida(socket);
-        }
-    });
-
-    socket.on('fin_de_player', (evento) => {
-        const payload = (evento && typeof evento === 'object') ? evento : { player: evento };
-        const idJugador = obtenerIdJugadorValido(payload && payload.player);
-        if (!idJugador) {
-            return;
-        }
-        if (esEventoEscritorInactivo(idJugador)) {
-            return;
-        }
-        const finPayload = {
-            player: idJugador,
-            motivo: payload && payload.motivo === 'sin_palabras' ? 'sin_palabras' : undefined
-        };
-        socket.broadcast.emit('fin_de_player_a_control', idJugador);
-        state.marcarFinJugador(idJugador, true);
-        cancelarCambioPalabra(idJugador);
-        socket.broadcast.emit('fin', finPayload);
-        timersPartida.cancelarCambioLetra();
-        if (state.finJ1 && state.finJ2) {
-            reiniciarEstadoPartida(socket);
-        }
     });
 
     socket.on('reanudar', (evento) => {
@@ -175,6 +137,9 @@ function registrarCanalesRonda({
         }
         if (typeof setPartidaPausada === 'function') {
             setPartidaPausada(false);
+        }
+        if (typeof reanudarRelojPartida === 'function') {
+            reanudarRelojPartida();
         }
         partidaSync.siguienteModoSeq();
         motorModos.activarModo(state.modoActual, socket);
@@ -195,6 +160,9 @@ function registrarCanalesRonda({
         if (typeof setPartidaPausada === 'function') {
             setPartidaPausada(false);
         }
+        if (typeof reanudarRelojPartida === 'function') {
+            reanudarRelojPartida();
+        }
         state.segundosTranscurridos = 0;
         avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'reanudar_modo');
         motorModos.temp_modos(socket);
@@ -213,6 +181,9 @@ function registrarCanalesRonda({
         }
         if (typeof setPartidaPausada === 'function') {
             setPartidaPausada(false);
+        }
+        if (typeof reanudarRelojPartida === 'function') {
+            reanudarRelojPartida();
         }
         state.segundosTranscurridos = 0;
         avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'saltar_tertulia');
@@ -264,8 +235,8 @@ function registrarCanalesRonda({
         if (!evento || typeof evento.code !== 'string') {
             return;
         }
-        const idJugador = obtenerIdJugadorValido(evento.player) || socket.escritxr;
-        if (!idJugador) {
+        const idJugador = obtenerIdJugadorValido(socket && socket.escritxr);
+        if (!idJugador || esEventoEscritorInactivo(idJugador)) {
             return;
         }
         io.emit('tecla_jugador_control', {
@@ -273,6 +244,9 @@ function registrarCanalesRonda({
             code: evento.code,
             key: evento.key || ''
         });
+        if (typeof registrarPulsacionCompeticion === 'function') {
+            registrarPulsacionCompeticion(idJugador, evento);
+        }
     });
 }
 

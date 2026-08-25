@@ -84,7 +84,8 @@ function registrarCanalesInspiracion({
     getModoSeq = () => 0,
     isPartidaPausada = () => false,
     isFinDelJuego = () => false,
-    aplicarAjusteTiempoInspiracion = () => null,
+    registrarInspiracionCompeticion = () => null,
+    registrarInfraccionCompeticion = () => null,
     registrar = () => {}
 }) {
     const esEscritorActivoEstricto = (player) => {
@@ -229,6 +230,7 @@ function registrarCanalesInspiracion({
             return;
         }
         const salida = { ...(payload || {}), player: playerId };
+        registrarInfraccionCompeticion(playerId, salida);
         io.emit("intento_prohibido", salida);
     });
 
@@ -437,34 +439,19 @@ function registrarCanalesInspiracion({
             return responderAccionInspiracion(callback, resultado || { ok: false, code: "USE_FAILED" });
         }
         const debeAvanzar = !resultado.idempotente;
+        resultado = { ...resultado, tiempo_otorgado: 0 };
         if (debeAvanzar) {
-            if (contexto.modo_actual === "palabras bonus" && Number(resultado.tiempo_otorgado) > 0) {
-                const ajusteTiempo = aplicarAjusteTiempoInspiracion({
-                    player,
-                    secs: Number(resultado.tiempo_otorgado),
-                    origen: "inspiracion_bonus",
-                    inspiracion_id: resultado.inspiracion_id,
-                    modo_seq: contexto.modo_seq
-                });
-                if (ajusteTiempo && Number.isFinite(Number(ajusteTiempo.tiempo_seq))) {
-                    resultado = {
-                        ...resultado,
-                        tiempo_otorgado: Number(ajusteTiempo.secs),
-                        tiempo_seq: Math.max(0, Math.trunc(Number(ajusteTiempo.tiempo_seq)))
-                    };
-                    if (typeof modo.actualizarUltimoAprovechamientoInspiracion === "function") {
-                        modo.actualizarUltimoAprovechamientoInspiracion(
-                            player,
-                            resultado.inspiracion_id,
-                            {
-                                tiempo_otorgado: resultado.tiempo_otorgado,
-                                tiempo_seq: resultado.tiempo_seq
-                            }
-                        );
-                    }
-                }
+            if (typeof modo.actualizarUltimoAprovechamientoInspiracion === "function") {
+                modo.actualizarUltimoAprovechamientoInspiracion(player, inspiracion_id, { tiempo_otorgado: 0 });
             }
             registrarInspiracionIntroducidaDesdeResultado(resultado);
+            registrarInspiracionCompeticion(player, {
+                ...resultado,
+                modo_actual: contexto.modo_actual,
+                modo_seq: contexto.modo_seq,
+                palabra: resultado.entrega_musa && resultado.entrega_musa.palabra,
+                musa_nombre: resultado.entrega_musa && resultado.entrega_musa.musa_nombre
+            });
             emitirInspiracionAprovechadaAutoritativa(resultado, contexto, player);
         }
         const respuesta = {

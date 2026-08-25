@@ -38,7 +38,6 @@ function registrarTestHooks({
     votacionVentaja,
     calentamiento,
     emitirEstadoCalentamiento,
-    payloadEstadoResurreccion,
     emitirNubeInspiracionEstado,
     emitirStatsLive,
     forzarModoTest,
@@ -97,8 +96,6 @@ function registrarTestHooks({
         });
         io.emit('calentamiento_vista', { activo: calentamiento.vista });
         emitirEstadoCalentamiento();
-        io.emit('resucitar_menu', payloadEstadoResurreccion()[1]);
-        io.emit('resucitar_menu', payloadEstadoResurreccion()[2]);
         emitirNubeInspiracionEstado(null, true);
         emitirStatsLive();
         responderHookTest(socket, args.callback, 'scrib_test:reset:done', {

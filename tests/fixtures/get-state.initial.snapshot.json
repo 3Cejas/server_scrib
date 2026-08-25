@@ -192,6 +192,44 @@
     "termina_en_ts": 0
   },
   "desventajas": [],
+  "competicion_ronda": {
+    "activa": false,
+    "modo": "",
+    "modo_publico": "",
+    "modo_seq": 0,
+    "ronda": 0,
+    "criterio": "",
+    "marcador": {
+      "1": 0,
+      "2": 0
+    },
+    "lider": null,
+    "empate": true,
+    "portador_inicial": null,
+    "desventaja_player": null,
+    "desventaja": "",
+    "intensidad": 1,
+    "rachas": {
+      "1": 0,
+      "2": 0
+    },
+    "revision": "__SEQ__",
+    "ts": "__TS__",
+    "pulsaciones": {
+      "1": 0,
+      "2": 0
+    },
+    "historial": []
+  },
+  "reloj_partida": {
+    "activo": false,
+    "pausado": false,
+    "duracion_total_segundos": 0,
+    "tiempo_restante_segundos": 0,
+    "termina_en_ts": 0,
+    "revision": "__SEQ__",
+    "now": "__TS__"
+  },
   "teleprompter": {
     "state": {
       "visible": false,
@@ -208,30 +246,6 @@
     "ackBySource": {
       "1": null,
       "2": null
-    }
-  },
-  "resurreccion": {
-    "1": {
-      "player": 1,
-      "menu": "hidden",
-      "visible": false,
-      "mainIndex": 0,
-      "quantityIndex": 0,
-      "palabras": 0,
-      "max": 0,
-      "segundos": 0,
-      "ts": 0
-    },
-    "2": {
-      "player": 2,
-      "menu": "hidden",
-      "visible": false,
-      "mainIndex": 0,
-      "quantityIndex": 0,
-      "palabras": 0,
-      "max": 0,
-      "segundos": 0,
-      "ts": 0
     }
   },
   "musas": {
@@ -263,7 +277,8 @@
       "activa": false,
       "partida_activa": false,
       "objetivo": 10,
-      "regalo_secs": 1,
+      "regalo_secs": 0,
+      "regalo_cosmetico": true,
       "equipos": {
         "1": {
           "equipo": 1,
@@ -273,7 +288,8 @@
           "progreso": 0,
           "objetivo": 10,
           "progreso_pct": 0,
-          "regalo_secs": 1,
+          "regalo_secs": 0,
+          "regalo_cosmetico": true,
           "cooldown_ms": 0,
           "ultimo_regalo_ts": 0
         },
@@ -285,7 +301,8 @@
           "progreso": 0,
           "objetivo": 10,
           "progreso_pct": 0,
-          "regalo_secs": 1,
+          "regalo_secs": 0,
+          "regalo_cosmetico": true,
           "cooldown_ms": 0,
           "ultimo_regalo_ts": 0
         }
@@ -350,7 +367,7 @@
   },
   "puntuacion_final": {
     "schema_version": 1,
-    "formula_version": "scrib-puntuacion-v2",
+    "formula_version": "scrib-puntuacion-v3",
     "disponible": false,
     "datos_suficientes": false,
     "calculado_en_ts": 0,

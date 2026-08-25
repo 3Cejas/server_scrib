@@ -12,8 +12,9 @@ function crearRuntimeStateSnapshot({
     payloadVistaEspectadorModo,
     construirPayloadEstadoVotacionVentaja,
     payloadDesventajasActivas = () => [],
+    payloadCompeticionRonda = () => null,
+    payloadRelojPartida = () => null,
     teleprompter,
-    payloadEstadoResurreccion,
     obtenerContadorMusas,
     musasAuxiliares,
     payloadStatsLive,
@@ -53,8 +54,9 @@ function crearRuntimeStateSnapshot({
         espectador: payloadVistaEspectadorModo(),
         votacion_ventaja: construirPayloadEstadoVotacionVentaja(),
         desventajas: payloadDesventajasActivas(),
+        competicion_ronda: payloadCompeticionRonda(),
+        reloj_partida: payloadRelojPartida(),
         teleprompter: teleprompter.snapshot(),
-        resurreccion: payloadEstadoResurreccion(),
         musas: {
             contador: obtenerContadorMusas(),
             ...musasAuxiliares.snapshot()
@@ -82,8 +84,9 @@ function crearRuntimeStateSnapshot({
         espectador: payloadVistaEspectadorModo(),
         votacion_ventaja: construirPayloadEstadoVotacionVentaja(),
         desventajas: payloadDesventajasActivas(),
+        competicion_ronda: payloadCompeticionRonda(),
+        reloj_partida: payloadRelojPartida(),
         teleprompter: teleprompter.snapshot(),
-        resurreccion: payloadEstadoResurreccion(),
         musas: {
             contador: obtenerContadorMusas(),
             ...musasAuxiliares.snapshot()

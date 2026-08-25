@@ -1,4 +1,3 @@
-const { aplicarAjusteTiempo } = require("./time_adjustments.js");
 const { ROLE_ROOMS } = require("./role_connections.js");
 
 const DESTINOS_REINICIO_ROL = Object.freeze({
@@ -131,20 +130,6 @@ function registrarCanalesGenerales({
         io.emit("recibir_comentario", evento);
     });
 
-    socket.on("aumentar_tiempo", (evento) => {
-        const id_jugador = obtenerIdJugadorValido(evento && evento.player);
-        if (!id_jugador || esEventoEscritorInactivo(id_jugador)) {
-            return;
-        }
-        aplicarAjusteTiempo({
-            io,
-            evento,
-            obtenerIdJugadorValido,
-            getModoActual,
-            partidaSync,
-            construirPayloadCount
-        });
-    });
 }
 
 module.exports = {

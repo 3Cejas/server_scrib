@@ -2,49 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-  actualizarEstadoResurreccionSnapshot,
   construirPayloadEstadoVotacionVentaja,
-  crearEstadoResurreccionVacio,
-  normalizarPayloadStatsLive,
-  payloadEstadoResurreccion
+  normalizarPayloadStatsLive
 } = require("../server_state_utils.js");
-
-test("resurrection state snapshots merge updates and preserve the other player", () => {
-  const initial = {
-    1: crearEstadoResurreccionVacio(1),
-    2: { ...crearEstadoResurreccionVacio(2), visible: true, menu: "main" }
-  };
-  const result = actualizarEstadoResurreccionSnapshot(initial, "1", {
-    visible: true,
-    menu: "quantity",
-    palabras: 3,
-    segundos: 15
-  }, {
-    now: 1234,
-    validarPlayer: (value) => {
-      const id = Number(value);
-      return id === 1 || id === 2 ? id : null;
-    }
-  });
-
-  assert.equal(result.value.player, 1);
-  assert.equal(result.value.visible, true);
-  assert.equal(result.value.menu, "quantity");
-  assert.equal(result.value.palabras, 3);
-  assert.equal(result.value.segundos, 15);
-  assert.equal(result.value.ts, 1234);
-  assert.equal(result.state[2].visible, true);
-  assert.equal(result.state[2].menu, "main");
-});
-
-test("payloadEstadoResurreccion always returns both players", () => {
-  const payload = payloadEstadoResurreccion({
-    1: { ...crearEstadoResurreccionVacio(1), visible: true }
-  });
-  assert.equal(payload[1].visible, true);
-  assert.equal(payload[2].player, 2);
-  assert.equal(payload[2].visible, false);
-});
 
 test("voting payload computes remaining time and includes ya_voto when provided", () => {
   const payload = construirPayloadEstadoVotacionVentaja({

@@ -21,11 +21,11 @@ function crearRuntimeTestHooks({
     construirEstadoTest,
     obtenerIdJugadorValido,
     construirPayloadCount,
-    resurreccion,
     reiniciarEstadoPartida,
     calentamientoGestor,
     preShowMusas = null,
-    videoTutorialPreShow = null
+    videoTutorialPreShow = null,
+    iniciarRondaCompeticion = () => {}
 }) {
     const forzarModoTest = (payload = {}) => {
         const modoSolicitado = typeof payload.mode === 'string'
@@ -56,6 +56,7 @@ function crearRuntimeTestHooks({
         modeState.modoActual = modoSolicitado;
         partidaSync.siguienteModoSeq();
         registrarTimelineModo(modeState.modoActual, 'scrib_test:force_mode');
+        iniciarRondaCompeticion(modeState.modoActual);
 
         if (modoSolicitado === 'letra bendita' || modoSolicitado === 'letra prohibida') {
             const letraSolicitada = typeof payload.letra === 'string' ? payload.letra.trim().slice(0, 1) : '';
@@ -124,9 +125,6 @@ function crearRuntimeTestHooks({
             count_seq: siguienteCountSeq,
             tiempo_seq: tiempoSeq
         }));
-        if (modeState.modoActual && modeState.modoActual !== 'frase final' && payload.mostrar_resurreccion !== false) {
-            resurreccion.mostrarMenuFinJugador(playerId);
-        }
         timersPartida.cancelarCambioLetra();
         if (cycleState.finJ1 && cycleState.finJ2 && payload.reiniciar !== false) {
             reiniciarEstadoPartida(socket);

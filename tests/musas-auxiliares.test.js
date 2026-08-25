@@ -49,7 +49,7 @@ test("registrarCorazon mantiene los corazones visuales sin regalar tiempo fuera 
   assert.ok(io.events.some((entry) => entry.event === "musa_corazon" && entry.room === "j1"));
 });
 
-test("registrarCorazon concede el regalo de bandera al llegar al objetivo durante una partida", () => {
+test("registrarCorazon celebra el objetivo de bandera sin alterar tiempo ni puntuacion", () => {
   const io = crearIoFake();
   const premios = [];
   const gestor = crearGestorMusasAuxiliares({
@@ -80,11 +80,12 @@ test("registrarCorazon concede el regalo de bandera al llegar al objetivo durant
     now: 3000
   });
 
-  assert.equal(premios.length, 1);
-  assert.equal(premios[0].player, 1);
-  assert.equal(premios[0].secs, REGALO_BANDERA_MUSAS_SECS);
-  assert.equal(premios[0].origen, "musa_bandera");
-  assert.equal(resultadoPremio.regalo_bandera.premio.tiempo_seq, 1);
+  assert.equal(premios.length, 0);
+  assert.equal(REGALO_BANDERA_MUSAS_SECS, 0);
+  assert.equal(resultadoPremio.regalo_bandera.premio.player, 1);
+  assert.equal(resultadoPremio.regalo_bandera.premio.secs, 0);
+  assert.equal(resultadoPremio.regalo_bandera.premio.origen, "musa_bandera");
+  assert.equal(resultadoPremio.regalo_bandera.premio.regalo_cosmetico, true);
 
   const despuesPremio = gestor.payloadRegaloBandera().equipos[1];
   assert.equal(despuesPremio.progreso, 0);

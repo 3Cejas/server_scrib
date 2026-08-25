@@ -1,26 +1,5 @@
 const { elegirLetraPendientePonderada } = require('./letter_frequency.js');
 
-function debeLanzarVentaja(prev, curr) {
-    return Boolean(obtenerModoVentaja(prev, curr));
-}
-
-function esModoCompetitivoParaVentaja(modo) {
-    return (
-        modo === 'letra bendita'
-        || modo === 'letra prohibida'
-        || modo === 'palabras bonus'
-        || modo === 'palabras prohibidas'
-    );
-}
-
-function obtenerModoVentaja(prev, curr, pendiente = '') {
-    if (curr === 'tertulia') return '';
-    if (prev === 'tertulia') {
-        return esModoCompetitivoParaVentaja(pendiente) ? pendiente : '';
-    }
-    return esModoCompetitivoParaVentaja(prev) ? prev : '';
-}
-
 function elegirLetraPendiente({ pendientes, base, tipo, random = Math.random }) {
     return elegirLetraPendientePonderada({ pendientes, base, tipo, random });
 }
@@ -44,7 +23,7 @@ function crearMotorModos({
     statsLive,
     payloadStatsLive = () => ({}),
     emitirStatsLive = () => {},
-    votacionVentaja,
+    iniciarRondaCompeticion = () => {},
     getModoBonus,
     getModoMalditas,
     getModoMusas,
@@ -193,18 +172,6 @@ function crearMotorModos({
         }, 1000);
     }
 
-    function lanzarVentaja(socket, ganador, perdedor) {
-        votacionVentaja.lanzar({
-            socket,
-            ganador,
-            perdedor,
-            onCierreAutomatico: () => {
-                sincro_modos();
-                state.repentizadoEnviado = true;
-            }
-        });
-    }
-
     function modos_de_juego(socket) {
         registrar('Modos restantes:', state.modosPendientes.slice(state.indiceModo));
 
@@ -231,44 +198,8 @@ function crearMotorModos({
             modo_actual: curr
         });
         emitirStatsLive();
+        iniciarRondaCompeticion(curr);
         state.repentizadoEnviado = false;
-
-        if (curr === 'tertulia') {
-            state.modoPendienteVentaja = esModoCompetitivoParaVentaja(prev) ? prev : '';
-        }
-
-        const modoVentaja = obtenerModoVentaja(prev, curr, state.modoPendienteVentaja);
-        registrar('DEBE LANZAR VENTAJA:', Boolean(modoVentaja), modoVentaja);
-
-        if (modoVentaja) {
-            let counterMode;
-            if (modoVentaja === 'palabras bonus') {
-                counterMode = modoBonus();
-            } else if (modoVentaja === 'palabras prohibidas') {
-                counterMode = modoMalditas();
-            } else {
-                counterMode = modoMusas();
-            }
-
-            registrar(counterMode);
-            let j1 = counterMode.getInsertedCount(1);
-            let j2 = counterMode.getInsertedCount(2);
-            registrar(`Palabras pedidas -> J1: ${j1} | J2: ${j2}`);
-
-            if (j1 === j2) {
-                Math.random() < 0.5 ? j1++ : j2++;
-            }
-
-            if (j1 > j2) {
-                lanzarVentaja(socket, 'j1', 'j2');
-            } else {
-                lanzarVentaja(socket, 'j2', 'j1');
-            }
-
-            counterMode.clearCounters();
-            state.modoPendienteVentaja = '';
-            return;
-        }
 
         if (
             !prev
@@ -332,7 +263,6 @@ function crearMotorModos({
     return {
         MODOS,
         activarModo,
-        debeLanzarVentaja,
         modos_de_juego,
         nueva_letra_bendita,
         nueva_letra_prohibida,
@@ -344,7 +274,5 @@ function crearMotorModos({
 
 module.exports = {
     crearMotorModos,
-    debeLanzarVentaja,
-    obtenerModoVentaja,
     elegirLetraPendiente
 };

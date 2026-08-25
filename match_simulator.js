@@ -78,7 +78,7 @@ function normalizeSimulationConfig(input = {}) {
         writer_ppm: Math.round(clampNumber(source.writer_ppm, 52, 5, 600)),
         muse_interval_seconds: clampNumber(source.muse_interval_seconds, 7, 1, 120),
         muses_per_team: fullShow ? Math.max(1, normalizedMuses) : normalizedMuses,
-        votes: normalizeBoolean(source.votes, true),
+        votes: false,
         hearts: normalizeBoolean(source.hearts, true),
         auto_finish: normalizeBoolean(source.auto_finish, true),
         full_show: fullShow,
@@ -211,7 +211,6 @@ function createMatchSimulator({
     registerConnection,
     getConnections = () => ({}),
     getCurrentMode = () => "",
-    getVoteState = () => ({}),
     getWarmupState = () => null,
     resetWarmup = () => {},
     partidaLifecycle,
@@ -558,27 +557,6 @@ function createMatchSimulator({
         addLog("Las musas bot envían corazones.");
     };
 
-    const sendVotes = () => {
-        if (!run.config.votes) return;
-        const vote = getVoteState() || {};
-        if (!vote.activa || !Array.isArray(vote.opciones) || !vote.opciones.length) {
-            return;
-        }
-        const signature = `${vote.equipo}:${vote.termina_en_ts}:${vote.opciones.join("|")}`;
-        if (signature === run.lastVoteSignature) return;
-        run.lastVoteSignature = signature;
-        const player = vote.equipo === "j2" ? 2 : 1;
-        const muses = run.roles.muses[player];
-        muses.forEach((muse, index) => {
-            const option = vote.opciones[index % vote.opciones.length];
-            muse.receive("enviar_voto_ventaja", {
-                voto: option,
-                client_id: `sim_musa_${run.id}_${player}_${index + 1}`
-            });
-            run.votes += 1;
-        });
-        addLog(`Votación automática del equipo ${player}: ${muses.length} votos.`);
-    };
 
     const clearTick = () => {
         if (!run || !run.interval) return;
@@ -647,14 +625,9 @@ function createMatchSimulator({
     const finalizeSyntheticRoles = () => {
         if (!run || run.writersFinalized) return false;
         run.writersFinalized = true;
-        run.roles.writers[1].receive("fin_de_player", {
-            player: 1,
-            motivo: "simulacion"
-        });
-        run.roles.writers[2].receive("fin_de_player", {
-            player: 2,
-            motivo: "simulacion"
-        });
+        if (partidaLifecycle && typeof partidaLifecycle.finalizarPartida === "function") {
+            partidaLifecycle.finalizarPartida(run.roles.control);
+        }
         return true;
     };
 
@@ -1064,7 +1037,6 @@ function createMatchSimulator({
             run.heartElapsed %= run.config.muse_interval_seconds * 3;
             sendHearts();
         }
-        sendVotes();
 
         const mode = String(getCurrentMode() || "");
         if (mode) run.seenMode = true;
@@ -1122,7 +1094,6 @@ function createMatchSimulator({
             votes: 0,
             steps: 0,
             museCursor: { 1: 0, 2: 0 },
-            lastVoteSignature: "",
             lastMode: "",
             seenMode: false,
             sockets: [],
@@ -1266,7 +1237,6 @@ function createMatchSimulator({
             addWords(1, 1);
             addWords(2, 1);
             sendInspirations();
-            sendVotes();
             emitCountsAndStats();
         } else {
             return {

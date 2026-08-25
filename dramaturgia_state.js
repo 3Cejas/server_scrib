@@ -180,18 +180,6 @@ const resumenVistaEspectador = (estado) => {
     };
 };
 
-const resumenVotacion = (estado) => {
-    const data = estado && estado.votacion_ventaja ? estado.votacion_ventaja : {};
-    return {
-        activa: Boolean(data.activa),
-        equipo: textoLimpio(data.equipo, 24),
-        opciones: Array.isArray(data.opciones) ? data.opciones.map((item) => textoLimpio(item, 48)) : [],
-        votos: data.votos && typeof data.votos === "object" ? clonarJson(data.votos, {}) : {},
-        duracion_ms: Math.max(0, numeroEntero(data.duracion_ms, 0)),
-        termina_en_ts: Math.max(0, numeroEntero(data.termina_en_ts, 0))
-    };
-};
-
 const resumenDesventajas = (estado) => {
     const lista = estado && Array.isArray(estado.desventajas) ? estado.desventajas : [];
     return lista.map((item) => ({
@@ -202,17 +190,27 @@ const resumenDesventajas = (estado) => {
     })).filter((item) => item.player === 1 || item.player === 2);
 };
 
-const resumenResurreccion = (estado, jugador) => {
-    const data = estado && estado.resurreccion && estado.resurreccion[jugador]
-        ? estado.resurreccion[jugador]
-        : {};
+const resumenCompeticionRonda = (estado) => {
+    const data = estado && estado.competicion_ronda ? estado.competicion_ronda : {};
+    const marcador = data.marcador && typeof data.marcador === "object" ? data.marcador : {};
     return {
-        player: jugador,
-        menu: textoLimpio(data.menu, 32),
-        visible: Boolean(data.visible),
-        palabras: Math.max(0, numeroEntero(data.palabras, 0)),
-        max: Math.max(0, numeroEntero(data.max, 0)),
-        segundos: Math.max(0, numeroEntero(data.segundos, 0))
+        activa: Boolean(data.activa),
+        modo: textoLimpio(data.modo, 48),
+        ronda: Math.max(0, numeroEntero(data.ronda, 0)),
+        marcador: { 1: Number(marcador[1]) || 0, 2: Number(marcador[2]) || 0 },
+        lider: numeroEntero(data.lider, 0) || null,
+        desventaja_player: numeroEntero(data.desventaja_player, 0) || null,
+        desventaja: textoLimpio(data.desventaja, 16)
+    };
+};
+
+const resumenRelojPartida = (estado) => {
+    const data = estado && estado.reloj_partida ? estado.reloj_partida : {};
+    return {
+        activo: Boolean(data.activo),
+        pausado: Boolean(data.pausado),
+        tiempo_restante_segundos: Math.max(0, numeroEntero(data.tiempo_restante_segundos, 0)),
+        duracion_total_segundos: Math.max(0, numeroEntero(data.duracion_total_segundos, 0))
     };
 };
 
@@ -751,52 +749,6 @@ function crearEstadoDramaturgia({
         huellas.nube_inspiracion = nube;
     };
 
-    const capturarVotacion = (estado) => {
-        const votacion = resumenVotacion(estado);
-        const anterior = huellas.votacion;
-        if (!anterior) {
-            huellas.votacion = votacion;
-            if (votacion.activa) {
-                registrarEvento({
-                    tipo: "votacion",
-                    titulo: "Votaci\u00f3n iniciada",
-                    detalle: `Vota ${votacion.equipo || "el p\u00fablico"}.`,
-                    espacio: "musas",
-                    hechos: votacion
-                });
-            }
-            return;
-        }
-        const identidadAnterior = firmaEstado([anterior.activa, anterior.equipo, anterior.opciones]);
-        const identidadActual = firmaEstado([votacion.activa, votacion.equipo, votacion.opciones]);
-        if ((!anterior.activa && votacion.activa) || (votacion.activa && identidadAnterior !== identidadActual)) {
-            registrarEvento({
-                tipo: "votacion",
-                clave_causa: "votacion",
-                titulo: "Votaci\u00f3n iniciada",
-                detalle: `Vota ${votacion.equipo || "el p\u00fablico"}.`,
-                espacio: "musas",
-                hechos: votacion
-            });
-        } else if (anterior.activa && !votacion.activa) {
-            registrarEvento({
-                tipo: "votacion",
-                clave_causa: "votacion",
-                titulo: "Votaci\u00f3n finalizada",
-                detalle: "La votaci\u00f3n de ventaja ha terminado.",
-                espacio: "musas",
-                hechos: {
-                    equipo: anterior.equipo,
-                    opciones: anterior.opciones,
-                    votos: votacion.votos && Object.keys(votacion.votos).length
-                        ? votacion.votos
-                        : anterior.votos
-                }
-            });
-        }
-        huellas.votacion = votacion;
-    };
-
     const capturarTeleprompter = (estado) => {
         const resumen = resumenTeleprompter(estado);
         const firma = firmaEstado(resumen);
@@ -826,27 +778,34 @@ function crearEstadoDramaturgia({
         });
     };
 
-    const capturarResurreccion = (estado) => {
-        [1, 2].forEach((jugador) => {
-            const resumen = resumenResurreccion(estado, jugador);
-            const firma = firmaEstado(resumen);
-            const clave = `resurreccion_${jugador}`;
-            const anterior = huellas[clave];
-            huellas[clave] = firma;
-            if (!anterior && !resumen.visible) return;
-            if (anterior === firma) return;
-            registrarEvento({
-                tipo: "resurreccion",
-                clave_causa: clave,
-                titulo: resumen.visible
-                    ? `Resurrecci\u00f3n disponible · Escritxr ${jugador}`
-                    : `Resurrecci\u00f3n cerrada · Escritxr ${jugador}`,
-                detalle: resumen.visible
-                    ? `${resumen.palabras} palabras seleccionadas, ${resumen.segundos} segundos.`
-                    : "El men\u00fa de resurrecci\u00f3n queda oculto.",
-                espacio: `escritxr${jugador}`,
-                hechos: resumen
-            });
+    const capturarCompeticion = (estado) => {
+        const resumen = resumenCompeticionRonda(estado);
+        const firma = firmaEstado(resumen);
+        if (huellas.competicion === firma) return;
+        huellas.competicion = firma;
+        registrarEvento({
+            tipo: "competicion_ronda",
+            clave_causa: "competicion_ronda",
+            titulo: resumen.activa ? `Competici\u00f3n · ${resumen.modo}` : "Competici\u00f3n en pausa",
+            detalle: `Azul ${resumen.marcador[1]} · ${resumen.marcador[2]} Rojo`,
+            espacio: "sistema",
+            hechos: resumen
+        });
+    };
+
+    const capturarRelojPartida = (estado) => {
+        const resumen = resumenRelojPartida(estado);
+        const bucket = Math.floor(resumen.tiempo_restante_segundos / 10);
+        const firma = firmaEstado({ ...resumen, tiempo_restante_segundos: bucket });
+        if (huellas.reloj_partida === firma) return;
+        huellas.reloj_partida = firma;
+        registrarEvento({
+            tipo: "reloj_partida",
+            clave_causa: "reloj_partida",
+            titulo: resumen.pausado ? "Reloj de partida pausado" : "Reloj de partida",
+            detalle: `${resumen.tiempo_restante_segundos} segundos restantes.`,
+            espacio: "sistema",
+            hechos: resumen
         });
     };
 
@@ -896,10 +855,7 @@ function crearEstadoDramaturgia({
         if (anterior === firma) return;
         registrarEvento({
             tipo: "desventaja",
-            causa_ids: [
-                ...causasPorDefecto("desventaja", "desventaja"),
-                ultimoEventoPorClave.get("votacion")
-            ].filter(Boolean),
+            causa_ids: causasPorDefecto("desventaja", "desventaja"),
             titulo: resumen.length ? "Desventaja activa" : "Desventaja finalizada",
             detalle: resumen.length
                 ? resumen.map((item) => `J${item.player}: ${item.putada}`).join(" · ")
@@ -998,9 +954,9 @@ function crearEstadoDramaturgia({
             const cambioModo = capturarModoDirecto(estado, modoTimelineEmitido);
             capturarInspiracion(estado);
             capturarTextos(estado, { forzar: cambioModo });
-            capturarVotacion(estado);
             capturarTeleprompter(estado);
-            capturarResurreccion(estado);
+            capturarCompeticion(estado);
+            capturarRelojPartida(estado);
             capturarCalentamiento(estado);
             capturarVistaEspectador(estado);
             capturarDesventajas(estado);

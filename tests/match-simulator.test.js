@@ -426,6 +426,7 @@ test("full_show recorre las tres consignas, los seis modos y la representación 
   const teleprompterStates = [];
   const writerTexts = { 1: "", 2: "" };
   const writerFinCalls = { 1: 0, 2: 0 };
+  let globalFinalizeCalls = 0;
   let realPauseCalls = 0;
   let realResumeCalls = 0;
   let inicioPayload = null;
@@ -521,9 +522,6 @@ test("full_show recorre las tres consignas, los seis modos y la representación 
       socket.on(`texto${player}`, (payload) => {
         writerTexts[player] = payload.text;
       });
-      socket.on("fin_de_player", () => {
-        writerFinCalls[player] += 1;
-      });
       socket.on("count", () => {});
       socket.on("nueva_palabra", () => {});
       socket.on("nueva_palabra_prohibida", () => {});
@@ -563,7 +561,10 @@ test("full_show recorre las tres consignas, los seis modos y la representación 
     getWarmupState: () => warmup,
     resetWarmup,
     partidaLifecycle: {
-      limpiarPartida() {}
+      limpiarPartida() {},
+      finalizarPartida() {
+        globalFinalizeCalls += 1;
+      }
     },
     setTimeoutFn,
     clearTimeoutFn,
@@ -677,7 +678,8 @@ test("full_show recorre las tres consignas, los seis modos y la representación 
   const representing = simulator.publicState();
   assert.equal(representing.state, "running");
   assert.equal(representing.stage, "representation");
-  assert.deepEqual(writerFinCalls, { 1: 1, 2: 1 });
+  assert.deepEqual(writerFinCalls, { 1: 0, 2: 0 });
+  assert.equal(globalFinalizeCalls, 1);
   assert.equal(teleprompterStates.length, 1);
   assert.equal(teleprompterStates[0].playing, false);
   assert.match(teleprompterStates[0].text, /La costura volvió a abrirse\.$/);
@@ -725,7 +727,8 @@ test("full_show recorre las tres consignas, los seis modos y la representación 
   runNextTimer();
   assert.equal(simulator.publicState().state, "completed");
   assert.equal(simulator.publicState().stage, "representation");
-  assert.deepEqual(writerFinCalls, { 1: 1, 2: 1 });
+  assert.deepEqual(writerFinCalls, { 1: 0, 2: 0 });
+  assert.equal(globalFinalizeCalls, 1);
   assert.equal(disconnectedRoles, 9);
 });
 

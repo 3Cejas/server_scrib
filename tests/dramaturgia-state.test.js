@@ -70,12 +70,8 @@ function estadoBase() {
       stats_slide_step: 0,
       escala_ui: 1
     },
-    votacion_ventaja: {
-      activa: false,
-      equipo: "",
-      opciones: [],
-      votos: {}
-    },
+    competicion_ronda: { activa: false, modo: "", marcador: { 1: 0, 2: 0 } },
+    reloj_partida: { activo: false, pausado: false, tiempo_restante_segundos: 0, duracion_total_segundos: 0 },
     desventajas: [],
     teleprompter: {
       state: {
@@ -87,10 +83,6 @@ function estadoBase() {
         fontSize: 36,
         speed: 25
       }
-    },
-    resurreccion: {
-      1: { player: 1, menu: "hidden", visible: false },
-      2: { player: 2, menu: "hidden", visible: false }
     },
     musas: {
       contador: { escritxr1: 0, escritxr2: 0 },
@@ -277,14 +269,15 @@ test("periodic capture derives all requested semantic state families without dup
     ts: reloj
   };
   estado.inspiracion.nube.equipos[1].palabras = ["río"];
-  estado.votacion_ventaja = {
+  estado.competicion_ronda = {
     activa: true,
-    equipo: "j1",
-    opciones: ["A", "B"],
-    votos: { A: 0, B: 0 },
-    duracion_ms: 5000,
-    termina_en_ts: 8000
+    modo: "tertulia",
+    marcador: { 1: 7, 2: 5 },
+    lider: 1,
+    desventaja_player: 2,
+    desventaja: "⚡"
   };
+  estado.reloj_partida = { activo: true, pausado: true, tiempo_restante_segundos: 180, duracion_total_segundos: 600 };
   estado.teleprompter.state = {
     ...estado.teleprompter.state,
     visible: true,
@@ -292,14 +285,6 @@ test("periodic capture derives all requested semantic state families without dup
     source: 1,
     text: "Una escena empieza junto al río.",
     loadId: 8
-  };
-  estado.resurreccion[2] = {
-    player: 2,
-    menu: "quantity",
-    visible: true,
-    palabras: 3,
-    max: 20,
-    segundos: 9
   };
   estado.tutorial = {
     ...estado.tutorial,
@@ -326,9 +311,9 @@ test("periodic capture derives all requested semantic state families without dup
     "texto",
     "inspiracion",
     "inspiracion_nube",
-    "votacion",
+    "competicion_ronda",
+    "reloj_partida",
     "teleprompter",
-    "resurreccion",
     "calentamiento",
     "vista_espectador",
     "desventaja",

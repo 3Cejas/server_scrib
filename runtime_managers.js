@@ -3,7 +3,6 @@ const { crearGestorCreditosShow } = require('./credits_show.js');
 const { crearGestorMusasAuxiliares } = require('./musas_auxiliares.js');
 const { crearGestorNubeInspiracion } = require('./nube_inspiracion.js');
 const { crearGestorVotacionRepentizado, opcionConMasVotos } = require('./repentizado_voting.js');
-const { crearGestorResurreccion } = require('./resurrection_channels.js');
 const { crearRegistroRoles } = require('./role_connections.js');
 const { crearGestorPuntuacionFinal } = require('./final_scoring.js');
 const { crearGestorStatsLive } = require('./stats_live.js');
@@ -15,7 +14,6 @@ const { crearRegistroSesionesEscritor } = require('./writer_sessions.js');
 const {
     construirPayloadEstadoVotacionVentaja: construirPayloadEstadoVotacionVentajaBase
 } = require('./server_state_utils');
-const { aplicarAjusteTiempo } = require('./time_adjustments.js');
 
 function crearGestoresBase({
     io,
@@ -104,15 +102,7 @@ function crearGestoresAuxiliares({
             const modoActual = typeof getModoActual === "function" ? getModoActual() : "";
             return Boolean(modoActual) && modoActual !== "frase final" && !isFinDelJuego();
         },
-        aplicarRegaloBanderaTiempo: (evento) => aplicarAjusteTiempo({
-            io,
-            evento,
-            obtenerIdJugadorValido,
-            getModoActual,
-            partidaSync,
-            construirPayloadCount,
-            permitirSinModo: false
-        })
+        aplicarRegaloBanderaTiempo: () => null
     });
 
     return {
@@ -178,36 +168,7 @@ function crearGestoresVistaEstado({
     };
 }
 
-function crearGestorResurreccionRuntime({
-    io,
-    partidaSync,
-    validarJugador,
-    getModoActual,
-    isFinDelJuego,
-    marcarFinJugador,
-    estadoJugadores,
-    construirPayloadCount,
-    activarModo,
-    getTextoPlano,
-    reanudarTertuliaTrasResurreccion
-}) {
-    return crearGestorResurreccion({
-        io,
-        partidaSync,
-        validarJugador,
-        getModoActual,
-        isFinDelJuego,
-        marcarFinJugador,
-        estadoJugadores,
-        construirPayloadCount,
-        activarModo,
-        getTextoPlano,
-        reanudarTertuliaTrasResurreccion
-    });
-}
-
 module.exports = {
-    crearGestorResurreccionRuntime,
     crearGestoresAuxiliares,
     crearGestoresBase,
     crearGestoresVistaEstado

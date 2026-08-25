@@ -1,11 +1,12 @@
 function crearSincronizadorConexion({
     writerChannels,
-    resurreccion,
     emitirEstadoVotacionVentaja,
     emitirNubeInspiracionEstado,
     teleprompter,
     emitirEstadoDramaturgia = null,
     emitirEstadoDesventajasActivas = null,
+    emitirEstadoCompeticion = null,
+    emitirEstadoRelojPartida = null,
     emitirEstadoPalabrasMusasControl = null,
     partidaSync,
     getModoActual,
@@ -106,7 +107,6 @@ function crearSincronizadorConexion({
             emitirEstadoDramaturgia(socket);
         }
         writerChannels.emitirTextos(socket);
-        resurreccion.sincronizarSocket(socket);
         emitirEstadoVotacionVentaja(null, socket);
         emitirNubeInspiracionEstado(socket, true);
         if (typeof emitirEstadoPalabrasMusasControl === 'function') {
@@ -134,6 +134,12 @@ function crearSincronizadorConexion({
         emitirTempModos(socket);
         if (typeof emitirEstadoDesventajasActivas === 'function') {
             emitirEstadoDesventajasActivas(socket);
+        }
+        if (typeof emitirEstadoCompeticion === 'function') {
+            emitirEstadoCompeticion(socket);
+        }
+        if (typeof emitirEstadoRelojPartida === 'function') {
+            emitirEstadoRelojPartida(socket);
         }
         if (typeof isPartidaPausada === 'function' && isPartidaPausada()) {
             socket.emit('pausar_js', { restaurando: true });

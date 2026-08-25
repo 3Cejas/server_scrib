@@ -1,15 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { crearMotorModos, debeLanzarVentaja, elegirLetraPendiente, obtenerModoVentaja } = require("../mode_engine.js");
-
-test("mode engine decides when advantage voting should launch", () => {
-  assert.equal(debeLanzarVentaja("palabras bonus", "letra bendita"), true);
-  assert.equal(debeLanzarVentaja("", "letra bendita"), false);
-  assert.equal(debeLanzarVentaja("palabras bonus", "tertulia"), false);
-  assert.equal(debeLanzarVentaja("tertulia", "letra bendita"), false);
-  assert.equal(obtenerModoVentaja("tertulia", "letra bendita", "palabras bonus"), "palabras bonus");
-});
+const { crearMotorModos, elegirLetraPendiente } = require("../mode_engine.js");
 
 test("mode engine picks pending letters and resets from base when exhausted", () => {
   const first = elegirLetraPendiente({ pendientes: ["z"], base: ["z", "j"] });
@@ -139,7 +131,7 @@ test("mode engine can advance from tertulia without launching a stale advantage"
   assert.equal(launches.length, 0);
 });
 
-test("mode engine delays the previous competitive advantage across tertulia", () => {
+test("mode engine never carries an advantage vote across tertulia", () => {
   const bonus = crearModoFake();
   const musas = crearModoFake();
   const state = crearEstadoMotorFake({
@@ -174,16 +166,15 @@ test("mode engine delays the previous competitive advantage across tertulia", ()
   motor.modos_de_juego();
 
   assert.equal(state.modoActual, "tertulia");
-  assert.equal(state.modoPendienteVentaja, "palabras bonus");
+  assert.equal(state.modoPendienteVentaja, "");
   assert.equal(launches.length, 0);
 
   motor.modos_de_juego();
 
   assert.equal(state.modoActual, "letra bendita");
   assert.equal(state.modoPendienteVentaja, "");
-  assert.equal(launches.length, 1);
-  assert.equal(launches[0].ganador, "j1");
-  assert.equal(bonus.clearCounterCalls, 1);
+  assert.equal(launches.length, 0);
+  assert.equal(bonus.clearCounterCalls, 0);
   assert.equal(musas.clearCounterCalls, 0);
 });
 

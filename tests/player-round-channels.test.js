@@ -14,6 +14,7 @@ function crearCanalesRondaFake(overrides = {}) {
   let reanudarDesventajasCalls = 0;
   let cancelarInicioCalls = 0;
   let tempEmitidos = 0;
+  let pulsacionesRegistradas = 0;
 
   const state = {
     modoActual: overrides.modoActual || "tertulia",
@@ -112,6 +113,10 @@ function crearCanalesRondaFake(overrides = {}) {
       pausaEstados.push(Boolean(valor));
     },
     sesionesEscritor: overrides.sesionesEscritor || null
+    ,
+    registrarPulsacionCompeticion() {
+      pulsacionesRegistradas += 1;
+    }
   });
 
   return {
@@ -123,6 +128,7 @@ function crearCanalesRondaFake(overrides = {}) {
     pausaEstados,
     pausarDesventajasCalls: () => pausarDesventajasCalls,
     reanudarDesventajasCalls: () => reanudarDesventajasCalls,
+    pulsacionesRegistradas: () => pulsacionesRegistradas,
     state,
     tempEmitidos: () => tempEmitidos,
     tempModosCalls
@@ -241,7 +247,7 @@ test("saltar_tertulia advances the mode, emits timer sync and restarts the mode 
   ]);
 });
 
-test("inactive writer sessions cannot finish or tick the round", () => {
+test("inactive writer sessions cannot tick or register keystrokes", () => {
   const ctx = crearCanalesRondaFake({
     modoActual: "palabras bonus",
     escritxr: 1,
@@ -254,9 +260,21 @@ test("inactive writer sessions cannot finish or tick the round", () => {
   });
 
   ctx.handlers.count({ player: 1, count: "00:10", count_seq: 1 });
-  ctx.handlers.fin_de_player({ player: 1 });
+  ctx.handlers.tecla_jugador({ player: 1, code: "KeyA", key: "a" });
   ctx.handlers.pausar({ source: "stale-writer" });
 
   assert.deepEqual(ctx.broadcasts, []);
   assert.deepEqual(ctx.pausaEstados, []);
+  assert.equal(ctx.pulsacionesRegistradas(), 0);
+});
+
+test("keystrokes use the authenticated writer instead of a spoofed player", () => {
+  const ctx = crearCanalesRondaFake({
+    escritxr: 1,
+    sesionesEscritor: { esActiva: () => true }
+  });
+
+  ctx.handlers.tecla_jugador({ player: 2, code: "KeyA", key: "a" });
+
+  assert.equal(ctx.pulsacionesRegistradas(), 1);
 });

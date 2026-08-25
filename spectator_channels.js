@@ -10,6 +10,7 @@ function registrarCanalesEspectador({
     statsLive,
     emitirPuntuacionFinal = () => null,
     puntuacionFinal = null,
+    getPulsacionesCompeticion = () => ({ 1: 0, 2: 0 }),
     emitirNubeInspiracionEstado,
     emitirEstadoBanderasMusas,
     emitirCreditosShow,
@@ -38,9 +39,18 @@ function registrarCanalesEspectador({
                     : null
             };
         }
-        const stats = statsLive && typeof statsLive.payload === "function"
+        const statsBase = statsLive && typeof statsLive.payload === "function"
             ? statsLive.payload()
             : {};
+        const pulsaciones = getPulsacionesCompeticion() || {};
+        const playersBase = statsBase.players && typeof statsBase.players === "object" ? statsBase.players : {};
+        const stats = {
+            ...statsBase,
+            players: {
+                1: { ...(playersBase[1] || {}), pulsacionesTotal: Number(pulsaciones[1]) || 0 },
+                2: { ...(playersBase[2] || {}), pulsacionesTotal: Number(pulsaciones[2]) || 0 }
+            }
+        };
         return puntuacionFinal.capturarPendiente(stats, opcionesDatosPuntuacion());
     };
 

@@ -21,15 +21,15 @@ const {
     repentizados
 } = require('./runtime_config.js');
 const {
-    crearGestorResurreccionRuntime,
     crearGestoresAuxiliares,
     crearGestoresBase,
     crearGestoresVistaEstado
 } = require('./runtime_managers.js');
 const { crearRuntimeStateSnapshot } = require('./runtime_state_snapshot.js');
-const { aplicarAjusteTiempo } = require('./time_adjustments.js');
 const { getRanges } = require('./time_ranges.js');
 const { crearCanalesEscritor } = require('./writer_channels.js');
+const { crearCompeticionRondas } = require('./round_competition.js');
+const { crearRelojPartida } = require('./match_clock.js');
 
 function crearRuntimeScrib({
     io,
@@ -55,6 +55,19 @@ function crearRuntimeScrib({
     const accesoRoles = crearGestorAccesoRoles({ passwordRoles });
     const controlState = crearGestorEstadoControl({ io });
     const partidaSync = crearGestorSincronizacionPartida({ validarJugador: obtenerIdJugadorValido });
+    const competicionRondas = crearCompeticionRondas({
+        io,
+        getAtributos: () => writerChannels ? writerChannels.snapshotAtributos() : { 1: {}, 2: {} },
+        getModoSeq: () => partidaSync.obtenerModoSeq()
+    });
+    const relojPartida = crearRelojPartida({
+        io,
+        onFinish: () => {
+            if (partidaLifecycle && !estadoCicloPartida.finDelJuego) {
+                partidaLifecycle.finalizarPartida(null);
+            }
+        }
+    });
     const runtimeModos = crearRuntimeModos({
         io,
         partidaSync,
@@ -201,34 +214,12 @@ function crearRuntimeScrib({
         sesionesEscritor,
         extraerTextoPlano,
         actualizarTextoJugador: (player, texto) => getModoMalditas().actualizarTextoJugador(player, texto),
+        onTextoActualizado: (player, anterior, actual) => (
+            competicionRondas.registrarCambioTexto(player, anterior, actual)
+        ),
         onNombreCambiado: () => emitirNubeInspiracionEstado(null, true),
         syncMode: (socket) => sincro_modos(socket),
         logger: registrar
-    });
-
-    const resurreccion = crearGestorResurreccionRuntime({
-        io,
-        partidaSync,
-        validarJugador: obtenerIdJugadorValido,
-        getModoActual: () => estadoCicloPartida.modoActual,
-        isFinDelJuego: () => estadoCicloPartida.finDelJuego,
-        marcarFinJugador: estadoCicloPartida.marcarFinJugador,
-        estadoJugadores,
-        construirPayloadCount,
-        activarModo: (modo, socket) => motorModos.activarModo(modo, socket),
-        getTextoPlano: (player) => writerChannels.getTextoPlano(player),
-        reanudarTertuliaTrasResurreccion: (_socket, payload = {}) => {
-            if (estadoCicloPartida.modoActual !== 'tertulia') {
-                return false;
-            }
-            io.emit('reanudar_tertulia_control', {
-                motivo: 'resurreccion',
-                player: obtenerIdJugadorValido(payload.player),
-                secs: Number(payload.secs) || 0,
-                tiempo_seq: Number(payload.tiempo_seq) || 0
-            });
-            return true;
-        }
     });
 
     const activarSocketsExtratextualesConIo = (socket) => activarSocketsExtratextuales(socket, io);
@@ -268,8 +259,6 @@ function crearRuntimeScrib({
         calentamientoGestor.emitirEstadoMusa(equipo, socketObjetivo)
     );
 
-    const resetearEstadoResurreccion = () => resurreccion.reset();
-    const payloadEstadoResurreccion = () => resurreccion.payload();
     const {
         construirEstadoDramaturgiaActual,
         construirEstadoTest,
@@ -287,8 +276,9 @@ function crearRuntimeScrib({
         payloadVistaEspectadorModo,
         construirPayloadEstadoVotacionVentaja,
         payloadDesventajasActivas: () => desventajasActivas.snapshotActivas(),
+        payloadCompeticionRonda: () => competicionRondas.snapshot(),
+        payloadRelojPartida: () => relojPartida.snapshot(),
         teleprompter,
-        payloadEstadoResurreccion,
         obtenerContadorMusas,
         musasAuxiliares,
         payloadStatsLive,
@@ -324,11 +314,12 @@ function crearRuntimeScrib({
         partidaSync.resetConteoSync();
         partidaSync.resetTiempoSeq();
         teleprompter.reset();
-        resurreccion.reset();
         nubeInspiracion.reset();
         musasAuxiliares.resetEstado();
         musasAuxiliares.emitirEstadoRegaloBandera();
         desventajasActivas.reset();
+        competicionRondas.reset();
+        relojPartida.detener();
         controlState.reset();
         estadoCicloPartida.transicionModoEnCurso = false;
         votacionVentaja.reset();
@@ -342,15 +333,6 @@ function crearRuntimeScrib({
 
     const reiniciarEstadoPartida = (socket, opciones = {}) => partidaLifecycle.reiniciarEstadoPartida(socket, opciones);
     const finalizarPartida = (socket) => partidaLifecycle.finalizarPartida(socket);
-    const aplicarAjusteTiempoInspiracion = (evento) => aplicarAjusteTiempo({
-        io,
-        evento,
-        obtenerIdJugadorValido,
-        getModoActual: () => estadoCicloPartida.modoActual,
-        partidaSync,
-        construirPayloadCount,
-        permitirSinModo: false
-    });
 
     motorModos = crearMotorModos({
         state: estadoMotorModos,
@@ -372,6 +354,11 @@ function crearRuntimeScrib({
         payloadStatsLive,
         emitirStatsLive,
         votacionVentaja,
+        iniciarRondaCompeticion: (modo) => {
+            if (modo === 'tertulia') relojPartida.pausar();
+            else relojPartida.reanudar();
+            return competicionRondas.iniciarRonda(modo, { modo_seq: partidaSync.obtenerModoSeq() });
+        },
         getModoBonus,
         getModoMalditas,
         getModoMusas,
@@ -390,8 +377,6 @@ function crearRuntimeScrib({
         limpiarTodosLosModos,
         activarSocketsExtratextuales: activarSocketsExtratextualesConIo,
         resetearEstadoAuxiliarParaTests,
-        resetearEstadoResurreccion,
-        payloadEstadoResurreccion,
         musasAuxiliares,
         prepararParametrosInicio,
         getRanges,
@@ -402,6 +387,14 @@ function crearRuntimeScrib({
         emitirNubeInspiracionEstado,
         emitirModoActual,
         limpiarDesventajasActivas: () => desventajasActivas.reset(),
+        resetearCompeticion: () => competicionRondas.reset(),
+        iniciarCompeticionRonda: (modo) => {
+            if (modo === 'tertulia') relojPartida.pausar();
+            else relojPartida.reanudar();
+            return competicionRondas.iniciarRonda(modo, { modo_seq: partidaSync.obtenerModoSeq() });
+        },
+        iniciarRelojPartida: (segundos) => relojPartida.iniciar(segundos),
+        detenerRelojPartida: () => relojPartida.detener(),
         setPartidaPausada: (valor) => {
             partidaPausada = Boolean(valor);
         },
@@ -437,12 +430,13 @@ function crearRuntimeScrib({
         sincronizarSocketRecienConectado
     } = crearSincronizadorConexion({
         writerChannels,
-        resurreccion,
         emitirEstadoVotacionVentaja,
         emitirNubeInspiracionEstado,
         teleprompter,
         emitirEstadoDramaturgia,
         emitirEstadoDesventajasActivas,
+        emitirEstadoCompeticion: (socketDestino) => competicionRondas.emitir(socketDestino),
+        emitirEstadoRelojPartida: (socketDestino) => relojPartida.emitir(socketDestino),
         emitirEstadoPalabrasMusasControl,
         partidaSync,
         getModoActual: () => estadoCicloPartida.modoActual,
@@ -521,7 +515,6 @@ function crearRuntimeScrib({
         getModoMusas,
         votacionVentaja,
         votacionRepentizado,
-        resurreccion,
         estadoMotorModos,
         registrarTimelineModo,
         emitirPedirInspiracionMusa,
@@ -535,9 +528,10 @@ function crearRuntimeScrib({
         payloadEstadoPalabrasMusasControl,
         emitirEstadoVotacionVentaja,
         emitirEstadoDesventajasActivas,
+        competicionRondas,
+        relojPartida,
         calentamientoState: calentamiento,
         emitirEstadoCalentamiento,
-        payloadEstadoResurreccion,
         cerrarVotacionVentajaForzada,
         abrirVotacionVentajaForzada,
         registrarDesventajaAplicada,
@@ -548,7 +542,12 @@ function crearRuntimeScrib({
         },
         isPartidaPausada: () => partidaPausada,
         isFinDelJuego: () => Boolean(estadoCicloPartida.finDelJuego),
-        aplicarAjusteTiempoInspiracion,
+        registrarInspiracionCompeticion: (player, payload) => competicionRondas.registrarInspiracion(player, payload),
+        registrarInfraccionCompeticion: (player, payload) => competicionRondas.registrarInfraccion(player, payload),
+        pausarRelojPartida: () => relojPartida.pausar(),
+        reanudarRelojPartida: () => relojPartida.reanudar(),
+        registrarPulsacionCompeticion: (player, payload) => competicionRondas.registrarPulsacion(player, payload),
+        getPulsacionesCompeticion: () => competicionRondas.snapshot().pulsaciones,
         ayudaMusas,
         preShowMusas,
         videoTutorialPreShow

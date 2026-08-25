@@ -398,7 +398,8 @@ function registrarProtocoloInspiracion({
   pausada = false,
   finalizada = false,
   aplicarTiempo = () => null,
-  introduced = () => {}
+  introduced = () => {},
+  competition = () => {}
 }) {
   const roomEvents = [];
   const globalEvents = [];
@@ -429,6 +430,7 @@ function registrarProtocoloInspiracion({
     isPartidaPausada: () => pausada,
     isFinDelJuego: () => finalizada,
     aplicarAjusteTiempoInspiracion: aplicarTiempo,
+    registrarInspiracionCompeticion: competition,
     obtenerIdJugadorValido: (valor) => {
       const id = Number(valor);
       return id === 1 || id === 2 ? id : null;
@@ -471,12 +473,13 @@ test("V2 inspiration actions validate active mode and mode sequence before touch
   assert.equal(requests, 0);
 });
 
-test("V2 bonus use grants authoritative time once and requests next without legacy counting", () => {
+test("V2 bonus use scores inspiration once without granting life time", () => {
   const socket = createFakeSocket();
   socket.escritxr = 1;
   const handleOptions = [];
   const timeEvents = [];
   const introduced = [];
+  const competition = [];
   let lastUse = null;
   const mode = {
     solicitarInspiracion: () => ({ ok: true, existente: false }),
@@ -515,7 +518,8 @@ test("V2 bonus use grants authoritative time once and requests next without lega
       timeEvents.push(evento);
       return { ...evento, tiempo_seq: 4 };
     },
-    introduced: (payload) => introduced.push(payload)
+    introduced: (payload) => introduced.push(payload),
+    competition: (player, payload) => competition.push({ player, payload })
   });
 
   let requested = null;
@@ -550,21 +554,17 @@ test("V2 bonus use grants authoritative time once and requests next without lega
   });
 
   assert.deepEqual(handleOptions, [{ contabilizar: false }, { contabilizar: false }]);
-  assert.deepEqual(timeEvents, [{
-    player: 1,
-    secs: 13,
-    origen: "inspiracion_bonus",
-    inspiracion_id: 42,
-    modo_seq: 7
-  }]);
-  assert.equal(first.tiempo_seq, 4);
+  assert.deepEqual(timeEvents, []);
+  assert.equal(first.tiempo_seq, undefined);
   assert.equal(first.valor_inspiracion, 0.75);
-  assert.equal(first.tiempo_otorgado, 13);
-  assert.equal(retry.tiempo_seq, 4);
+  assert.equal(first.tiempo_otorgado, 0);
+  assert.equal(retry.tiempo_seq, undefined);
   assert.equal(retry.valor_inspiracion, 0.75);
-  assert.equal(retry.tiempo_otorgado, 13);
+  assert.equal(retry.tiempo_otorgado, 0);
   assert.equal(retry.idempotente, true);
   assert.equal(introduced.length, 1);
+  assert.equal(competition.length, 1);
+  assert.equal(competition[0].payload.palabra, "cometa");
   assert.equal(globalEvents.length, 1);
   assert.equal(globalEvents[0].event, "inspiracion_aprovechada");
   assert.deepEqual(globalEvents[0].payload, {
@@ -574,7 +574,7 @@ test("V2 bonus use grants authoritative time once and requests next without lega
     origen_musa: "musa",
     inspiracion_id: 42,
     valor_inspiracion: 0.75,
-    tiempo_otorgado: 13,
+    tiempo_otorgado: 0,
     modo_actual: "palabras bonus",
     modo_seq: 7,
     palabra: "cometa",

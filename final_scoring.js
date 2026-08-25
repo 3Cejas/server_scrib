@@ -1,5 +1,5 @@
 const PUNTUACION_SCHEMA_VERSION = 1;
-const PUNTUACION_FORMULA_VERSION = "scrib-puntuacion-v2";
+const PUNTUACION_FORMULA_VERSION = "scrib-puntuacion-v3";
 
 const CATEGORIAS_PUNTUACION = Object.freeze([
     Object.freeze({
@@ -43,12 +43,12 @@ const CATEGORIAS_PUNTUACION = Object.freeze([
         explicacion: "Premia cometer menos intentos con letras o palabras prohibidas."
     }),
     Object.freeze({
-        id: "resistencia",
-        etiqueta: "Resistencia",
+        id: "pulsaciones",
+        etiqueta: "Pulsaciones de escritura",
         peso: 10,
-        unidad: "vida media",
+        unidad: "pulsaciones",
         mejor: "mayor",
-        explicacion: "Compara la vida media mantenida durante la partida."
+        explicacion: "Compara el total de pulsaciones realizadas al escribir."
     })
 ]);
 
@@ -157,9 +157,6 @@ function extraerMetricasJugador(entrada = {}) {
     const palabrasUnicas = palabrasTotal > 0
         ? Math.min(palabrasUnicasEntrada, palabrasTotal)
         : 0;
-    const vidaMedia = entrada.vida && typeof entrada.vida === "object"
-        ? numeroNoNegativo(entrada.vida.media)
-        : 0;
     const valorInspiracionEntrada = entrada.valorInspiracion;
     const valorInspiracionNumero = Number(valorInspiracionEntrada);
     const maximoValorInspiracion = Array.isArray(entrada.palabrasBenditas)
@@ -178,7 +175,7 @@ function extraerMetricasJugador(entrada = {}) {
             : maximoValorInspiracion,
         precision: numeroNoNegativo(entrada.intentosLetraProhibida)
             + numeroNoNegativo(entrada.intentosPalabraProhibida),
-        resistencia: vidaMedia
+        pulsaciones: numeroNoNegativo(entrada.pulsacionesTotal)
     };
 }
 

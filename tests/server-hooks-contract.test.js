@@ -163,7 +163,11 @@ function sanitizeState(value, key = "") {
     return value.map((item) => sanitizeState(item, key));
   }
   if (!value || typeof value !== "object") {
-    if ((key === "ts" || key === "actualizado_en" || key === "termina_en_ts" || key === "solicitado_en") && Number(value) > 0) {
+    if (key === "desventaja" && String(value || "")) return "__RANDOM_DISADVANTAGE__";
+    if ((key === "portador_inicial" || key === "desventaja_player") && (Number(value) === 1 || Number(value) === 2)) {
+      return "__RANDOM_PLAYER__";
+    }
+    if ((key === "ts" || key === "now" || key === "actualizado_en" || key === "termina_en_ts" || key === "solicitado_en") && Number(value) > 0) {
       return "__TS__";
     }
     if ((key === "revision" || key === "modo_seq" || key === "count_seq" || key === "tiempo_seq") && Number.isFinite(Number(value)) && Number(value) > 0) {
@@ -252,21 +256,6 @@ async function seedPopulatedState() {
     "flags active before seeded musa heart",
     (nextState) => nextState.musas.banderas.activa === true
   );
-  writer1.emit("resucitar_menu", {
-    player: 1,
-    visible: true,
-    menu: "quantity",
-    mainIndex: 1,
-    quantityIndex: 2,
-    palabras: 3,
-    max: 10,
-    segundos: 15
-  });
-  await emitAck(adminSocket, "scrib_test:force_vote", {
-    team: 1,
-    opciones: ["UNO", "DOS"],
-    duracion_ms: 9000
-  });
   await emitAck(adminSocket, "scrib_test:simulate_musa_heart", {
     team: 1
   });
@@ -290,8 +279,7 @@ async function seedPopulatedState() {
       && nextState.textos[1].plano === "texto azul"
       && nextState.textos[2].plano === "texto rojo"
       && nextState.teleprompter.state.visible === true
-      && nextState.votacion_ventaja.activa === true
-      && nextState.resurreccion[1].visible === true
+      && nextState.competicion_ronda.activa === true
       && nextState.musas.banderas.activa === true
       && nextState.musas.corazones[1].count === 1
       && nextState.tutorial.activo === true
@@ -636,9 +624,8 @@ test("musa counters stay idempotent across duplicate registration and team chang
   );
 });
 
-test("musa flag hearts add time only while a match is running", async () => {
+test("musa flag hearts unlock a cosmetic celebration without changing time", async () => {
   const watcher = await connectPassiveSocket();
-  const writer1 = await connectRole("registrar_escritor", 1);
 
   adminSocket.emit("activar_banderas_musas", { activa: true });
   await waitForState(
@@ -664,39 +651,29 @@ test("musa flag hearts add time only while a match is running", async () => {
     (state) => state.partida.modo_actual === "letra bendita" && state.musas.banderas.activa === true
   );
 
-  const countSeen = waitForSocketEvent(
+  const celebracionPromise = waitForSocketEvent(
     watcher,
-    "count",
-    (payload) => payload && Number(payload.player) === 1 && payload.count === "00:20"
-  );
-  writer1.emit("count", {
-    player: 1,
-    count: "00:20",
-    count_seq: 1
-  });
-  await countSeen;
-
-  const regaloPromise = waitForSocketEvent(
-    watcher,
-    "aumentar_tiempo_control",
+    "musa_regalo_bandera_estado",
     (payload) => payload
-      && payload.origen === "musa_bandera"
-      && Number(payload.player) === 1
+      && payload.regalo_cosmetico === true
+      && Number(payload.equipos && payload.equipos[1] && payload.equipos[1].ultimo_regalo_ts) > 0
   );
+  const sinCambioTiempo = assertNoSocketEvent(watcher, "aumentar_tiempo_control", 1000);
 
   for (let i = 0; i < REGALO_BANDERA_MUSAS_OBJETIVO; i += 1) {
     await emitAck(adminSocket, "scrib_test:simulate_musa_heart", { team: 1 });
   }
 
-  const regalo = await regaloPromise;
-  assert.equal(regalo.secs, 1);
-  assert.equal(regalo.count_seconds_after, 21);
-  assert.equal(regalo.count_after, "00:21");
+  const celebracion = await celebracionPromise;
+  await sinCambioTiempo;
+  assert.equal(celebracion.regalo_secs, 0);
+  assert.equal(celebracion.regalo_cosmetico, true);
 
   const activeState = await emitAck(adminSocket, "scrib_test:get_state", {});
   assert.equal(activeState.musas.regalo_bandera.equipos[1].visible, true);
   assert.equal(activeState.musas.regalo_bandera.equipos[1].progreso, 0);
-  assert.equal(activeState.musas.regalo_bandera.equipos[1].regalo_secs, 1);
+  assert.equal(activeState.musas.regalo_bandera.equipos[1].regalo_secs, 0);
+  assert.equal(activeState.musas.regalo_bandera.equipos[1].regalo_cosmetico, true);
 });
 
 test("registered muses entertain the spectator only during the authoritative pre-show phase", async () => {

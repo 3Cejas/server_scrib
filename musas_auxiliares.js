@@ -1,7 +1,7 @@
 const FEEDBACK_MUSAS_URL_POR_DEFECTO = "/feedback/";
 const COOLDOWN_MUSA_CORAZON_MS = 900;
 const REGALO_BANDERA_MUSAS_OBJETIVO = 10;
-const REGALO_BANDERA_MUSAS_SECS = 1;
+const REGALO_BANDERA_MUSAS_SECS = 0;
 
 const crearEstadoBanderas = () => ({
     activa: false,
@@ -231,7 +231,8 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
             progreso,
             objetivo: REGALO_BANDERA_MUSAS_OBJETIVO,
             progreso_pct: Math.round((progreso / REGALO_BANDERA_MUSAS_OBJETIVO) * 100),
-            regalo_secs: REGALO_BANDERA_MUSAS_SECS,
+            regalo_secs: 0,
+            regalo_cosmetico: true,
             cooldown_ms: 0,
             ultimo_regalo_ts: Number(estado.ultimo_regalo_ts) || 0
         };
@@ -241,7 +242,8 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
         activa: Boolean(estadoBanderas.activa),
         partida_activa: partidaActivaParaRegalo(),
         objetivo: REGALO_BANDERA_MUSAS_OBJETIVO,
-        regalo_secs: REGALO_BANDERA_MUSAS_SECS,
+        regalo_secs: 0,
+        regalo_cosmetico: true,
         equipos: {
             1: payloadRegaloBanderaEquipo(1),
             2: payloadRegaloBanderaEquipo(2)
@@ -273,14 +275,16 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
                 progreso: 0,
                 ultimo_regalo_ts: now
             };
-            premio = aplicarRegaloBanderaTiempo({
+            premio = {
                 player: id,
-                secs: REGALO_BANDERA_MUSAS_SECS,
+                secs: 0,
                 origen: "musa_bandera",
                 motivo: "musa_corazon",
                 regalo_bandera: true,
-                objetivo: REGALO_BANDERA_MUSAS_OBJETIVO
-            });
+                regalo_cosmetico: true,
+                objetivo: REGALO_BANDERA_MUSAS_OBJETIVO,
+                ts: now
+            };
         } else {
             estadoRegaloBandera[id] = {
                 ...estadoActual,

@@ -1,50 +1,3 @@
-function crearEstadoResurreccionVacio(player) {
-  return {
-    player,
-    menu: "hidden",
-    visible: false,
-    mainIndex: 0,
-    quantityIndex: 0,
-    palabras: 0,
-    max: 0,
-    segundos: 0,
-    ts: 0
-  };
-}
-
-function actualizarEstadoResurreccionSnapshot(estadoActual, player, payload = {}, options = {}) {
-  const validarPlayer = typeof options.validarPlayer === "function"
-    ? options.validarPlayer
-    : (value) => (value === 1 || value === 2 ? value : null);
-  const now = typeof options.now === "number" ? options.now : Date.now();
-  const id = validarPlayer(player);
-  if (!id) {
-    return { state: estadoActual, value: null };
-  }
-  const nextState = {
-    1: { ...(estadoActual && estadoActual[1] ? estadoActual[1] : crearEstadoResurreccionVacio(1)) },
-    2: { ...(estadoActual && estadoActual[2] ? estadoActual[2] : crearEstadoResurreccionVacio(2)) }
-  };
-  nextState[id] = {
-    ...crearEstadoResurreccionVacio(id),
-    ...nextState[id],
-    ...(payload && typeof payload === "object" ? payload : {}),
-    player: id,
-    ts: now
-  };
-  return {
-    state: nextState,
-    value: { ...nextState[id] }
-  };
-}
-
-function payloadEstadoResurreccion(estadoActual) {
-  return {
-    1: { ...(estadoActual && estadoActual[1] ? estadoActual[1] : crearEstadoResurreccionVacio(1)) },
-    2: { ...(estadoActual && estadoActual[2] ? estadoActual[2] : crearEstadoResurreccionVacio(2)) }
-  };
-}
-
 function construirPayloadEstadoVotacionVentaja(estado = {}) {
   const now = typeof estado.now === "number" ? estado.now : Date.now();
   const activa = Boolean(estado.activa);
@@ -209,9 +162,7 @@ function normalizarPayloadStatsLive(payload = {}, options = {}) {
 }
 
 module.exports = {
-  actualizarEstadoResurreccionSnapshot,
   construirPayloadEstadoVotacionVentaja,
-  crearEstadoResurreccionVacio,
   crearJugadorStatsLiveVacio,
   normalizarArrayTextoStatsLive,
   normalizarHeatmapStatsLive,
@@ -219,6 +170,5 @@ module.exports = {
   normalizarNumeroStatsLive,
   normalizarPayloadStatsLive,
   normalizarTopTeclasStatsLive,
-  payloadEstadoResurreccion,
   recortarTextoStatsLive
 };

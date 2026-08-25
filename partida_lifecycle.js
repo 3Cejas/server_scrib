@@ -8,8 +8,6 @@ function crearCicloPartida({
     limpiarTodosLosModos,
     activarSocketsExtratextuales,
     resetearEstadoAuxiliarParaTests,
-    resetearEstadoResurreccion,
-    payloadEstadoResurreccion,
     musasAuxiliares,
     prepararParametrosInicio,
     getRanges,
@@ -20,6 +18,10 @@ function crearCicloPartida({
     emitirNubeInspiracionEstado,
     emitirModoActual,
     limpiarDesventajasActivas = () => {},
+    resetearCompeticion = () => {},
+    iniciarCompeticionRonda = () => {},
+    iniciarRelojPartida = () => {},
+    detenerRelojPartida = () => {},
     setPartidaPausada = () => {},
     registrarTimelineModo,
     motorModos,
@@ -37,11 +39,6 @@ function crearCicloPartida({
         if (videoTutorialPreShow && typeof videoTutorialPreShow.cerrarFase === "function") {
             videoTutorialPreShow.cerrarFase(motivo);
         }
-    };
-
-    const emitirMenusResurreccion = () => {
-        io.emit('resucitar_menu', payloadEstadoResurreccion()[1]);
-        io.emit('resucitar_menu', payloadEstadoResurreccion()[2]);
     };
 
     const limpiarModoActual = (socket) => {
@@ -108,16 +105,17 @@ function crearCicloPartida({
         limpiarTimersRonda();
         limpiarModoActual(socket);
         limpiarDesventajasActivas();
+        resetearCompeticion();
+        detenerRelojPartida();
         activarSocketsExtratextuales(socket);
-        resetearEstadoResurreccion();
         resetearCursoPartida({
             reiniciarIndice: false,
             resetearStats: !conservarStats
         });
-        emitirMenusResurreccion();
     };
 
     const finalizarPartida = (socket) => {
+        if (state.finDelJuego) return false;
         cerrarPreShow("fin_partida");
         prepararCapturaPuntuacionFinal();
         state.finJ1 = true;
@@ -131,11 +129,22 @@ function crearCicloPartida({
         limpiarTimersRonda();
         limpiarModoActual(socket);
         limpiarDesventajasActivas();
+        resetearCompeticion();
+        detenerRelojPartida();
         activarSocketsExtratextuales(socket);
-        resetearEstadoResurreccion();
         resetearCursoPartida({ reiniciarIndice: true, resetearStats: false });
-        emitirMenusResurreccion();
-        io.emit('fin_a_control');
+        io.emit('fin', {
+            player: 1,
+            partida_finalizada: true,
+            origen: 'reloj_partida'
+        });
+        io.emit('fin', {
+            player: 2,
+            partida_finalizada: true,
+            origen: 'reloj_partida'
+        });
+        io.emit('fin_a_control', { partida_finalizada: true });
+        return true;
     };
 
     const iniciarPartida = (socket, datos = {}) => {
@@ -145,6 +154,8 @@ function crearCicloPartida({
         resetearEstadoAuxiliarParaTests();
         resetearPuntuacionFinal();
         limpiarDesventajasActivas();
+        resetearCompeticion();
+        detenerRelojPartida();
         setPartidaPausada(false);
         musasAuxiliares.resetRegalos({ emitir: true });
         reiniciarMusasCreditosPartida();
@@ -184,6 +195,13 @@ function crearCicloPartida({
         emitirNubeInspiracionEstado(null, true);
         programarInicioTimer(() => {
             socket.broadcast.emit('post-inicio', { borrar_texto: datos.borrar_texto });
+            const nivelesEscritura = state.listaModos.filter((modo) => modo !== 'tertulia').length;
+            const totalEscritura = Math.max(
+                1,
+                Math.trunc(Number(state.duracionTiempoModos) || 0) * Math.max(1, nivelesEscritura)
+            );
+            iniciarRelojPartida(totalEscritura);
+            iniciarCompeticionRonda(state.modoActual);
             motorModos.activarModo(state.modoActual, socket);
             emitirNubeInspiracionEstado(null, true);
             motorModos.temp_modos(socket);
@@ -197,6 +215,8 @@ function crearCicloPartida({
         resetearEstadoAuxiliarParaTests();
         resetearPuntuacionFinal();
         limpiarDesventajasActivas();
+        resetearCompeticion();
+        detenerRelojPartida();
         setPartidaPausada(false);
         state.estadoJugadores[1].finished = true;
         state.estadoJugadores[2].finished = true;
@@ -238,6 +258,10 @@ function crearCicloPartida({
         socket.on('limpiar', (evento) => {
             if (!socket.control && !socket.simulacion_scrib) return;
             limpiarPartida(socket, evento);
+        });
+        socket.on('finalizar_partida', () => {
+            if (!socket.control && !socket.simulacion_scrib) return;
+            finalizarPartida(socket);
         });
     };
 

@@ -19,6 +19,7 @@ const crearStats = (player1 = {}, player2 = {}) => ({
       palabrasBenditas: ["luz", "mar", "sol", "voz"],
       intentosLetraProhibida: 1,
       intentosPalabraProhibida: 0,
+      pulsacionesTotal: 80,
       vida: { media: 80 },
       ...player1
     },
@@ -30,6 +31,7 @@ const crearStats = (player1 = {}, player2 = {}) => ({
       palabrasBenditas: ["nube", "sal"],
       intentosLetraProhibida: 1,
       intentosPalabraProhibida: 2,
+      pulsacionesTotal: 40,
       vida: { media: 40 },
       ...player2
     }
@@ -73,6 +75,7 @@ test("equal or zero category values split every weight fifty-fifty", () => {
     palabrasBenditas: [],
     intentosLetraProhibida: 0,
     intentosPalabraProhibida: 0,
+    pulsacionesTotal: 0,
     vida: { media: 0 }
   };
   const resultado = calcularPuntuacionFinal(crearStats(vacio, vacio));
@@ -114,7 +117,7 @@ test("weighted inspiration value takes precedence and legacy telemetry falls bac
   }));
   const bonus = resultado.categorias.find((categoria) => categoria.id === "bonus");
 
-  assert.equal(PUNTUACION_FORMULA_VERSION, "scrib-puntuacion-v2");
+  assert.equal(PUNTUACION_FORMULA_VERSION, "scrib-puntuacion-v3");
   assert.deepEqual(bonus.valores, { 1: 1.75, 2: 2 });
   assert.equal(bonus.etiqueta, "Inspiraci\u00f3n aprovechada");
   assert.equal(bonus.unidad, "puntos de inspiraci\u00f3n");
@@ -141,20 +144,22 @@ test("lexical richness cannot exceed total production and invalid numbers are sa
     palabrasTotal: 10,
     palabrasUnicas: 999,
     ritmoPpm: Number.POSITIVE_INFINITY,
+    pulsacionesTotal: -8,
     vida: { media: -8 }
   }, {
     palabrasTotal: 20,
     palabrasUnicas: 8,
     ritmoPpm: Number.NaN,
+    pulsacionesTotal: Number.NaN,
     vida: { media: null }
   }));
   const riqueza = resultado.categorias.find((categoria) => categoria.id === "riqueza_lexica");
   const ritmo = resultado.categorias.find((categoria) => categoria.id === "ritmo");
-  const resistencia = resultado.categorias.find((categoria) => categoria.id === "resistencia");
+  const pulsaciones = resultado.categorias.find((categoria) => categoria.id === "pulsaciones");
 
   assert.deepEqual(riqueza.valores, { 1: 10, 2: 8 });
   assert.deepEqual(ritmo.valores, { 1: 0, 2: 0 });
-  assert.deepEqual(resistencia.valores, { 1: 0, 2: 0 });
+  assert.deepEqual(pulsaciones.valores, { 1: 0, 2: 0 });
 });
 
 test("incomplete telemetry is not available and never proclaims an overall winner", () => {

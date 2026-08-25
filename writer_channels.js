@@ -18,6 +18,7 @@ function crearCanalesEscritor({
         return "";
     },
     actualizarTextoJugador = () => {},
+    onTextoActualizado = () => {},
     onNombreCambiado = () => {},
     syncMode = () => {},
     logger = () => {}
@@ -79,9 +80,11 @@ function crearCanalesEscritor({
         if (!esSocketActivoParaJugador(socket, id)) {
             return false;
         }
+        const textoAnterior = estado.plano[id] || "";
         estado.html[id] = evento;
         estado.plano[id] = extraerTextoPlano(evento);
         actualizarTextoJugador(id, estado.plano[id]);
+        onTextoActualizado(id, textoAnterior, estado.plano[id], evento);
         socket.broadcast.emit(`texto${id}`, evento);
         return true;
     };

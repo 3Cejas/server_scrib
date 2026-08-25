@@ -15,9 +15,9 @@ A continuación se explica en mayor profundidad el videojuego.
   Cuando el juego comience, los escritxres podrán comenzar a escribir. Cada carácter es un punto y, además, si dejan de escribir, el juego comenzará a borrarles su texto; a medida que escriban, el texto se borrará antes y más rápido. Los escritxres deberán conseguir la mayor puntuación posible.
 #### MODOS
 Cada cierto tiempo, el videojuego propondrá una serie de pruebas a medida que conforman su texto.
-##### PALABRAS BONUS
+##### PALABRAS BENDITAS
 Se extraerán palabras aleatorias de la RAE que los jugadoras podrán meter y, a cambio, recibirán una puntuación en concreto en función de la rareza de la palabra. La palabra será la misma para ambos y competirán por meterla.
-##### LETRA PROHIBIDA
+##### LETRA MALDITA
 Se escogerá una de las 10 letras más usadas en el lenguaje español y se prohíbe su uso. Si se escribe, se borra y se resta una cantidad de puntos al jugador.
 ##### LETRA BENDITA
 Se escogerá una de las 10 letras más usadas en el lenguaje español y se premia su uso. Si se escribe se suma una cantidad de puntos al jugador.
