@@ -1,7 +1,7 @@
 {
   "video_url": "../media/tutorial-scrib.mp4",
   "intervalo_segundos": 180,
-  "duracion_segundos": 60,
+  "duracion_segundos": 100,
   "habilitado": false,
   "silenciado": false
 }
