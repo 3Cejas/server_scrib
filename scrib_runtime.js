@@ -159,7 +159,6 @@ function crearRuntimeScrib({
         syncMode: () => sincro_modos(),
         onTutorialIniciado: () => {
             if (preShowMusas) preShowMusas.cerrar("tutorial");
-            if (videoTutorialPreShow) videoTutorialPreShow.cerrarFase("tutorial");
         },
         registrar,
         repentizados

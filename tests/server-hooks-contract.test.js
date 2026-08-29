@@ -766,7 +766,7 @@ test("registered muses entertain the spectator only during the authoritative pre
   assert.equal(reopened.phase_seq > closed.phase_seq, true);
 });
 
-test("Control orchestrates the pre-tutorial video and active muses verify each reproduction", async () => {
+test("Control can replay the connection video during tutorial and muses verify each reproduction", async () => {
   await emitAck(adminSocket, "scrib_test:reset", {});
 
   const spectator = await connectPassiveSocket();
@@ -909,16 +909,29 @@ test("Control orchestrates the pre-tutorial video and active muses verify each r
   assert.equal(stopped.ok, true);
   await stoppedEventPromise;
 
-  const closedEventPromise = waitForSocketEvent(
-    spectator,
-    "video_tutorial_estado",
-    (payload) => payload && payload.activo === false
-  );
   await emitAck(adminSocket, "scrib_test:force_warmup_state", {
     activo: true,
     vista: true,
     solicitud: "acciones"
   });
+  const duringTutorial = await emitAck(spectator, "pedir_video_tutorial_estado", {});
+  assert.equal(duringTutorial.ok, true);
+  assert.equal(duringTutorial.estado.activo, true);
+
+  const replayDuringTutorial = await emitAck(control, "video_tutorial_reproducir", {
+    session_id: duringTutorial.estado.session_id,
+    phase_seq: duringTutorial.estado.phase_seq,
+    request_id: "video-play-during-tutorial"
+  });
+  assert.equal(replayDuringTutorial.ok, true);
+  assert.equal(replayDuringTutorial.estado.visible, true);
+
+  const closedEventPromise = waitForSocketEvent(
+    spectator,
+    "video_tutorial_estado",
+    (payload) => payload && payload.activo === false
+  );
+  control.emit("inicio", { count: "1:00", parametros: {} });
   const closed = await closedEventPromise;
   assert.equal(closed.visible, false);
   assert.deepEqual(closed.verificacion, {

@@ -34,7 +34,7 @@ Se difumina de manera aleatoria a uno de los dos jugadores y después de alterna
 
 ### Videotutorial previo al tutorial
 
-El servidor mantiene un ciclo autoritativo de vídeo mientras la partida siga en la fase previa al tutorial. Control puede activar la reproducción periódica, elegir su intervalo, reproducirlo en ese momento u ocultarlo. Al iniciar el tutorial o la partida, el servidor detiene el vídeo y cancela cualquier repetición pendiente.
+El servidor mantiene un ciclo autoritativo de vídeo durante la conexión y el tutorial. Control puede activar la reproducción periódica, elegir su intervalo, reproducirlo en ese momento u ocultarlo. Al iniciar la partida, el servidor detiene el vídeo y cancela cualquier repetición pendiente.
 
 La configuración versionada inicial está en `config/pre_show_video.default.json`. Los cambios realizados por Control se guardan de forma atómica en `data/pre_show_video.json`; se puede cambiar esa ruta con `SCRIB_PRE_SHOW_VIDEO_CONFIG`. El archivo de vídeo no se guarda en este repositorio: debe desplegarse junto al frontend en `game/media/tutorial-scrib.mp4` (en Sutura, `/var/www/dashboard/scrib/game/media/tutorial-scrib.mp4`) o configurarse mediante una URL HTTPS.
 

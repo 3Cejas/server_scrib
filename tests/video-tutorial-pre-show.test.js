@@ -174,7 +174,7 @@ test("video tutorial persists configuration atomically and reloads it", async (t
   assert.deepEqual((await fsp.readdir(path.dirname(configPath))).sort(), ["video.json"]);
 });
 
-test("enabled video loops authoritatively only while the pre-tutorial phase is active", () => {
+test("enabled video loops authoritatively only while the connection phase is active", () => {
   const { gestor, io, reloj } = crearContexto({
     inicio: 1000,
     config: { habilitado: true, intervalo_segundos: 15, duracion_segundos: 3 }
