@@ -36,7 +36,12 @@ function crearSincronizadorConexion({
                 return;
             }
             let countText = typeof estado.count_text === 'string' ? estado.count_text.trim() : '';
-            if (!countText && Number.isFinite(Number(estado.count_seconds)) && typeof partidaSync.formatearTextoCountDesdeSegundos === 'function') {
+            const countSeconds = estado.count_seconds;
+            const tieneCountSeconds = countSeconds !== null
+                && typeof countSeconds !== 'undefined'
+                && countSeconds !== ''
+                && Number.isFinite(Number(countSeconds));
+            if (!countText && tieneCountSeconds && typeof partidaSync.formatearTextoCountDesdeSegundos === 'function') {
                 countText = partidaSync.formatearTextoCountDesdeSegundos(estado.count_seconds);
             }
             if (!countText) {

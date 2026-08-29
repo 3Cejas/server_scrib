@@ -18,7 +18,7 @@ function crearSocket({ dramaturgia = false, escritxr = null, espectador = false,
   };
 }
 
-function crearSincronizador({ modo = "", llamadas = [], restaurar = null } = {}) {
+function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteos = null } = {}) {
   return crearSincronizadorConexion({
     writerChannels: {
       emitirTextos(socket) {
@@ -72,7 +72,13 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null } = {})
     },
     partidaSync: {
       withModoSeq: (payload) => ({ ...payload, modo_seq: 7 }),
-      obtenerConteo: () => null
+      obtenerConteo: (player) => conteos && conteos[player] ? conteos[player] : null,
+      formatearTextoCountDesdeSegundos: (seconds) => {
+        const total = Math.max(0, Math.trunc(Number(seconds) || 0));
+        if (total <= 0) return "¡Tiempo!";
+        return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+      },
+      construirPayloadCount: (payload) => ({ ...payload, modo_seq: 7 })
     },
     getModoActual: () => modo,
     construirPayloadInspiracionMusaActual: () => ({ modo_actual: modo, modo_seq: 7 }),
@@ -243,6 +249,21 @@ test("spectator reconnection restores both active muse deliveries with their aut
       }
     ]
   );
+});
+
+test("fresh spectator reconnection does not turn missing individual timers into time-up events", () => {
+  const socket = crearSocket({ espectador: true });
+  const sincronizador = crearSincronizador({
+    modo: "palabras bonus",
+    conteos: {
+      1: { count_text: "", count_seconds: null, count_seq: 0, tiempo_seq: 0 },
+      2: { count_text: "", count_seconds: null, count_seq: 0, tiempo_seq: 0 }
+    }
+  });
+
+  sincronizador.sincronizarSocketRecienConectado(socket);
+
+  assert.equal(socket.eventos.some(({ event }) => event === "count"), false);
 });
 
 test("spectator monitor restores both deliveries while unrelated roles receive no replay", () => {
