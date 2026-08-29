@@ -210,6 +210,10 @@ function registrarCanalesRoles({
             expires_ts: expiresTs,
             ts: Date.now()
         };
+        const accessTokenRenovado = typeof autorizacion.access_token === "string"
+            ? autorizacion.access_token.trim().slice(0, 256)
+            : "";
+        if (accessTokenRenovado) respuesta.access_token = accessTokenRenovado;
         socket.emit("control_registro_estado", respuesta);
         if (typeof callback === "function") callback(respuesta);
     });

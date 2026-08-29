@@ -94,12 +94,14 @@ test("control registration requires the runtime authorization result and acknowl
     autorizarRegistroControl: (_socket, payload) => ({
       ok: payload.access_token === "valido",
       code: "INVALID_ACCESS_TOKEN",
+      access_token: "renovado_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       expires_ts: Date.now() + 60000
     })
   });
   aceptado.trigger("registrar_control", { access_token: "valido" }, (payload) => { ack = payload; });
   assert.equal(ack.ok, true);
   assert.equal(ack.rol, "control");
+  assert.equal(ack.access_token, "renovado_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   assert.equal(ack.expires_ts > Date.now(), true);
   assert.equal(aceptado.control, true);
   assert.equal(rolesConectados.payloadConexiones().control.count, 1);

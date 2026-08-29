@@ -1,4 +1,4 @@
-const { createHash, randomBytes, timingSafeEqual } = require("node:crypto");
+const { createHash, createHmac, randomBytes, timingSafeEqual } = require("node:crypto");
 
 const ACCESS_TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 const MAX_TOKENS_ACTIVOS = 256;
@@ -6,6 +6,7 @@ const MAX_CLAVES_INTENTOS = 512;
 const MAX_INTENTOS_FALLIDOS = 5;
 const VENTANA_INTENTOS_MS = 60 * 1000;
 const MAX_TOKEN_LENGTH = 256;
+const ACCESS_TOKEN_PREFIX = "token_v1";
 
 const digest = (valor) => createHash("sha256")
     .update(String(valor || ""), "utf8")
@@ -16,7 +17,7 @@ const compararSecreto = (entrada, esperado) => timingSafeEqual(digest(entrada), 
 const normalizarToken = (valor) => {
     if (typeof valor !== "string" || valor.length > MAX_TOKEN_LENGTH) return "";
     const token = valor.trim();
-    return /^[A-Za-z0-9_-]{32,192}$/u.test(token) ? token : "";
+    return /^[A-Za-z0-9_.-]{32,192}$/u.test(token) ? token : "";
 };
 
 const tokenHash = (token) => digest(token).toString("hex");
@@ -28,8 +29,47 @@ function crearGestorAccesoRoles({
     tokenTtlMs = ACCESS_TOKEN_TTL_MS
 } = {}) {
     const password = String(passwordRoles || "");
+    const tokenTtlNormalizado = Math.max(60000, Number(tokenTtlMs) || ACCESS_TOKEN_TTL_MS);
+    const claveFirma = digest(`scrib-role-access-v1\u0000${password}`);
     const tokens = new Map();
     const intentos = new Map();
+
+    const firmarToken = (contenido) => createHmac("sha256", claveFirma)
+        .update(contenido, "utf8")
+        .digest("base64url");
+
+    const crearTokenFirmado = () => {
+        const issuedTs = now();
+        const expiresTs = issuedTs + tokenTtlNormalizado;
+        const entropia = String(crearToken() || randomBytes(32).toString("base64url"));
+        const nonce = createHash("sha256").update(entropia, "utf8").digest("base64url").slice(0, 32);
+        const contenido = `${ACCESS_TOKEN_PREFIX}.${issuedTs.toString(36)}.${expiresTs.toString(36)}.${nonce}`;
+        return {
+            token: `${contenido}.${firmarToken(contenido)}`,
+            issuedTs,
+            expiresTs
+        };
+    };
+
+    const leerTokenFirmado = (token) => {
+        const partes = String(token || "").split(".");
+        if (partes.length !== 5 || partes[0] !== ACCESS_TOKEN_PREFIX) return null;
+        const [, issuedBase36, expiresBase36, nonce, firma] = partes;
+        if (!/^[0-9a-z]+$/u.test(issuedBase36)
+            || !/^[0-9a-z]+$/u.test(expiresBase36)
+            || !/^[A-Za-z0-9_-]{16,64}$/u.test(nonce)
+            || !/^[A-Za-z0-9_-]{32,64}$/u.test(firma)) return null;
+        const issuedTs = Number.parseInt(issuedBase36, 36);
+        const expiresTs = Number.parseInt(expiresBase36, 36);
+        if (!Number.isSafeInteger(issuedTs)
+            || !Number.isSafeInteger(expiresTs)
+            || issuedTs <= 0
+            || expiresTs <= issuedTs
+            || expiresTs - issuedTs !== tokenTtlNormalizado) return null;
+        const contenido = partes.slice(0, 4).join(".");
+        if (!compararSecreto(firma, firmarToken(contenido))) return null;
+        return { issuedTs, expiresTs };
+    };
 
     const limitarMapa = (mapa, maximo) => {
         while (mapa.size > maximo) {
@@ -89,23 +129,21 @@ function crearGestorAccesoRoles({
         }
         intentos.delete(clave);
         podarTokens();
-        let token = normalizarToken(crearToken());
-        if (!token) token = randomBytes(32).toString("base64url");
+        const firmado = crearTokenFirmado();
+        const token = firmado.token;
         const hash = tokenHash(token);
-        const issuedTs = now();
-        const expiresTs = issuedTs + Math.max(60000, Number(tokenTtlMs) || ACCESS_TOKEN_TTL_MS);
         tokens.delete(hash);
         tokens.set(hash, {
             purpose: "control",
-            issuedTs,
-            expiresTs,
+            issuedTs: firmado.issuedTs,
+            expiresTs: firmado.expiresTs,
             ultimoUsoTs: 0
         });
         limitarMapa(tokens, MAX_TOKENS_ACTIVOS);
         return {
             ok: true,
             access_token: token,
-            expires_ts: expiresTs
+            expires_ts: firmado.expiresTs
         };
     };
 
@@ -117,7 +155,18 @@ function crearGestorAccesoRoles({
         );
         if (!token) return { ok: false, code: "ACCESS_TOKEN_REQUIRED" };
         const hash = tokenHash(token);
-        const acceso = tokens.get(hash);
+        let acceso = tokens.get(hash);
+        if (!acceso || acceso.purpose !== "control") {
+            const firmado = leerTokenFirmado(token);
+            if (firmado) {
+                acceso = {
+                    purpose: "control",
+                    issuedTs: firmado.issuedTs,
+                    expiresTs: firmado.expiresTs,
+                    ultimoUsoTs: 0
+                };
+            }
+        }
         if (!acceso || acceso.purpose !== "control") {
             podarTokens();
             return { ok: false, code: "INVALID_ACCESS_TOKEN" };
@@ -126,13 +175,22 @@ function crearGestorAccesoRoles({
             tokens.delete(hash);
             return { ok: false, code: "ACCESS_TOKEN_EXPIRED" };
         }
-        acceso.ultimoUsoTs = now();
+        const actual = now();
+        acceso.ultimoUsoTs = actual;
+        const renovado = crearTokenFirmado();
         tokens.delete(hash);
-        tokens.set(hash, acceso);
+        tokens.set(tokenHash(renovado.token), {
+            purpose: "control",
+            issuedTs: renovado.issuedTs,
+            expiresTs: renovado.expiresTs,
+            ultimoUsoTs: actual
+        });
+        podarTokens();
         return {
             ok: true,
             rol: "control",
-            expires_ts: acceso.expiresTs
+            access_token: renovado.token,
+            expires_ts: renovado.expiresTs
         };
     };
 

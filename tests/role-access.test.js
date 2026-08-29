@@ -27,11 +27,12 @@ test("role access compares secrets safely and accepts only bounded opaque tokens
   assert.equal(compararSecreto("correcta", "incorrecta"), false);
   assert.equal(compararSecreto("á", "a"), false);
   assert.equal(normalizarToken("a".repeat(32)), "a".repeat(32));
+  assert.equal(normalizarToken(`token_v1.${"a".repeat(32)}`), `token_v1.${"a".repeat(32)}`);
   assert.equal(normalizarToken("short"), "");
   assert.equal(normalizarToken(`${"a".repeat(32)}!`), "");
 });
 
-test("a valid password issues a purpose-bound hashed token with an eight-hour expiry", () => {
+test("a valid password issues a signed renewable control token with an eight-hour inactivity window", () => {
   const reloj = crearReloj();
   let secuencia = 0;
   const acceso = crearGestorAccesoRoles({
@@ -41,14 +42,45 @@ test("a valid password issues a purpose-bound hashed token with an eight-hour ex
   });
   const emitido = acceso.validarPassword(socket(), "secreta");
   assert.equal(emitido.ok, true);
+  assert.match(emitido.access_token, /^token_v1\./);
   assert.equal(emitido.expires_ts, reloj.now() + ACCESS_TOKEN_TTL_MS);
-  assert.equal(acceso.autorizarControl({ access_token: emitido.access_token }).ok, true);
+  const autorizado = acceso.autorizarControl({ access_token: emitido.access_token });
+  assert.equal(autorizado.ok, true);
+  assert.match(autorizado.access_token, /^token_v1\./);
+  assert.equal(autorizado.expires_ts, reloj.now() + ACCESS_TOKEN_TTL_MS);
   assert.equal(acceso.autorizarControl({ access_token: "x".repeat(43) }).code, "INVALID_ACCESS_TOKEN");
   assert.deepEqual(acceso.snapshotSeguro(), { tokens_activos: 1, claves_bloqueadas: 0 });
 
   reloj.avanzar(ACCESS_TOKEN_TTL_MS);
   assert.equal(acceso.autorizarControl({ access_token: emitido.access_token }).code, "ACCESS_TOKEN_EXPIRED");
   assert.equal(acceso.snapshotSeguro().tokens_activos, 0);
+});
+
+test("a signed Control session survives a server process restart and renews its expiry", () => {
+  const reloj = crearReloj(1_800_000_000_000);
+  const accesoAntesDelReinicio = crearGestorAccesoRoles({
+    passwordRoles: "secreta",
+    now: reloj.now,
+    crearToken: () => "origen_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  });
+  const emitido = accesoAntesDelReinicio.validarPassword(socket(), "secreta");
+  reloj.avanzar(90 * 60 * 1000);
+
+  const accesoDespuesDelReinicio = crearGestorAccesoRoles({
+    passwordRoles: "secreta",
+    now: reloj.now,
+    crearToken: () => "renovado_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  });
+  const renovado = accesoDespuesDelReinicio.autorizarControl({ access_token: emitido.access_token });
+  assert.equal(renovado.ok, true);
+  assert.notEqual(renovado.access_token, emitido.access_token);
+  assert.equal(renovado.expires_ts, reloj.now() + ACCESS_TOKEN_TTL_MS);
+
+  const gestorConOtraPassword = crearGestorAccesoRoles({ passwordRoles: "otra", now: reloj.now });
+  assert.equal(
+    gestorConOtraPassword.autorizarControl({ access_token: emitido.access_token }).code,
+    "INVALID_ACCESS_TOKEN"
+  );
 });
 
 test("password failures are rate limited across reconnects from the same address", () => {
@@ -66,7 +98,7 @@ test("password failures are rate limited across reconnects from the same address
   assert.equal(acceso.validarPassword(socket("tras-espera", "10.0.0.7"), "secreta").ok, true);
 });
 
-test("active token storage is bounded without ever exposing token material in snapshots", () => {
+test("active token telemetry is bounded while signed unexpired sessions remain recoverable", () => {
   const reloj = crearReloj();
   let secuencia = 0;
   const acceso = crearGestorAccesoRoles({
@@ -83,5 +115,5 @@ test("active token storage is bounded without ever exposing token material in sn
   const snapshot = acceso.snapshotSeguro();
   assert.equal(snapshot.tokens_activos, MAX_TOKENS_ACTIVOS);
   assert.equal(JSON.stringify(snapshot).includes("token_"), false);
-  assert.equal(acceso.autorizarControl({ access_token: primero }).code, "INVALID_ACCESS_TOKEN");
+  assert.equal(acceso.autorizarControl({ access_token: primero }).ok, true);
 });
