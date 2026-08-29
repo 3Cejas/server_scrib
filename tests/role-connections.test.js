@@ -444,6 +444,33 @@ test("manual assignment survives an overlapping reconnect even if a different te
   assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 0, escritxr2: 1 });
 });
 
+test("manual assignment survives a full page refresh and ignores a different requested team", () => {
+  const roles = crearRegistroRoles();
+  const firstSocket = crearSocket("manual-before-refresh");
+  const refreshedSocket = crearSocket("manual-after-refresh");
+  const first = roles.registrarMusa(firstSocket, {
+    player: 1,
+    modoAsignacion: "manual",
+    nombre: "Sol",
+    clientId: "manual-refresh-stable"
+  });
+
+  roles.desregistrarSocket(firstSocket);
+  const reconnect = roles.registrarMusa(refreshedSocket, {
+    player: 2,
+    modoAsignacion: "manual",
+    nombre: "Sol",
+    clientId: "manual-refresh-stable"
+  });
+
+  assert.equal(first.player, 1);
+  assert.equal(reconnect.player, 1);
+  assert.equal(reconnect.modoAsignacion, "manual");
+  assert.equal(reconnect.reconnected, true);
+  assert.equal(refreshedSocket.musa, 1);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 0 });
+});
+
 test("overlapping reconnect replaces the old socket by client_id without inflating counters", () => {
   const roles = crearRegistroRoles();
   const oldSocket = crearSocket("musa-old");
