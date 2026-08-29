@@ -1014,7 +1014,7 @@ test("muse help tickets survive ordinary match cleanup and Control can clear eve
   assert.equal(supportState.estado.historial.length, 0);
 });
 
-test("scrib_test:force_warmup_state toggles tutorial state and spectator view coherently", async () => {
+test("scrib_test:force_warmup_state preserves the selected tutorial spectator view", async () => {
   const enabled = await emitAck(adminSocket, "scrib_test:force_warmup_state", {
     activo: true,
     vista: true,
@@ -1024,7 +1024,8 @@ test("scrib_test:force_warmup_state toggles tutorial state and spectator view co
   assert.equal(enabled.tutorial.activo, true);
   assert.equal(enabled.tutorial.vista, true);
   assert.equal(enabled.tutorial.solicitud, "acciones");
-  assert.equal(enabled.state.espectador.modo, "calentamiento");
+  assert.equal(enabled.state.espectador.modo, "tutorial");
+  assert.equal(enabled.state.espectador.override, "tutorial");
   assert.equal(enabled.state.espectador.calentamiento_vista, true);
 
   const disabled = await emitAck(adminSocket, "scrib_test:force_warmup_state", {

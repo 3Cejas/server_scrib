@@ -196,8 +196,8 @@
     }
   },
   "espectador": {
-    "modo": "calentamiento",
-    "override": "partida",
+    "modo": "tutorial",
+    "override": "tutorial",
     "calentamiento_vista": true,
     "stats_slide_step": 0,
     "puntuacion_slide_step": 0,

@@ -10,14 +10,14 @@ const PUNTUACION_SLIDE_MAX = CATEGORIAS_PUNTUACION.length + 1;
 const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 
 function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }) {
-    let override = "partida";
+    let override = "tutorial";
     let statsSlideStep = 0;
     let puntuacionSlideStep = 0;
     let escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
 
     const normalizarModo = (valor) => {
         const modo = typeof valor === "string" ? valor.trim().toLowerCase() : "";
-        return MODOS_VISTA_ESPECTADOR.has(modo) ? modo : "partida";
+        return MODOS_VISTA_ESPECTADOR.has(modo) ? modo : "tutorial";
     };
 
     const normalizarEscala = (valor, fallback = ESCALA_UI_ESPECTADOR_DEFAULT) => {
@@ -112,7 +112,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
     };
 
     const reset = () => {
-        override = "partida";
+        override = "tutorial";
         statsSlideStep = 0;
         puntuacionSlideStep = 0;
         escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;

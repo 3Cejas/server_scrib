@@ -141,7 +141,7 @@ test("score state is readable by every role but unavailable scores cannot be sho
   });
   assert.deepEqual(mostrar, { ok: false, code: "PUNTUACION_NO_DISPONIBLE" });
   ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "puntuacion" });
-  assert.equal(ctx.espectador.resolverModo(), "partida");
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
 });
 
 test("control can switch the spectator between tutorial and game as distinct views", () => {
@@ -271,7 +271,7 @@ test("non-control sockets cannot mutate score visibility or reveal steps", () =>
     rechazo = respuesta;
   });
   assert.deepEqual(rechazo, { ok: false, code: "NOT_AUTHORIZED" });
-  assert.equal(ctx.espectador.resolverModo(), "partida");
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
 
   ctx.espectador.cambiarModo("puntuacion");
   ctx.socket.emit("puntuacion_final_siguiente", {});

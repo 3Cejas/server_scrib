@@ -19,8 +19,13 @@ test("spectator view scale defaults to the parameter baseline and clamps remote 
   });
 
   assert.equal(gestor.payload().escala_ui, ESCALA_UI_ESPECTADOR_DEFAULT);
+  assert.equal(gestor.payload().modo, "tutorial");
+  assert.equal(gestor.payload().override, "tutorial");
   assert.equal(gestor.ajustarEscala({ valor: 9 }), ESCALA_UI_ESPECTADOR_MAX);
-  assert.equal(gestor.reset().escala_ui, ESCALA_UI_ESPECTADOR_DEFAULT);
+  const reset = gestor.reset();
+  assert.equal(reset.escala_ui, ESCALA_UI_ESPECTADOR_DEFAULT);
+  assert.equal(reset.modo, "tutorial");
+  assert.equal(reset.override, "tutorial");
 });
 
 test("dedicated score view has an independent reveal step clamped from intro to final", () => {
