@@ -93,7 +93,7 @@ const resolverFase = (estado) => {
     if (resolverModo(estado)) {
         return "juego";
     }
-    if (tutorial.activo || tutorial.vista || espectador.calentamiento_vista) {
+    if (tutorial.activo || tutorial.vista || modoEspectador === "tutorial" || espectador.calentamiento_vista) {
         return "calentamiento";
     }
     return "espera";

@@ -17,7 +17,7 @@ const MAX_REQUESTS_VIDEO_RECORDADAS = 512;
 const CONFIG_VIDEO_TUTORIAL_DEFAULT = Object.freeze({
     video_url: "../media/tutorial-scrib-audio.mp3",
     intervalo_segundos: 180,
-    duracion_segundos: 138,
+    duracion_segundos: 153,
     habilitado: false,
     silenciado: false
 });
@@ -52,7 +52,13 @@ function normalizarConfigVideoTutorial(entrada = {}, fallback = CONFIG_VIDEO_TUT
     const data = entrada && typeof entrada === "object" ? entrada : {};
     const urlEntradaCruda = String(data.video_url || base.video_url || "");
     const esConfiguracionMp4Anterior = /\.mp4(?:$|[?#])/iu.test(urlEntradaCruda);
-    const duracionEntrada = esConfiguracionMp4Anterior && Number(data.duracion_segundos ?? base.duracion_segundos) === 120
+    const duracionAnterior = Number(data.duracion_segundos ?? base.duracion_segundos);
+    const esTimelineAudioAnterior = /tutorial-scrib-audio\.mp3(?:$|[?#])/iu.test(urlEntradaCruda)
+        && duracionAnterior === 138;
+    const duracionEntrada = (
+        (esConfiguracionMp4Anterior && duracionAnterior === 120)
+        || esTimelineAudioAnterior
+    )
         ? CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos
         : data.duracion_segundos;
     return {

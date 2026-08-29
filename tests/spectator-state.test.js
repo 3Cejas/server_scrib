@@ -46,3 +46,20 @@ test("dedicated score view has an independent reveal step clamped from intro to 
   gestor.cambiarModo("puntuacion");
   assert.equal(gestor.getPuntuacionSlideStep(), 0);
 });
+
+test("tutorial is an authoritative spectator view distinct from the game and warmup", () => {
+  let warmupVisible = false;
+  const gestor = crearGestorVistaEspectador({
+    io: { emit() {} },
+    isCalentamientoVisible: () => warmupVisible
+  });
+
+  assert.equal(gestor.cambiarModo("tutorial"), "tutorial");
+  assert.equal(gestor.resolverModo(), "tutorial");
+  warmupVisible = true;
+  assert.equal(gestor.resolverModo(), "tutorial");
+  gestor.cambiarModo("partida");
+  assert.equal(gestor.resolverModo(), "calentamiento");
+  warmupVisible = false;
+  assert.equal(gestor.resolverModo(), "partida");
+});

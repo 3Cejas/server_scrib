@@ -133,7 +133,7 @@ function faseActual(gestor, extra = {}) {
 }
 
 test("video tutorial validates bounded configuration and safe media URLs", () => {
-  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos, 138);
+  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos, 153);
   assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.video_url, "../media/tutorial-scrib-audio.mp3");
   assert.deepEqual(
     normalizarConfigVideoTutorial({
@@ -142,6 +142,10 @@ test("video tutorial validates bounded configuration and safe media URLs", () =>
     }),
     CONFIG_VIDEO_TUTORIAL_DEFAULT
   );
+  assert.equal(normalizarConfigVideoTutorial({
+    video_url: "../media/tutorial-scrib-audio.mp3",
+    duracion_segundos: 138
+  }).duracion_segundos, 153);
   assert.equal(normalizarUrlVideo(" ../media/tutorial.mp3 "), "../media/tutorial.mp3");
   assert.equal(normalizarUrlVideo("/media/tutorial.mp3"), "/media/tutorial.mp3");
   assert.equal(normalizarUrlVideo("https://cdn.example/audio.mp3"), "https://cdn.example/audio.mp3");

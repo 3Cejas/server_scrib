@@ -137,6 +137,24 @@ test("score state is readable by every role but unavailable scores cannot be sho
   assert.equal(ctx.espectador.resolverModo(), "partida");
 });
 
+test("control can switch the spectator between tutorial and game as distinct views", () => {
+  const ctx = crearContexto({ control: true });
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "tutorial" });
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
+  assert.equal(
+    ctx.ioEvents.some(({ event, payload }) => (
+      event === "vista_espectador_modo"
+      && payload.modo === "tutorial"
+      && payload.override === "tutorial"
+    )),
+    true
+  );
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "partida" });
+  assert.equal(ctx.espectador.resolverModo(), "partida");
+});
+
 test("only control can trigger the one-time final capture", () => {
   const ctx = crearContexto({ disponible: false, pendiente: true });
   let rechazo = null;
