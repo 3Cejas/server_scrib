@@ -221,6 +221,45 @@ test("Control alone can attend, resolve or cancel individual tickets through han
   assert.equal(ctx.gestor.payloadControl().historial[0].cerrado_ts > 0, true);
 });
 
+test("Control alone can clear active and closed incidents and releases every connected muse", () => {
+  const ctx = crearContexto();
+  const luna = crearSocket("musa-luna");
+  const sol = crearSocket("musa-sol");
+  registrarMusa(ctx.roles, luna, { nombre: "LUNA" });
+  registrarMusa(ctx.roles, sol, { nombre: "SOL" });
+  const ticketLuna = ctx.gestor.solicitar(luna, {}).ticket;
+  const ticketSol = ctx.gestor.solicitar(sol, {}).ticket;
+  activarDiagnostico(ctx, luna, ticketLuna, "clear");
+  ctx.gestor.cancelarMusa(sol, { ticket_id: ticketSol.ticket_id });
+  assert.equal(ctx.gestor.payloadControl().tickets.length, 1);
+  assert.equal(ctx.gestor.payloadControl().historial.length, 1);
+  assert.equal(ctx.reloj.pendientes(), 1);
+
+  const control = crearSocket("control-clear", { control: true });
+  const intruso = crearSocket("intruso-clear");
+  ctx.gestor.registrarHandlers(control);
+  ctx.gestor.registrarHandlers(intruso);
+  let ack = null;
+  intruso.trigger("ayuda_musas_limpiar", { request_id: "clear-forged" }, (payload) => { ack = payload; });
+  assert.equal(ack.code, "NOT_AUTHORIZED");
+
+  control.trigger("ayuda_musas_limpiar", { request_id: "clear-all" }, (payload) => { ack = payload; });
+  assert.equal(ack.ok, true);
+  assert.equal(ack.eliminadas, 2);
+  assert.equal(ack.estado.tickets.length, 0);
+  assert.equal(ack.estado.historial.length, 0);
+  assert.equal(ctx.gestor.payloadControl().tickets.length, 0);
+  assert.equal(ctx.gestor.payloadControl().historial.length, 0);
+  assert.equal(ctx.reloj.pendientes(), 0);
+  assert.ok(ctx.io.eventos.some(({ room, event }) => (
+    room === "musa-luna" && event === "ayuda_musa_diagnostico_detener"
+  )));
+  const estadoLuna = ctx.io.eventos.find(({ room, event, payload }) => (
+    room === "musa-luna" && event === "ayuda_musa_estado" && payload.ticket === null
+  ));
+  assert.ok(estadoLuna, "the active muse must immediately lose the flag and assistance halo");
+});
+
 test("stable reconnect keeps a ticket, stops old diagnostics and reload targets exactly the active socket", () => {
   const ctx = crearContexto();
   const anterior = crearSocket("musa-old");

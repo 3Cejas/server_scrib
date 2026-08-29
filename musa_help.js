@@ -965,6 +965,53 @@ function crearGestorAyudaMusas({
         };
     };
 
+    const limpiar = (entrada = {}) => {
+        const requestId = normalizarRequestId(entrada.request_id);
+        return ejecutarIdempotente("limpiar_todo", requestId, () => {
+            const activos = activosOrdenados();
+            const socketsActivos = new Set(
+                activos
+                    .filter((ticket) => ticket.conectada && ticket.socketId)
+                    .map((ticket) => ticket.socketId)
+            );
+            const eliminadas = tickets.size;
+            activos.forEach((ticket) => {
+                if (ticket.diagnostico.estado !== "inactivo") {
+                    detenerDiagnosticoInterno(ticket, "incidencias_limpiadas", { emitir: false });
+                } else {
+                    cancelarTimerDiagnostico(ticket);
+                }
+            });
+            tickets.clear();
+            ticketActivoPorIdentidad.clear();
+            historial.splice(0, historial.length);
+            requests.clear();
+            ultimaSolicitudPorIdentidad.clear();
+            recargasPorTicket.clear();
+            comandosPorTicket.clear();
+            comandosPendientes.clear();
+            colorCursor = 0;
+            revision += 1;
+            const actual = now();
+            const estado = emitirEstadoControl();
+            socketsActivos.forEach((socketId) => {
+                emitirExacto(socketId, "ayuda_musa_estado", {
+                    version: AYUDA_MUSAS_VERSION,
+                    revision,
+                    ts: actual,
+                    ticket: null,
+                    puede_solicitar_desde_ts: actual
+                });
+            });
+            return {
+                ok: true,
+                request_id: requestId || undefined,
+                eliminadas,
+                estado
+            };
+        });
+    };
+
     const reset = () => {
         Array.from(tickets.values()).forEach((ticket) => cancelarTimerDiagnostico(ticket));
         tickets.clear();
@@ -1001,6 +1048,9 @@ function crearGestorAyudaMusas({
                 const estado = emitirEstadoControl(socket);
                 return { ok: true, estado };
             });
+        });
+        socket.on("ayuda_musas_limpiar", (entrada = {}, callback = null) => {
+            soloControl(callback, () => limpiar(entrada));
         });
         socket.on("ayuda_musa_solicitar", (entrada = {}, callback = null) => {
             responder(callback, solicitar(socket, entrada));
@@ -1051,6 +1101,7 @@ function crearGestorAyudaMusas({
         desconectarMusa,
         detenerDiagnostico,
         emitirEstadoControl,
+        limpiar,
         payloadControl,
         payloadMusa,
         recibirEstadoDiagnostico,

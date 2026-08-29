@@ -964,7 +964,7 @@ test("Control can replay the connection video during tutorial and muses verify e
   assert.equal(reopened.verificacion.verificadas, 0);
 });
 
-test("muse help tickets survive ordinary match cleanup and only explicit test reset clears them", async () => {
+test("muse help tickets survive ordinary match cleanup and Control can clear every incident explicitly", async () => {
   await emitAck(adminSocket, "scrib_test:reset", {});
 
   const control = await connectPassiveSocket();
@@ -992,6 +992,21 @@ test("muse help tickets survive ordinary match cleanup and only explicit test re
   supportState = await emitAck(control, "pedir_ayuda_musas_estado", {});
   assert.equal(supportState.estado.tickets.length, 1);
   assert.equal(supportState.estado.tickets[0].ticket_id, requested.ticket.ticket_id);
+
+  const museReleased = waitForSocketEvent(
+    muse,
+    "ayuda_musa_estado",
+    (payload) => payload && payload.ticket === null
+  );
+  const cleared = await emitAck(control, "ayuda_musas_limpiar", {
+    request_id: "help-persistence-clear"
+  });
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.eliminadas, 1);
+  await museReleased;
+  supportState = await emitAck(control, "pedir_ayuda_musas_estado", {});
+  assert.equal(supportState.estado.tickets.length, 0);
+  assert.equal(supportState.estado.historial.length, 0);
 
   await emitAck(adminSocket, "scrib_test:reset", {});
   supportState = await emitAck(control, "pedir_ayuda_musas_estado", {});
