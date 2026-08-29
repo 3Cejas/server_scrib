@@ -1,0 +1,15 @@
+[Unit]
+Description=Sutura SSH tunnel for the public SCRIB real-time channel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trescejas
+Group=trescejas
+ExecStart=/usr/bin/ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 127.0.0.1:13000:127.0.0.1:3000 servidor
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
