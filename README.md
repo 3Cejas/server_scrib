@@ -38,7 +38,7 @@ El servidor mantiene un ciclo autoritativo de vídeo mientras la partida siga en
 
 La configuración versionada inicial está en `config/pre_show_video.default.json`. Los cambios realizados por Control se guardan de forma atómica en `data/pre_show_video.json`; se puede cambiar esa ruta con `SCRIB_PRE_SHOW_VIDEO_CONFIG`. El archivo de vídeo no se guarda en este repositorio: debe desplegarse junto al frontend en `game/media/tutorial-scrib.mp4` (en Sutura, `/var/www/dashboard/scrib/game/media/tutorial-scrib.mp4`) o configurarse mediante una URL HTTPS.
 
-Los valores admitidos son de 15 a 86400 segundos para el intervalo y de 3 a 3600 segundos para la duración. La duración inicial es de 100 segundos para respetar las pausas de lectura del videotutorial. La reproducción automática viene desactivada hasta que Control la habilite.
+Los valores admitidos son de 15 a 86400 segundos para el intervalo y de 3 a 3600 segundos para la duración. La duración inicial es de 120 segundos para respetar la espera de acceso y las pausas de lectura del videotutorial. La reproducción automática viene desactivada hasta que Control la habilite.
 ## SUTURA
 - Twitter: @ SU.TU.RA
 - Instagram: @SU_TU_RA

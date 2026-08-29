@@ -133,7 +133,7 @@ function faseActual(gestor, extra = {}) {
 }
 
 test("video tutorial validates bounded configuration and safe media URLs", () => {
-  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos, 100);
+  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos, 120);
   assert.equal(normalizarUrlVideo(" ../media/tutorial.mp4 "), "../media/tutorial.mp4");
   assert.equal(normalizarUrlVideo("/media/tutorial.mp4"), "/media/tutorial.mp4");
   assert.equal(normalizarUrlVideo("https://cdn.example/video.mp4"), "https://cdn.example/video.mp4");

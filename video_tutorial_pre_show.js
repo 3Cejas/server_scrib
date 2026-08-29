@@ -17,7 +17,7 @@ const MAX_REQUESTS_VIDEO_RECORDADAS = 512;
 const CONFIG_VIDEO_TUTORIAL_DEFAULT = Object.freeze({
     video_url: "../media/tutorial-scrib.mp4",
     intervalo_segundos: 180,
-    duracion_segundos: 100,
+    duracion_segundos: 120,
     habilitado: false,
     silenciado: false
 });
