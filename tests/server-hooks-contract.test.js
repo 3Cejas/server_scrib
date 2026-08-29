@@ -815,7 +815,7 @@ test("Control can replay the connection video during tutorial and muses verify e
   assert.equal(unauthorizedPlay.code, "NOT_AUTHORIZED");
 
   const configured = await emitAck(control, "video_tutorial_configurar", {
-    video_url: "../media/tutorial-scrib.mp4",
+    video_url: "../media/tutorial-scrib-audio.mp3",
     intervalo_segundos: 15,
     duracion_segundos: 3,
     habilitado: false,

@@ -6,7 +6,7 @@ const { randomBytes } = require("node:crypto");
 const { contieneLenguajeOfensivo } = require("./profanity_filter.js");
 const { ROLE_ROOMS } = require("./role_connections.js");
 
-const VIDEO_TUTORIAL_VERSION = 1;
+const VIDEO_TUTORIAL_VERSION = 2;
 const INTERVALO_VIDEO_MIN_SEGUNDOS = 15;
 const INTERVALO_VIDEO_MAX_SEGUNDOS = 86400;
 const DURACION_VIDEO_MIN_SEGUNDOS = 3;
@@ -15,9 +15,9 @@ const MAX_URL_VIDEO_TUTORIAL = 600;
 const MAX_REQUESTS_VIDEO_RECORDADAS = 512;
 
 const CONFIG_VIDEO_TUTORIAL_DEFAULT = Object.freeze({
-    video_url: "../media/tutorial-scrib.mp4",
+    video_url: "../media/tutorial-scrib-audio.mp3",
     intervalo_segundos: 180,
-    duracion_segundos: 120,
+    duracion_segundos: 138,
     habilitado: false,
     silenciado: false
 });
@@ -40,6 +40,7 @@ const normalizarUrlVideo = (valor) => {
     if (typeof valor !== "string" || valor.length > MAX_URL_VIDEO_TUTORIAL) return "";
     const url = valor.normalize("NFKC").trim();
     if (!url || /[\u0000-\u001f\u007f-\u009f\s]/u.test(url)) return "";
+    if (/\.mp4(?:$|[?#])/iu.test(url)) return "";
     if (/^https:\/\/[^/]+/iu.test(url)) return url;
     if (/^\/(?!\/)/u.test(url)) return url;
     if (/^\.\.?\/(?!\/)/u.test(url)) return url;
@@ -49,6 +50,11 @@ const normalizarUrlVideo = (valor) => {
 function normalizarConfigVideoTutorial(entrada = {}, fallback = CONFIG_VIDEO_TUTORIAL_DEFAULT) {
     const base = fallback && typeof fallback === "object" ? fallback : CONFIG_VIDEO_TUTORIAL_DEFAULT;
     const data = entrada && typeof entrada === "object" ? entrada : {};
+    const urlEntradaCruda = String(data.video_url || base.video_url || "");
+    const esConfiguracionMp4Anterior = /\.mp4(?:$|[?#])/iu.test(urlEntradaCruda);
+    const duracionEntrada = esConfiguracionMp4Anterior && Number(data.duracion_segundos ?? base.duracion_segundos) === 120
+        ? CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos
+        : data.duracion_segundos;
     return {
         video_url: normalizarUrlVideo(data.video_url) || normalizarUrlVideo(base.video_url)
             || CONFIG_VIDEO_TUTORIAL_DEFAULT.video_url,
@@ -64,7 +70,7 @@ function normalizarConfigVideoTutorial(entrada = {}, fallback = CONFIG_VIDEO_TUT
             INTERVALO_VIDEO_MAX_SEGUNDOS
         ),
         duracion_segundos: numeroEnteroAcotado(
-            data.duracion_segundos,
+            duracionEntrada,
             numeroEnteroAcotado(
                 base.duracion_segundos,
                 CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos,

@@ -133,18 +133,28 @@ function faseActual(gestor, extra = {}) {
 }
 
 test("video tutorial validates bounded configuration and safe media URLs", () => {
-  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos, 120);
-  assert.equal(normalizarUrlVideo(" ../media/tutorial.mp4 "), "../media/tutorial.mp4");
-  assert.equal(normalizarUrlVideo("/media/tutorial.mp4"), "/media/tutorial.mp4");
-  assert.equal(normalizarUrlVideo("https://cdn.example/video.mp4"), "https://cdn.example/video.mp4");
-  assert.equal(normalizarUrlVideo("http://inseguro.example/video.mp4"), "");
+  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.duracion_segundos, 138);
+  assert.equal(CONFIG_VIDEO_TUTORIAL_DEFAULT.video_url, "../media/tutorial-scrib-audio.mp3");
+  assert.deepEqual(
+    normalizarConfigVideoTutorial({
+      video_url: "../media/tutorial-scrib.mp4",
+      duracion_segundos: 120
+    }),
+    CONFIG_VIDEO_TUTORIAL_DEFAULT
+  );
+  assert.equal(normalizarUrlVideo(" ../media/tutorial.mp3 "), "../media/tutorial.mp3");
+  assert.equal(normalizarUrlVideo("/media/tutorial.mp3"), "/media/tutorial.mp3");
+  assert.equal(normalizarUrlVideo("https://cdn.example/audio.mp3"), "https://cdn.example/audio.mp3");
+  assert.equal(normalizarUrlVideo("../media/tutorial.mp4"), "");
+  assert.equal(normalizarUrlVideo("http://inseguro.example/audio.mp3"), "");
   assert.equal(normalizarUrlVideo("javascript:alert(1)"), "");
-  assert.equal(normalizarUrlVideo("../media/video con espacios.mp4"), "");
+  assert.equal(normalizarUrlVideo("../media/audio con espacios.mp3"), "");
 
   assert.equal(validarPatchConfigVideoTutorial({ intervalo_segundos: 14 }, CONFIG_VIDEO_TUTORIAL_DEFAULT).code, "INVALID_INTERVAL");
   assert.equal(validarPatchConfigVideoTutorial({ duracion_segundos: 3601 }, CONFIG_VIDEO_TUTORIAL_DEFAULT).code, "INVALID_DURATION");
   assert.equal(validarPatchConfigVideoTutorial({ habilitado: "sí" }, CONFIG_VIDEO_TUTORIAL_DEFAULT).code, "INVALID_CONFIG");
   assert.equal(validarPatchConfigVideoTutorial({ video_url: "data:text/html,x" }, CONFIG_VIDEO_TUTORIAL_DEFAULT).code, "INVALID_VIDEO_URL");
+  assert.equal(validarPatchConfigVideoTutorial({ video_url: "../media/tutorial.mp4" }, CONFIG_VIDEO_TUTORIAL_DEFAULT).code, "INVALID_VIDEO_URL");
 
   assert.deepEqual(normalizarConfigVideoTutorial({ intervalo_segundos: -1 }), {
     ...CONFIG_VIDEO_TUTORIAL_DEFAULT,
@@ -162,7 +172,7 @@ test("video tutorial persists configuration atomically and reloads it", async (t
 
   assert.deepEqual(almacen.cargar(), CONFIG_VIDEO_TUTORIAL_DEFAULT);
   const nueva = {
-    video_url: "../media/propio.mp4",
+    video_url: "../media/propio.mp3",
     intervalo_segundos: 45,
     duracion_segundos: 12,
     habilitado: true,
@@ -235,7 +245,7 @@ test("control can play now, stop and persist scheduling changes without races", 
   assert.equal(reloj.pendientes(), 0);
 
   const configurado = await gestor.configurar({
-    video_url: "../media/nuevo.mp4",
+    video_url: "../media/nuevo.mp3",
     intervalo_segundos: 15,
     duracion_segundos: 3,
     habilitado: true,
@@ -246,7 +256,7 @@ test("control can play now, stop and persist scheduling changes without races", 
   assert.equal(configurado.estado.revision, 2);
   assert.equal(configurado.estado.proxima_reproduccion_ts, 17000);
   assert.deepEqual(almacen.guardadas, [{
-    video_url: "../media/nuevo.mp4",
+    video_url: "../media/nuevo.mp3",
     intervalo_segundos: 15,
     duracion_segundos: 3,
     habilitado: true,
