@@ -381,6 +381,69 @@ test("automatic musa assignment stays balanced and alternates the extra slot on 
   assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 3, escritxr2: 4 });
 });
 
+test("manual muses keep the writer they choose while automatic muses fill the smaller team", () => {
+  const roles = crearRegistroRoles();
+  const manualRedA = crearSocket("manual-red-a");
+  const manualRedB = crearSocket("manual-red-b");
+  const automatic = crearSocket("automatic-blue");
+
+  const first = roles.registrarMusa(manualRedA, {
+    player: 2,
+    modoAsignacion: "manual",
+    nombre: "Roja A",
+    clientId: "manual-red-a"
+  });
+  const second = roles.registrarMusa(manualRedB, {
+    player: 2,
+    modoAsignacion: "manual",
+    nombre: "Roja B",
+    clientId: "manual-red-b"
+  });
+  const balanced = roles.registrarMusa(automatic, {
+    modoAsignacion: "automatica",
+    nombre: "Auto",
+    clientId: "automatic-blue"
+  });
+
+  assert.equal(first.player, 2);
+  assert.equal(first.modoAsignacion, "manual");
+  assert.equal(second.player, 2);
+  assert.equal(balanced.player, 1);
+  assert.equal(balanced.modoAsignacion, "automatica");
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 1, escritxr2: 2 });
+
+  roles.desregistrarSocket(automatic);
+  assert.equal(manualRedA.musa, 2);
+  assert.equal(manualRedB.musa, 2);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 0, escritxr2: 2 });
+});
+
+test("manual assignment survives an overlapping reconnect even if a different team is requested", () => {
+  const roles = crearRegistroRoles();
+  const firstSocket = crearSocket("manual-old");
+  const nextSocket = crearSocket("manual-new");
+  const first = roles.registrarMusa(firstSocket, {
+    player: 2,
+    modoAsignacion: "manual",
+    nombre: "Luna",
+    clientId: "manual-stable"
+  });
+  const reconnect = roles.registrarMusa(nextSocket, {
+    player: 1,
+    modoAsignacion: "manual",
+    nombre: "Luna",
+    clientId: "manual-stable"
+  });
+
+  assert.equal(first.player, 2);
+  assert.equal(reconnect.player, 2);
+  assert.equal(reconnect.modoAsignacion, "manual");
+  assert.equal(reconnect.reconnected, true);
+  assert.equal(firstSocket.musa, null);
+  assert.equal(nextSocket.musa, 2);
+  assert.deepEqual(roles.obtenerContadorMusas(), { escritxr1: 0, escritxr2: 1 });
+});
+
 test("overlapping reconnect replaces the old socket by client_id without inflating counters", () => {
   const roles = crearRegistroRoles();
   const oldSocket = crearSocket("musa-old");

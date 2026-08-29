@@ -52,7 +52,7 @@ function crearRegistroRoles({
     };
     const musasActivas = new Map();
     const socketMusaPorClientId = new Map();
-    const ultimoEquipoMusaPorClientId = new Map();
+    const ultimaAsignacionMusaPorClientId = new Map();
     let proximoEquipoEmpate = 1;
     let ordenRegistroMusa = 0;
     const musasPartida = {
@@ -73,15 +73,23 @@ function crearRegistroRoles({
         escritxr2: musas[2].size
     });
 
-    const recordarEquipoMusa = (clientId, player) => {
+    const normalizarModoAsignacionMusa = (valor) => {
+        const modo = String(valor || "").trim().toLowerCase();
+        return modo === "manual" ? "manual" : "automatica";
+    };
+
+    const recordarAsignacionMusa = (clientId, player, modoAsignacion = "automatica") => {
         const id = validarJugador(player);
         if (!clientId || !id) return;
-        ultimoEquipoMusaPorClientId.delete(clientId);
-        ultimoEquipoMusaPorClientId.set(clientId, id);
-        while (ultimoEquipoMusaPorClientId.size > MAX_ASIGNACIONES_MUSA_RECORDADAS) {
-            const masAntigua = ultimoEquipoMusaPorClientId.keys().next().value;
+        ultimaAsignacionMusaPorClientId.delete(clientId);
+        ultimaAsignacionMusaPorClientId.set(clientId, {
+            player: id,
+            modoAsignacion: normalizarModoAsignacionMusa(modoAsignacion)
+        });
+        while (ultimaAsignacionMusaPorClientId.size > MAX_ASIGNACIONES_MUSA_RECORDADAS) {
+            const masAntigua = ultimaAsignacionMusaPorClientId.keys().next().value;
             if (!masAntigua) break;
-            ultimoEquipoMusaPorClientId.delete(masAntigua);
+            ultimaAsignacionMusaPorClientId.delete(masAntigua);
         }
     };
 
@@ -387,28 +395,32 @@ function crearRegistroRoles({
             socket.musa = null;
             socket.nombre_musa = "";
             socket.musa_client_id = "";
+            socket.musa_modo_asignacion = "";
         }
         return registro;
     };
 
-    const vincularMusa = (socket, { player, nombre, clientId }) => {
+    const vincularMusa = (socket, { player, nombre, clientId, modoAsignacion = "automatica" }) => {
         const id = validarJugador(player);
         if (!id) return null;
+        const modoNormalizado = normalizarModoAsignacionMusa(modoAsignacion);
         socket.musa = id;
         socket.nombre_musa = nombre;
         socket.musa_client_id = clientId;
+        socket.musa_modo_asignacion = modoNormalizado;
         socket.join(`j${id}`);
         socket.join(`musa_j${id}`);
         if (clientId) {
             socket.join(`musa_client_${clientId}`);
             socketMusaPorClientId.set(clientId, socket.id);
-            recordarEquipoMusa(clientId, id);
+            recordarAsignacionMusa(clientId, id, modoNormalizado);
         }
         musas[id].add(socket.id);
         const registro = {
             player: id,
             nombre,
             clientId,
+            modoAsignacion: modoNormalizado,
             socketId: socket.id,
             socket,
             orden: ++ordenRegistroMusa
@@ -432,7 +444,7 @@ function crearRegistroRoles({
         registro.player = id;
         registro.orden = ++ordenRegistroMusa;
         if (registro.clientId) {
-            recordarEquipoMusa(registro.clientId, id);
+            recordarAsignacionMusa(registro.clientId, id, registro.modoAsignacion);
         }
         return {
             socket,
@@ -440,7 +452,8 @@ function crearRegistroRoles({
             previous: anterior,
             player: id,
             nombre: registro.nombre,
-            clientId: registro.clientId
+            clientId: registro.clientId,
+            modoAsignacion: registro.modoAsignacion
         };
     };
 
@@ -450,7 +463,11 @@ function crearRegistroRoles({
             const origen = musas[1].size > musas[2].size ? 1 : 2;
             const destino = origen === 1 ? 2 : 1;
             const candidata = Array.from(musasActivas.values())
-                .filter((registro) => registro.player === origen && !registro.socket.simulacion_scrib)
+                .filter((registro) => (
+                    registro.player === origen
+                    && registro.modoAsignacion === "automatica"
+                    && !registro.socket.simulacion_scrib
+                ))
                 .sort((a, b) => b.orden - a.orden)[0];
             if (!candidata) break;
             const reasignada = moverMusaActiva(candidata, destino);
@@ -460,10 +477,19 @@ function crearRegistroRoles({
         return reasignaciones;
     };
 
-    const registrarMusa = (socket, { player, nombre = "MUSA", clientId = "" } = {}) => {
+    const registrarMusa = (socket, {
+        player,
+        nombre = "MUSA",
+        clientId = "",
+        modoAsignacion = "automatica"
+    } = {}) => {
         const equipoSolicitado = validarJugador(player);
+        const modoSolicitado = normalizarModoAsignacionMusa(modoAsignacion);
+        const seleccionManualPermitida = modoSolicitado === "manual" && equipoSolicitado;
         const equipoConfiable = (
-            (socket && socket.simulacion_scrib) || permitirEquipoMusaExplicito
+            seleccionManualPermitida
+            || (socket && socket.simulacion_scrib)
+            || permitirEquipoMusaExplicito
         ) ? equipoSolicitado : null;
         const gestionarReconexionClientId = !permitirEquipoMusaExplicito;
         const clientIdNormalizado = normalizarClientIdCreditoMusa(clientId);
@@ -484,6 +510,7 @@ function crearRegistroRoles({
                 changed: false,
                 idempotent: true,
                 reconnected: false,
+                modoAsignacion: registroActual.modoAsignacion,
                 replaced: [],
                 contador: clonarContadorMusas(),
                 connections: payloadConexiones()
@@ -496,24 +523,40 @@ function crearRegistroRoles({
         }
 
         const replaced = [];
-        let equipoRecordado = gestionarReconexionClientId && clientIdNormalizado
-            ? validarJugador(ultimoEquipoMusaPorClientId.get(clientIdNormalizado))
+        let asignacionRecordada = gestionarReconexionClientId && clientIdNormalizado
+            ? ultimaAsignacionMusaPorClientId.get(clientIdNormalizado)
+            : null;
+        let equipoRecordado = validarJugador(asignacionRecordada && asignacionRecordada.player);
+        let modoRecordado = asignacionRecordada
+            ? normalizarModoAsignacionMusa(asignacionRecordada.modoAsignacion)
             : null;
         if (gestionarReconexionClientId && clientIdNormalizado) {
             const socketIdAnterior = socketMusaPorClientId.get(clientIdNormalizado);
             const registroAnterior = socketIdAnterior ? musasActivas.get(socketIdAnterior) : null;
             if (registroAnterior && registroAnterior.socketId !== socket.id) {
                 equipoRecordado = registroAnterior.player;
+                modoRecordado = registroAnterior.modoAsignacion;
                 const retirado = desvincularMusa(registroAnterior.socket);
                 if (retirado) replaced.push(retirado);
             }
         }
 
-        const id = equipoConfiable || equipoMusaConMenorCarga(equipoRecordado);
+        const modoFinal = modoRecordado || (equipoConfiable ? "manual" : modoSolicitado);
+        const id = modoFinal === "manual"
+            ? (equipoRecordado || equipoConfiable || equipoSolicitado)
+            : equipoMusaConMenorCarga(equipoRecordado);
+        if (!id) {
+            return {
+                ok: false,
+                code: "EQUIPO_MUSA_INVALIDO",
+                mensaje: "Selecciona un equipo válido."
+            };
+        }
         vincularMusa(socket, {
             player: id,
             nombre: nombreNormalizado,
-            clientId: clientIdNormalizado
+            clientId: clientIdNormalizado,
+            modoAsignacion: modoFinal
         });
         return {
             ok: true,
@@ -523,6 +566,7 @@ function crearRegistroRoles({
             idempotent: false,
             reconnected: replaced.length > 0 || Boolean(equipoRecordado),
             reassigned: Boolean(equipoRecordado && equipoRecordado !== id),
+            modoAsignacion: modoFinal,
             replaced,
             contador: clonarContadorMusas(),
             connections: payloadConexiones()

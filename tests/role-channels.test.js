@@ -342,6 +342,7 @@ test("role channels return the authoritative musa assignment with writer name by
   assert.equal(ack.reconexion, false);
   assert.equal(ack.idempotente, false);
   assert.equal(ack.motivo, "entrada");
+  assert.equal(ack.modo_asignacion, "automatica");
   assert.equal(ack.request_id, "request-entry-42");
   assert.equal(typeof ack.ts, "number");
   assert.equal(Object.prototype.hasOwnProperty.call(ack, "contador"), false);
@@ -356,6 +357,50 @@ test("role channels return the authoritative musa assignment with writer name by
       && payload.escritxr2 === 0),
     true
   );
+});
+
+test("role channels expose both current writer names and accept an explicit manual muse choice", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const musa = crearSocket("musa-manual-choice");
+  registrar(musa, {
+    rolesConectados,
+    sesionesEscritor,
+    getNombreEscritxr: (player) => player === 1 ? "ALMA" : "VERA"
+  });
+
+  let opciones = null;
+  musa.trigger("pedir_opciones_equipo_musa", (payload) => { opciones = payload; });
+  assert.equal(opciones.ok, true);
+  assert.deepEqual(opciones.equipos.map(({ player, nombre_escritxr, musas_activas }) => ({
+    player,
+    nombre_escritxr,
+    musas_activas
+  })), [
+    { player: 1, nombre_escritxr: "ALMA", musas_activas: 0 },
+    { player: 2, nombre_escritxr: "VERA", musas_activas: 0 }
+  ]);
+  assert.deepEqual(
+    musa.emitted.find(({ event }) => event === "musa_opciones_equipo").payload,
+    opciones
+  );
+
+  let assignment = null;
+  musa.trigger("registrar_musa", {
+    equipo: 2,
+    modo_asignacion: "manual",
+    nombre: "Luna",
+    client_id: "manual-luna",
+    request_id: "request-manual-42"
+  }, (payload) => { assignment = payload; });
+
+  assert.equal(assignment.player, 2);
+  assert.equal(assignment.nombre_escritxr, "VERA");
+  assert.equal(assignment.modo_asignacion, "manual");
+  assert.deepEqual(rolesConectados.obtenerContadorMusas(), {
+    escritxr1: 0,
+    escritxr2: 1
+  });
 });
 
 test("role channels sanitize request correlation and cap the writer name in muse assignments", () => {

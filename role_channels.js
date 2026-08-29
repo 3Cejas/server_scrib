@@ -29,6 +29,41 @@ function registrarCanalesRoles({
         .replace(/[^A-Za-z0-9_-]/g, "")
         .slice(0, 96);
 
+    const normalizarModoAsignacionMusa = (valor) => (
+        String(valor || "").trim().toLowerCase() === "manual"
+            ? "manual"
+            : "automatica"
+    );
+
+    const construirOpcionesEquipoMusa = () => {
+        const contador = rolesConectados.obtenerContadorMusas();
+        const crearEquipo = (player) => ({
+            player,
+            equipo: player,
+            color: player === 1 ? "azul" : "rojo",
+            nombre_equipo: player === 1 ? "EQUIPO AZUL" : "EQUIPO ROJO",
+            nombre_escritxr: String(getNombreEscritxr(player) || "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 80)
+                || `ESCRITXR ${player}`,
+            musas_activas: player === 1 ? contador.escritxr1 : contador.escritxr2
+        });
+        return {
+            ok: true,
+            equipos: [crearEquipo(1), crearEquipo(2)],
+            ts: Date.now()
+        };
+    };
+
+    const emitirOpcionesEquipoMusa = (destino = socket) => {
+        const payload = construirOpcionesEquipoMusa();
+        if (destino && typeof destino.emit === "function") {
+            destino.emit("musa_opciones_equipo", payload);
+        }
+        return payload;
+    };
+
     const construirAsignacionMusa = (registro = {}, motivo = "entrada", requestId = "") => {
         const player = obtenerIdJugadorValido(registro.player);
         if (!player) {
@@ -60,6 +95,7 @@ function registrarCanalesRoles({
             reconexion: Boolean(registro.reconnected),
             idempotente: Boolean(registro.idempotent),
             motivo,
+            modo_asignacion: normalizarModoAsignacionMusa(registro.modoAsignacion),
             ts: Date.now()
         };
         const requestIdNormalizado = normalizarRequestIdMusa(requestId);
@@ -275,7 +311,8 @@ function registrarCanalesRoles({
         const registro = rolesConectados.registrarMusa(socket, {
             player: datos_musa.musa ?? datos_musa.player ?? datos_musa.equipo ?? datos_musa.team,
             nombre: nombre_musa,
-            clientId: musa_client_id
+            clientId: musa_client_id,
+            modoAsignacion: datos_musa.modo_asignacion ?? datos_musa.assignment_mode
         });
         if (!registro.ok) {
             const rechazo = construirAsignacionMusa(registro, "error", request_id);
@@ -310,6 +347,7 @@ function registrarCanalesRoles({
         }
         registrar("[servidor] contador_musas", registro.contador);
         io.emit("actualizar_contador_musas", registro.contador);
+        emitirOpcionesEquipoMusa(io);
         if (registro.previous && registro.previous !== id_jugador) {
             calentamientoGestor.desregistrarMusa(socket, registro.previous);
         }
@@ -322,6 +360,11 @@ function registrarCanalesRoles({
         musasAuxiliares.emitirEstadoRegaloBandera();
         sincronizarEstadoMusa(socket);
         emitirEstadoVideoTutorial();
+    });
+
+    socket.on("pedir_opciones_equipo_musa", (callback = null) => {
+        const payload = emitirOpcionesEquipoMusa(socket);
+        if (typeof callback === "function") callback(payload);
     });
 
     socket.on(bolzanoEvents.REGISTER_MUSA, (evento) => {
@@ -347,6 +390,7 @@ function registrarCanalesRoles({
             registrar("[servidor] desconexion de cliente sin escritxr valido, no se modifica contador.");
         }
         io.emit("actualizar_contador_musas", desconexion.contador);
+        emitirOpcionesEquipoMusa(io);
         if (id === 1 || id === 2) {
             calentamientoGestor.desregistrarMusa(socket, id);
         }
