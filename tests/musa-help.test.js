@@ -108,6 +108,7 @@ function framePayload(ticket, extra = {}) {
   return {
     ticket_id: ticket.ticket_id,
     session_id: ticket.diagnostico.session_id,
+    stream_id: "mstream_browserone",
     seq: 1,
     mime: "image/jpeg",
     data: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]).toString("base64"),
@@ -332,10 +333,16 @@ test("diagnostic requires exact consent, expires and accepts only bounded rate-l
   const reenviado = ctx.io.eventos.find(({ event }) => event === "ayuda_musa_diagnostico_frame");
   assert.equal(reenviado.room, AYUDA_CONTROL_ROOM);
   assert.equal(reenviado.payload.ruta, "/game/public/players/index.html");
+  assert.equal(reenviado.payload.stream_id, "mstream_browserone");
   assert.deepEqual(reenviado.payload.viewport, { width: 390, height: 844 });
   assert.equal(ctx.gestor.recibirFrame(musa, framePayload(activo, { seq: 2 })).code, "RATE_LIMITED");
   ctx.reloj.avanzar(250);
   assert.equal(ctx.gestor.recibirFrame(musa, framePayload(activo, { seq: 1 })).code, "STALE_FRAME");
+  ctx.reloj.avanzar(250);
+  assert.equal(ctx.gestor.recibirFrame(musa, framePayload(activo, {
+    seq: 1,
+    stream_id: "mstream_browsertwo"
+  })).ok, true, "a fresh browser capture stream restarts the sequence immediately");
   assert.equal(ctx.gestor.recibirFrame(musa, framePayload(activo, { seq: 2, mime: "text/html" })).code, "INVALID_FRAME_MIME");
   assert.equal(ctx.gestor.recibirFrame(musa, framePayload(activo, {
     seq: 2,

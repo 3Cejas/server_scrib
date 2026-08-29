@@ -1,4 +1,4 @@
-const { randomBytes } = require("node:crypto");
+const { createHash, randomBytes } = require("node:crypto");
 
 const { contieneLenguajeOfensivo } = require("./profanity_filter.js");
 const { ROLE_ROOMS } = require("./role_connections.js");
@@ -267,6 +267,7 @@ function crearGestorAyudaMusas({
         diagnostico.ultimoFrameRecibidoTs = 0;
         diagnostico.ultimoEstadoRecibidoTs = 0;
         diagnostico.ultimoSeq = -1;
+        diagnostico.streamId = "";
         limpiarComandosTicket(ticket.ticketId);
         if (sessionId && ticket.conectada) {
             emitirExacto(ticket.socketId, "ayuda_musa_diagnostico_detener", {
@@ -456,6 +457,7 @@ function crearGestorAyudaMusas({
                     ultimoFrameRecibidoTs: 0,
                     ultimoEstadoRecibidoTs: 0,
                     ultimoSeq: -1,
+                    streamId: "",
                     ruta: "",
                     viewport: { width: 0, height: 0 },
                     online: true,
@@ -593,6 +595,7 @@ function crearGestorAyudaMusas({
             ticket.diagnostico.estado = "solicitado";
             ticket.diagnostico.sessionId = sessionId;
             ticket.diagnostico.ultimoSeq = -1;
+            ticket.diagnostico.streamId = "";
             programarExpiracionDiagnostico(ticket, sessionId, CONSENTIMIENTO_DIAGNOSTICO_MS);
             ticket.actualizadoTs = now();
             revision += 1;
@@ -773,22 +776,27 @@ function crearGestorAyudaMusas({
         const { ticket, sessionId } = autorizacion;
         const validacion = validarFrame(entrada);
         if (!validacion.ok) return respuestaError(validacion.code, requestId);
+        const streamId = normalizarIdOpaco(entrada.stream_id, "mstream")
+            || `mstream_${createHash("sha256").update(String(socket.id || "legacy")).digest("hex").slice(0, 24)}`;
         const actual = now();
         if (actual - ticket.diagnostico.ultimoFrameRecibidoTs < MIN_INTERVALO_FRAME_MS) {
             return respuestaError("RATE_LIMITED", requestId, {
                 retry_after_ms: MIN_INTERVALO_FRAME_MS - (actual - ticket.diagnostico.ultimoFrameRecibidoTs)
             });
         }
-        if (validacion.seq <= ticket.diagnostico.ultimoSeq) {
+        if (ticket.diagnostico.streamId === streamId && validacion.seq <= ticket.diagnostico.ultimoSeq) {
             return respuestaError("STALE_FRAME", requestId);
         }
+        if (ticket.diagnostico.streamId !== streamId) ticket.diagnostico.ultimoSeq = -1;
         ticket.diagnostico.ultimoFrameRecibidoTs = actual;
         ticket.diagnostico.ultimoFrameTs = actual;
         ticket.diagnostico.ultimoSeq = validacion.seq;
+        ticket.diagnostico.streamId = streamId;
         actualizarMetadatosDiagnostico(ticket, entrada);
         const frame = {
             ticket_id: ticket.ticketId,
             session_id: sessionId,
+            stream_id: streamId,
             seq: validacion.seq,
             mime: validacion.mime,
             data: validacion.data,
