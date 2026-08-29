@@ -33,7 +33,7 @@ const crearTelemetria = (palabras1 = 80, palabras2 = 40) => ({
   }
 });
 
-function crearContexto({ control = false, disponible = true, pendiente = false, pulsaciones = { 1: 120, 2: 80 } } = {}) {
+function crearContexto({ control = false, disponible = true, pendiente = false, preShowActivo = true, pulsaciones = { 1: 120, 2: 80 } } = {}) {
   const socket = new EventEmitter();
   socket.control = control;
   const ioEvents = [];
@@ -64,6 +64,11 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     payload: statsBase.payload,
     payloadDatosRecibidos: statsBase.payloadDatosRecibidos
   };
+  let aperturasPreShow = 0;
+  const preShowMusas = {
+    estaActivo: () => preShowActivo || aperturasPreShow > 0,
+    abrir() { aperturasPreShow += 1; }
+  };
 
   registrarCanalesEspectador({
     socket,
@@ -85,12 +90,14 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     sincronizarEstadoMusa: () => {},
     espectador,
     creditosShow: { actualizar() {}, incrementarAnimacion() {} },
-    resolverModoVistaEspectador: espectador.resolverModo
+    resolverModoVistaEspectador: espectador.resolverModo,
+    preShowMusas
   });
 
   ioEvents.length = 0;
   return {
     actualizacionesStats: () => actualizacionesStats,
+    aperturasPreShow: () => aperturasPreShow,
     espectador,
     ioEvents,
     puntuacionFinal,
@@ -153,6 +160,15 @@ test("control can switch the spectator between tutorial and game as distinct vie
 
   ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "partida" });
   assert.equal(ctx.espectador.resolverModo(), "partida");
+});
+
+test("opening Tutorial from Control restores the pre-show channel for spectator and muses", () => {
+  const ctx = crearContexto({ control: true, preShowActivo: false });
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "tutorial" });
+
+  assert.equal(ctx.aperturasPreShow(), 1);
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
 });
 
 test("only control can trigger the one-time final capture", () => {

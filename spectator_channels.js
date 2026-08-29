@@ -19,7 +19,8 @@ function registrarCanalesEspectador({
     sincronizarEstadoMusa,
     espectador,
     creditosShow,
-    resolverModoVistaEspectador
+    resolverModoVistaEspectador,
+    preShowMusas = null
 }) {
     const resolverCallback = (payload, callback) => (
         typeof payload === "function" ? payload : callback
@@ -189,6 +190,16 @@ function registrarCanalesEspectador({
             if (!estadoPuntuacion || estadoPuntuacion.disponible !== true) {
                 return;
             }
+        }
+        if (
+            socket.control
+            && modoEntrada === "tutorial"
+            && preShowMusas
+            && typeof preShowMusas.estaActivo === "function"
+            && !preShowMusas.estaActivo()
+            && typeof preShowMusas.abrir === "function"
+        ) {
+            preShowMusas.abrir();
         }
         const modoSolicitado = espectador.cambiarModo(modoEntrada);
         if (modoSolicitado === "creditos") {

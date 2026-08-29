@@ -158,7 +158,8 @@ function registrarConexionScrib(socket, deps) {
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
-        resolverModoVistaEspectador
+        resolverModoVistaEspectador,
+        preShowMusas
     });
     bolzanoCalentamientoGestor.registrarHandlers(socket);
 
