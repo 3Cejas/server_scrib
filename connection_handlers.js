@@ -11,6 +11,35 @@ const { registrarCanalesVotacion } = require('./voting_channels.js');
 const { instalarGuardiaMonitor } = require('./monitor_guard.js');
 const { registerSimulationChannels } = require('./simulation_channels.js');
 
+function detenerExperienciasTutorialActivas({
+    videoTutorialPreShow = null,
+    narracionShow = null
+} = {}) {
+    const resultado = { narracion: false, videotutorial: false };
+    if (narracionShow && typeof narracionShow.payload === "function") {
+        const estadoNarracion = narracionShow.payload();
+        if (estadoNarracion && estadoNarracion.activa && typeof narracionShow.detener === "function") {
+            narracionShow.detener();
+            resultado.narracion = true;
+        }
+    }
+    if (videoTutorialPreShow && typeof videoTutorialPreShow.payload === "function") {
+        const estadoVideo = videoTutorialPreShow.payload();
+        if (
+            estadoVideo
+            && estadoVideo.reproduciendo
+            && typeof videoTutorialPreShow.detener === "function"
+        ) {
+            videoTutorialPreShow.detener({
+                session_id: estadoVideo.session_id,
+                phase_seq: estadoVideo.phase_seq
+            });
+            resultado.videotutorial = true;
+        }
+    }
+    return resultado;
+}
+
 function registrarConexionScrib(socket, deps) {
     const {
         io,
@@ -163,7 +192,11 @@ function registrarConexionScrib(socket, deps) {
         espectador,
         creditosShow,
         resolverModoVistaEspectador,
-        preShowMusas
+        preShowMusas,
+        detenerExperienciasTutorial: () => detenerExperienciasTutorialActivas({
+            videoTutorialPreShow,
+            narracionShow
+        })
     });
     bolzanoCalentamientoGestor.registrarHandlers(socket);
 
@@ -334,5 +367,6 @@ function registrarConexionScrib(socket, deps) {
 }
 
 module.exports = {
+    detenerExperienciasTutorialActivas,
     registrarConexionScrib
 };

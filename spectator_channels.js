@@ -20,7 +20,8 @@ function registrarCanalesEspectador({
     espectador,
     creditosShow,
     resolverModoVistaEspectador,
-    preShowMusas = null
+    preShowMusas = null,
+    detenerExperienciasTutorial = () => {}
 }) {
     const resolverCallback = (payload, callback) => (
         typeof payload === "function" ? payload : callback
@@ -53,6 +54,17 @@ function registrarCanalesEspectador({
             }
         };
         return puntuacionFinal.capturarPendiente(stats, opcionesDatosPuntuacion());
+    };
+    const cambiarModoEspectador = (modo) => {
+        const modoAnterior = resolverModoVistaEspectador();
+        const modoSiguiente = espectador.cambiarModo(modo);
+        if (modoSiguiente !== modoAnterior) {
+            detenerExperienciasTutorial({
+                modoAnterior,
+                modoSiguiente
+            });
+        }
+        return modoSiguiente;
     };
 
     socket.emit("actualizar_contador_musas", obtenerContadorMusas());
@@ -167,7 +179,7 @@ function registrarCanalesEspectador({
         if (payload && typeof payload === "object" && payload.creditos) {
             creditosShow.actualizar(payload.creditos);
         }
-        espectador.cambiarModo("creditos");
+        cambiarModoEspectador("creditos");
         creditosShow.incrementarAnimacion();
         emitirVistaEspectadorModo();
         emitirCreditosShow();
@@ -201,7 +213,7 @@ function registrarCanalesEspectador({
         ) {
             preShowMusas.abrir();
         }
-        const modoSolicitado = espectador.cambiarModo(modoEntrada);
+        const modoSolicitado = cambiarModoEspectador(modoEntrada);
         if (modoSolicitado === "creditos") {
             creditosShow.incrementarAnimacion();
         }
@@ -239,7 +251,7 @@ function registrarCanalesEspectador({
             }
             return;
         }
-        espectador.cambiarModo("puntuacion");
+        cambiarModoEspectador("puntuacion");
         const vista = emitirVistaEspectadorModo();
         emitirPuntuacionFinal();
         if (typeof responder === "function") {
@@ -283,7 +295,7 @@ function registrarCanalesEspectador({
             }
             return;
         }
-        espectador.cambiarModo("partida");
+        cambiarModoEspectador("partida");
         const vista = emitirVistaEspectadorModo();
         if (typeof responder === "function") {
             responder({ ok: true, vista });

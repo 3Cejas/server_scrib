@@ -65,6 +65,7 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     payloadDatosRecibidos: statsBase.payloadDatosRecibidos
   };
   let aperturasPreShow = 0;
+  const cambiosConParada = [];
   const preShowMusas = {
     estaActivo: () => preShowActivo || aperturasPreShow > 0,
     abrir() { aperturasPreShow += 1; }
@@ -91,13 +92,15 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     espectador,
     creditosShow: { actualizar() {}, incrementarAnimacion() {} },
     resolverModoVistaEspectador: espectador.resolverModo,
-    preShowMusas
+    preShowMusas,
+    detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio)
   });
 
   ioEvents.length = 0;
   return {
     actualizacionesStats: () => actualizacionesStats,
     aperturasPreShow: () => aperturasPreShow,
+    cambiosConParada,
     espectador,
     ioEvents,
     puntuacionFinal,
@@ -160,6 +163,26 @@ test("control can switch the spectator between tutorial and game as distinct vie
 
   ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "partida" });
   assert.equal(ctx.espectador.resolverModo(), "partida");
+  assert.deepEqual(ctx.cambiosConParada, [{
+    modoAnterior: "tutorial",
+    modoSiguiente: "partida"
+  }]);
+});
+
+test("changing the authoritative view stops tutorial media once, but reselecting it does not", () => {
+  const ctx = crearContexto({ control: true });
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "tutorial" });
+  assert.equal(ctx.cambiosConParada.length, 0);
+
+  ctx.socket.emit("mostrar_creditos_espectador", {});
+  assert.deepEqual(ctx.cambiosConParada, [{
+    modoAnterior: "tutorial",
+    modoSiguiente: "creditos"
+  }]);
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "creditos" });
+  assert.equal(ctx.cambiosConParada.length, 1);
 });
 
 test("opening Tutorial from Control restores the pre-show channel for spectator and muses", () => {
