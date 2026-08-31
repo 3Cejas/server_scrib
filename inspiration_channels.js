@@ -5,6 +5,61 @@ const normalizarNombreMusaPorDefecto = (valor) => {
     return valor.trim().slice(0, 10).toUpperCase();
 };
 
+const estadisticasMusaVacias = () => ({
+    enviadas: 0,
+    introducidas: 0,
+    efectividad_pct: 0,
+    superbonus: 0,
+    bonus: 0,
+    malditas: 0,
+    letras: 0,
+    impacto_positivo: 0,
+    impacto_negativo: 0,
+    impacto_neto: 0
+});
+
+function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChannels = null, payloadStatsLive = () => ({}) } = {}) {
+    const player = Number(regalo && regalo.player) === 2 ? 2 : 1;
+    const clientId = String(regalo && regalo.client_id ? regalo.client_id : "");
+    const resumen = musasAuxiliares && typeof musasAuxiliares.payloadResumenPdf === "function"
+        ? musasAuxiliares.payloadResumenPdf()
+        : { equipos: {} };
+    const musasEquipo = resumen && resumen.equipos && resumen.equipos[player]
+        && Array.isArray(resumen.equipos[player].musas)
+        ? resumen.equipos[player].musas
+        : [];
+    const resumenMusa = musasEquipo.find((musa) => clientId && String(musa.client_id || "") === clientId)
+        || musasEquipo.find((musa) => String(musa.nombre || "") === String(regalo.musa_nombre || ""))
+        || null;
+    const statsLive = typeof payloadStatsLive === "function" ? payloadStatsLive() : {};
+    const jugadores = statsLive && statsLive.players && typeof statsLive.players === "object" ? statsLive.players : {};
+    const textos = writerChannels && typeof writerChannels.snapshotTextos === "function" ? writerChannels.snapshotTextos() : {};
+    const escritores = {};
+    [1, 2].forEach((id) => {
+        const stats = jugadores[id] && typeof jugadores[id] === "object" ? jugadores[id] : {};
+        const nombreServidor = writerChannels && typeof writerChannels.getNombre === "function" ? writerChannels.getNombre(id) : "";
+        escritores[id] = {
+            player: id,
+            nombre: String(nombreServidor || stats.nombre || `ESCRITXR ${id}`).slice(0, 80),
+            texto: String(textos[id] && (textos[id].plano || textos[id].html) ? (textos[id].plano || textos[id].html) : ""),
+            stats: {
+                palabras: Math.max(0, Math.trunc(Number(stats.palabrasTotal) || 0)),
+                pulsaciones: Math.max(0, Math.trunc(Number(stats.pulsacionesTotal) || 0)),
+                ritmo_ppm: Math.max(0, Math.round(Number(stats.ritmoPpm) || 0))
+            }
+        };
+    });
+    return {
+        version: 1,
+        player,
+        musa: {
+            nombre: String((resumenMusa && resumenMusa.nombre) || regalo.musa_nombre || "MUSA").slice(0, 24),
+            stats: { ...estadisticasMusaVacias(), ...((resumenMusa && resumenMusa.stats) || {}) }
+        },
+        escritores
+    };
+}
+
 const construirEventoFeedbackMusaInspiracion = (
     payload,
     escritxrId,
@@ -80,6 +135,8 @@ function registrarCanalesInspiracion({
     emitirEstadoBanderasMusas = () => {},
     emitirFeedbackMusas = () => {},
     emitirEstadoRegaloBanderaMusas = () => {},
+    writerChannels = null,
+    payloadStatsLive = () => ({}),
     sesionesEscritor = null,
     getModoSeq = () => 0,
     isPartidaPausada = () => false,
@@ -152,16 +209,24 @@ function registrarCanalesInspiracion({
         emitirEstadoRegaloBanderaMusas();
     });
 
-    socket.on("regalo_pdf_musas", (payload = {}) => {
-        const salida = musasAuxiliares.guardarRegalo(payload);
+    socket.on("regalo_pdf_musas", (payload = {}, responder = null) => {
+        const postgame = construirPostgameMusa({ regalo: payload, musasAuxiliares, writerChannels, payloadStatsLive });
+        const salida = musasAuxiliares.guardarRegalo({ ...payload, postgame });
         if (!salida) {
+            if (typeof responder === "function") responder({ ok: false });
             return;
         }
         if (salida.client_id) {
-            io.to(`musa_client_${salida.client_id}`).emit("regalo_pdf_musas", salida);
+            const sala = `musa_client_${salida.client_id}`;
+            io.to(sala).emit("regalo_pdf_musas", salida);
+            const salas = io && io.sockets && io.sockets.adapter && io.sockets.adapter.rooms;
+            const registroSala = salas && typeof salas.get === "function" ? salas.get(sala) : (salas && salas[sala]);
+            const destinatarios = Number(registroSala && (registroSala.size || registroSala.length)) || 0;
+            if (typeof responder === "function") responder({ ok: true, player: salida.player, client_id: salida.client_id, destinatarios });
             return;
         }
         io.to(`musa_j${salida.player}`).emit("regalo_pdf_musas", salida);
+        if (typeof responder === "function") responder({ ok: true, player: salida.player, client_id: "" });
     });
 
     socket.on("pedir_resumen_musas_pdf", (payload = {}, responder = null) => {
@@ -685,5 +750,6 @@ function registrarCanalesInspiracion({
 
 module.exports = {
     construirEventoFeedbackMusaInspiracion,
+    construirPostgameMusa,
     registrarCanalesInspiracion
 };

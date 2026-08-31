@@ -183,7 +183,7 @@ function crearCicloPartida({
             statsLive.actualizar({ modo_actual: "" });
         }
         emitirStatsLive();
-        state.tiempoCambioModos = state.duracionTiempoModos;
+        state.tiempoCambioModos = state.duracionTiempoModoActual || state.duracionTiempoModos;
         socket.broadcast.emit('inicio', datos);
         emitirModoActual();
         registrar(state.modosPendientes);
@@ -196,12 +196,10 @@ function crearCicloPartida({
         emitirNubeInspiracionEstado(null, true);
         programarInicioTimer(() => {
             socket.broadcast.emit('post-inicio', { borrar_texto: datos.borrar_texto });
-            const nivelesEscritura = state.listaModos.filter((modo) => modo !== 'tertulia').length;
-            const totalEscritura = Math.max(
-                1,
-                Math.trunc(Number(state.duracionTiempoModos) || 0) * Math.max(1, nivelesEscritura)
-            );
-            iniciarRelojPartida(totalEscritura);
+            const duracionTotal = Number(state.duracionPartida) > 0
+                ? Number(state.duracionPartida)
+                : Number(state.duracionTiempoModos) * Math.max(1, state.listaModos.length);
+            iniciarRelojPartida(Math.max(1, Math.trunc(duracionTotal || 0)));
             iniciarCompeticionRonda(state.modoActual);
             motorModos.activarModo(state.modoActual, socket);
             emitirNubeInspiracionEstado(null, true);
@@ -239,7 +237,7 @@ function crearCicloPartida({
         emitirStatsLive();
         state.nuevaPalabraJ1 = false;
         state.nuevaPalabraJ2 = false;
-        state.tiempoCambioModos = state.duracionTiempoModos;
+        state.tiempoCambioModos = state.duracionTiempoModoActual || state.duracionTiempoModos;
         emitirNubeInspiracionEstado(null, true);
         socket.broadcast.emit('limpiar', evento);
         if (preShowMusas && typeof preShowMusas.abrir === "function") {

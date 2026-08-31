@@ -8,6 +8,14 @@ const LETRAS_PROHIBIDAS = [...ALFABETO_ES];
 const LETRAS_BENDITAS_PONDERADAS = [...ALFABETO_ES];
 const LISTA_MODOS_DEFAULT = ["letra bendita", "letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas"];
 
+function repartirDuracionPartida(totalSegundos, cantidadNiveles) {
+    const niveles = Math.max(1, Math.trunc(Number(cantidadNiveles) || 0));
+    const total = Math.max(niveles, Math.trunc(Number(totalSegundos) || 0));
+    const base = Math.floor(total / niveles);
+    const resto = total % niveles;
+    return Array.from({ length: niveles }, (_valor, indice) => base + (indice < resto ? 1 : 0));
+}
+
 function crearRuntimeModos({
     io,
     partidaSync,
@@ -40,6 +48,8 @@ function crearRuntimeModos({
     let nueva_palabra_j1 = false;
     let nueva_palabra_j2 = false;
     let TIEMPO_CAMBIO_PALABRAS;
+    let DURACION_PARTIDA;
+    let DURACIONES_NIVELES = [];
     let DURACION_TIEMPO_MODOS;
     let TIEMPO_CAMBIO_MODOS;
     let TIEMPO_BORROSO;
@@ -334,13 +344,20 @@ function crearRuntimeModos({
 
     const prepararParametrosInicio = (parametros = {}) => {
         TIEMPO_CAMBIO_PALABRAS = parametros.TIEMPO_CAMBIO_PALABRAS;
-        DURACION_TIEMPO_MODOS = parametros.DURACION_TIEMPO_MODOS;
-        TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
         TIEMPO_BORROSO = parametros.TIEMPO_BORROSO;
         TIEMPO_MODIFICADOR = parametros.TIEMPO_MODIFICADOR;
         TIEMPO_VOTACION = parametros.TIEMPO_VOTACION;
         TIEMPO_CAMBIO_LETRA = parametros.TIEMPO_CAMBIO_LETRA;
         lista_modos = parametros.LISTA_MODOS || parametros.lista_modos || lista_modos;
+        const nivelesActivos = Math.max(1, lista_modos.length);
+        const duracionLegacy = Math.max(1, Math.trunc(Number(parametros.DURACION_TIEMPO_MODOS) || 0));
+        const totalSolicitado = Math.trunc(Number(parametros.DURACION_PARTIDA) || 0);
+        DURACION_PARTIDA = totalSolicitado > 0
+            ? Math.max(nivelesActivos, totalSolicitado)
+            : duracionLegacy * nivelesActivos;
+        DURACIONES_NIVELES = repartirDuracionPartida(DURACION_PARTIDA, nivelesActivos);
+        DURACION_TIEMPO_MODOS = DURACIONES_NIVELES[0];
+        TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
 
         if (!modo_bonus) modo_bonus = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
         if (!modo_malditas) modo_malditas = new PalabrasMalditasMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
@@ -377,6 +394,11 @@ function crearRuntimeModos({
         get modosPendientes() { return Array.isArray(modos_pendientes) ? modos_pendientes : []; },
         set modosPendientes(valor) { modos_pendientes = Array.isArray(valor) ? valor : []; },
         get duracionTiempoModos() { return DURACION_TIEMPO_MODOS; },
+        get duracionPartida() { return DURACION_PARTIDA; },
+        get duracionTiempoModoActual() {
+            return DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))]
+                || DURACION_TIEMPO_MODOS;
+        },
         get tiempoCambioModos() { return TIEMPO_CAMBIO_MODOS; },
         set tiempoCambioModos(valor) { TIEMPO_CAMBIO_MODOS = Number(valor) || 0; },
         get tiempos() { return tiempos; },
@@ -445,5 +467,6 @@ function crearRuntimeModos({
 }
 
 module.exports = {
-    crearRuntimeModos
+    crearRuntimeModos,
+    repartirDuracionPartida
 };

@@ -10,9 +10,8 @@ const MODOS_CONTROL_DISPONIBLES = Object.freeze([
 const PARAMETROS_CONTROL_DEFECTO = Object.freeze({
     tiempo_modificador: 60,
     tiempo_votacion: 30,
-    tiempo_modos: 300,
-    tiempo_minutos: 5,
-    tiempo_segundos: 0,
+    duracion_minutos: 30,
+    duracion_segundos: 0,
     tiempo_cambio_letra: 60,
     tiempo_cambio_palabras: 20,
     limite_tiempo_inspiracion: 30,
@@ -22,9 +21,8 @@ const PARAMETROS_CONTROL_DEFECTO = Object.freeze({
 const LIMITES_PARAMETROS_CONTROL = Object.freeze({
     tiempo_modificador: [1, 360],
     tiempo_votacion: [1, 360],
-    tiempo_modos: [1, 3600],
-    tiempo_minutos: [0, 59],
-    tiempo_segundos: [0, 55],
+    duracion_minutos: [0, 360],
+    duracion_segundos: [0, 59],
     tiempo_cambio_letra: [1, 360],
     tiempo_cambio_palabras: [1, 360],
     limite_tiempo_inspiracion: [5, 120],

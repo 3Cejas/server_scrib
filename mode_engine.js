@@ -186,6 +186,7 @@ function crearMotorModos({
 
         state.modoAnterior = prev;
         state.modoActual = curr;
+        state.tiempoCambioModos = state.duracionTiempoModoActual;
         partidaSync.siguienteModoSeq();
         registrar(`MODO ANTERIOR: ${prev} | MODO ACTUAL: ${curr}`);
         registrarTimelineModo(curr, 'modos_de_juego');

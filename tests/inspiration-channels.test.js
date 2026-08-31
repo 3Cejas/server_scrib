@@ -2,7 +2,40 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 
-const { registrarCanalesInspiracion } = require("../inspiration_channels.js");
+const { construirPostgameMusa, registrarCanalesInspiracion } = require("../inspiration_channels.js");
+
+test("construirPostgameMusa incluye estadisticas personales y los dos textos", () => {
+  const payload = construirPostgameMusa({
+    regalo: { player: 1, client_id: "luna", musa_nombre: "LUNA" },
+    musasAuxiliares: {
+      payloadResumenPdf: () => ({
+        equipos: {
+          1: { musas: [{ client_id: "luna", nombre: "LUNA", stats: { enviadas: 8, introducidas: 5, efectividad_pct: 63 } }] }
+        }
+      })
+    },
+    writerChannels: {
+      getNombre: (player) => (player === 1 ? "ANA MAR" : "BEA SOL"),
+      snapshotTextos: () => ({
+        1: { plano: "Texto propio" },
+        2: { plano: "Texto contrario" }
+      })
+    },
+    payloadStatsLive: () => ({
+      players: {
+        1: { palabrasTotal: 42, pulsacionesTotal: 320, ritmoPpm: 71 },
+        2: { palabrasTotal: 38, pulsacionesTotal: 299, ritmoPpm: 66 }
+      }
+    })
+  });
+
+  assert.equal(payload.musa.nombre, "LUNA");
+  assert.equal(payload.musa.stats.enviadas, 8);
+  assert.equal(payload.escritores[1].nombre, "ANA MAR");
+  assert.equal(payload.escritores[1].texto, "Texto propio");
+  assert.equal(payload.escritores[2].texto, "Texto contrario");
+  assert.deepEqual(payload.escritores[1].stats, { palabras: 42, pulsaciones: 320, ritmo_ppm: 71 });
+});
 
 function createFakeSocket() {
   const socket = new EventEmitter();
@@ -353,7 +386,10 @@ test("regalo_pdf_musas targets personalized gifts to the muse client room", () =
     obtenerIdJugadorValido: (valor) => (Number(valor) === 1 ? 1 : null)
   });
 
-  socket.emit("regalo_pdf_musas", { player: 1, client_id: "client_1", data: "pdf" });
+  let ack = null;
+  socket.emit("regalo_pdf_musas", { player: 1, client_id: "client_1", data: "pdf" }, (payload) => {
+    ack = payload;
+  });
 
   assert.deepEqual(events, [{
     room: "musa_client_client_1",
@@ -365,6 +401,7 @@ test("regalo_pdf_musas targets personalized gifts to the muse client room", () =
       filename: "musa.pdf"
     }
   }]);
+  assert.deepEqual(ack, { ok: true, player: 1, client_id: "client_1", destinatarios: 0 });
 });
 
 test("pedir_resumen_musas_pdf responds through ack when available", () => {

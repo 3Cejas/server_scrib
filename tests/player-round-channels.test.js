@@ -11,6 +11,7 @@ function crearCanalesRondaFake(overrides = {}) {
   const pausaEstados = [];
   const desventajasRegistradas = [];
   let pausarDesventajasCalls = 0;
+  let pausarRelojCalls = 0;
   let reanudarDesventajasCalls = 0;
   let cancelarInicioCalls = 0;
   let tempEmitidos = 0;
@@ -106,6 +107,9 @@ function crearCanalesRondaFake(overrides = {}) {
     pausarDesventajasActivas() {
       pausarDesventajasCalls += 1;
     },
+    pausarRelojPartida() {
+      pausarRelojCalls += 1;
+    },
     reanudarDesventajasActivas() {
       reanudarDesventajasCalls += 1;
     },
@@ -127,6 +131,7 @@ function crearCanalesRondaFake(overrides = {}) {
     labelsAvance,
     pausaEstados,
     pausarDesventajasCalls: () => pausarDesventajasCalls,
+    pausarRelojCalls: () => pausarRelojCalls,
     reanudarDesventajasCalls: () => reanudarDesventajasCalls,
     pulsacionesRegistradas: () => pulsacionesRegistradas,
     state,
@@ -144,9 +149,23 @@ test("pausar marks the match as paused and freezes active disadvantages", () => 
 
   assert.deepEqual(ctx.pausaEstados, [true]);
   assert.equal(ctx.pausarDesventajasCalls(), 1);
+  assert.equal(ctx.pausarRelojCalls(), 1);
   assert.equal(ctx.cancelarInicioCalls(), 1);
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "pausar_js", payload: { source: "pause-button" } }
+  ]);
+});
+
+test("automatic tertulia pause leaves the total match clock running", () => {
+  const ctx = crearCanalesRondaFake({ modoActual: "tertulia" });
+
+  ctx.handlers.pausar({ motivo: "tertulia" });
+
+  assert.deepEqual(ctx.pausaEstados, [true]);
+  assert.equal(ctx.pausarDesventajasCalls(), 1);
+  assert.equal(ctx.pausarRelojCalls(), 0);
+  assert.deepEqual(ctx.broadcasts, [
+    { eventName: "pausar_js", payload: { motivo: "tertulia" } }
   ]);
 });
 

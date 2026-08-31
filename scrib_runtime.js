@@ -369,8 +369,6 @@ function crearRuntimeScrib({
         emitirStatsLive,
         votacionVentaja,
         iniciarRondaCompeticion: (modo) => {
-            if (modo === 'tertulia') relojPartida.pausar();
-            else relojPartida.reanudar();
             return competicionRondas.iniciarRonda(modo, { modo_seq: partidaSync.obtenerModoSeq() });
         },
         getModoBonus,
@@ -403,8 +401,6 @@ function crearRuntimeScrib({
         limpiarDesventajasActivas: () => desventajasActivas.reset(),
         resetearCompeticion: () => competicionRondas.reset(),
         iniciarCompeticionRonda: (modo) => {
-            if (modo === 'tertulia') relojPartida.pausar();
-            else relojPartida.reanudar();
             return competicionRondas.iniciarRonda(modo, { modo_seq: partidaSync.obtenerModoSeq() });
         },
         iniciarRelojPartida: (segundos) => relojPartida.iniciar(segundos),

@@ -21,9 +21,8 @@ test("control state persists panel parameters and clamps invalid values", () => 
     borrar_texto: true,
     frases_finales: { 1: " cierre azul ", 2: "cierre rojo" },
     parametros: {
-      tiempo_modos: 9999,
-      tiempo_minutos: -5,
-      tiempo_segundos: 70,
+      duracion_minutos: 9999,
+      duracion_segundos: 70,
       escala_espectador: 123
     },
     modos: ["stats", "tertulia", "frase final"],
@@ -32,9 +31,8 @@ test("control state persists panel parameters and clamps invalid values", () => 
 
   assert.equal(estado.borrar_texto, true);
   assert.deepEqual(estado.frases_finales, { 1: "cierre azul", 2: "cierre rojo" });
-  assert.equal(estado.parametros.tiempo_modos, 3600);
-  assert.equal(estado.parametros.tiempo_minutos, 0);
-  assert.equal(estado.parametros.tiempo_segundos, 55);
+  assert.equal(estado.parametros.duracion_minutos, 360);
+  assert.equal(estado.parametros.duracion_segundos, 59);
   assert.equal(estado.parametros.escala_espectador, 123);
   assert.deepEqual(estado.modos, ["tertulia", "frase final"]);
   assert.deepEqual(estado.nombres, { 1: "ANA", 2: "BEA" });
@@ -46,8 +44,8 @@ test("control state persists panel parameters and clamps invalid values", () => 
 
 test("control state normalizers preserve previous values when fields are absent", () => {
   assert.deepEqual(
-    normalizarParametrosControl({ tiempo_modos: 120 }, { tiempo_modos: 30, tiempo_votacion: 40 }),
-    { tiempo_modos: 120, tiempo_votacion: 40 }
+    normalizarParametrosControl({ duracion_minutos: 20 }, { duracion_minutos: 30, tiempo_votacion: 40 }),
+    { duracion_minutos: 20, tiempo_votacion: 40 }
   );
   assert.deepEqual(
     normalizarModosControl(null, ["tertulia"]),
