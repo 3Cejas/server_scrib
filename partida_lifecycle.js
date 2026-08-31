@@ -28,6 +28,7 @@ function crearCicloPartida({
     programarInicioTimer,
     reiniciarMusasCreditosPartida = () => {},
     limpiarMusasCreditosPartida = () => {},
+    iniciarNuevaSesionMusas = () => ({ ok: true }),
     preShowMusas = null,
     videoTutorialPreShow = null,
     registrar = () => {}
@@ -250,6 +251,11 @@ function crearCicloPartida({
         emitirModoActual();
     };
 
+    const prepararNuevaPartida = (socket) => {
+        limpiarPartida(socket, { nueva_partida: true });
+        return iniciarNuevaSesionMusas();
+    };
+
     const registrarHandlers = (socket) => {
         socket.on('inicio', (datos) => {
             if (!socket.control && !socket.simulacion_scrib) return;
@@ -258,6 +264,14 @@ function crearCicloPartida({
         socket.on('limpiar', (evento) => {
             if (!socket.control && !socket.simulacion_scrib) return;
             limpiarPartida(socket, evento);
+        });
+        socket.on('nueva_partida', (_evento = {}, callback = null) => {
+            if (!socket.control && !socket.simulacion_scrib) {
+                if (typeof callback === "function") callback({ ok: false, code: "FORBIDDEN" });
+                return;
+            }
+            const resultado = prepararNuevaPartida(socket);
+            if (typeof callback === "function") callback({ ok: true, ...resultado });
         });
         socket.on('finalizar_partida', () => {
             if (!socket.control && !socket.simulacion_scrib) return;
@@ -268,6 +282,7 @@ function crearCicloPartida({
     return {
         finalizarPartida,
         iniciarPartida,
+        prepararNuevaPartida,
         limpiarPartida,
         registrarHandlers,
         reiniciarEstadoPartida

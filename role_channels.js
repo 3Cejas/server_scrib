@@ -21,6 +21,8 @@ function registrarCanalesRoles({
     registrarMusaEnCreditosPartida = () => {},
     getPartidaActivaParaCreditos = () => false,
     emitirEstadoVideoTutorial = () => null,
+    getSesionMusas = () => ({ session_id: "" }),
+    exigirSesionMusa = false,
     autorizarRegistroControl = () => ({ ok: true, rol: "control", expires_ts: 0 }),
     registrar = () => {}
 }) {
@@ -34,6 +36,14 @@ function registrarCanalesRoles({
             ? "manual"
             : "automatica"
     );
+
+    const obtenerSesionMusaActual = () => {
+        const estado = typeof getSesionMusas === "function" ? getSesionMusas() : {};
+        return String(estado && estado.session_id || "")
+            .trim()
+            .replace(/[^A-Za-z0-9_-]/g, "")
+            .slice(0, 96);
+    };
 
     const construirOpcionesEquipoMusa = () => {
         const contador = rolesConectados.obtenerContadorMusas();
@@ -51,6 +61,7 @@ function registrarCanalesRoles({
         });
         return {
             ok: true,
+            session_id: obtenerSesionMusaActual(),
             equipos: [crearEquipo(1), crearEquipo(2)],
             ts: Date.now()
         };
@@ -71,6 +82,7 @@ function registrarCanalesRoles({
                 ok: false,
                 code: "MUSE_ASSIGNMENT_FAILED",
                 mensaje: "No se ha podido asignar un equipo.",
+                session_id: obtenerSesionMusaActual(),
                 ts: Date.now()
             };
             const requestIdNormalizado = normalizarRequestIdMusa(requestId);
@@ -85,6 +97,7 @@ function registrarCanalesRoles({
         const asignacion = {
             ok: true,
             version: 1,
+            session_id: obtenerSesionMusaActual(),
             player,
             equipo: player,
             color: player === 1 ? "azul" : "rojo",
@@ -308,6 +321,24 @@ function registrarCanalesRoles({
         const nombre_musa = normalizarNombreMusa(datos_musa.nombre) || "MUSA";
         const musa_client_id = normalizarMusaClientId(datos_musa.client_id);
         const request_id = normalizarRequestIdMusa(datos_musa.request_id);
+        const sesion_musa = String(datos_musa.session_id || datos_musa.sessionId || "")
+            .trim()
+            .replace(/[^A-Za-z0-9_-]/g, "")
+            .slice(0, 96);
+        const sesion_actual = obtenerSesionMusaActual();
+        if (sesion_actual && sesion_musa !== sesion_actual && exigirSesionMusa) {
+            const rechazo = {
+                ok: false,
+                code: "MUSE_SESSION_EXPIRED",
+                mensaje: "Ha comenzado una nueva partida. Vuelve a elegir escritxr.",
+                session_id: sesion_actual,
+                ts: Date.now()
+            };
+            if (request_id) rechazo.request_id = request_id;
+            socket.emit("musa_asignacion", rechazo);
+            if (typeof callback === "function") callback(rechazo);
+            return;
+        }
         const registro = rolesConectados.registrarMusa(socket, {
             player: datos_musa.musa ?? datos_musa.player ?? datos_musa.equipo ?? datos_musa.team,
             nombre: nombre_musa,

@@ -184,6 +184,8 @@ function registrarConexionScrib(socket, deps) {
         registrarMusaEnCreditosPartida: rolesConectados.registrarMusaEnCreditosPartida,
         getPartidaActivaParaCreditos: () => Boolean(estadoCicloPartida && estadoCicloPartida.modoActual && !estadoCicloPartida.finDelJuego),
         emitirEstadoVideoTutorial: () => videoTutorialPreShow && videoTutorialPreShow.emitirEstado(),
+        getSesionMusas: () => rolesConectados.obtenerSesionMusas(),
+        exigirSesionMusa: !testHooksEnabled,
         autorizarRegistroControl: (_socket, payload) => (
             testHooksEnabled
                 ? { ok: true, rol: "control", expires_ts: 0 }

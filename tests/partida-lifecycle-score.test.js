@@ -33,6 +33,7 @@ const telemetriaFinal = (palabras1 = 70, palabras2 = 35) => ({
 function crearHarness() {
   const eventos = [];
   const ordenPreShow = [];
+  let nuevasSesionesMusas = 0;
   const io = {
     emit(event, payload) {
       eventos.push({ event, payload });
@@ -120,13 +121,28 @@ function crearHarness() {
     registrarTimelineModo: noOp,
     motorModos: { activarModo: noOp, temp_modos: noOp },
     programarInicioTimer: noOp,
+    iniciarNuevaSesionMusas: () => ({
+      session_id: `partida_test_${++nuevasSesionesMusas}`,
+      revision: nuevasSesionesMusas
+    }),
     preShowMusas: preShow,
     videoTutorialPreShow: videoPreShow
   });
   const socket = {
     broadcast: { emit: noOp }
   };
-  return { ciclo, eventos, ordenPreShow, preShow, videoPreShow, puntuacionFinal, socket, state, statsLive };
+  return {
+    ciclo,
+    eventos,
+    ordenPreShow,
+    preShow,
+    videoPreShow,
+    puntuacionFinal,
+    socket,
+    state,
+    statsLive,
+    getNuevasSesionesMusas: () => nuevasSesionesMusas
+  };
 }
 
 function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
@@ -138,8 +154,8 @@ function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
     on(event, handler) {
       handlers[event] = handler;
     },
-    trigger(event, payload) {
-      handlers[event](payload);
+    trigger(event, ...args) {
+      handlers[event](...args);
     }
   };
 }
@@ -218,4 +234,35 @@ test("only control or the internal simulator can open or close pre-show through 
   simulador.trigger("inicio", { count: "1:00", parametros: {} });
   assert.equal(ctx.preShow.activo, false);
   assert.equal(ctx.videoPreShow.activo, false);
+});
+
+test("new match resets the round and muse session without starting the writers", () => {
+  const ctx = crearHarness();
+  ctx.state.finDelJuego = false;
+  ctx.state.modoActual = "letra bendita";
+  const control = crearSocketLifecycle({ control: true });
+  ctx.ciclo.registrarHandlers(control);
+  let ack = null;
+
+  control.trigger("nueva_partida", {}, (payload) => { ack = payload; });
+
+  assert.equal(ack.ok, true);
+  assert.equal(ack.session_id, "partida_test_1");
+  assert.equal(ctx.getNuevasSesionesMusas(), 1);
+  assert.equal(ctx.state.finDelJuego, true);
+  assert.equal(ctx.state.modoActual, "");
+  assert.equal(ctx.preShow.activo, true);
+  assert.equal(ctx.videoPreShow.activo, true);
+});
+
+test("new match is rejected for sockets outside control", () => {
+  const ctx = crearHarness();
+  const intruso = crearSocketLifecycle();
+  ctx.ciclo.registrarHandlers(intruso);
+  let ack = null;
+
+  intruso.trigger("nueva_partida", {}, (payload) => { ack = payload; });
+
+  assert.deepEqual(ack, { ok: false, code: "FORBIDDEN" });
+  assert.equal(ctx.getNuevasSesionesMusas(), 0);
 });

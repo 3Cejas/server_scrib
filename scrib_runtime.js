@@ -333,6 +333,21 @@ function crearRuntimeScrib({
     const reiniciarEstadoPartida = (socket, opciones = {}) => partidaLifecycle.reiniciarEstadoPartida(socket, opciones);
     const finalizarPartida = (socket) => partidaLifecycle.finalizarPartida(socket);
 
+    const iniciarNuevaSesionMusas = () => {
+        const resultado = rolesConectados.iniciarNuevaSesionMusas();
+        const payload = {
+            ok: true,
+            session_id: resultado.session_id,
+            revision: resultado.revision,
+            contador: resultado.contador,
+            ts: Date.now()
+        };
+        io.emit("actualizar_contador_musas", resultado.contador);
+        io.emit("musa_sesion_actualizada", payload);
+        registrar(`[servidor] nueva partida ${resultado.session_id}: las musas vuelven a elegir escritxr.`);
+        return payload;
+    };
+
     motorModos = crearMotorModos({
         state: estadoMotorModos,
         io,
@@ -402,6 +417,7 @@ function crearRuntimeScrib({
         programarInicioTimer,
         reiniciarMusasCreditosPartida: () => rolesConectados.reiniciarMusasCreditosPartidaDesdeActivas(),
         limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
+        iniciarNuevaSesionMusas,
         preShowMusas,
         videoTutorialPreShow,
         registrar

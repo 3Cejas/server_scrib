@@ -67,6 +67,8 @@ function registrar(socket, deps = {}) {
     emitirEstadoDramaturgia: deps.emitirEstadoDramaturgia || (() => {}),
     registrarMusaEnCreditosPartida: deps.registrarMusaEnCreditosPartida || (() => {}),
     getPartidaActivaParaCreditos: deps.getPartidaActivaParaCreditos || (() => false),
+    getSesionMusas: deps.getSesionMusas || (() => ({ session_id: "" })),
+    exigirSesionMusa: Boolean(deps.exigirSesionMusa),
     autorizarRegistroControl: deps.autorizarRegistroControl || (() => ({ ok: true, rol: "control" })),
     registrar: () => {}
   });
@@ -401,6 +403,43 @@ test("role channels expose both current writer names and accept an explicit manu
     escritxr1: 0,
     escritxr2: 1
   });
+});
+
+test("role channels reject a muse from a previous match session", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const musa = crearSocket("musa-stale-session");
+  const sessionId = rolesConectados.obtenerSesionMusas().session_id;
+  registrar(musa, {
+    rolesConectados,
+    sesionesEscritor,
+    getSesionMusas: () => rolesConectados.obtenerSesionMusas(),
+    exigirSesionMusa: true
+  });
+
+  let staleAck = null;
+  musa.trigger("registrar_musa", {
+    nombre: "Luna",
+    client_id: "stale-client",
+    session_id: "partida_anterior_1"
+  }, (payload) => { staleAck = payload; });
+
+  assert.equal(staleAck.ok, false);
+  assert.equal(staleAck.code, "MUSE_SESSION_EXPIRED");
+  assert.equal(staleAck.session_id, sessionId);
+  assert.deepEqual(rolesConectados.obtenerContadorMusas(), {
+    escritxr1: 0,
+    escritxr2: 0
+  });
+
+  let currentAck = null;
+  musa.trigger("registrar_musa", {
+    nombre: "Luna",
+    client_id: "stale-client",
+    session_id: sessionId
+  }, (payload) => { currentAck = payload; });
+  assert.equal(currentAck.ok, true);
+  assert.equal(currentAck.session_id, sessionId);
 });
 
 test("role channels sanitize request correlation and cap the writer name in muse assignments", () => {

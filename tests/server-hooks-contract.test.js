@@ -624,6 +624,54 @@ test("musa counters stay idempotent across duplicate registration and team chang
   );
 });
 
+test("Control starts a new match session without starting play and releases every muse", async () => {
+  const control = await connectPassiveSocket();
+  const controlRegistration = await emitAck(control, "registrar_control", {});
+  assert.equal(controlRegistration.ok, true);
+
+  const muse = await connectPassiveSocket();
+  const previousAssignment = await emitAck(muse, "registrar_musa", {
+    equipo: 2,
+    modo_asignacion: "manual",
+    nombre: "Luna",
+    client_id: "new-match-luna"
+  });
+  assert.equal(previousAssignment.ok, true);
+  assert.equal(previousAssignment.player, 2);
+
+  const sessionEventPromise = waitForSocketEvent(
+    muse,
+    "musa_sesion_actualizada",
+    (payload) => payload && payload.session_id !== previousAssignment.session_id
+  );
+  const reset = await emitAck(control, "nueva_partida", {});
+  const sessionEvent = await sessionEventPromise;
+
+  assert.equal(reset.ok, true);
+  assert.equal(reset.session_id, sessionEvent.session_id);
+  assert.notEqual(reset.session_id, previousAssignment.session_id);
+  const cleared = await waitForState(
+    "new match to clear muse assignment without starting the game",
+    (state) => state.musas.contador.escritxr1 === 0
+      && state.musas.contador.escritxr2 === 0
+      && state.partida.fin_del_juego === true
+      && state.partida.modo_actual === ""
+  );
+  assert.equal(cleared.musas.contador.escritxr1, 0);
+  assert.equal(cleared.musas.contador.escritxr2, 0);
+
+  const nextAssignment = await emitAck(muse, "registrar_musa", {
+    equipo: 1,
+    modo_asignacion: "manual",
+    nombre: "Luna",
+    client_id: "new-match-luna",
+    session_id: reset.session_id
+  });
+  assert.equal(nextAssignment.ok, true);
+  assert.equal(nextAssignment.player, 1);
+  assert.equal(nextAssignment.reconexion, false);
+});
+
 test("musa flag hearts unlock a cosmetic celebration without changing time", async () => {
   const watcher = await connectPassiveSocket();
 

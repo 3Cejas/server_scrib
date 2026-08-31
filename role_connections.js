@@ -19,6 +19,13 @@ const MONITOR_ROLES = new Set([
 
 const MAX_ASIGNACIONES_MUSA_RECORDADAS = 4096;
 
+function normalizarSesionMusaId(valor) {
+    return String(valor || "")
+        .trim()
+        .replace(/[^A-Za-z0-9_-]/g, "")
+        .slice(0, 96);
+}
+
 function normalizarRolMonitor(valor) {
     const rol = String(valor || "")
         .trim()
@@ -53,6 +60,8 @@ function crearRegistroRoles({
     const musasActivas = new Map();
     const socketMusaPorClientId = new Map();
     const ultimaAsignacionMusaPorClientId = new Map();
+    let revisionSesionMusas = 1;
+    let sesionMusasId = `partida_${Math.max(0, Math.trunc(Number(now()) || Date.now())).toString(36)}_${revisionSesionMusas.toString(36)}`;
     let proximoEquipoEmpate = 1;
     let ordenRegistroMusa = 0;
     const musasPartida = {
@@ -71,6 +80,11 @@ function crearRegistroRoles({
     const clonarContadorMusas = () => ({
         escritxr1: musas[1].size,
         escritxr2: musas[2].size
+    });
+
+    const obtenerSesionMusas = () => ({
+        session_id: sesionMusasId,
+        revision: revisionSesionMusas
     });
 
     const normalizarModoAsignacionMusa = (valor) => {
@@ -400,6 +414,26 @@ function crearRegistroRoles({
         return registro;
     };
 
+    const iniciarNuevaSesionMusas = () => {
+        const musasDesvinculadas = Array.from(musasActivas.values());
+        musasDesvinculadas.forEach((registro) => {
+            if (registro && registro.socket) {
+                desvincularMusa(registro.socket);
+            }
+        });
+        ultimaAsignacionMusaPorClientId.clear();
+        limpiarMusasCreditosPartida();
+        proximoEquipoEmpate = 1;
+        revisionSesionMusas += 1;
+        sesionMusasId = `partida_${Math.max(0, Math.trunc(Number(now()) || Date.now())).toString(36)}_${revisionSesionMusas.toString(36)}`;
+        return {
+            ...obtenerSesionMusas(),
+            musasDesvinculadas,
+            contador: clonarContadorMusas(),
+            connections: payloadConexiones()
+        };
+    };
+
     const vincularMusa = (socket, { player, nombre, clientId, modoAsignacion = "automatica" }) => {
         const id = validarJugador(player);
         if (!id) return null;
@@ -646,9 +680,11 @@ function crearRegistroRoles({
         desregistrarSocket,
         desregistrarControl,
         estadoEscritores,
+        iniciarNuevaSesionMusas,
         limpiarMusasCreditosPartida,
         listarMusasActivas,
         obtenerContadorMusas: clonarContadorMusas,
+        obtenerSesionMusas,
         obtenerMusaActiva,
         obtenerMusasCreditosPartida,
         payloadConexiones,
@@ -669,5 +705,6 @@ module.exports = {
     crearRegistroRoles,
     MONITOR_ROLES,
     normalizarRolMonitor,
+    normalizarSesionMusaId,
     ROLE_ROOMS
 };
