@@ -12,6 +12,31 @@ const normalizarRequestId = (value) => String(value || "")
     .replace(/[^A-Za-z0-9_-]/g, "")
     .slice(0, 96);
 
+function restaurarPreShowTrasNarracion({
+    resolverModoVista = () => "",
+    preShowMusas = null
+} = {}) {
+    if (
+        !preShowMusas
+        || typeof resolverModoVista !== "function"
+        || resolverModoVista() !== "tutorial"
+    ) {
+        return false;
+    }
+    if (
+        typeof preShowMusas.estaActivo === "function"
+        && preShowMusas.estaActivo()
+    ) {
+        if (typeof preShowMusas.emitirEstado === "function") {
+            preShowMusas.emitirEstado();
+        }
+        return true;
+    }
+    if (typeof preShowMusas.abrir !== "function") return false;
+    preShowMusas.abrir();
+    return true;
+}
+
 function crearGestorNarracionShow({
     io,
     now = () => Date.now(),
@@ -103,8 +128,10 @@ function crearGestorNarracionShow({
             const estabaActiva = activa;
             activa = false;
             inicioTs = 0;
-            const estado = emitirEstado();
             if (estabaActiva) onStop();
+            // La vista que estaba debajo se restaura antes de retirar la capa
+            // de narracion, evitando un fotograma vacio en musas y espectador.
+            const estado = emitirEstado();
             return {
                 ok: true,
                 request_id: requestId || undefined,
@@ -153,5 +180,6 @@ module.exports = {
     SHOW_NARRATION_PREROLL_SECONDS,
     SHOW_NARRATION_SLIDE_URL,
     SHOW_NARRATION_VERSION,
-    crearGestorNarracionShow
+    crearGestorNarracionShow,
+    restaurarPreShowTrasNarracion
 };

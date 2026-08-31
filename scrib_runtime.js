@@ -12,7 +12,10 @@ const { crearGestorPreShowMusas } = require('./pre_show_musas.js');
 const { crearGestorAyudaMusas } = require('./musa_help.js');
 const { crearGestorAccesoRoles } = require('./role_access.js');
 const { crearGestorVideoTutorialPreShow } = require('./video_tutorial_pre_show.js');
-const { crearGestorNarracionShow } = require('./show_narration.js');
+const {
+    crearGestorNarracionShow,
+    restaurarPreShowTrasNarracion
+} = require('./show_narration.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
     crearGestorIdioma,
@@ -214,7 +217,13 @@ function crearRuntimeScrib({
     narracionShow = crearGestorNarracionShow({
         io,
         onStart: () => videoTutorialPreShow.suspenderTemporalmente(),
-        onStop: () => videoTutorialPreShow.reanudarTemporalmente()
+        onStop: () => {
+            videoTutorialPreShow.reanudarTemporalmente();
+            restaurarPreShowTrasNarracion({
+                resolverModoVista: () => resolverModoVistaEspectador(),
+                preShowMusas
+            });
+        }
     });
 
     writerChannels = crearCanalesEscritor({

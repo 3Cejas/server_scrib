@@ -6,7 +6,8 @@ const {
     SHOW_NARRATION_AUDIO_URL,
     SHOW_NARRATION_PREROLL_SECONDS,
     SHOW_NARRATION_SLIDE_URL,
-    crearGestorNarracionShow
+    crearGestorNarracionShow,
+    restaurarPreShowTrasNarracion
 } = require("../show_narration.js");
 
 function fakeIo() {
@@ -110,4 +111,50 @@ test("show narration coordinates start and stop with the recurring tutorial", ()
     gestor.detener({ request_id: "stop" });
     gestor.detener({ request_id: "already-stopped" });
     assert.deepEqual(calls, ["suspend-tutorial", "resume-tutorial"]);
+});
+
+test("stopping narration restores the underlying tutorial channel without losing active messages", () => {
+    const calls = [];
+    const activePreShow = {
+        estaActivo: () => true,
+        emitirEstado: () => calls.push("emit"),
+        abrir: () => calls.push("open")
+    };
+    assert.equal(restaurarPreShowTrasNarracion({
+        resolverModoVista: () => "tutorial",
+        preShowMusas: activePreShow
+    }), true);
+    assert.deepEqual(calls, ["emit"]);
+
+    const closedCalls = [];
+    assert.equal(restaurarPreShowTrasNarracion({
+        resolverModoVista: () => "tutorial",
+        preShowMusas: {
+            estaActivo: () => false,
+            emitirEstado: () => closedCalls.push("emit"),
+            abrir: () => closedCalls.push("open")
+        }
+    }), true);
+    assert.deepEqual(closedCalls, ["open"]);
+
+    assert.equal(restaurarPreShowTrasNarracion({
+        resolverModoVista: () => "partida",
+        preShowMusas: activePreShow
+    }), false);
+    assert.deepEqual(calls, ["emit"]);
+});
+
+test("narration restores its underlying view before broadcasting that the overlay is hidden", () => {
+    const order = [];
+    const gestor = crearGestorNarracionShow({
+        io: {
+            emit(event) { order.push(event); }
+        },
+        crearSessionId: () => "show_order",
+        onStop: () => order.push("restore-view")
+    });
+    gestor.reproducir({ request_id: "play-order" });
+    order.length = 0;
+    gestor.detener({ request_id: "stop-order" });
+    assert.deepEqual(order, ["restore-view", "narracion_show_estado"]);
 });
