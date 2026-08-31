@@ -20,6 +20,7 @@ function crearSincronizadorConexion({
     emitirEntregaInspiracionActiva = null,
     emitirEstadoPreShow = null,
     emitirEstadoVideoTutorial = null,
+    emitirEstadoNarracionShow = null,
     sincronizarAyudaMusas = null,
     emitirEstadoAyudaControl = null
 }) {
@@ -70,6 +71,9 @@ function crearSincronizadorConexion({
         }
         if (typeof emitirEstadoVideoTutorial === 'function') {
             emitirEstadoVideoTutorial(socket);
+        }
+        if (typeof emitirEstadoNarracionShow === 'function') {
+            emitirEstadoNarracionShow(socket);
         }
         if (typeof sincronizarAyudaMusas === 'function') {
             sincronizarAyudaMusas(socket);
@@ -123,6 +127,9 @@ function crearSincronizadorConexion({
         }
         if (typeof emitirEstadoVideoTutorial === 'function') {
             emitirEstadoVideoTutorial(socket);
+        }
+        if (typeof emitirEstadoNarracionShow === 'function') {
+            emitirEstadoNarracionShow(socket);
         }
         if (socket.control && typeof emitirEstadoAyudaControl === 'function') {
             emitirEstadoAyudaControl(socket);

@@ -12,6 +12,7 @@ const { crearGestorPreShowMusas } = require('./pre_show_musas.js');
 const { crearGestorAyudaMusas } = require('./musa_help.js');
 const { crearGestorAccesoRoles } = require('./role_access.js');
 const { crearGestorVideoTutorialPreShow } = require('./video_tutorial_pre_show.js');
+const { crearGestorNarracionShow } = require('./show_narration.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
     crearGestorIdioma,
@@ -49,6 +50,7 @@ function crearRuntimeScrib({
     let preShowMusas;
     let ayudaMusas;
     let videoTutorialPreShow;
+    let narracionShow;
     let deps;
     let partidaPausada = false;
 
@@ -204,7 +206,15 @@ function crearRuntimeScrib({
         io,
         obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket),
         listarMusasActivas: () => rolesConectados.listarMusasActivas(),
-        logger: registrar
+        logger: registrar,
+        onReproducir: () => {
+            if (narracionShow) narracionShow.detener();
+        }
+    });
+    narracionShow = crearGestorNarracionShow({
+        io,
+        onStart: () => videoTutorialPreShow.suspenderTemporalmente(),
+        onStop: () => videoTutorialPreShow.reanudarTemporalmente()
     });
 
     writerChannels = crearCanalesEscritor({
@@ -461,6 +471,7 @@ function crearRuntimeScrib({
         emitirEntregaInspiracionActiva,
         emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino),
         emitirEstadoVideoTutorial: (socketDestino) => videoTutorialPreShow.emitirEstado(socketDestino),
+        emitirEstadoNarracionShow: (socketDestino) => narracionShow.emitirEstado(socketDestino),
         sincronizarAyudaMusas: (socketDestino) => ayudaMusas.sincronizarMusa(socketDestino),
         emitirEstadoAyudaControl: (socketDestino) => ayudaMusas.emitirEstadoControl(socketDestino)
     });
@@ -561,7 +572,8 @@ function crearRuntimeScrib({
         getPulsacionesCompeticion: () => competicionRondas.snapshot().pulsaciones,
         ayudaMusas,
         preShowMusas,
-        videoTutorialPreShow
+        videoTutorialPreShow,
+        narracionShow
     };
 
     function sincro_modos(socket = null) {
@@ -587,6 +599,7 @@ function crearRuntimeScrib({
         ayudaMusas,
         dramaturgiaState,
         simuladorPartidas,
+        narracionShow,
         videoTutorialPreShow,
         iniciar,
         registrarConexion,

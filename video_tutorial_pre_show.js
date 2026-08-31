@@ -185,7 +185,8 @@ function crearGestorVideoTutorialPreShow({
     setTimeoutFn = setTimeout,
     clearTimeoutFn = clearTimeout,
     crearSessionId = () => `video_${randomBytes(12).toString("hex")}`,
-    logger = () => {}
+    logger = () => {},
+    onReproducir = () => {}
 } = {}) {
     let config = normalizarConfigVideoTutorial(almacen.cargar());
     let revision = 1;
@@ -201,6 +202,7 @@ function crearGestorVideoTutorialPreShow({
     let origen = "";
     let timerProxima = null;
     let timerFin = null;
+    let suspendidoExternamente = false;
     let colaConfiguracion = Promise.resolve();
     const verificaciones = new Set();
     const resultadosRequest = new Map();
@@ -315,7 +317,7 @@ function crearGestorVideoTutorialPreShow({
 
     const programarProxima = () => {
         cancelarProxima();
-        if (!iniciado || !faseActiva || reproduciendo || !config.habilitado) return 0;
+        if (!iniciado || !faseActiva || reproduciendo || !config.habilitado || suspendidoExternamente) return 0;
         const delay = config.intervalo_segundos * 1000;
         const sessionProgramada = sessionId;
         const phaseProgramada = phaseSeq;
@@ -365,6 +367,9 @@ function crearGestorVideoTutorialPreShow({
 
     function reproducirInterno(tipo = "manual") {
         if (!faseActiva) return null;
+        if (suspendidoExternamente && tipo === "periodico") return null;
+        if (tipo !== "periodico") suspendidoExternamente = false;
+        onReproducir({ tipo });
         cancelarProxima();
         cancelarFin();
         reproduciendo = true;
@@ -555,6 +560,22 @@ function crearGestorVideoTutorialPreShow({
         return true;
     };
 
+    const suspenderTemporalmente = () => {
+        suspendidoExternamente = true;
+        cancelarProxima();
+        if (reproduciendo) {
+            return detenerInterno("narracion_show", { emitir: true, reprogramar: false });
+        }
+        return emitirEstado();
+    };
+
+    const reanudarTemporalmente = () => {
+        if (!suspendidoExternamente) return payload();
+        suspendidoExternamente = false;
+        programarProxima();
+        return emitirEstado();
+    };
+
     const registrarHandlers = (socket) => {
         socket.on("pedir_video_tutorial_estado", (_entrada = {}, callback = null) => {
             const responder = typeof _entrada === "function" ? _entrada : callback;
@@ -606,6 +627,8 @@ function crearGestorVideoTutorialPreShow({
         payload,
         registrarHandlers,
         reproducir,
+        reanudarTemporalmente,
+        suspenderTemporalmente,
         verificar
     };
 }

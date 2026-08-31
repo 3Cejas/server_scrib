@@ -70,6 +70,14 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteo
         reproduciendo: false
       });
     },
+    emitirEstadoNarracionShow(socket) {
+      socket.emit("narracion_show_estado", {
+        activa: true,
+        session_id: "show-session-test",
+        secuencia: 3,
+        posicion_segundos: 12.5
+      });
+    },
     partidaSync: {
       withModoSeq: (payload) => ({ ...payload, modo_seq: 7 }),
       obtenerConteo: (player) => conteos && conteos[player] ? conteos[player] : null,
@@ -146,6 +154,10 @@ test("ordinary roles do not receive the dramaturgy snapshot", () => {
     socket.eventos.some(({ event }) => event === "video_tutorial_estado"),
     true
   );
+  assert.equal(
+    socket.eventos.some(({ event }) => event === "narracion_show_estado"),
+    true
+  );
 });
 
 test("muse role sync receives the authoritative video sequence after registration", () => {
@@ -162,6 +174,13 @@ test("muse role sync receives the authoritative video sequence after registratio
     phase_seq: 1,
     reproduccion_seq: 0,
     reproduciendo: false
+  });
+  const show = socket.eventos.find(({ event }) => event === "narracion_show_estado");
+  assert.deepEqual(show.payload, {
+    activa: true,
+    session_id: "show-session-test",
+    secuencia: 3,
+    posicion_segundos: 12.5
   });
 });
 

@@ -102,7 +102,8 @@ function registrarConexionScrib(socket, deps) {
         competicionRondas,
         ayudaMusas,
         preShowMusas,
-        videoTutorialPreShow
+        videoTutorialPreShow,
+        narracionShow
     } = deps;
 
     const query = socket && socket.handshake && socket.handshake.query;
@@ -116,6 +117,9 @@ function registrarConexionScrib(socket, deps) {
     }
     if (videoTutorialPreShow && typeof videoTutorialPreShow.registrarHandlers === "function") {
         videoTutorialPreShow.registrarHandlers(socket);
+    }
+    if (narracionShow && typeof narracionShow.registrarHandlers === "function") {
+        narracionShow.registrarHandlers(socket);
     }
     if (ayudaMusas && typeof ayudaMusas.registrarHandlers === "function") {
         ayudaMusas.registrarHandlers(socket);
