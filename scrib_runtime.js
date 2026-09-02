@@ -258,6 +258,7 @@ function crearRuntimeScrib({
         creditosShow,
         emitirCreditosShow,
         emitirNubeInspiracionEstado,
+        emitirResultadoJurado,
         emitirPuntuacionFinal,
         emitirStatsLive,
         emitirVistaEspectadorModo,
@@ -268,6 +269,7 @@ function crearRuntimeScrib({
         payloadVistaEspectadorModo,
         puntuacionFinal,
         resolverModoVistaEspectador,
+        resultadoJurado,
         statsLive,
         temporizadorShow
     } = gestoresVistaEstado;
@@ -345,6 +347,7 @@ function crearRuntimeScrib({
         votacionRepentizado.reset();
         espectador.reset();
         creditosShow.reset();
+        resultadoJurado.reset();
         temporizadorShow.reset();
         rolesConectados.limpiarMusasCreditosPartida();
         resetearTimelineModosTest();
@@ -385,6 +388,7 @@ function crearRuntimeScrib({
         emitirPedirInspiracionMusa,
         emitirNuevaLetra,
         emitirNubeInspiracionEstado,
+        emitirResultadoJurado,
         statsLive,
         payloadStatsLive,
         emitirStatsLive,
@@ -509,6 +513,7 @@ function crearRuntimeScrib({
         emitirPuntuacionFinal,
         puntuacionFinal,
         emitirNubeInspiracionEstado,
+        emitirResultadoJurado,
         emitirEstadoBanderasMusas,
         emitirCreditosShow,
         emitirFeedbackMusas,
@@ -516,6 +521,7 @@ function crearRuntimeScrib({
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
+        resultadoJurado,
         temporizadorShow,
         resolverModoVistaEspectador,
         bolzanoCalentamientoGestor,

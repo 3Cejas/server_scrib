@@ -12,6 +12,7 @@ function registrarCanalesEspectador({
     puntuacionFinal = null,
     getPulsacionesCompeticion = () => ({ 1: 0, 2: 0 }),
     emitirNubeInspiracionEstado,
+    emitirResultadoJurado = () => null,
     emitirEstadoBanderasMusas,
     emitirCreditosShow,
     emitirFeedbackMusas,
@@ -19,6 +20,7 @@ function registrarCanalesEspectador({
     sincronizarEstadoMusa,
     espectador,
     creditosShow,
+    resultadoJurado = null,
     resolverModoVistaEspectador,
     preShowMusas = null,
     detenerExperienciasTutorial = () => {}
@@ -75,6 +77,7 @@ function registrarCanalesEspectador({
     emitirStatsLive(socket);
     emitirPuntuacionFinal(socket);
     emitirNubeInspiracionEstado(socket, true);
+    emitirResultadoJurado(socket);
     emitirEstadoBanderasMusas(socket);
     emitirEstadoRegaloBanderaMusas(socket);
     emitirCreditosShow(socket);
@@ -135,6 +138,20 @@ function registrarCanalesEspectador({
         emitirNubeInspiracionEstado(socket, true);
     });
 
+    socket.on("pedir_jurado_resultado", () => {
+        emitirResultadoJurado(socket);
+    });
+
+    socket.on("jurado_resultado_actualizar", (payload = {}, callback = null) => {
+        if (!socket.jurado || !resultadoJurado || typeof resultadoJurado.update !== "function") {
+            if (typeof callback === "function") callback({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        const resultado = resultadoJurado.update(payload);
+        emitirResultadoJurado();
+        if (typeof callback === "function") callback({ ok: true, resultado });
+    });
+
     socket.on("pedir_estado_banderas_musas", () => {
         emitirEstadoBanderasMusas(socket);
     });
@@ -191,7 +208,8 @@ function registrarCanalesEspectador({
             : "";
         if (
             !socket.control
-            && (modoEntrada === "puntuacion" || resolverModoVistaEspectador() === "puntuacion")
+            && (["puntuacion", "deliberacion", "resultado_jurado"].includes(modoEntrada)
+                || ["puntuacion", "deliberacion", "resultado_jurado"].includes(resolverModoVistaEspectador()))
         ) {
             return;
         }
@@ -202,6 +220,12 @@ function registrarCanalesEspectador({
             if (!estadoPuntuacion || estadoPuntuacion.disponible !== true) {
                 return;
             }
+        }
+        if (modoEntrada === "resultado_jurado") {
+            const estadoJurado = resultadoJurado && typeof resultadoJurado.payload === "function"
+                ? resultadoJurado.payload()
+                : null;
+            if (!estadoJurado || estadoJurado.disponible !== true) return;
         }
         if (
             socket.control
@@ -225,7 +249,28 @@ function registrarCanalesEspectador({
             emitirPuntuacionFinal();
         } else if (modoSolicitado === "nube_inspiracion") {
             emitirNubeInspiracionEstado(null, true);
+        } else if (modoSolicitado === "resultado_jurado") {
+            emitirResultadoJurado();
         }
+    });
+
+    socket.on("mostrar_resultado_jurado", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        const resultado = resultadoJurado && typeof resultadoJurado.payload === "function"
+            ? resultadoJurado.payload()
+            : null;
+        if (!resultado || resultado.disponible !== true) {
+            if (typeof responder === "function") responder({ ok: false, code: "JURY_RESULT_UNAVAILABLE" });
+            return;
+        }
+        cambiarModoEspectador("resultado_jurado");
+        const vista = emitirVistaEspectadorModo();
+        emitirResultadoJurado();
+        if (typeof responder === "function") responder({ ok: true, vista, resultado });
     });
 
     socket.on("mostrar_puntuacion_final", (_payload = {}, callback = null) => {

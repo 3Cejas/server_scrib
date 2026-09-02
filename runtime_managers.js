@@ -7,6 +7,7 @@ const { crearRegistroRoles } = require('./role_connections.js');
 const { crearGestorPuntuacionFinal } = require('./final_scoring.js');
 const { crearGestorStatsLive } = require('./stats_live.js');
 const { crearGestorTemporizadorShow } = require('./show_timer.js');
+const { createJuryResultManager } = require('./jury_result.js');
 const { crearGestorVistaEspectador } = require('./spectator_state.js');
 const { crearGestorTeleprompter } = require('./teleprompter.js');
 const { crearGestorVotacionVentaja } = require('./ventaja_voting.js');
@@ -151,11 +152,16 @@ function crearGestoresVistaEstado({
         getMotores
     });
     const temporizadorShow = crearGestorTemporizadorShow({ io });
+    const resultadoJurado = createJuryResultManager({
+        io,
+        isVisible: () => espectador.getOverride() === "resultado_jurado"
+    });
 
     return {
         creditosShow,
         emitirCreditosShow: (socketDestino = null) => creditosShow.emitir(socketDestino),
         emitirNubeInspiracionEstado: nubeInspiracion.emitir,
+        emitirResultadoJurado: resultadoJurado.emit,
         emitirPuntuacionFinal: puntuacionFinal.emitir,
         emitirStatsLive: statsLive.emitir,
         emitirVistaEspectadorModo: espectador.emitir,
@@ -166,6 +172,7 @@ function crearGestoresVistaEstado({
         payloadVistaEspectadorModo: espectador.payload,
         puntuacionFinal,
         resolverModoVistaEspectador: espectador.resolverModo,
+        resultadoJurado,
         statsLive,
         temporizadorShow
     };

@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 
 const { crearGestorPuntuacionFinal } = require("../final_scoring.js");
+const { createJuryResultManager } = require("../jury_result.js");
 const { registrarCanalesEspectador } = require("../spectator_channels.js");
 const { crearGestorVistaEspectador } = require("../spectator_state.js");
 const { crearGestorStatsLive } = require("../stats_live.js");
@@ -45,6 +46,11 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
   const espectador = crearGestorVistaEspectador({ io });
   const statsBase = crearGestorStatsLive({ io });
   const puntuacionFinal = crearGestorPuntuacionFinal({ io, now: () => 1234 });
+  const resultadoJurado = createJuryResultManager({
+    io,
+    isVisible: () => espectador.resolverModo() === "resultado_jurado",
+    now: () => 4321
+  });
   if (disponible) {
     statsBase.actualizarDesdeControl(crearTelemetria());
     puntuacionFinal.prepararCaptura();
@@ -85,12 +91,14 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     puntuacionFinal,
     getPulsacionesCompeticion: () => pulsaciones,
     emitirNubeInspiracionEstado: () => {},
+    emitirResultadoJurado: resultadoJurado.emit,
     emitirEstadoBanderasMusas: () => {},
     emitirCreditosShow: () => {},
     emitirFeedbackMusas: () => {},
     sincronizarEstadoMusa: () => {},
     espectador,
     creditosShow: { actualizar() {}, incrementarAnimacion() {} },
+    resultadoJurado,
     resolverModoVistaEspectador: espectador.resolverModo,
     preShowMusas,
     detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio)
@@ -104,10 +112,53 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     espectador,
     ioEvents,
     puntuacionFinal,
+    resultadoJurado,
     statsLive,
     socket
   };
 }
+
+test("deliberation is restricted to Control and replaces the active spectator view", () => {
+  const ctx = crearContexto();
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "deliberacion" });
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
+
+  ctx.socket.control = true;
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "deliberacion" });
+  assert.equal(ctx.espectador.resolverModo(), "deliberacion");
+  assert.deepEqual(ctx.cambiosConParada, [{
+    modoAnterior: "tutorial",
+    modoSiguiente: "deliberacion"
+  }]);
+});
+
+test("only Jury can publish its result and only Control can reveal it", () => {
+  const ctx = crearContexto({ control: true });
+  const payload = {
+    disponible: true,
+    jugadores: {
+      1: { nombre: "Azul", total: 8.4 },
+      2: { nombre: "Roja", total: 7.1 }
+    }
+  };
+  let rejected = null;
+  ctx.socket.emit("jurado_resultado_actualizar", payload, (response) => { rejected = response; });
+  assert.deepEqual(rejected, { ok: false, code: "NOT_AUTHORIZED" });
+
+  ctx.socket.jurado = true;
+  let published = null;
+  ctx.socket.emit("jurado_resultado_actualizar", payload, (response) => { published = response; });
+  assert.equal(published.ok, true);
+  assert.equal(ctx.resultadoJurado.payload().ganador, 1);
+
+  ctx.socket.jurado = false;
+  let shown = null;
+  ctx.socket.emit("mostrar_resultado_jurado", {}, (response) => { shown = response; });
+  assert.equal(shown.ok, true);
+  assert.equal(ctx.espectador.resolverModo(), "resultado_jurado");
+  assert.equal(ctx.resultadoJurado.payload().mostrar, true);
+});
 
 test("only a registered control can replace authoritative live stats", () => {
   const ctx = crearContexto();
