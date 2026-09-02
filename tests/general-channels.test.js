@@ -233,3 +233,47 @@ test("control can request muse word status and health ping includes it", () => {
     palabras_musas_control: payloadPalabrasMusas
   });
 });
+
+test("giant timer delegates to the persistent show manager", () => {
+  const socket = crearSocket();
+  const ioEvents = [];
+  const calls = [];
+  const temporizadorShow = {
+    emitir(destino) {
+      calls.push(["emitir", destino === socket]);
+      destino.emit("temporizador_gigante_estado", { estado: "oculto", mostrar: false });
+    },
+    iniciar(duracion) {
+      calls.push(["iniciar", duracion]);
+      return { estado: "activo", mostrar: true, duracion, fin_ts: 50_000 };
+    },
+    detener() {
+      calls.push(["detener"]);
+      return { estado: "oculto", mostrar: false };
+    }
+  };
+
+  registrarCanalesGenerales({
+    socket,
+    io: { emit(event, payload) { ioEvents.push({ event, payload }); } },
+    passwordRoles: "pass",
+    obtenerEstadoEscritores: () => ({}),
+    obtenerIdJugadorValido: () => null,
+    partidaSync: crearGestorSincronizacionPartida(),
+    construirPayloadCount: (payload) => payload,
+    temporizadorShow
+  });
+
+  socket.emit("activar_temporizador_gigante", { duracion: 75 });
+  socket.emit("temporizador_gigante_detener");
+
+  assert.deepEqual(calls, [
+    ["emitir", true],
+    ["iniciar", 75],
+    ["detener"]
+  ]);
+  assert.deepEqual(ioEvents.map(({ event }) => event), [
+    "temporizador_gigante_inicio",
+    "temporizador_gigante_detener"
+  ]);
+});

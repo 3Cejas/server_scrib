@@ -35,7 +35,8 @@ function registrarCanalesGenerales({
     sesionesEscritor = null,
     controlState = null,
     emitirEstadoPalabrasMusasControl = null,
-    payloadEstadoPalabrasMusasControl = null
+    payloadEstadoPalabrasMusasControl = null,
+    temporizadorShow = null
 }) {
     const esEventoEscritorInactivo = (player) => (
         sesionesEscritor
@@ -114,12 +115,33 @@ function registrarCanalesGenerales({
         }
     });
 
+    if (temporizadorShow && typeof temporizadorShow.emitir === "function") {
+        temporizadorShow.emitir(socket);
+    }
+
+    socket.on("pedir_temporizador_gigante_estado", () => {
+        if (temporizadorShow && typeof temporizadorShow.emitir === "function") {
+            temporizadorShow.emitir(socket);
+        }
+    });
+
     socket.on("activar_temporizador_gigante", (evento) => {
+        if (temporizadorShow && typeof temporizadorShow.iniciar === "function") {
+            const salida = temporizadorShow.iniciar(evento?.duracion);
+            io.emit("temporizador_gigante_inicio", salida);
+            return;
+        }
         const duracion = Number(evento?.duracion) || (10 * 60);
-        io.emit("temporizador_gigante_inicio", { duracion });
+        io.emit("temporizador_gigante_inicio", {
+            duracion,
+            fin_ts: Date.now() + (duracion * 1000)
+        });
     });
 
     socket.on("temporizador_gigante_detener", () => {
+        if (temporizadorShow && typeof temporizadorShow.detener === "function") {
+            temporizadorShow.detener();
+        }
         io.emit("temporizador_gigante_detener");
     });
 

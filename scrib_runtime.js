@@ -268,7 +268,8 @@ function crearRuntimeScrib({
         payloadVistaEspectadorModo,
         puntuacionFinal,
         resolverModoVistaEspectador,
-        statsLive
+        statsLive,
+        temporizadorShow
     } = gestoresVistaEstado;
 
     const payloadEstadoCalentamiento = () => calentamientoGestor.payloadEstado();
@@ -344,6 +345,7 @@ function crearRuntimeScrib({
         votacionRepentizado.reset();
         espectador.reset();
         creditosShow.reset();
+        temporizadorShow.reset();
         rolesConectados.limpiarMusasCreditosPartida();
         resetearTimelineModosTest();
         calentamientoGestor.reset();
@@ -514,6 +516,7 @@ function crearRuntimeScrib({
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
+        temporizadorShow,
         resolverModoVistaEspectador,
         bolzanoCalentamientoGestor,
         rolesConectados,

@@ -71,6 +71,7 @@ function registrarConexionScrib(socket, deps) {
         sincronizarEstadoMusa,
         espectador,
         creditosShow,
+        temporizadorShow,
         resolverModoVistaEspectador,
         bolzanoCalentamientoGestor,
         rolesConectados,
@@ -167,7 +168,8 @@ function registrarConexionScrib(socket, deps) {
         sesionesEscritor,
         controlState,
         emitirEstadoPalabrasMusasControl,
-        payloadEstadoPalabrasMusasControl
+        payloadEstadoPalabrasMusasControl,
+        temporizadorShow
     });
 
     registrarCanalesEspectador({

@@ -6,6 +6,7 @@ const { crearGestorVotacionRepentizado, opcionConMasVotos } = require('./repenti
 const { crearRegistroRoles } = require('./role_connections.js');
 const { crearGestorPuntuacionFinal } = require('./final_scoring.js');
 const { crearGestorStatsLive } = require('./stats_live.js');
+const { crearGestorTemporizadorShow } = require('./show_timer.js');
 const { crearGestorVistaEspectador } = require('./spectator_state.js');
 const { crearGestorTeleprompter } = require('./teleprompter.js');
 const { crearGestorVotacionVentaja } = require('./ventaja_voting.js');
@@ -149,6 +150,7 @@ function crearGestoresVistaEstado({
         getNombreEquipo,
         getMotores
     });
+    const temporizadorShow = crearGestorTemporizadorShow({ io });
 
     return {
         creditosShow,
@@ -164,7 +166,8 @@ function crearGestoresVistaEstado({
         payloadVistaEspectadorModo: espectador.payload,
         puntuacionFinal,
         resolverModoVistaEspectador: espectador.resolverModo,
-        statsLive
+        statsLive,
+        temporizadorShow
     };
 }
 
