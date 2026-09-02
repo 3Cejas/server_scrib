@@ -95,8 +95,13 @@ function registrarCanalesEspectador({
                 forzar: true
             })
             : null;
-        const jurado = resultadoJurado && typeof resultadoJurado.update === "function"
-            ? resultadoJurado.update({
+        const actualizarJurado = resultadoJurado && typeof resultadoJurado.loadTestFixture === "function"
+            ? resultadoJurado.loadTestFixture.bind(resultadoJurado)
+            : resultadoJurado && typeof resultadoJurado.update === "function"
+                ? resultadoJurado.update.bind(resultadoJurado)
+                : null;
+        const jurado = actualizarJurado
+            ? actualizarJurado({
                 disponible: true,
                 jugadores: {
                     1: { nombre: "ESCRITXR 1", total: 8.7 },

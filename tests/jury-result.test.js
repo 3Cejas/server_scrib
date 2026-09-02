@@ -48,3 +48,36 @@ test("jury result manager emits an authoritative visible payload and resets it",
   assert.equal(reset.disponible, false);
   assert.equal(reset.jugadores[1].total, 0);
 });
+
+test("a deliberation test fixture ignores stale Jury updates until reset", () => {
+  const manager = createJuryResultManager({ now: () => 101 });
+  manager.loadTestFixture({
+    disponible: true,
+    jugadores: {
+      1: { nombre: "A", total: 8.7 },
+      2: { nombre: "B", total: 7.9 }
+    }
+  });
+
+  const stale = manager.update({
+    disponible: false,
+    jugadores: {
+      1: { nombre: "A", total: 0 },
+      2: { nombre: "B", total: 0 }
+    }
+  });
+  assert.equal(stale.disponible, true);
+  assert.equal(stale.ganador, 1);
+  assert.equal(stale.jugadores[1].total, 8.7);
+
+  manager.reset();
+  const real = manager.update({
+    disponible: true,
+    jugadores: {
+      1: { nombre: "A", total: 6 },
+      2: { nombre: "B", total: 9 }
+    }
+  });
+  assert.equal(real.ganador, 2);
+  assert.equal(real.jugadores[2].total, 9);
+});

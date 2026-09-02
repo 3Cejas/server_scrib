@@ -54,6 +54,7 @@ function normalizeJuryResult(payload = {}, now = Date.now()) {
 
 function createJuryResultManager({ io, isVisible = () => false, now = () => Date.now() } = {}) {
     let state = emptyJuryResult();
+    let testFixtureActive = false;
 
     const payload = () => ({
         ...state,
@@ -74,16 +75,24 @@ function createJuryResultManager({ io, isVisible = () => false, now = () => Date
     };
 
     const update = (input = {}) => {
+        if (testFixtureActive) return payload();
         state = normalizeJuryResult(input, now());
         return payload();
     };
 
+    const loadTestFixture = (input = {}) => {
+        state = normalizeJuryResult(input, now());
+        testFixtureActive = true;
+        return payload();
+    };
+
     const reset = () => {
+        testFixtureActive = false;
         state = emptyJuryResult();
         return payload();
     };
 
-    return { emit, payload, reset, update };
+    return { emit, loadTestFixture, payload, reset, update };
 }
 
 module.exports = {
