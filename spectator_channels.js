@@ -1,5 +1,8 @@
+const { JURY_RESULT_SLIDE_MAX } = require("./jury_result.js");
+
 function registrarCanalesEspectador({
     socket,
+    io = null,
     calentamiento,
     obtenerContadorMusas,
     payloadEstadoCalentamiento,
@@ -23,8 +26,10 @@ function registrarCanalesEspectador({
     resultadoJurado = null,
     resolverModoVistaEspectador,
     preShowMusas = null,
-    detenerExperienciasTutorial = () => {}
+    detenerExperienciasTutorial = () => {},
+    resultadoFinalDelayMs = 5200
 }) {
+    let temporizadorResultadoFinal = null;
     const resolverCallback = (payload, callback) => (
         typeof payload === "function" ? payload : callback
     );
@@ -56,6 +61,71 @@ function registrarCanalesEspectador({
             }
         };
         return puntuacionFinal.capturarPendiente(stats, opcionesDatosPuntuacion());
+    };
+    const cancelarResultadoFinalProgramado = () => {
+        if (!temporizadorResultadoFinal) return;
+        clearTimeout(temporizadorResultadoFinal);
+        temporizadorResultadoFinal = null;
+    };
+    const construirResultadoFinal = () => {
+        const juego = puntuacionFinal && typeof puntuacionFinal.payload === "function"
+            ? puntuacionFinal.payload()
+            : null;
+        const jurado = resultadoJurado && typeof resultadoJurado.payload === "function"
+            ? resultadoJurado.payload()
+            : null;
+        if (!juego?.disponible || !jurado?.disponible) return null;
+        const jugadores = {};
+        [1, 2].forEach((id) => {
+            const totalJuego = Math.max(0, Math.min(100, Number(juego.jugadores?.[id]?.total) || 0));
+            const totalJurado = Math.max(0, Math.min(10, Number(jurado.jugadores?.[id]?.total) || 0));
+            jugadores[id] = {
+                id,
+                nombre: String(juego.jugadores?.[id]?.nombre || jurado.jugadores?.[id]?.nombre || `ESCRITXR ${id}`),
+                juego: totalJuego,
+                jurado: totalJurado,
+                total: Math.round(((totalJuego + (totalJurado * 10)) / 2) * 100) / 100
+            };
+        });
+        const diferencia = Math.round(Math.abs(jugadores[1].total - jugadores[2].total) * 100) / 100;
+        const empate = diferencia < 0.01;
+        return {
+            disponible: true,
+            formula: "50% videojuego + 50% jurado",
+            jugadores,
+            ganador: empate ? null : (jugadores[1].total > jugadores[2].total ? 1 : 2),
+            empate,
+            diferencia
+        };
+    };
+    const emitirResultadoFinal = (destino = null) => {
+        const resultado = construirResultadoFinal();
+        const receptor = destino && typeof destino.emit === "function"
+            ? destino
+            : io && typeof io.emit === "function"
+                ? io
+                : socket.server;
+        if (receptor && typeof receptor.emit === "function") {
+            receptor.emit("resultado_final_estado", resultado || { disponible: false });
+        }
+        return resultado;
+    };
+    const mostrarResultadoFinalAutomatico = () => {
+        temporizadorResultadoFinal = null;
+        const resultado = construirResultadoFinal();
+        if (!resultado || resolverModoVistaEspectador() !== "resultado_jurado") return;
+        cambiarModoEspectador("resultado_final");
+        emitirVistaEspectadorModo();
+        emitirPuntuacionFinal();
+        emitirResultadoJurado();
+        emitirResultadoFinal();
+    };
+    const programarResultadoFinalAutomatico = () => {
+        cancelarResultadoFinalProgramado();
+        temporizadorResultadoFinal = setTimeout(
+            mostrarResultadoFinalAutomatico,
+            Math.max(0, Number(resultadoFinalDelayMs) || 0)
+        );
     };
     const cargarDatosPruebaDeliberacion = () => {
         const stats = {
@@ -106,7 +176,18 @@ function registrarCanalesEspectador({
                 jugadores: {
                     1: { nombre: "ESCRITXR 1", total: 8.7 },
                     2: { nombre: "ESCRITXR 2", total: 7.9 }
-                }
+                },
+                criterios: [
+                    ["writing", "idea", 9, 8], ["writing", "voz", 8, 9],
+                    ["writing", "estructura", 9, 7], ["writing", "riesgo", 8, 9],
+                    ["writing", "cierre", 9, 8], ["muses", "inspiracion", 8, 7],
+                    ["muses", "escucha", 9, 8], ["muses", "ritmo", 8, 7],
+                    ["muses", "cooperacion", 10, 8]
+                ].map(([scope, id, valor1, valor2]) => ({
+                    scope,
+                    id,
+                    valores: { 1: valor1, 2: valor2 }
+                }))
             })
             : null;
         emitirPuntuacionFinal();
@@ -116,6 +197,7 @@ function registrarCanalesEspectador({
         return { ok: true, puntuacion, jurado, vista };
     };
     const cambiarModoEspectador = (modo) => {
+        cancelarResultadoFinalProgramado();
         const modoAnterior = resolverModoVistaEspectador();
         const modoSiguiente = espectador.cambiarModo(modo);
         if (modoSiguiente !== modoAnterior) {
@@ -136,6 +218,7 @@ function registrarCanalesEspectador({
     emitirPuntuacionFinal(socket);
     emitirNubeInspiracionEstado(socket, true);
     emitirResultadoJurado(socket);
+    emitirResultadoFinal(socket);
     emitirEstadoBanderasMusas(socket);
     emitirEstadoRegaloBanderaMusas(socket);
     emitirCreditosShow(socket);
@@ -198,6 +281,10 @@ function registrarCanalesEspectador({
 
     socket.on("pedir_jurado_resultado", () => {
         emitirResultadoJurado(socket);
+    });
+
+    socket.on("pedir_resultado_final", () => {
+        emitirResultadoFinal(socket);
     });
 
     socket.on("jurado_resultado_actualizar", (payload = {}, callback = null) => {
@@ -295,8 +382,8 @@ function registrarCanalesEspectador({
             : "";
         if (
             !socket.control
-            && (["puntuacion", "deliberacion", "resultado_jurado"].includes(modoEntrada)
-                || ["puntuacion", "deliberacion", "resultado_jurado"].includes(resolverModoVistaEspectador()))
+            && (["puntuacion", "deliberacion", "resultado_jurado", "resultado_final"].includes(modoEntrada)
+                || ["puntuacion", "deliberacion", "resultado_jurado", "resultado_final"].includes(resolverModoVistaEspectador()))
         ) {
             return;
         }
@@ -314,6 +401,7 @@ function registrarCanalesEspectador({
                 : null;
             if (!estadoJurado || estadoJurado.disponible !== true) return;
         }
+        if (modoEntrada === "resultado_final" && !construirResultadoFinal()) return;
         if (
             socket.control
             && modoEntrada === "tutorial"
@@ -338,6 +426,10 @@ function registrarCanalesEspectador({
             emitirNubeInspiracionEstado(null, true);
         } else if (modoSolicitado === "resultado_jurado") {
             emitirResultadoJurado();
+        } else if (modoSolicitado === "resultado_final") {
+            emitirPuntuacionFinal();
+            emitirResultadoJurado();
+            emitirResultadoFinal();
         }
     });
 
@@ -417,6 +509,33 @@ function registrarCanalesEspectador({
 
     socket.on("puntuacion_final_anterior", (_payload = {}, callback = null) => {
         navegarPuntuacion(-1, resolverCallback(_payload, callback));
+    });
+
+    const navegarJurado = (direccion, callback = null) => {
+        if (!socket.control) {
+            if (typeof callback === "function") callback({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (resolverModoVistaEspectador() !== "resultado_jurado") {
+            if (typeof callback === "function") callback({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
+            return;
+        }
+        cancelarResultadoFinalProgramado();
+        const paso = espectador.navegarJurado(direccion);
+        const vista = emitirVistaEspectadorModo();
+        emitirResultadoJurado();
+        if (paso >= JURY_RESULT_SLIDE_MAX) {
+            programarResultadoFinalAutomatico();
+        }
+        if (typeof callback === "function") callback({ ok: true, paso, vista });
+    };
+
+    socket.on("jurado_resultado_siguiente", (_payload = {}, callback = null) => {
+        navegarJurado(1, resolverCallback(_payload, callback));
+    });
+
+    socket.on("jurado_resultado_anterior", (_payload = {}, callback = null) => {
+        navegarJurado(-1, resolverCallback(_payload, callback));
     });
 
     socket.on("ocultar_puntuacion_final", (_payload = {}, callback = null) => {

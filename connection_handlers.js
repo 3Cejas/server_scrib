@@ -176,6 +176,7 @@ function registrarConexionScrib(socket, deps) {
 
     registrarCanalesEspectador({
         socket,
+        io,
         calentamiento,
         obtenerContadorMusas,
         payloadEstadoCalentamiento,

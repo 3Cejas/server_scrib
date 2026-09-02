@@ -1,6 +1,7 @@
 const { CATEGORIAS_PUNTUACION } = require('./final_scoring.js');
+const { JURY_RESULT_SLIDE_MAX } = require('./jury_result.js');
 
-const MODOS_VISTA_ESPECTADOR = new Set(["partida", "tutorial", "stats", "puntuacion", "nube_inspiracion", "creditos", "deliberacion", "resultado_jurado"]);
+const MODOS_VISTA_ESPECTADOR = new Set(["partida", "tutorial", "stats", "puntuacion", "nube_inspiracion", "creditos", "deliberacion", "resultado_jurado", "resultado_final"]);
 const ESCALA_UI_ESPECTADOR_MIN = 0.82;
 const ESCALA_UI_ESPECTADOR_MAX = 1.28;
 const ESCALA_UI_ESPECTADOR_DEFAULT = 1;
@@ -13,6 +14,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
     let override = "tutorial";
     let statsSlideStep = 0;
     let puntuacionSlideStep = 0;
+    let juradoSlideStep = 0;
     let escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
 
     const normalizarModo = (valor) => {
@@ -38,6 +40,11 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         0,
         PUNTUACION_SLIDE_MAX
     );
+    const normalizarPasoSlideJurado = (valor) => clampNumber(
+        normalizarPasoSlideStats(valor),
+        0,
+        JURY_RESULT_SLIDE_MAX
+    );
 
     const resolverModo = () => {
         const modoOverride = normalizarModo(override);
@@ -49,6 +56,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
             || modoOverride === "creditos"
             || modoOverride === "deliberacion"
             || modoOverride === "resultado_jurado"
+            || modoOverride === "resultado_final"
         ) {
             return modoOverride;
         }
@@ -61,6 +69,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         calentamiento_vista: Boolean(isCalentamientoVisible()),
         stats_slide_step: normalizarPasoSlideStats(statsSlideStep),
         puntuacion_slide_step: normalizarPasoSlidePuntuacion(puntuacionSlideStep),
+        jurado_slide_step: normalizarPasoSlideJurado(juradoSlideStep),
         escala_ui: normalizarEscala(escalaUi),
         ts: Date.now()
     });
@@ -81,6 +90,9 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         if (override === "puntuacion") {
             puntuacionSlideStep = 0;
         }
+        if (override === "resultado_jurado") {
+            juradoSlideStep = 0;
+        }
         return override;
     };
 
@@ -94,6 +106,13 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
             puntuacionSlideStep + normalizarPasoSlideStats(direccion)
         );
         return puntuacionSlideStep;
+    };
+
+    const navegarJurado = (direccion) => {
+        juradoSlideStep = normalizarPasoSlideJurado(
+            juradoSlideStep + normalizarPasoSlideStats(direccion)
+        );
+        return juradoSlideStep;
     };
 
     const ajustarEscala = (payloadEscala = {}) => {
@@ -117,6 +136,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         override = "tutorial";
         statsSlideStep = 0;
         puntuacionSlideStep = 0;
+        juradoSlideStep = 0;
         escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
         return payload();
     };
@@ -127,6 +147,8 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         emitir,
         getOverride: () => normalizarModo(override),
         getPuntuacionSlideStep: () => normalizarPasoSlidePuntuacion(puntuacionSlideStep),
+        getJuradoSlideStep: () => normalizarPasoSlideJurado(juradoSlideStep),
+        navegarJurado,
         navegarPuntuacion,
         navegarStats,
         normalizarModo,
@@ -140,5 +162,6 @@ module.exports = {
     crearGestorVistaEspectador,
     ESCALA_UI_ESPECTADOR_DEFAULT,
     ESCALA_UI_ESPECTADOR_MAX,
-    PUNTUACION_SLIDE_MAX
+    PUNTUACION_SLIDE_MAX,
+    JURY_RESULT_SLIDE_MAX
 };

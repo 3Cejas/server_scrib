@@ -25,6 +25,27 @@ test("jury result clamps totals, preserves names and chooses a winner", () => {
   assert.equal(result.actualizado_en_ts, 1234);
 });
 
+test("jury result preserves the nine category scores and calculates each winner", () => {
+  const result = normalizeJuryResult({
+    disponible: true,
+    jugadores: {
+      1: { nombre: "Azul", total: 8 },
+      2: { nombre: "Roja", total: 7 }
+    },
+    criterios: [
+      { id: "idea", scope: "writing", valores: { 1: 11, 2: 8 } },
+      { id: "voz", scope: "writing", valores: { 1: 5, 2: 5 } },
+      { id: "cooperacion", scope: "muses", valores: { 1: 6.2, 2: 8.4 } }
+    ]
+  }, 4567);
+
+  assert.equal(result.criterios.length, 9);
+  assert.deepEqual(result.criterios[0].valores, { 1: 10, 2: 8 });
+  assert.equal(result.criterios[0].ganador, 1);
+  assert.equal(result.criterios[1].empate, true);
+  assert.equal(result.criterios[8].ganador, 2);
+});
+
 test("jury result manager emits an authoritative visible payload and resets it", () => {
   const io = new EventEmitter();
   const received = [];

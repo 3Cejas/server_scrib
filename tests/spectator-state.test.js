@@ -5,7 +5,8 @@ const {
   crearGestorVistaEspectador,
   ESCALA_UI_ESPECTADOR_DEFAULT,
   ESCALA_UI_ESPECTADOR_MAX,
-  PUNTUACION_SLIDE_MAX
+  PUNTUACION_SLIDE_MAX,
+  JURY_RESULT_SLIDE_MAX
 } = require("../spectator_state.js");
 
 test("spectator view scale defaults to the parameter baseline and clamps remote values", () => {
@@ -26,6 +27,19 @@ test("spectator view scale defaults to the parameter baseline and clamps remote 
   assert.equal(reset.escala_ui, ESCALA_UI_ESPECTADOR_DEFAULT);
   assert.equal(reset.modo, "tutorial");
   assert.equal(reset.override, "tutorial");
+});
+
+test("jury breakdown has an independent controlled step and supports the combined final view", () => {
+  const gestor = crearGestorVistaEspectador({ io: { emit() {} } });
+  gestor.cambiarModo("resultado_jurado");
+  assert.equal(gestor.payload().jurado_slide_step, 0);
+
+  for (let index = 0; index < 20; index += 1) gestor.navegarJurado(1);
+  assert.equal(gestor.getJuradoSlideStep(), JURY_RESULT_SLIDE_MAX);
+  assert.equal(gestor.payload().jurado_slide_step, 10);
+
+  assert.equal(gestor.cambiarModo("resultado_final"), "resultado_final");
+  assert.equal(gestor.resolverModo(), "resultado_final");
 });
 
 test("dedicated score view has an independent reveal step clamped from intro to final", () => {
