@@ -57,6 +57,59 @@ function registrarCanalesEspectador({
         };
         return puntuacionFinal.capturarPendiente(stats, opcionesDatosPuntuacion());
     };
+    const cargarDatosPruebaDeliberacion = () => {
+        const stats = {
+            modo_actual: "frase final",
+            players: {
+                1: {
+                    nombre: "ESCRITXR 1",
+                    palabrasTotal: 214,
+                    palabrasUnicas: 137,
+                    ritmoPpm: 68,
+                    palabrasBenditas: ["volcán", "brújula", "noche", "latido", "espejo", "puente", "ceniza"],
+                    valorInspiracion: 7,
+                    intentosLetraProhibida: 2,
+                    intentosPalabraProhibida: 1,
+                    pulsacionesTotal: 1180
+                },
+                2: {
+                    nombre: "ESCRITXR 2",
+                    palabrasTotal: 196,
+                    palabrasUnicas: 151,
+                    ritmoPpm: 74,
+                    palabrasBenditas: ["aurora", "bosque", "eco", "lluvia", "humo", "faro", "marea", "cristal", "viaje", "secreto"],
+                    valorInspiracion: 10,
+                    intentosLetraProhibida: 1,
+                    intentosPalabraProhibida: 0,
+                    pulsacionesTotal: 1275
+                }
+            }
+        };
+        const statsActualizadas = typeof statsLive.actualizarDesdeControl === "function"
+            ? statsLive.actualizarDesdeControl(stats)
+            : statsLive.actualizar(stats);
+        emitirStatsLive();
+        const puntuacion = puntuacionFinal && typeof puntuacionFinal.capturar === "function"
+            ? puntuacionFinal.capturar(statsActualizadas, {
+                ...opcionesDatosPuntuacion(),
+                forzar: true
+            })
+            : null;
+        const jurado = resultadoJurado && typeof resultadoJurado.update === "function"
+            ? resultadoJurado.update({
+                disponible: true,
+                jugadores: {
+                    1: { nombre: "ESCRITXR 1", total: 8.7 },
+                    2: { nombre: "ESCRITXR 2", total: 7.9 }
+                }
+            })
+            : null;
+        emitirPuntuacionFinal();
+        emitirResultadoJurado();
+        cambiarModoEspectador("deliberacion");
+        const vista = emitirVistaEspectadorModo();
+        return { ok: true, puntuacion, jurado, vista };
+    };
     const cambiarModoEspectador = (modo) => {
         const modoAnterior = resolverModoVistaEspectador();
         const modoSiguiente = espectador.cambiarModo(modo);
@@ -150,6 +203,35 @@ function registrarCanalesEspectador({
         const resultado = resultadoJurado.update(payload);
         emitirResultadoJurado();
         if (typeof callback === "function") callback({ ok: true, resultado });
+    });
+
+    socket.on("cargar_datos_prueba_deliberacion", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        const resultado = cargarDatosPruebaDeliberacion();
+        if (typeof responder === "function") responder(resultado);
+    });
+
+    socket.on("limpiar_datos_prueba_deliberacion", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        const puntuacion = puntuacionFinal && typeof puntuacionFinal.reset === "function"
+            ? puntuacionFinal.reset()
+            : null;
+        const jurado = resultadoJurado && typeof resultadoJurado.reset === "function"
+            ? resultadoJurado.reset()
+            : null;
+        if (statsLive && typeof statsLive.reset === "function") statsLive.reset();
+        emitirStatsLive();
+        emitirPuntuacionFinal();
+        emitirResultadoJurado();
+        if (typeof responder === "function") responder({ ok: true, puntuacion, jurado });
     });
 
     socket.on("pedir_estado_banderas_musas", () => {

@@ -160,6 +160,33 @@ test("only Jury can publish its result and only Control can reveal it", () => {
   assert.equal(ctx.resultadoJurado.payload().mostrar, true);
 });
 
+test("Control can load and clear a deterministic deliberation fixture without starting a match", () => {
+  const ctx = crearContexto({ control: true, disponible: false });
+  let loaded = null;
+  ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
+
+  assert.equal(loaded.ok, true);
+  assert.equal(loaded.puntuacion.disponible, true);
+  assert.equal(loaded.puntuacion.categorias.length, 6);
+  assert.equal(loaded.puntuacion.ganador, 2);
+  assert.equal(loaded.jurado.disponible, true);
+  assert.equal(loaded.jurado.ganador, 1);
+  assert.equal(ctx.espectador.resolverModo(), "deliberacion");
+
+  let cleared = null;
+  ctx.socket.emit("limpiar_datos_prueba_deliberacion", {}, (response) => { cleared = response; });
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.puntuacion.disponible, false);
+  assert.equal(cleared.jurado.disponible, false);
+});
+
+test("deliberation fixtures require an authenticated Control socket", () => {
+  const ctx = crearContexto({ control: false, disponible: false });
+  let loaded = null;
+  ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
+  assert.deepEqual(loaded, { ok: false, code: "NOT_AUTHORIZED" });
+});
+
 test("only a registered control can replace authoritative live stats", () => {
   const ctx = crearContexto();
   let rechazo = null;
