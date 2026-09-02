@@ -3,8 +3,13 @@ const assert = require("node:assert/strict");
 
 const {
   crearGestorCreditosShow,
+  ESTADO_CREDITOS_POR_DEFECTO,
   normalizarMusasCreditosShow
 } = require("../credits_show.js");
+
+test("credits use Pablo Pineño as the default dramaturgy credit", () => {
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.dramaturgia, "PABLO PINEÑO");
+});
 
 test("credits show payload injects current match muses without storing stale names", () => {
   let musasActuales = {

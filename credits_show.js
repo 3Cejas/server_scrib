@@ -11,7 +11,7 @@ const ESTADO_CREDITOS_POR_DEFECTO = Object.freeze({
     interprete_rojo_1: "ANA SEMPERE",
     interprete_rojo_2: "PABLO PINE\u00d1O",
     programacion: "DAVID VI\u00d1AS",
-    dramaturgia: "\u00c1NGELA BUENO",
+    dramaturgia: "PABLO PINE\u00d1O",
     iluminacion: "TERESA TIMPER",
     musica: "ARNY RAM\u00cdREZ",
     voz_off: "NINACHASKA ZL",
