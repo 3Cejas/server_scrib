@@ -261,6 +261,7 @@
   "teleprompter": {
     "state": {
       "visible": true,
+      "preparing": false,
       "text": "teleprompter snapshot",
       "fontSize": 40,
       "speed": 30,

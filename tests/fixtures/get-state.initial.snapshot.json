@@ -233,6 +233,7 @@
   "teleprompter": {
     "state": {
       "visible": false,
+      "preparing": false,
       "text": "",
       "fontSize": 36,
       "speed": 25,

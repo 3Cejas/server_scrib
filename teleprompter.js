@@ -11,6 +11,7 @@ const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 
 const crearEstadoTeleprompter = (revision) => ({
     visible: false,
+    preparing: false,
     text: "",
     fontSize: 36,
     speed: 25,
@@ -50,6 +51,9 @@ function crearGestorTeleprompter({ io, getTextoEscritor = () => ({ 1: "", 2: "" 
         const salida = { ...state };
         if (typeof payload.visible === "boolean") {
             salida.visible = payload.visible;
+        }
+        if (typeof payload.preparing === "boolean") {
+            salida.preparing = payload.preparing;
         }
         if (typeof payload.text === "string") {
             salida.text = payload.text.slice(0, TELEPROMPTER_TEXT_MAX);

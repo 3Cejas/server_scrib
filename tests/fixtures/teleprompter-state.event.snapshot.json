@@ -1,6 +1,7 @@
 {
   "state": {
     "visible": true,
+    "preparing": false,
     "text": "Teleprompter contract payload con texto estable",
     "fontSize": 44,
     "speed": 28,
