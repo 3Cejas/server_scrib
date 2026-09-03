@@ -53,7 +53,7 @@ test("dedicated score view has an independent reveal step clamped from intro to 
   gestor.navegarPuntuacion(1);
   assert.equal(gestor.getPuntuacionSlideStep(), 1);
   assert.equal(gestor.getPuntuacionRevealPhase(), 0);
-  for (let phase = 1; phase <= 3; phase += 1) {
+  for (let phase = 1; phase <= 2; phase += 1) {
     gestor.navegarPuntuacion(1);
     assert.equal(gestor.getPuntuacionRevealPhase(), phase);
   }
@@ -67,7 +67,7 @@ test("dedicated score view has an independent reveal step clamped from intro to 
 
   gestor.navegarPuntuacion(-1);
   assert.equal(gestor.getPuntuacionSlideStep(), 6);
-  assert.equal(gestor.getPuntuacionRevealPhase(), 3);
+  assert.equal(gestor.getPuntuacionRevealPhase(), 2);
   for (let index = 0; index < 30; index += 1) {
     gestor.navegarPuntuacion(-1);
   }

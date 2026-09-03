@@ -353,7 +353,7 @@ test("control can show, reveal, clamp and hide the final score", () => {
 
   ctx.socket.emit("puntuacion_final_anterior", {});
   assert.equal(ctx.espectador.getPuntuacionSlideStep(), 6);
-  assert.equal(ctx.espectador.getPuntuacionRevealPhase(), 3);
+  assert.equal(ctx.espectador.getPuntuacionRevealPhase(), 2);
 
   let ocultar = null;
   ctx.socket.emit("ocultar_puntuacion_final", {}, (respuesta) => {

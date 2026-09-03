@@ -7,7 +7,8 @@ const ESCALA_UI_ESPECTADOR_MAX = 1.28;
 const ESCALA_UI_ESPECTADOR_DEFAULT = 1;
 const ESCALA_UI_ESPECTADOR_PASO = 0.06;
 const PUNTUACION_SLIDE_MAX = CATEGORIAS_PUNTUACION.length + 1;
-const PUNTUACION_REVEAL_PHASE_MAX = 3;
+// Cada apartado se resuelve en tres estados: misterio, azul y rojo + ganador.
+const PUNTUACION_REVEAL_PHASE_MAX = 2;
 
 const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 
