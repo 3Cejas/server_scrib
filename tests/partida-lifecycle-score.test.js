@@ -2,7 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { crearGestorPuntuacionFinal } = require("../final_scoring.js");
-const { crearCicloPartida } = require("../partida_lifecycle.js");
+const {
+  DURACION_CUENTA_ATRAS_INICIO_MS,
+  crearCicloPartida
+} = require("../partida_lifecycle.js");
 const { crearGestorStatsLive } = require("../stats_live.js");
 
 const telemetriaFinal = (palabras1 = 70, palabras2 = 35) => ({
@@ -34,6 +37,7 @@ function crearHarness() {
   const eventos = [];
   const ordenPreShow = [];
   let nuevasSesionesMusas = 0;
+  let inicioProgramado = null;
   const io = {
     emit(event, payload) {
       eventos.push({ event, payload });
@@ -120,7 +124,9 @@ function crearHarness() {
     setPartidaPausada: noOp,
     registrarTimelineModo: noOp,
     motorModos: { activarModo: noOp, temp_modos: noOp },
-    programarInicioTimer: noOp,
+    programarInicioTimer: (callback, delay) => {
+      inicioProgramado = { callback, delay };
+    },
     iniciarNuevaSesionMusas: () => ({
       session_id: `partida_test_${++nuevasSesionesMusas}`,
       revision: nuevasSesionesMusas
@@ -141,9 +147,20 @@ function crearHarness() {
     socket,
     state,
     statsLive,
-    getNuevasSesionesMusas: () => nuevasSesionesMusas
+    getNuevasSesionesMusas: () => nuevasSesionesMusas,
+    getInicioProgramado: () => inicioProgramado
   };
 }
+
+test("match activation waits until the complete 3, 2, 1, ESCRIBE countdown has been shown", () => {
+  const ctx = crearHarness();
+
+  ctx.ciclo.iniciarPartida(ctx.socket, { count: "1:00", parametros: {} });
+
+  assert.equal(ctx.getInicioProgramado().delay, DURACION_CUENTA_ATRAS_INICIO_MS);
+  assert.equal(DURACION_CUENTA_ATRAS_INICIO_MS, 7500);
+  assert.ok(DURACION_CUENTA_ATRAS_INICIO_MS > 5000);
+});
 
 function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
   const handlers = {};

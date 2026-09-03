@@ -1,3 +1,8 @@
+// La salida animada de la cabecera tarda 2 s. Después se muestran PREPARADOS
+// (1 s), 3, 2, 1 y ESCRIBE (1 s cada uno), con medio segundo de margen para
+// que el último rótulo y su sonido lleguen completos a todas las pantallas.
+const DURACION_CUENTA_ATRAS_INICIO_MS = 7500;
+
 function crearCicloPartida({
     state,
     io,
@@ -204,7 +209,7 @@ function crearCicloPartida({
             motorModos.activarModo(state.modoActual, socket);
             emitirNubeInspiracionEstado(null, true);
             motorModos.temp_modos(socket);
-        }, 4000);
+        }, DURACION_CUENTA_ATRAS_INICIO_MS);
     };
 
     const limpiarPartida = (socket, evento) => {
@@ -288,5 +293,6 @@ function crearCicloPartida({
 }
 
 module.exports = {
+    DURACION_CUENTA_ATRAS_INICIO_MS,
     crearCicloPartida
 };
