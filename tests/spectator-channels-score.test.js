@@ -346,13 +346,14 @@ test("control can show, reveal, clamp and hide the final score", () => {
   assert.equal(ctx.espectador.resolverModo(), "puntuacion");
   assert.equal(ctx.espectador.getPuntuacionSlideStep(), 0);
 
-  for (let index = 0; index < 12; index += 1) {
+  for (let index = 0; index < 30; index += 1) {
     ctx.socket.emit("puntuacion_final_siguiente", {});
   }
   assert.equal(ctx.espectador.getPuntuacionSlideStep(), 7);
 
   ctx.socket.emit("puntuacion_final_anterior", {});
   assert.equal(ctx.espectador.getPuntuacionSlideStep(), 6);
+  assert.equal(ctx.espectador.getPuntuacionRevealPhase(), 3);
 
   let ocultar = null;
   ctx.socket.emit("ocultar_puntuacion_final", {}, (respuesta) => {

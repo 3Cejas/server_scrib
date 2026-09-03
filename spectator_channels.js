@@ -496,10 +496,10 @@ function registrarCanalesEspectador({
             }
             return;
         }
-        const paso = espectador.navegarPuntuacion(direccion);
+        const navegacion = espectador.navegarPuntuacion(direccion);
         const vista = emitirVistaEspectadorModo();
         if (typeof callback === "function") {
-            callback({ ok: true, paso, vista });
+            callback({ ok: true, paso: navegacion.paso, fase: navegacion.fase, vista });
         }
     };
 

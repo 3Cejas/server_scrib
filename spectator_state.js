@@ -7,6 +7,7 @@ const ESCALA_UI_ESPECTADOR_MAX = 1.28;
 const ESCALA_UI_ESPECTADOR_DEFAULT = 1;
 const ESCALA_UI_ESPECTADOR_PASO = 0.06;
 const PUNTUACION_SLIDE_MAX = CATEGORIAS_PUNTUACION.length + 1;
+const PUNTUACION_REVEAL_PHASE_MAX = 3;
 
 const clampNumber = (valor, min, max) => Math.min(Math.max(valor, min), max);
 
@@ -14,6 +15,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
     let override = "tutorial";
     let statsSlideStep = 0;
     let puntuacionSlideStep = 0;
+    let puntuacionRevealPhase = 0;
     let juradoSlideStep = 0;
     let escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
 
@@ -39,6 +41,11 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         normalizarPasoSlideStats(valor),
         0,
         PUNTUACION_SLIDE_MAX
+    );
+    const normalizarFasePuntuacion = (valor) => clampNumber(
+        normalizarPasoSlideStats(valor),
+        0,
+        PUNTUACION_REVEAL_PHASE_MAX
     );
     const normalizarPasoSlideJurado = (valor) => clampNumber(
         normalizarPasoSlideStats(valor),
@@ -69,6 +76,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         calentamiento_vista: Boolean(isCalentamientoVisible()),
         stats_slide_step: normalizarPasoSlideStats(statsSlideStep),
         puntuacion_slide_step: normalizarPasoSlidePuntuacion(puntuacionSlideStep),
+        puntuacion_reveal_phase: normalizarFasePuntuacion(puntuacionRevealPhase),
         jurado_slide_step: normalizarPasoSlideJurado(juradoSlideStep),
         escala_ui: normalizarEscala(escalaUi),
         ts: Date.now()
@@ -89,6 +97,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         statsSlideStep = 0;
         if (override === "puntuacion") {
             puntuacionSlideStep = 0;
+            puntuacionRevealPhase = 0;
         }
         if (override === "resultado_jurado") {
             juradoSlideStep = 0;
@@ -102,10 +111,41 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
     };
 
     const navegarPuntuacion = (direccion) => {
-        puntuacionSlideStep = normalizarPasoSlidePuntuacion(
-            puntuacionSlideStep + normalizarPasoSlideStats(direccion)
-        );
-        return puntuacionSlideStep;
+        const sentido = Math.sign(normalizarPasoSlideStats(direccion));
+        if (!sentido) return {
+            paso: normalizarPasoSlidePuntuacion(puntuacionSlideStep),
+            fase: normalizarFasePuntuacion(puntuacionRevealPhase)
+        };
+        const ultimoApartado = CATEGORIAS_PUNTUACION.length;
+        if (sentido > 0) {
+            if (puntuacionSlideStep === 0) {
+                puntuacionSlideStep = 1;
+                puntuacionRevealPhase = 0;
+            } else if (puntuacionSlideStep <= ultimoApartado && puntuacionRevealPhase < PUNTUACION_REVEAL_PHASE_MAX) {
+                puntuacionRevealPhase += 1;
+            } else if (puntuacionSlideStep < ultimoApartado) {
+                puntuacionSlideStep += 1;
+                puntuacionRevealPhase = 0;
+            } else if (puntuacionSlideStep === ultimoApartado) {
+                puntuacionSlideStep = PUNTUACION_SLIDE_MAX;
+                puntuacionRevealPhase = 0;
+            }
+        } else if (puntuacionSlideStep === PUNTUACION_SLIDE_MAX) {
+            puntuacionSlideStep = ultimoApartado;
+            puntuacionRevealPhase = PUNTUACION_REVEAL_PHASE_MAX;
+        } else if (puntuacionSlideStep > 0 && puntuacionRevealPhase > 0) {
+            puntuacionRevealPhase -= 1;
+        } else if (puntuacionSlideStep > 1) {
+            puntuacionSlideStep -= 1;
+            puntuacionRevealPhase = PUNTUACION_REVEAL_PHASE_MAX;
+        } else if (puntuacionSlideStep === 1) {
+            puntuacionSlideStep = 0;
+            puntuacionRevealPhase = 0;
+        }
+        return {
+            paso: normalizarPasoSlidePuntuacion(puntuacionSlideStep),
+            fase: normalizarFasePuntuacion(puntuacionRevealPhase)
+        };
     };
 
     const navegarJurado = (direccion) => {
@@ -136,6 +176,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         override = "tutorial";
         statsSlideStep = 0;
         puntuacionSlideStep = 0;
+        puntuacionRevealPhase = 0;
         juradoSlideStep = 0;
         escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
         return payload();
@@ -147,6 +188,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         emitir,
         getOverride: () => normalizarModo(override),
         getPuntuacionSlideStep: () => normalizarPasoSlidePuntuacion(puntuacionSlideStep),
+        getPuntuacionRevealPhase: () => normalizarFasePuntuacion(puntuacionRevealPhase),
         getJuradoSlideStep: () => normalizarPasoSlideJurado(juradoSlideStep),
         navegarJurado,
         navegarPuntuacion,
@@ -163,5 +205,6 @@ module.exports = {
     ESCALA_UI_ESPECTADOR_DEFAULT,
     ESCALA_UI_ESPECTADOR_MAX,
     PUNTUACION_SLIDE_MAX,
+    PUNTUACION_REVEAL_PHASE_MAX,
     JURY_RESULT_SLIDE_MAX
 };

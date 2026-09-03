@@ -48,14 +48,27 @@ test("dedicated score view has an independent reveal step clamped from intro to 
   assert.equal(gestor.cambiarModo("puntuacion"), "puntuacion");
   assert.equal(gestor.payload().modo, "puntuacion");
   assert.equal(gestor.payload().puntuacion_slide_step, 0);
+  assert.equal(gestor.payload().puntuacion_reveal_phase, 0);
 
-  for (let index = 0; index < 20; index += 1) {
+  gestor.navegarPuntuacion(1);
+  assert.equal(gestor.getPuntuacionSlideStep(), 1);
+  assert.equal(gestor.getPuntuacionRevealPhase(), 0);
+  for (let phase = 1; phase <= 3; phase += 1) {
+    gestor.navegarPuntuacion(1);
+    assert.equal(gestor.getPuntuacionRevealPhase(), phase);
+  }
+
+  for (let index = 0; index < 30; index += 1) {
     gestor.navegarPuntuacion(1);
   }
   assert.equal(gestor.getPuntuacionSlideStep(), PUNTUACION_SLIDE_MAX);
   assert.equal(gestor.payload().puntuacion_slide_step, 7);
+  assert.equal(gestor.payload().puntuacion_reveal_phase, 0);
 
-  for (let index = 0; index < 20; index += 1) {
+  gestor.navegarPuntuacion(-1);
+  assert.equal(gestor.getPuntuacionSlideStep(), 6);
+  assert.equal(gestor.getPuntuacionRevealPhase(), 3);
+  for (let index = 0; index < 30; index += 1) {
     gestor.navegarPuntuacion(-1);
   }
   assert.equal(gestor.getPuntuacionSlideStep(), 0);
@@ -64,6 +77,7 @@ test("dedicated score view has an independent reveal step clamped from intro to 
   gestor.cambiarModo("partida");
   gestor.cambiarModo("puntuacion");
   assert.equal(gestor.getPuntuacionSlideStep(), 0);
+  assert.equal(gestor.getPuntuacionRevealPhase(), 0);
 });
 
 test("tutorial is an authoritative spectator view distinct from the game and warmup", () => {
