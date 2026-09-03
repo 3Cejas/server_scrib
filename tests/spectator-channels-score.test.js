@@ -102,8 +102,7 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     resultadoJurado,
     resolverModoVistaEspectador: espectador.resolverModo,
     preShowMusas,
-    detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio),
-    resultadoFinalDelayMs: 10
+    detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio)
   });
 
   ioEvents.length = 0;
@@ -385,7 +384,7 @@ test("non-control sockets cannot mutate score visibility or reveal steps", () =>
   assert.equal(ctx.espectador.getPuntuacionSlideStep(), 0);
 });
 
-test("Control reveals every Jury category and the server automatically celebrates the combined winner", async () => {
+test("Control reveals every Jury category and explicitly advances to the combined winner", () => {
   const ctx = crearContexto({ control: true });
   ctx.socket.jurado = true;
   ctx.socket.emit("jurado_resultado_actualizar", {
@@ -410,10 +409,35 @@ test("Control reveals every Jury category and the server automatically celebrate
   for (let index = 0; index < 15; index += 1) ctx.socket.emit("jurado_resultado_siguiente", {});
   assert.equal(ctx.espectador.getJuradoSlideStep(), 10);
 
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(ctx.espectador.resolverModo(), "resultado_jurado");
+
+  let finalShown = null;
+  ctx.socket.emit("mostrar_resultado_final", {}, (response) => { finalShown = response; });
+  assert.equal(finalShown.ok, true);
   assert.equal(ctx.espectador.resolverModo(), "resultado_final");
   const finalEvent = ctx.ioEvents.findLast(({ event }) => event === "resultado_final_estado");
   assert.equal(finalEvent.payload.disponible, true);
   assert.ok([1, 2].includes(finalEvent.payload.ganador));
   assert.equal(finalEvent.payload.formula, "50% videojuego + 50% jurado");
+});
+
+test("Control cannot show the combined winner before revealing the Jury verdict", () => {
+  const ctx = crearContexto({ control: true });
+  ctx.socket.jurado = true;
+  ctx.socket.emit("jurado_resultado_actualizar", {
+    disponible: true,
+    jugadores: { 1: { nombre: "AZUL", total: 9 }, 2: { nombre: "ROJO", total: 6 } },
+    criterios: [["writing", "idea", 9, 6]].map(([scope, id, value1, value2]) => ({
+      scope,
+      id,
+      valores: { 1: value1, 2: value2 }
+    }))
+  });
+  ctx.socket.jurado = false;
+  ctx.socket.emit("mostrar_resultado_jurado", {});
+
+  let response = null;
+  ctx.socket.emit("mostrar_resultado_final", {}, (payload) => { response = payload; });
+  assert.deepEqual(response, { ok: false, code: "JURY_RESULT_NOT_COMPLETE" });
+  assert.equal(ctx.espectador.resolverModo(), "resultado_jurado");
 });

@@ -26,10 +26,8 @@ function registrarCanalesEspectador({
     resultadoJurado = null,
     resolverModoVistaEspectador,
     preShowMusas = null,
-    detenerExperienciasTutorial = () => {},
-    resultadoFinalDelayMs = 5000
+    detenerExperienciasTutorial = () => {}
 }) {
-    let temporizadorResultadoFinal = null;
     const resolverCallback = (payload, callback) => (
         typeof payload === "function" ? payload : callback
     );
@@ -61,11 +59,6 @@ function registrarCanalesEspectador({
             }
         };
         return puntuacionFinal.capturarPendiente(stats, opcionesDatosPuntuacion());
-    };
-    const cancelarResultadoFinalProgramado = () => {
-        if (!temporizadorResultadoFinal) return;
-        clearTimeout(temporizadorResultadoFinal);
-        temporizadorResultadoFinal = null;
     };
     const construirResultadoFinal = () => {
         const juego = puntuacionFinal && typeof puntuacionFinal.payload === "function"
@@ -109,23 +102,6 @@ function registrarCanalesEspectador({
             receptor.emit("resultado_final_estado", resultado || { disponible: false });
         }
         return resultado;
-    };
-    const mostrarResultadoFinalAutomatico = () => {
-        temporizadorResultadoFinal = null;
-        const resultado = construirResultadoFinal();
-        if (!resultado || resolverModoVistaEspectador() !== "resultado_jurado") return;
-        cambiarModoEspectador("resultado_final");
-        emitirVistaEspectadorModo();
-        emitirPuntuacionFinal();
-        emitirResultadoJurado();
-        emitirResultadoFinal();
-    };
-    const programarResultadoFinalAutomatico = () => {
-        cancelarResultadoFinalProgramado();
-        temporizadorResultadoFinal = setTimeout(
-            mostrarResultadoFinalAutomatico,
-            Math.max(0, Number(resultadoFinalDelayMs) || 0)
-        );
     };
     const cargarDatosPruebaDeliberacion = () => {
         const stats = {
@@ -197,7 +173,6 @@ function registrarCanalesEspectador({
         return { ok: true, puntuacion, jurado, vista };
     };
     const cambiarModoEspectador = (modo) => {
-        cancelarResultadoFinalProgramado();
         const modoAnterior = resolverModoVistaEspectador();
         const modoSiguiente = espectador.cambiarModo(modo);
         if (modoSiguiente !== modoAnterior) {
@@ -520,13 +495,9 @@ function registrarCanalesEspectador({
             if (typeof callback === "function") callback({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
             return;
         }
-        cancelarResultadoFinalProgramado();
         const paso = espectador.navegarJurado(direccion);
         const vista = emitirVistaEspectadorModo();
         emitirResultadoJurado();
-        if (paso >= JURY_RESULT_SLIDE_MAX) {
-            programarResultadoFinalAutomatico();
-        }
         if (typeof callback === "function") callback({ ok: true, paso, vista });
     };
 
@@ -536,6 +507,36 @@ function registrarCanalesEspectador({
 
     socket.on("jurado_resultado_anterior", (_payload = {}, callback = null) => {
         navegarJurado(-1, resolverCallback(_payload, callback));
+    });
+
+    socket.on("mostrar_resultado_final", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (resolverModoVistaEspectador() !== "resultado_jurado") {
+            if (typeof responder === "function") responder({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
+            return;
+        }
+        const paso = typeof espectador.getJuradoSlideStep === "function"
+            ? espectador.getJuradoSlideStep()
+            : 0;
+        if (paso < JURY_RESULT_SLIDE_MAX) {
+            if (typeof responder === "function") responder({ ok: false, code: "JURY_RESULT_NOT_COMPLETE" });
+            return;
+        }
+        const resultado = construirResultadoFinal();
+        if (!resultado) {
+            if (typeof responder === "function") responder({ ok: false, code: "FINAL_RESULT_UNAVAILABLE" });
+            return;
+        }
+        cambiarModoEspectador("resultado_final");
+        const vista = emitirVistaEspectadorModo();
+        emitirPuntuacionFinal();
+        emitirResultadoJurado();
+        emitirResultadoFinal();
+        if (typeof responder === "function") responder({ ok: true, vista, resultado });
     });
 
     socket.on("ocultar_puntuacion_final", (_payload = {}, callback = null) => {
