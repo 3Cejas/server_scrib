@@ -27,7 +27,7 @@ function registrarCanalesEspectador({
     resolverModoVistaEspectador,
     preShowMusas = null,
     detenerExperienciasTutorial = () => {},
-    resultadoFinalDelayMs = 5200
+    resultadoFinalDelayMs = 1400
 }) {
     let temporizadorResultadoFinal = null;
     const resolverCallback = (payload, callback) => (
