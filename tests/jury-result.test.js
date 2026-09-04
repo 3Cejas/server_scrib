@@ -102,3 +102,33 @@ test("a deliberation test fixture ignores stale Jury updates until reset", () =>
   assert.equal(real.ganador, 2);
   assert.equal(real.jugadores[2].total, 9);
 });
+
+test("live Jury reveal starts at zero, keeps reference scores and locks each confirmed criterion", () => {
+  let tick = 200;
+  const manager = createJuryResultManager({ now: () => ++tick });
+  manager.loadTestFixture({
+    disponible: true,
+    jugadores: { 1: { nombre: "Azul", total: 8 }, 2: { nombre: "Rojo", total: 7 } },
+    criterios: [
+      { id: "idea", scope: "writing", valores: { 1: 8.5, 2: 6.5 } }
+    ]
+  });
+
+  manager.startReveal();
+  manager.setRevealStep(1);
+  let reveal = manager.payload().revelacion.criterios[0];
+  assert.deepEqual(reveal.referencias, { 1: 8.5, 2: 6.5 });
+  assert.deepEqual(reveal.valores, { 1: 0, 2: 0 });
+  assert.equal(reveal.confirmado, false);
+  assert.equal(manager.isCurrentRevealConfirmed(), false);
+
+  assert.equal(manager.updateReveal({ jugador: 1, valor: 9.2 }).ok, true);
+  assert.equal(manager.updateReveal({ jugador: 2, valor: 7.4 }).ok, true);
+  assert.equal(manager.confirmReveal().ok, true);
+  reveal = manager.payload().revelacion.criterios[0];
+  assert.equal(reveal.confirmado, true);
+  assert.equal(reveal.ganador, 1);
+  assert.deepEqual(reveal.valores, { 1: 9.2, 2: 7.4 });
+  assert.equal(manager.updateReveal({ jugador: 1, valor: 1 }).code, "JURY_REVEAL_ALREADY_CONFIRMED");
+  assert.equal(manager.payload().criterios[0].valores[1], 9.2);
+});

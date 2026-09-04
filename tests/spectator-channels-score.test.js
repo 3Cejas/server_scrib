@@ -406,7 +406,25 @@ test("Control reveals every Jury category and explicitly advances to the combine
   let shown = null;
   ctx.socket.emit("mostrar_resultado_jurado", {}, (response) => { shown = response; });
   assert.equal(shown.ok, true);
-  for (let index = 0; index < 15; index += 1) ctx.socket.emit("jurado_resultado_siguiente", {});
+  assert.deepEqual(ctx.resultadoJurado.payload().revelacion.criterios[0].valores, { 1: 0, 2: 0 });
+  for (let index = 0; index < 9; index += 1) {
+    ctx.socket.emit("jurado_resultado_siguiente", {});
+    assert.equal(ctx.espectador.getJuradoSlideStep(), index + 1);
+    let blocked = null;
+    ctx.socket.emit("jurado_resultado_siguiente", {}, (response) => { blocked = response; });
+    assert.equal(blocked.code, "JURY_CRITERION_NOT_CONFIRMED");
+    assert.equal(ctx.espectador.getJuradoSlideStep(), index + 1);
+    ctx.socket.control = false;
+    ctx.socket.jurado = true;
+    ctx.socket.emit("jurado_revelacion_actualizar", { jugador: 1, valor: 8 + (index % 2) });
+    ctx.socket.emit("jurado_revelacion_actualizar", { jugador: 2, valor: 6 + (index % 3) });
+    let confirmed = null;
+    ctx.socket.emit("jurado_revelacion_confirmar", {}, (response) => { confirmed = response; });
+    assert.equal(confirmed.ok, true);
+    ctx.socket.jurado = false;
+    ctx.socket.control = true;
+  }
+  ctx.socket.emit("jurado_resultado_siguiente", {});
   assert.equal(ctx.espectador.getJuradoSlideStep(), 10);
 
   assert.equal(ctx.espectador.resolverModo(), "resultado_jurado");

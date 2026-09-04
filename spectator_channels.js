@@ -272,6 +272,35 @@ function registrarCanalesEspectador({
         if (typeof callback === "function") callback({ ok: true, resultado });
     });
 
+    socket.on("jurado_revelacion_actualizar", (payload = {}, callback = null) => {
+        if (!socket.jurado || !resultadoJurado || typeof resultadoJurado.updateReveal !== "function") {
+            if (typeof callback === "function") callback({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (resolverModoVistaEspectador() !== "resultado_jurado") {
+            if (typeof callback === "function") callback({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
+            return;
+        }
+        const respuesta = resultadoJurado.updateReveal(payload);
+        emitirResultadoJurado();
+        if (typeof callback === "function") callback(respuesta);
+    });
+
+    socket.on("jurado_revelacion_confirmar", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.jurado || !resultadoJurado || typeof resultadoJurado.confirmReveal !== "function") {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (resolverModoVistaEspectador() !== "resultado_jurado") {
+            if (typeof responder === "function") responder({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
+            return;
+        }
+        const respuesta = resultadoJurado.confirmReveal();
+        emitirResultadoJurado();
+        if (typeof responder === "function") responder(respuesta);
+    });
+
     socket.on("cargar_datos_prueba_deliberacion", (_payload = {}, callback = null) => {
         const responder = resolverCallback(_payload, callback);
         if (!socket.control) {
@@ -375,6 +404,7 @@ function registrarCanalesEspectador({
                 ? resultadoJurado.payload()
                 : null;
             if (!estadoJurado || estadoJurado.disponible !== true) return;
+            if (resultadoJurado && typeof resultadoJurado.startReveal === "function") resultadoJurado.startReveal();
         }
         if (modoEntrada === "resultado_final" && !construirResultadoFinal()) return;
         if (
@@ -422,6 +452,8 @@ function registrarCanalesEspectador({
             return;
         }
         cambiarModoEspectador("resultado_jurado");
+        if (typeof resultadoJurado.startReveal === "function") resultadoJurado.startReveal();
+        if (typeof resultadoJurado.setRevealStep === "function") resultadoJurado.setRevealStep(0);
         const vista = emitirVistaEspectadorModo();
         emitirResultadoJurado();
         if (typeof responder === "function") responder({ ok: true, vista, resultado });
@@ -495,7 +527,24 @@ function registrarCanalesEspectador({
             if (typeof callback === "function") callback({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
             return;
         }
+        const pasoActual = typeof espectador.getJuradoSlideStep === "function"
+            ? espectador.getJuradoSlideStep()
+            : 0;
+        if (
+            direccion > 0
+            && pasoActual > 0
+            && pasoActual <= JURY_RESULT_SLIDE_MAX - 1
+            && resultadoJurado
+            && typeof resultadoJurado.isCurrentRevealConfirmed === "function"
+            && !resultadoJurado.isCurrentRevealConfirmed()
+        ) {
+            if (typeof callback === "function") callback({ ok: false, code: "JURY_CRITERION_NOT_CONFIRMED", paso: pasoActual });
+            return;
+        }
         const paso = espectador.navegarJurado(direccion);
+        if (resultadoJurado && typeof resultadoJurado.setRevealStep === "function") {
+            resultadoJurado.setRevealStep(paso);
+        }
         const vista = emitirVistaEspectadorModo();
         emitirResultadoJurado();
         if (typeof callback === "function") callback({ ok: true, paso, vista });
@@ -524,6 +573,14 @@ function registrarCanalesEspectador({
             : 0;
         if (paso < JURY_RESULT_SLIDE_MAX) {
             if (typeof responder === "function") responder({ ok: false, code: "JURY_RESULT_NOT_COMPLETE" });
+            return;
+        }
+        if (
+            resultadoJurado
+            && typeof resultadoJurado.areAllRevealsConfirmed === "function"
+            && !resultadoJurado.areAllRevealsConfirmed()
+        ) {
+            if (typeof responder === "function") responder({ ok: false, code: "JURY_REVEAL_INCOMPLETE" });
             return;
         }
         const resultado = construirResultadoFinal();
