@@ -68,6 +68,7 @@ function crearRuntimeModos({
     let TIEMPO_CAMBIO_LETRA;
     let repentizado_enviado = false;
     let transicion_modo_en_curso = false;
+    let frases_finales = { 1: "", 2: "" };
 
     const timersPartida = crearGestorTimersPartida({ getModoActual: () => modo_actual });
 
@@ -230,10 +231,17 @@ function crearRuntimeModos({
         if (
             modo_actual === "palabras bonus" ||
             modo_actual === "palabras prohibidas" ||
-            modo_actual === "tertulia" ||
-            modo_actual === "frase final"
+            modo_actual === "tertulia"
         ) {
             return partidaSync.withModoSeq({ modo_actual });
+        }
+        if (modo_actual === "frase final") {
+            return partidaSync.withModoSeq({
+                modo_actual,
+                FRASE_FINAL_J1: frases_finales[1],
+                FRASE_FINAL_J2: frases_finales[2],
+                frases_finales: { ...frases_finales }
+            });
         }
         return null;
     }
@@ -348,6 +356,7 @@ function crearRuntimeModos({
         set tiempoCambioModos(valor) { TIEMPO_CAMBIO_MODOS = Number(valor) || 0; },
         get tiempoCambioLetra() { return TIEMPO_CAMBIO_LETRA; },
         get tiempoBorroso() { return TIEMPO_BORROSO; },
+        get frasesFinales() { return { ...frases_finales }; },
         get repentizadoEnviado() { return Boolean(repentizado_enviado); },
         set repentizadoEnviado(valor) { repentizado_enviado = Boolean(valor); }
     };
@@ -358,6 +367,10 @@ function crearRuntimeModos({
         TIEMPO_MODIFICADOR = parametros.TIEMPO_MODIFICADOR;
         TIEMPO_VOTACION = parametros.TIEMPO_VOTACION;
         TIEMPO_CAMBIO_LETRA = parametros.TIEMPO_CAMBIO_LETRA;
+        frases_finales = {
+            1: String(parametros.FRASE_FINAL_J1 || "").trim(),
+            2: String(parametros.FRASE_FINAL_J2 || "").trim()
+        };
         lista_modos = normalizarListaModosPartida(
             parametros.LISTA_MODOS || parametros.lista_modos,
             lista_modos

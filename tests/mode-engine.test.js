@@ -168,6 +168,127 @@ test("mode engine consumes every pending level in order without skipping letra m
   assert.deepEqual(activados, ["letra prohibida", "tertulia"]);
 });
 
+test("mode engine consumes the full canonical queue exactly once", () => {
+  const state = crearEstadoMotorFake({
+    modoActual: "letra bendita",
+    modosPendientes: [
+      "letra prohibida",
+      "tertulia",
+      "palabras bonus",
+      "palabras prohibidas",
+      "frase final"
+    ],
+    frasesFinales: { 1: "cierra azul", 2: "cierra rojo" }
+  });
+  const activados = [];
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: crearTimersFake(),
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    emitirActivarModo: (payload) => activados.push(payload.modo_actual),
+    emitirPedirInspiracionMusa: () => {},
+    emitirNubeInspiracionEstado: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  while (state.modosPendientes.length) motor.modos_de_juego();
+
+  assert.deepEqual(activados, [
+    "letra prohibida",
+    "tertulia",
+    "palabras bonus",
+    "palabras prohibidas",
+    "frase final"
+  ]);
+  assert.equal(state.modoActual, "frase final");
+  assert.equal(new Set(activados).size, activados.length);
+});
+
+test("server timer advances tertulia even when Control has no local timer", () => {
+  const timers = crearTimersFake();
+  const state = crearEstadoMotorFake({
+    modoActual: "tertulia",
+    modosPendientes: ["palabras bonus"],
+    tiempoCambioModos: 2
+  });
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: timers,
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    avanzarModoSeguro: (_socket, callback) => { callback(); return true; },
+    emitirActivarModo: () => {},
+    emitirPedirInspiracionMusa: () => {},
+    emitirNubeInspiracionEstado: () => {},
+    emitirTempModos: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.temp_modos();
+  timers.intervalos[0].callback();
+  assert.equal(state.modoActual, "tertulia");
+  timers.intervalos[0].callback();
+  assert.equal(state.modoActual, "palabras bonus");
+});
+
+test("phrase final clears competition before rendering and never asks muses for inspiration", () => {
+  const events = [];
+  const state = crearEstadoMotorFake({
+    modoActual: "palabras prohibidas",
+    modosPendientes: ["frase final"],
+    frasesFinales: { 1: "cierra azul", 2: "cierra rojo" }
+  });
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: crearTimersFake(),
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    iniciarRondaCompeticion: (modo) => events.push({ type: "competition", modo }),
+    emitirActivarModo: (payload) => events.push({ type: "activate", payload }),
+    emitirPedirInspiracionMusa: (payload) => events.push({ type: "inspiration", payload }),
+    emitirNubeInspiracionEstado: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.modos_de_juego();
+
+  assert.deepEqual(events.map((event) => event.type), ["competition", "activate"]);
+  assert.deepEqual(events[1].payload, {
+    modo_actual: "frase final",
+    FRASE_FINAL_J1: "cierra azul",
+    FRASE_FINAL_J2: "cierra rojo",
+    frases_finales: { 1: "cierra azul", 2: "cierra rojo" }
+  });
+});
+
 test("mode engine never carries an advantage vote across tertulia", () => {
   const bonus = crearModoFake();
   const musas = crearModoFake();
@@ -263,6 +384,7 @@ function crearEstadoMotorFake(overrides = {}) {
     tiempoCambioModos: 10,
     tiempoCambioLetra: 5,
     tiempoBorroso: 3,
+    duracionTiempoModoActual: 10,
     repentizadoEnviado: false,
     ...overrides
   };

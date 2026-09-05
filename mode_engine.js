@@ -138,8 +138,13 @@ function crearMotorModos({
         },
 
         'frase final': function () {
-            emitirPedirInspiracionMusa({ modo_actual: state.modoActual });
-            emitirActivarModo({ modo_actual: state.modoActual });
+            const frases = state.frasesFinales || { 1: "", 2: "" };
+            emitirActivarModo({
+                modo_actual: state.modoActual,
+                FRASE_FINAL_J1: frases[1] || "",
+                FRASE_FINAL_J2: frases[2] || "",
+                frases_finales: { ...frases }
+            });
         },
 
         '': function () {}
@@ -195,6 +200,9 @@ function crearMotorModos({
         registrarTimelineModo(curr, 'modos_de_juego');
 
         limpiarTodosLosModos();
+        // La ronda anterior y su desventaja deben desaparecer antes de que las
+        // pantallas pinten el nivel siguiente, especialmente Frase final.
+        iniciarRondaCompeticion(curr);
         activarModo(curr, socket);
         emitirNubeInspiracionEstado(null, true);
         statsLive.actualizar({
@@ -202,7 +210,6 @@ function crearMotorModos({
             modo_actual: curr
         });
         emitirStatsLive();
-        iniciarRondaCompeticion(curr);
         state.repentizadoEnviado = false;
 
         if (

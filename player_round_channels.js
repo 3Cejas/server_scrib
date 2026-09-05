@@ -30,6 +30,7 @@ function registrarCanalesRonda({
     const resolverCallback = (payload, callback) => (
         typeof payload === "function" ? payload : callback
     );
+    let ultimoSaltoDebugTs = 0;
     const autorizarAccionDebug = (responder) => {
         if (!socket.control) {
             if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
@@ -183,6 +184,7 @@ function registrarCanalesRonda({
         if (typeof reanudarRelojPartida === 'function') {
             reanudarRelojPartida();
         }
+        timersPartida.cancelarIntervaloModos();
         state.segundosTranscurridos = 0;
         avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'reanudar_modo');
         motorModos.temp_modos(socket);
@@ -205,6 +207,7 @@ function registrarCanalesRonda({
         if (typeof reanudarRelojPartida === 'function') {
             reanudarRelojPartida();
         }
+        timersPartida.cancelarIntervaloModos();
         state.segundosTranscurridos = 0;
         avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'saltar_tertulia');
         motorModos.temp_modos(socket);
@@ -215,10 +218,16 @@ function registrarCanalesRonda({
     socket.on('debug_siguiente_nivel', (_payload = {}, callback = null) => {
         const responder = resolverCallback(_payload, callback);
         if (!autorizarAccionDebug(responder)) return;
+        const ahora = Date.now();
+        if (ahora - ultimoSaltoDebugTs < 900) {
+            if (typeof responder === "function") responder({ ok: false, code: "DEBUG_SKIP_COOLDOWN" });
+            return;
+        }
         if (state.finDelJuego || !state.modoActual) {
             if (typeof responder === "function") responder({ ok: false, code: "GAME_NOT_ACTIVE" });
             return;
         }
+        ultimoSaltoDebugTs = ahora;
         timersPartida.cancelarIntervaloModos();
         if (typeof timersPartida.cancelarInicio === 'function') timersPartida.cancelarInicio();
         limpiarTimersPalabras();

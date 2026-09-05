@@ -14,6 +14,7 @@ function crearCanalesRondaFake(overrides = {}) {
   let pausarRelojCalls = 0;
   let reanudarDesventajasCalls = 0;
   let cancelarInicioCalls = 0;
+  let cancelarIntervaloModosCalls = 0;
   let tempEmitidos = 0;
   let pulsacionesRegistradas = 0;
   let finalizarPartidaCalls = 0;
@@ -72,7 +73,9 @@ function crearCanalesRondaFake(overrides = {}) {
       convertirTextoCountASegundos: () => 0
     },
     timersPartida: {
-      cancelarIntervaloModos() {},
+      cancelarIntervaloModos() {
+        cancelarIntervaloModosCalls += 1;
+      },
       cancelarInicio() {
         cancelarInicioCalls += 1;
       },
@@ -134,6 +137,7 @@ function crearCanalesRondaFake(overrides = {}) {
   return {
     broadcasts,
     cancelarInicioCalls: () => cancelarInicioCalls,
+    cancelarIntervaloModosCalls: () => cancelarIntervaloModosCalls,
     desventajasRegistradas,
     handlers,
     labelsAvance,
@@ -268,6 +272,7 @@ test("saltar_tertulia advances the mode, emits timer sync and restarts the mode 
   assert.equal(ctx.reanudarDesventajasCalls(), 1);
   assert.equal(ctx.state.segundosTranscurridos, 0);
   assert.equal(ctx.state.modoActual, "palabras bonus");
+  assert.equal(ctx.cancelarIntervaloModosCalls(), 1);
   assert.deepEqual(ctx.tempModosCalls.map((call) => call.options), [undefined]);
   assert.equal(ctx.tempEmitidos(), 1);
   assert.deepEqual(ctx.broadcasts, [
@@ -305,6 +310,26 @@ test("Debug Control can advance one level and restart its timer", () => {
   assert.deepEqual(ctx.labelsAvance, ["debug_siguiente_nivel"]);
   assert.equal(ctx.state.segundosTranscurridos, 0);
   assert.equal(ctx.tempEmitidos(), 1);
+  assert.equal(ctx.tempModosCalls.length, 1);
+});
+
+test("Debug Control ignores a duplicate level skip instead of consuming two levels", () => {
+  const ctx = crearCanalesRondaFake({
+    modoActual: "tertulia",
+    nextMode: "palabras bonus",
+    control: true,
+    debug: true
+  });
+  let firstResponse = null;
+  let duplicateResponse = null;
+
+  ctx.handlers.debug_siguiente_nivel({}, (result) => { firstResponse = result; });
+  ctx.handlers.debug_siguiente_nivel({}, (result) => { duplicateResponse = result; });
+
+  assert.equal(firstResponse.ok, true);
+  assert.deepEqual(duplicateResponse, { ok: false, code: "DEBUG_SKIP_COOLDOWN" });
+  assert.deepEqual(ctx.labelsAvance, ["debug_siguiente_nivel"]);
+  assert.equal(ctx.cancelarIntervaloModosCalls(), 1);
   assert.equal(ctx.tempModosCalls.length, 1);
 });
 
