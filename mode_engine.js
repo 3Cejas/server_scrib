@@ -173,11 +173,14 @@ function crearMotorModos({
     }
 
     function modos_de_juego(socket) {
-        registrar('Modos restantes:', state.modosPendientes.slice(state.indiceModo));
+        registrar('Modos restantes:', state.modosPendientes);
 
         const prev = state.modoActual;
         const indiceActual = state.indiceModo;
-        const curr = state.modosPendientes[indiceActual] || '';
+        // `modosPendientes` ya es la cola de niveles que queda por jugar. Usar
+        // también `indiceModo` para indexarla hacía que se saltasen elementos
+        // (por ejemplo, Letra maldita) a partir de la segunda transición.
+        const curr = state.modosPendientes.shift() || '';
         state.indiceModo = indiceActual + 1;
         if (!curr) {
             finalizarPartida(socket);

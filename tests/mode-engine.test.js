@@ -131,6 +131,43 @@ test("mode engine can advance from tertulia without launching a stale advantage"
   assert.equal(launches.length, 0);
 });
 
+test("mode engine consumes every pending level in order without skipping letra maldita", () => {
+  const state = crearEstadoMotorFake({
+    modoActual: "letra bendita",
+    modosPendientes: ["letra prohibida", "tertulia", "palabras bonus"],
+    indiceModo: 0
+  });
+  const activados = [];
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: crearTimersFake(),
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    emitirActivarModo: (payload) => activados.push(payload.modo_actual),
+    emitirPedirInspiracionMusa: () => {},
+    emitirNubeInspiracionEstado: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.modos_de_juego();
+  assert.equal(state.modoActual, "letra prohibida");
+  assert.deepEqual(state.modosPendientes, ["tertulia", "palabras bonus"]);
+
+  motor.modos_de_juego();
+  assert.equal(state.modoActual, "tertulia");
+  assert.deepEqual(state.modosPendientes, ["palabras bonus"]);
+  assert.deepEqual(activados, ["letra prohibida", "tertulia"]);
+});
+
 test("mode engine never carries an advantage vote across tertulia", () => {
   const bonus = crearModoFake();
   const musas = crearModoFake();
