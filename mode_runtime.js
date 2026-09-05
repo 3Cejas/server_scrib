@@ -7,6 +7,16 @@ const { ALFABETO_ES } = require('./letter_frequency.js');
 const LETRAS_PROHIBIDAS = [...ALFABETO_ES];
 const LETRAS_BENDITAS_PONDERADAS = [...ALFABETO_ES];
 const LISTA_MODOS_DEFAULT = ["letra bendita", "letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas"];
+const ORDEN_MODOS_PARTIDA = [...LISTA_MODOS_DEFAULT, "frase final"];
+
+function normalizarListaModosPartida(lista, fallback = LISTA_MODOS_DEFAULT) {
+    const origen = Array.isArray(lista) && lista.length ? lista : fallback;
+    const activos = new Set(origen
+        .map((modo) => String(modo || "").trim().toLowerCase())
+        .filter(Boolean));
+    const normalizada = ORDEN_MODOS_PARTIDA.filter((modo) => activos.has(modo));
+    return normalizada.length ? normalizada : [...LISTA_MODOS_DEFAULT];
+}
 
 function repartirDuracionPartida(totalSegundos, cantidadNiveles) {
     const niveles = Math.max(1, Math.trunc(Number(cantidadNiveles) || 0));
@@ -348,7 +358,10 @@ function crearRuntimeModos({
         TIEMPO_MODIFICADOR = parametros.TIEMPO_MODIFICADOR;
         TIEMPO_VOTACION = parametros.TIEMPO_VOTACION;
         TIEMPO_CAMBIO_LETRA = parametros.TIEMPO_CAMBIO_LETRA;
-        lista_modos = parametros.LISTA_MODOS || parametros.lista_modos || lista_modos;
+        lista_modos = normalizarListaModosPartida(
+            parametros.LISTA_MODOS || parametros.lista_modos,
+            lista_modos
+        );
         const nivelesActivos = Math.max(1, lista_modos.length);
         const duracionLegacy = Math.max(1, Math.trunc(Number(parametros.DURACION_TIEMPO_MODOS) || 0));
         const totalSolicitado = Math.trunc(Number(parametros.DURACION_PARTIDA) || 0);
@@ -468,5 +481,6 @@ function crearRuntimeModos({
 
 module.exports = {
     crearRuntimeModos,
-    repartirDuracionPartida
+    repartirDuracionPartida,
+    normalizarListaModosPartida
 };
