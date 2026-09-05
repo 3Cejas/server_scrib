@@ -54,7 +54,7 @@ test("el empate conserva portador y un cambio de lider transfiere la desventaja"
   assert.ok(io.eventos.some((evento) => evento.eventName === "competicion_cambio_lider"));
 });
 
-test("la escritura da mini inspiracion, la fuerza la aumenta y borrar resta menos", () => {
+test("la escritura da impulsos de inspiracion, la fuerza los aumenta y borrar resta menos", () => {
   const io = crearIo();
   const gestor = crearCompeticionRondas({
     io,
@@ -70,6 +70,15 @@ test("la escritura da mini inspiracion, la fuerza la aumenta y borrar resta meno
 
   gestor.registrarCambioTexto(1, "abcd", "abc");
   assert.equal(gestor.snapshot().marcador[1], 0.55);
+});
+
+test("los criterios publicos explican el ritmo sin llamar mini inspiracion a los puntos", () => {
+  const gestor = crearCompeticionRondas({ io: crearIo(), random: () => 0.1 });
+  gestor.iniciarRonda("letra prohibida", { modo_seq: 1 });
+  assert.equal(gestor.snapshot().criterio, "RITMO DE ESCRITURA - FALTAS DE LETRA MALDITA");
+  gestor.iniciarRonda("palabras prohibidas", { modo_seq: 2 });
+  assert.equal(gestor.snapshot().criterio, "RITMO DE ESCRITURA - PALABRAS MALDITAS");
+  assert.doesNotMatch(gestor.snapshot().criterio, /mini insp/i);
 });
 
 test("las musas pesan mas, los descartes escalan su valor y las faltas penalizan", () => {

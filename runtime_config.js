@@ -60,9 +60,26 @@ function normalizarNombreMusa(valor) {
 }
 
 function extraerTextoPlano(evento) {
-    if (typeof evento === 'string') return evento;
-    if (evento && typeof evento.text === 'string') return evento.text;
-    return '';
+    const html = typeof evento === 'string'
+        ? evento
+        : (evento && typeof evento.text === 'string' ? evento.text : '');
+    if (!html) return '';
+    // El editor es contenteditable y envía HTML. Contar ese HTML como texto
+    // convertía etiquetas de salto de línea (por ejemplo DIV) en supuestas
+    // palabras y llegaban a mostrarse en el marcador como "+div".
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<(?:div|p|li|h[1-6])(?:\s[^>]*)?>/gi, '\n')
+        .replace(/<\/(?:div|p|li|h[1-6])\s*>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#0*39;|&apos;/gi, "'")
+        .replace(/\n{2,}/g, '\n')
+        .replace(/^\n|\n$/g, '');
 }
 
 module.exports = {

@@ -91,9 +91,9 @@ function crearCompeticionRondas({
 
     const criterioModo = (modo) => ({
         "letra bendita": "LETRAS + INSPIRACIONES DE MUSAS",
-        "letra prohibida": "MINI INSPIRACIÓN - FALTAS DE LETRA MALDITA",
+        "letra prohibida": "RITMO DE ESCRITURA - FALTAS DE LETRA MALDITA",
         "palabras bonus": "PALABRAS BENDITAS INCORPORADAS",
-        "palabras prohibidas": "MINI INSPIRACIÓN - PALABRAS MALDITAS"
+        "palabras prohibidas": "RITMO DE ESCRITURA - PALABRAS MALDITAS"
     }[modo] || "");
 
     const intensidadDestreza = (player) => {
