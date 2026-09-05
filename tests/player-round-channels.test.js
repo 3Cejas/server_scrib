@@ -16,6 +16,7 @@ function crearCanalesRondaFake(overrides = {}) {
   let cancelarInicioCalls = 0;
   let tempEmitidos = 0;
   let pulsacionesRegistradas = 0;
+  let finalizarPartidaCalls = 0;
 
   const state = {
     modoActual: overrides.modoActual || "tertulia",
@@ -36,6 +37,7 @@ function crearCanalesRondaFake(overrides = {}) {
   const socket = {
     id: overrides.socketId || "socket",
     escritxr: overrides.escritxr,
+    control: overrides.control === true,
     on(eventName, handler) {
       handlers[eventName] = handler;
     },
@@ -116,8 +118,14 @@ function crearCanalesRondaFake(overrides = {}) {
     setPartidaPausada(valor) {
       pausaEstados.push(Boolean(valor));
     },
-    sesionesEscritor: overrides.sesionesEscritor || null
-    ,
+    sesionesEscritor: overrides.sesionesEscritor || null,
+    isDebugMode: () => overrides.debug === true,
+    finalizarPartida() {
+      finalizarPartidaCalls += 1;
+      state.finDelJuego = true;
+      state.modoActual = "";
+      return true;
+    },
     registrarPulsacionCompeticion() {
       pulsacionesRegistradas += 1;
     }
@@ -134,6 +142,7 @@ function crearCanalesRondaFake(overrides = {}) {
     pausarRelojCalls: () => pausarRelojCalls,
     reanudarDesventajasCalls: () => reanudarDesventajasCalls,
     pulsacionesRegistradas: () => pulsacionesRegistradas,
+    finalizarPartidaCalls: () => finalizarPartidaCalls,
     state,
     tempEmitidos: () => tempEmitidos,
     tempModosCalls
@@ -264,6 +273,68 @@ test("saltar_tertulia advances the mode, emits timer sync and restarts the mode 
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "reanudar_js", payload: { motivo: "saltar_tertulia" } }
   ]);
+});
+
+test("debug level skip requires authenticated Control and active Debug mode", () => {
+  const unauthorized = crearCanalesRondaFake({ modoActual: "letra bendita", debug: true });
+  let unauthorizedResponse = null;
+  unauthorized.handlers.debug_siguiente_nivel({}, (response) => { unauthorizedResponse = response; });
+  assert.deepEqual(unauthorizedResponse, { ok: false, code: "NOT_AUTHORIZED" });
+
+  const disabled = crearCanalesRondaFake({ modoActual: "letra bendita", control: true });
+  let disabledResponse = null;
+  disabled.handlers.debug_siguiente_nivel({}, (response) => { disabledResponse = response; });
+  assert.deepEqual(disabledResponse, { ok: false, code: "DEBUG_MODE_REQUIRED" });
+});
+
+test("Debug Control can advance one level and restart its timer", () => {
+  const ctx = crearCanalesRondaFake({
+    modoActual: "letra bendita",
+    nextMode: "letra prohibida",
+    control: true,
+    debug: true
+  });
+  let response = null;
+  ctx.handlers.debug_siguiente_nivel({}, (result) => { response = result; });
+
+  assert.deepEqual(response, {
+    ok: true,
+    modo_actual: "letra prohibida",
+    partida_finalizada: false
+  });
+  assert.deepEqual(ctx.labelsAvance, ["debug_siguiente_nivel"]);
+  assert.equal(ctx.state.segundosTranscurridos, 0);
+  assert.equal(ctx.tempEmitidos(), 1);
+  assert.equal(ctx.tempModosCalls.length, 1);
+});
+
+test("Debug Control can finish an active match", () => {
+  const ctx = crearCanalesRondaFake({
+    modoActual: "palabras bonus",
+    control: true,
+    debug: true
+  });
+  let response = null;
+  ctx.handlers.debug_finalizar_partida({}, (result) => { response = result; });
+
+  assert.deepEqual(response, { ok: true, partida_finalizada: true });
+  assert.equal(ctx.finalizarPartidaCalls(), 1);
+  assert.equal(ctx.state.finDelJuego, true);
+});
+
+test("Debug Control cannot finish before a match has an active level", () => {
+  const ctx = crearCanalesRondaFake({
+    modoActual: "",
+    control: true,
+    debug: true,
+    state: { modoActual: "" }
+  });
+  ctx.state.modoActual = "";
+  let response = null;
+  ctx.handlers.debug_finalizar_partida({}, (result) => { response = result; });
+
+  assert.deepEqual(response, { ok: false, code: "GAME_NOT_ACTIVE" });
+  assert.equal(ctx.finalizarPartidaCalls(), 0);
 });
 
 test("inactive writer sessions cannot tick or register keystrokes", () => {

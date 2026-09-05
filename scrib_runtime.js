@@ -34,6 +34,7 @@ const { getRanges } = require('./time_ranges.js');
 const { crearCanalesEscritor } = require('./writer_channels.js');
 const { crearCompeticionRondas } = require('./round_competition.js');
 const { crearRelojPartida } = require('./match_clock.js');
+const { crearGestorModoDebug } = require('./debug_mode.js');
 
 function crearRuntimeScrib({
     io,
@@ -59,6 +60,7 @@ function crearRuntimeScrib({
 
     const accesoRoles = crearGestorAccesoRoles({ passwordRoles });
     const controlState = crearGestorEstadoControl({ io });
+    const modoDebug = crearGestorModoDebug({ io });
     const partidaSync = crearGestorSincronizacionPartida({ validarJugador: obtenerIdJugadorValido });
     const competicionRondas = crearCompeticionRondas({
         io,
@@ -497,6 +499,7 @@ function crearRuntimeScrib({
         accesoRoles,
         testHooksEnabled,
         controlState,
+        modoDebug,
         obtenerEstadoEscritores,
         obtenerIdJugadorValido,
         getModoActual: () => estadoCicloPartida.modoActual,

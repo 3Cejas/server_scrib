@@ -26,7 +26,8 @@ function registrarCanalesEspectador({
     resultadoJurado = null,
     resolverModoVistaEspectador,
     preShowMusas = null,
-    detenerExperienciasTutorial = () => {}
+    detenerExperienciasTutorial = () => {},
+    isDebugMode = () => false
 }) {
     const resolverCallback = (payload, callback) => (
         typeof payload === "function" ? payload : callback
@@ -307,6 +308,10 @@ function registrarCanalesEspectador({
             if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
             return;
         }
+        if (!isDebugMode()) {
+            if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+            return;
+        }
         const resultado = cargarDatosPruebaDeliberacion();
         if (typeof responder === "function") responder(resultado);
     });
@@ -315,6 +320,10 @@ function registrarCanalesEspectador({
         const responder = resolverCallback(_payload, callback);
         if (!socket.control) {
             if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (!isDebugMode()) {
+            if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
             return;
         }
         const puntuacion = puntuacionFinal && typeof puntuacionFinal.reset === "function"

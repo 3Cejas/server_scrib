@@ -47,6 +47,7 @@ function registrarConexionScrib(socket, deps) {
         accesoRoles,
         testHooksEnabled,
         controlState,
+        modoDebug,
         obtenerEstadoEscritores,
         obtenerIdJugadorValido,
         getModoActual,
@@ -150,6 +151,9 @@ function registrarConexionScrib(socket, deps) {
     if (videoTutorialPreShow && typeof videoTutorialPreShow.registrarHandlers === "function") {
         videoTutorialPreShow.registrarHandlers(socket);
     }
+    if (modoDebug && typeof modoDebug.registrarHandlers === "function") {
+        modoDebug.registrarHandlers(socket);
+    }
     if (narracionShow && typeof narracionShow.registrarHandlers === "function") {
         narracionShow.registrarHandlers(socket);
     }
@@ -203,7 +207,8 @@ function registrarConexionScrib(socket, deps) {
         detenerExperienciasTutorial: () => detenerExperienciasTutorialActivas({
             videoTutorialPreShow,
             narracionShow
-        })
+        }),
+        isDebugMode: () => Boolean(modoDebug && modoDebug.isActive())
     });
     bolzanoCalentamientoGestor.registrarHandlers(socket);
 
@@ -270,6 +275,8 @@ function registrarConexionScrib(socket, deps) {
         registrarPulsacionCompeticion,
         setPartidaPausada,
         sesionesEscritor,
+        isDebugMode: () => Boolean(modoDebug && modoDebug.isActive()),
+        finalizarPartida: (socketOrigen) => partidaLifecycle.finalizarPartida(socketOrigen),
         registrar
     });
     registrarCanalesInspiracion({

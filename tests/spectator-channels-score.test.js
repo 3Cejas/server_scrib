@@ -34,7 +34,7 @@ const crearTelemetria = (palabras1 = 80, palabras2 = 40) => ({
   }
 });
 
-function crearContexto({ control = false, disponible = true, pendiente = false, preShowActivo = true, pulsaciones = { 1: 120, 2: 80 } } = {}) {
+function crearContexto({ control = false, debug = false, disponible = true, pendiente = false, preShowActivo = true, pulsaciones = { 1: 120, 2: 80 } } = {}) {
   const socket = new EventEmitter();
   socket.control = control;
   const ioEvents = [];
@@ -102,7 +102,8 @@ function crearContexto({ control = false, disponible = true, pendiente = false, 
     resultadoJurado,
     resolverModoVistaEspectador: espectador.resolverModo,
     preShowMusas,
-    detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio)
+    detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio),
+    isDebugMode: () => debug
   });
 
   ioEvents.length = 0;
@@ -161,8 +162,8 @@ test("only Jury can publish its result and only Control can reveal it", () => {
   assert.equal(ctx.resultadoJurado.payload().mostrar, true);
 });
 
-test("Control can load and clear a deterministic deliberation fixture without starting a match", () => {
-  const ctx = crearContexto({ control: true, disponible: false });
+test("Debug Control can load and clear a deterministic deliberation fixture without starting a match", () => {
+  const ctx = crearContexto({ control: true, debug: true, disponible: false });
   let loaded = null;
   ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
 
@@ -186,6 +187,13 @@ test("deliberation fixtures require an authenticated Control socket", () => {
   let loaded = null;
   ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
   assert.deepEqual(loaded, { ok: false, code: "NOT_AUTHORIZED" });
+});
+
+test("deliberation fixtures remain blocked for Control while Debug mode is off", () => {
+  const ctx = crearContexto({ control: true, debug: false, disponible: false });
+  let loaded = null;
+  ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
+  assert.deepEqual(loaded, { ok: false, code: "DEBUG_MODE_REQUIRED" });
 });
 
 test("only a registered control can replace authoritative live stats", () => {

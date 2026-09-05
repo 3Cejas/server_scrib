@@ -23,8 +23,24 @@ function registrarCanalesRonda({
     registrarPulsacionCompeticion = null,
     setPartidaPausada = null,
     sesionesEscritor = null,
+    isDebugMode = () => false,
+    finalizarPartida = () => false,
     registrar = () => {}
 }) {
+    const resolverCallback = (payload, callback) => (
+        typeof payload === "function" ? payload : callback
+    );
+    const autorizarAccionDebug = (responder) => {
+        if (!socket.control) {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return false;
+        }
+        if (!isDebugMode()) {
+            if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+            return false;
+        }
+        return true;
+    };
     const esEventoEscritorInactivo = (player = socket && socket.escritxr) => {
         const idJugador = obtenerIdJugadorValido(player);
         return Boolean(
@@ -194,6 +210,56 @@ function registrarCanalesRonda({
         motorModos.temp_modos(socket);
         emitirTempModos();
         socket.broadcast.emit('reanudar_js', { motivo: 'saltar_tertulia' });
+    });
+
+    socket.on('debug_siguiente_nivel', (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!autorizarAccionDebug(responder)) return;
+        if (state.finDelJuego || !state.modoActual) {
+            if (typeof responder === "function") responder({ ok: false, code: "GAME_NOT_ACTIVE" });
+            return;
+        }
+        timersPartida.cancelarIntervaloModos();
+        if (typeof timersPartida.cancelarInicio === 'function') timersPartida.cancelarInicio();
+        limpiarTimersPalabras();
+        if (typeof reanudarDesventajasActivas === 'function') reanudarDesventajasActivas();
+        if (typeof setPartidaPausada === 'function') setPartidaPausada(false);
+        if (typeof reanudarRelojPartida === 'function') reanudarRelojPartida();
+        state.segundosTranscurridos = 0;
+        const avanzado = avanzarModoSeguro(
+            socket,
+            () => motorModos.modos_de_juego(socket),
+            'debug_siguiente_nivel'
+        );
+        if (!avanzado) {
+            if (typeof responder === "function") responder({ ok: false, code: "MODE_TRANSITION_BUSY" });
+            return;
+        }
+        if (!state.finDelJuego && state.modoActual) {
+            motorModos.temp_modos(socket);
+            emitirTempModos();
+            socket.broadcast.emit('reanudar_js', { motivo: 'debug_siguiente_nivel' });
+        }
+        if (typeof responder === "function") {
+            responder({
+                ok: true,
+                modo_actual: state.modoActual || "",
+                partida_finalizada: Boolean(state.finDelJuego)
+            });
+        }
+    });
+
+    socket.on('debug_finalizar_partida', (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!autorizarAccionDebug(responder)) return;
+        if (state.finDelJuego || !state.modoActual) {
+            if (typeof responder === "function") responder({ ok: false, code: "GAME_NOT_ACTIVE" });
+            return;
+        }
+        const finalizada = finalizarPartida(socket);
+        if (typeof responder === "function") {
+            responder({ ok: Boolean(finalizada), partida_finalizada: Boolean(finalizada) });
+        }
     });
 
     socket.on('enviar_putada_a_jx', (evento) => {
