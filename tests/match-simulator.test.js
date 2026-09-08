@@ -822,7 +822,9 @@ test("integración real: autorización, bloqueo y ciclo start/pause/step/resume/
       && state.connections.actors[2].count === 1;
     return ready && state;
   });
-  assert.equal(populated.partida.modo_actual, "tertulia");
+  // Registrar los roles no debe saltarse el calentamiento: el primer nivel
+  // permanece oculto hasta que venza el temporizador de 30 segundos.
+  assert.equal(populated.partida.modo_actual, "");
 
   const secondPanel = await harness.connect();
   secondPanel.emit("registrar_dramaturgia");

@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const { crearGestorPuntuacionFinal } = require("../final_scoring.js");
 const {
+  DURACION_CALENTAMIENTO_PRENIVEL_MS,
   DURACION_CUENTA_ATRAS_INICIO_MS,
   crearCicloPartida
 } = require("../partida_lifecycle.js");
@@ -35,7 +36,10 @@ const telemetriaFinal = (palabras1 = 70, palabras2 = 35) => ({
 
 function crearHarness() {
   const eventos = [];
+  const eventosBroadcast = [];
   const ordenPreShow = [];
+  const modosActivados = [];
+  const relojesIniciados = [];
   let nuevasSesionesMusas = 0;
   let inicioProgramado = null;
   const io = {
@@ -121,9 +125,13 @@ function crearHarness() {
     emitirPuntuacionFinal: puntuacionFinal.emitir,
     emitirNubeInspiracionEstado: noOp,
     emitirModoActual: noOp,
+    iniciarRelojPartida: (segundos) => relojesIniciados.push(segundos),
     setPartidaPausada: noOp,
     registrarTimelineModo: noOp,
-    motorModos: { activarModo: noOp, temp_modos: noOp },
+    motorModos: {
+      activarModo: (modo) => modosActivados.push(modo),
+      temp_modos: noOp
+    },
     programarInicioTimer: (callback, delay) => {
       inicioProgramado = { callback, delay };
     },
@@ -135,11 +143,16 @@ function crearHarness() {
     videoTutorialPreShow: videoPreShow
   });
   const socket = {
-    broadcast: { emit: noOp }
+    broadcast: {
+      emit: (event, payload) => eventosBroadcast.push({ event, payload })
+    }
   };
   return {
     ciclo,
     eventos,
+    eventosBroadcast,
+    modosActivados,
+    relojesIniciados,
     ordenPreShow,
     preShow,
     videoPreShow,
@@ -152,14 +165,38 @@ function crearHarness() {
   };
 }
 
-test("match activation waits until the complete 3, 2, 1, ESCRIBE countdown has been shown", () => {
+test("the first level waits for the countdown and 30 seconds of free warm-up", () => {
   const ctx = crearHarness();
 
   ctx.ciclo.iniciarPartida(ctx.socket, { count: "1:00", parametros: {} });
 
-  assert.equal(ctx.getInicioProgramado().delay, DURACION_CUENTA_ATRAS_INICIO_MS);
+  const cuentaAtras = ctx.getInicioProgramado();
+  assert.equal(cuentaAtras.delay, DURACION_CUENTA_ATRAS_INICIO_MS);
   assert.equal(DURACION_CUENTA_ATRAS_INICIO_MS, 7500);
   assert.ok(DURACION_CUENTA_ATRAS_INICIO_MS > 5000);
+  assert.equal(ctx.state.modoActual, "");
+  assert.deepEqual(ctx.state.modosPendientes, ["letra bendita", "frase final"]);
+  assert.deepEqual(ctx.relojesIniciados, []);
+  assert.deepEqual(ctx.modosActivados, []);
+
+  cuentaAtras.callback();
+  const calentamiento = ctx.getInicioProgramado();
+  assert.equal(calentamiento.delay, DURACION_CALENTAMIENTO_PRENIVEL_MS);
+  assert.equal(DURACION_CALENTAMIENTO_PRENIVEL_MS, 30000);
+  assert.equal(ctx.state.modoActual, "");
+  assert.deepEqual(ctx.state.modosPendientes, ["letra bendita", "frase final"]);
+  assert.deepEqual(ctx.eventosBroadcast.at(-1), {
+    event: "post-inicio",
+    payload: { borrar_texto: undefined }
+  });
+  assert.deepEqual(ctx.relojesIniciados, []);
+  assert.deepEqual(ctx.modosActivados, []);
+
+  calentamiento.callback();
+  assert.equal(ctx.state.modoActual, "letra bendita");
+  assert.deepEqual(ctx.state.modosPendientes, ["frase final"]);
+  assert.deepEqual(ctx.relojesIniciados, [20]);
+  assert.deepEqual(ctx.modosActivados, ["letra bendita"]);
 });
 
 function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
