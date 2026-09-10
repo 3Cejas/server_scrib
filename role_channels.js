@@ -171,6 +171,7 @@ function registrarCanalesRoles({
             || socket.escritxr
             || socket.musa
             || socket.actor
+            || socket.tecnico
         );
         if (!socket.monitor_pantalla_solicitada || tieneRolReal) {
             const rechazo = {
@@ -311,6 +312,13 @@ function registrarCanalesRoles({
     socket.on("registrar_actor", (payload = {}) => {
         protegerEntradaHumana("actor");
         const registro = rolesConectados.registrarActor(socket, payload);
+        if (!registro.ok) return;
+        sincronizarSocketRecienConectado(socket);
+    });
+
+    socket.on("registrar_tecnico", (payload = {}) => {
+        protegerEntradaHumana("tecnico");
+        const registro = rolesConectados.registrarTecnico(socket, payload);
         if (!registro.ok) return;
         sincronizarSocketRecienConectado(socket);
     });

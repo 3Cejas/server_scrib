@@ -271,6 +271,10 @@ test("blockersFromConnections y preflight bloquean roles humanos, modo y otra si
     actors: {
       1: { count: 0 },
       2: { count: 1 }
+    },
+    technicians: {
+      1: { count: 1 },
+      2: { count: 0 }
     }
   };
   assert.deepEqual(blockersFromConnections(connections), [
@@ -279,7 +283,8 @@ test("blockersFromConnections y preflight bloquean roles humanos, modo y otra si
     "Jurado (1)",
     "Escritxr 1 (1)",
     "Musas 1 (3)",
-    "Actorxs 2 (1)"
+    "Actorxs 2 (1)",
+    "Técnico 1 (1)"
   ]);
 
   let currentConnections = connections;

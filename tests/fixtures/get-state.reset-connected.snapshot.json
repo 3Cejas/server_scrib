@@ -47,6 +47,16 @@
         "count": 1,
         "connected": true
       }
+    },
+    "technicians": {
+      "1": {
+        "count": 0,
+        "connected": false
+      },
+      "2": {
+        "count": 0,
+        "connected": false
+      }
     }
   },
   "partida": {

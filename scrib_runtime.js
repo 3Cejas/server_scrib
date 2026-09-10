@@ -35,6 +35,7 @@ const { crearCanalesEscritor } = require('./writer_channels.js');
 const { crearCompeticionRondas } = require('./round_competition.js');
 const { crearRelojPartida } = require('./match_clock.js');
 const { crearGestorModoDebug } = require('./debug_mode.js');
+const { crearGestorMarcasTecnico } = require('./technician_marks.js');
 
 function crearRuntimeScrib({
     io,
@@ -61,6 +62,11 @@ function crearRuntimeScrib({
     const accesoRoles = crearGestorAccesoRoles({ passwordRoles });
     const controlState = crearGestorEstadoControl({ io });
     const modoDebug = crearGestorModoDebug({ io });
+    const marcasTecnico = crearGestorMarcasTecnico({
+        io,
+        validarJugador: obtenerIdJugadorValido,
+        isDebugMode: () => modoDebug.isActive()
+    });
     const partidaSync = crearGestorSincronizacionPartida({ validarJugador: obtenerIdJugadorValido });
     const competicionRondas = crearCompeticionRondas({
         io,
@@ -337,6 +343,7 @@ function crearRuntimeScrib({
         partidaSync.resetConteoSync();
         partidaSync.resetTiempoSeq();
         teleprompter.reset();
+        marcasTecnico.reset();
         nubeInspiracion.reset();
         musasAuxiliares.resetEstado();
         musasAuxiliares.emitirEstadoRegaloBandera();
@@ -595,7 +602,8 @@ function crearRuntimeScrib({
         ayudaMusas,
         preShowMusas,
         videoTutorialPreShow,
-        narracionShow
+        narracionShow,
+        marcasTecnico
     };
 
     function sincro_modos(socket = null) {

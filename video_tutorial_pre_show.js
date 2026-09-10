@@ -576,6 +576,20 @@ function crearGestorVideoTutorialPreShow({
         return emitirEstado();
     };
 
+    const desactivarRepeticion = () => {
+        cancelarProxima();
+        if (!config.habilitado) return payload();
+        config = { ...config, habilitado: false };
+        revision += 1;
+        colaConfiguracion = colaConfiguracion.then(
+            () => almacen.guardar(config),
+            () => almacen.guardar(config)
+        ).catch((error) => {
+            logger(`[video_tutorial] no se pudo persistir la desactivacion automatica: ${error.message}`);
+        });
+        return emitirEstado();
+    };
+
     const registrarHandlers = (socket) => {
         socket.on("pedir_video_tutorial_estado", (_entrada = {}, callback = null) => {
             const responder = typeof _entrada === "function" ? _entrada : callback;
@@ -620,6 +634,7 @@ function crearGestorVideoTutorialPreShow({
         abrirFase,
         cerrarFase,
         configurar,
+        desactivarRepeticion,
         detener,
         detenerServicio,
         emitirEstado,

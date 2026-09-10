@@ -29,6 +29,8 @@ function resumirRolesActivos(state = {}) {
     add("musas2", connections.musas && connections.musas[2]);
     add("actorxs1", connections.actors && connections.actors[1]);
     add("actorxs2", connections.actors && connections.actors[2]);
+    add("tecnicos1", connections.technicians && connections.technicians[1]);
+    add("tecnicos2", connections.technicians && connections.technicians[2]);
 
     return {
         ok: true,

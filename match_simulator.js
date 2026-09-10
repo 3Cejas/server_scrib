@@ -202,6 +202,8 @@ function blockersFromConnections(connections = {}) {
     add("Musas 2", connections.musas && connections.musas[2]);
     add("Actorxs 1", connections.actors && connections.actors[1]);
     add("Actorxs 2", connections.actors && connections.actors[2]);
+    add("Técnico 1", connections.technicians && connections.technicians[1]);
+    add("Técnico 2", connections.technicians && connections.technicians[2]);
     return blockers;
 }
 

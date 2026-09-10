@@ -24,13 +24,17 @@ test("active role probe counts every SCRIB role used by the watchdog", () => {
             actors: {
                 1: { count: 0, connected: false },
                 2: { count: 2, connected: true }
+            },
+            technicians: {
+                1: { count: 1, connected: true },
+                2: { count: 0, connected: false }
             }
         }
     });
 
     assert.deepEqual(summary, {
         ok: true,
-        total: 11,
+        total: 12,
         roles: {
             control: 1,
             espectador: 1,
@@ -38,7 +42,8 @@ test("active role probe counts every SCRIB role used by the watchdog", () => {
             escritxr1: 1,
             musas1: 3,
             musas2: 2,
-            actorxs2: 2
+            actorxs2: 2,
+            tecnicos1: 1
         }
     });
 });

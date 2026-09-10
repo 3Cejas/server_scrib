@@ -13,9 +13,10 @@ const { registerSimulationChannels } = require('./simulation_channels.js');
 
 function detenerExperienciasTutorialActivas({
     videoTutorialPreShow = null,
-    narracionShow = null
+    narracionShow = null,
+    modoSiguiente = null
 } = {}) {
-    const resultado = { narracion: false, videotutorial: false };
+    const resultado = { narracion: false, videotutorial: false, repeticion: false };
     if (narracionShow && typeof narracionShow.payload === "function") {
         const estadoNarracion = narracionShow.payload();
         if (estadoNarracion && estadoNarracion.activa && typeof narracionShow.detener === "function") {
@@ -25,6 +26,16 @@ function detenerExperienciasTutorialActivas({
     }
     if (videoTutorialPreShow && typeof videoTutorialPreShow.payload === "function") {
         const estadoVideo = videoTutorialPreShow.payload();
+        if (
+            estadoVideo
+            && estadoVideo.configuracion
+            && estadoVideo.configuracion.habilitado
+            && modoSiguiente !== "tutorial"
+            && typeof videoTutorialPreShow.desactivarRepeticion === "function"
+        ) {
+            videoTutorialPreShow.desactivarRepeticion();
+            resultado.repeticion = true;
+        }
         if (
             estadoVideo
             && estadoVideo.reproduciendo
@@ -136,7 +147,8 @@ function registrarConexionScrib(socket, deps) {
         ayudaMusas,
         preShowMusas,
         videoTutorialPreShow,
-        narracionShow
+        narracionShow,
+        marcasTecnico
     } = deps;
 
     const query = socket && socket.handshake && socket.handshake.query;
@@ -159,6 +171,9 @@ function registrarConexionScrib(socket, deps) {
     }
     if (ayudaMusas && typeof ayudaMusas.registrarHandlers === "function") {
         ayudaMusas.registrarHandlers(socket);
+    }
+    if (marcasTecnico && typeof marcasTecnico.registrarHandlers === "function") {
+        marcasTecnico.registrarHandlers(socket);
     }
 
     registrarCanalesGenerales({
@@ -204,9 +219,10 @@ function registrarConexionScrib(socket, deps) {
         resultadoJurado,
         resolverModoVistaEspectador,
         preShowMusas,
-        detenerExperienciasTutorial: () => detenerExperienciasTutorialActivas({
+        detenerExperienciasTutorial: (cambio = {}) => detenerExperienciasTutorialActivas({
             videoTutorialPreShow,
-            narracionShow
+            narracionShow,
+            ...cambio
         }),
         isDebugMode: () => Boolean(modoDebug && modoDebug.isActive())
     });

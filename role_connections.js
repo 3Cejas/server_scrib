@@ -5,7 +5,8 @@ const ROLE_ROOMS = Object.freeze({
     JURY: "role_jurado",
     DRAMATURGY: "role_dramaturgia",
     writer: (player) => `role_escritor_${player}`,
-    actor: (player) => `role_actor_${player}`
+    actor: (player) => `role_actor_${player}`,
+    technician: (player) => `role_tecnico_${player}`
 });
 
 const MONITOR_ROLES = new Set([
@@ -13,6 +14,7 @@ const MONITOR_ROLES = new Set([
     "escritor",
     "musa",
     "actor",
+    "tecnico",
     "espectador",
     "jurado"
 ]);
@@ -34,6 +36,7 @@ function normalizarRolMonitor(valor) {
     if (rol === "writer" || rol === "escritora" || rol === "escritor" || rol === "escritxr") return "escritor";
     if (rol === "muse" || rol === "musa") return "musa";
     if (rol === "actors" || rol === "actores" || rol === "actorxs" || rol === "actor") return "actor";
+    if (rol === "technician" || rol === "technicians" || rol === "tecnico" || rol === "tecnica") return "tecnico";
     if (rol === "spectator" || rol === "publico" || rol === "espectador") return "espectador";
     if (rol === "jury" || rol === "judge" || rol === "jurado") return "jurado";
     if (rol === "control") return "control";
@@ -73,6 +76,10 @@ function crearRegistroRoles({
     const jurados = new Set();
     const dramaturgos = new Set();
     const actores = {
+        1: new Set(),
+        2: new Set()
+    };
+    const tecnicos = {
         1: new Set(),
         2: new Set()
     };
@@ -203,6 +210,16 @@ function crearRegistroRoles({
                 count: actores[2].size,
                 connected: actores[2].size > 0
             }
+        },
+        technicians: {
+            1: {
+                count: tecnicos[1].size,
+                connected: tecnicos[1].size > 0
+            },
+            2: {
+                count: tecnicos[2].size,
+                connected: tecnicos[2].size > 0
+            }
         }
     });
 
@@ -272,6 +289,9 @@ function crearRegistroRoles({
         if (rol === "actor") {
             return [`j${player}`, ROLE_ROOMS.actor(player)];
         }
+        if (rol === "tecnico") {
+            return [`j${player}`, ROLE_ROOMS.technician(player)];
+        }
         if (rol === "espectador") {
             return ["j1", "j2", ROLE_ROOMS.SPECTATOR];
         }
@@ -284,7 +304,7 @@ function crearRegistroRoles({
     const registrarMonitorPantalla = (socket, payload = {}) => {
         const data = (payload && typeof payload === "object") ? payload : { rol: payload };
         const rol = normalizarRolMonitor(data.rol ?? data.role ?? data.tipo);
-        const requiereEquipo = rol === "escritor" || rol === "musa" || rol === "actor";
+        const requiereEquipo = rol === "escritor" || rol === "musa" || rol === "actor" || rol === "tecnico";
         const player = validarJugador(data.player ?? data.equipo ?? data.team);
         if (!MONITOR_ROLES.has(rol) || (requiereEquipo && !player)) {
             return { ok: false, rol: "", player: null, solo_lectura: true };
@@ -371,6 +391,25 @@ function crearRegistroRoles({
         actores[id].add(socket.id);
         socket.join(`j${id}`);
         socket.join(ROLE_ROOMS.actor(id));
+        return { ok: true, player: id, previous: anterior || null, connections: payloadConexiones() };
+    };
+
+    const registrarTecnico = (socket, payload = {}) => {
+        const tecnicoData = (payload && typeof payload === "object") ? payload : { player: payload };
+        const id = validarJugador(tecnicoData.player);
+        if (!id) {
+            return { ok: false, player: null };
+        }
+        const anterior = validarJugador(socket.tecnico);
+        if (anterior && anterior !== id) {
+            tecnicos[anterior].delete(socket.id);
+            socket.leave(`j${anterior}`);
+            socket.leave(ROLE_ROOMS.technician(anterior));
+        }
+        socket.tecnico = id;
+        tecnicos[id].add(socket.id);
+        socket.join(`j${id}`);
+        socket.join(ROLE_ROOMS.technician(id));
         return { ok: true, player: id, previous: anterior || null, connections: payloadConexiones() };
     };
 
@@ -665,12 +704,17 @@ function crearRegistroRoles({
         if (actorId) {
             actores[actorId].delete(socket.id);
         }
+        const tecnicoId = validarJugador(socket.tecnico);
+        if (tecnicoId) {
+            tecnicos[tecnicoId].delete(socket.id);
+        }
 
         return {
             musaId,
             reasignacionesMusas,
             escritorId,
             actorId,
+            tecnicoId,
             contador: clonarContadorMusas(),
             connections: payloadConexiones()
         };
@@ -690,6 +734,7 @@ function crearRegistroRoles({
         payloadConexiones,
         registrarMusaEnCreditosPartida,
         registrarActor,
+        registrarTecnico,
         registrarControl,
         registrarDramaturgia,
         registrarEscritor,
