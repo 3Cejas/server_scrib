@@ -264,6 +264,29 @@ test("a captured final score survives repeated finish cleanup and resets on the 
   assert.equal(ctx.statsLive.payload().players[1].palabrasTotal, 0);
 });
 
+test("the authoritative match finish closes both writers at the same time", () => {
+  const ctx = crearHarness();
+  ctx.state.finJ1 = false;
+  ctx.state.finJ2 = false;
+  ctx.state.finDelJuego = false;
+  ctx.state.estadoJugadores[1].finished = false;
+  ctx.state.estadoJugadores[2].finished = false;
+
+  assert.equal(ctx.ciclo.finalizarPartida(null), true);
+  assert.equal(ctx.state.finDelJuego, true);
+  assert.equal(ctx.state.finJ1, true);
+  assert.equal(ctx.state.finJ2, true);
+  assert.equal(ctx.state.estadoJugadores[1].finished, true);
+  assert.equal(ctx.state.estadoJugadores[2].finished, true);
+  assert.deepEqual(
+    ctx.eventos.filter(({ event }) => event === "fin").map(({ payload }) => payload),
+    [
+      { player: 1, partida_finalizada: true, origen: "reloj_partida" },
+      { player: 2, partida_finalizada: true, origen: "reloj_partida" }
+    ]
+  );
+});
+
 test("only control or the internal simulator can open or close pre-show through lifecycle events", () => {
   const ctx = crearHarness();
   const intruso = crearSocketLifecycle();

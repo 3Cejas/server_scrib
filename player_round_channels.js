@@ -215,6 +215,35 @@ function registrarCanalesRonda({
         socket.broadcast.emit('reanudar_js', { motivo: 'saltar_tertulia' });
     });
 
+    socket.on('fin_de_player', () => {
+        const idJugador = obtenerIdJugadorValido(socket && socket.escritxr);
+        if (
+            !idJugador
+            || esEventoEscritorInactivo(idJugador)
+            || state.finDelJuego
+            || state.modoActual !== 'frase final'
+        ) {
+            return;
+        }
+        const yaFinalizado = idJugador === 1 ? state.finJ1 : state.finJ2;
+        if (yaFinalizado) return;
+
+        state.marcarFinJugador(idJugador, true);
+        state.estadoJugadores[idJugador].finished = true;
+        state.setNuevaPalabra(idJugador, false);
+        cancelarCambioPalabra(idJugador);
+        socket.broadcast.emit('fin_de_player_a_control', idJugador);
+
+        if (state.finJ1 && state.finJ2) {
+            finalizarPartida(socket);
+            return;
+        }
+        socket.broadcast.emit('fin', {
+            player: idJugador,
+            motivo: 'frase_final'
+        });
+    });
+
     socket.on('debug_siguiente_nivel', (_payload = {}, callback = null) => {
         const responder = resolverCallback(_payload, callback);
         if (!autorizarAccionDebug(responder)) return;

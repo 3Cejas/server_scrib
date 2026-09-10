@@ -31,7 +31,10 @@ function crearCanalesRondaFake(overrides = {}) {
     finJ1: false,
     finJ2: false,
     setNuevaPalabra() {},
-    marcarFinJugador() {},
+    marcarFinJugador(player, terminado) {
+      if (Number(player) === 1) this.finJ1 = Boolean(terminado);
+      if (Number(player) === 2) this.finJ2 = Boolean(terminado);
+    },
     ...overrides.state
   };
 
@@ -277,6 +280,44 @@ test("saltar_tertulia advances the mode, emits timer sync and restarts the mode 
   assert.equal(ctx.tempEmitidos(), 1);
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "reanudar_js", payload: { motivo: "saltar_tertulia" } }
+  ]);
+});
+
+test("an active writer can finish only their own final phrase", () => {
+  const ctx = crearCanalesRondaFake({
+    modoActual: "frase final",
+    escritxr: 1,
+    sesionesEscritor: { esActiva: () => true }
+  });
+
+  ctx.handlers.fin_de_player({ player: 2 });
+
+  assert.equal(ctx.state.finJ1, true);
+  assert.equal(ctx.state.finJ2, false);
+  assert.equal(ctx.state.estadoJugadores[1].finished, true);
+  assert.equal(ctx.finalizarPartidaCalls(), 0);
+  assert.deepEqual(ctx.broadcasts, [
+    { eventName: "fin_de_player_a_control", payload: 1 },
+    { eventName: "fin", payload: { player: 1, motivo: "frase_final" } }
+  ]);
+});
+
+test("the second final phrase finishes the authoritative match once", () => {
+  const ctx = crearCanalesRondaFake({
+    modoActual: "frase final",
+    escritxr: 2,
+    sesionesEscritor: { esActiva: () => true },
+    state: { finJ1: true }
+  });
+
+  ctx.handlers.fin_de_player();
+  ctx.handlers.fin_de_player();
+
+  assert.equal(ctx.state.finJ2, true);
+  assert.equal(ctx.finalizarPartidaCalls(), 1);
+  assert.equal(ctx.state.finDelJuego, true);
+  assert.deepEqual(ctx.broadcasts, [
+    { eventName: "fin_de_player_a_control", payload: 2 }
   ]);
 });
 

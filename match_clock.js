@@ -3,6 +3,8 @@ function crearRelojPartida({
     now = () => Date.now(),
     setIntervalFn = setInterval,
     clearIntervalFn = clearInterval,
+    setTimeoutFn = setTimeout,
+    clearTimeoutFn = clearTimeout,
     onFinish = () => {}
 } = {}) {
     let duracionTotalSegundos = 0;
@@ -11,13 +13,21 @@ function crearRelojPartida({
     let activo = false;
     let pausado = false;
     let intervalo = null;
+    let timeoutFin = null;
     let revision = 0;
     let finalNotificado = false;
 
     const limpiarIntervalo = () => {
-        if (intervalo) {
+        if (intervalo !== null) {
             clearIntervalFn(intervalo);
             intervalo = null;
+        }
+    };
+
+    const limpiarTimeoutFin = () => {
+        if (timeoutFin !== null) {
+            clearTimeoutFn(timeoutFin);
+            timeoutFin = null;
         }
     };
 
@@ -58,6 +68,7 @@ function crearRelojPartida({
         pausado = false;
         terminaEnTs = 0;
         limpiarIntervalo();
+        limpiarTimeoutFin();
         revision += 1;
         const payload = emitir();
         onFinish(payload);
@@ -76,6 +87,17 @@ function crearRelojPartida({
         intervalo = setIntervalFn(tick, 1000);
     };
 
+    const programarFinalExacto = () => {
+        limpiarTimeoutFin();
+        if (!activo || pausado || !terminaEnTs) return;
+        const esperaMs = Math.max(0, terminaEnTs - now());
+        timeoutFin = setTimeoutFn(() => {
+            timeoutFin = null;
+            finalizar();
+        }, esperaMs);
+        if (timeoutFin && typeof timeoutFin.unref === "function") timeoutFin.unref();
+    };
+
     const iniciar = (segundos) => {
         const duracion = Math.max(1, Math.trunc(Number(segundos) || 0));
         duracionTotalSegundos = duracion;
@@ -86,6 +108,7 @@ function crearRelojPartida({
         finalNotificado = false;
         revision += 1;
         asegurarIntervalo();
+        programarFinalExacto();
         return emitir();
     };
 
@@ -96,6 +119,7 @@ function crearRelojPartida({
         pausado = true;
         revision += 1;
         limpiarIntervalo();
+        limpiarTimeoutFin();
         return emitir();
     };
 
@@ -105,6 +129,7 @@ function crearRelojPartida({
         pausado = false;
         revision += 1;
         asegurarIntervalo();
+        programarFinalExacto();
         return emitir();
     };
 
@@ -117,6 +142,7 @@ function crearRelojPartida({
         finalNotificado = false;
         revision += 1;
         limpiarIntervalo();
+        limpiarTimeoutFin();
         return emitir();
     };
 
