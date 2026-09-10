@@ -489,6 +489,7 @@ function crearRuntimeScrib({
         emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino),
         emitirEstadoVideoTutorial: (socketDestino) => videoTutorialPreShow.emitirEstado(socketDestino),
         emitirEstadoNarracionShow: (socketDestino) => narracionShow.emitirEstado(socketDestino),
+        emitirEstadoCalentamientoPrevio: (socketDestino) => partidaLifecycle.emitirEstadoCalentamientoPrevio(socketDestino),
         sincronizarAyudaMusas: (socketDestino) => ayudaMusas.sincronizarMusa(socketDestino),
         emitirEstadoAyudaControl: (socketDestino) => ayudaMusas.emitirEstadoControl(socketDestino)
     });

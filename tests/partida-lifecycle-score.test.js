@@ -185,14 +185,24 @@ test("the first level waits for the countdown and 30 seconds of free warm-up", (
   assert.equal(DURACION_CALENTAMIENTO_PRENIVEL_MS, 30000);
   assert.equal(ctx.state.modoActual, "");
   assert.deepEqual(ctx.state.modosPendientes, ["letra bendita", "frase final"]);
-  assert.deepEqual(ctx.eventosBroadcast.at(-1), {
-    event: "post-inicio",
-    payload: { borrar_texto: undefined }
-  });
+  const postInicio = ctx.eventosBroadcast.at(-1);
+  assert.equal(postInicio.event, "post-inicio");
+  assert.equal(postInicio.payload.borrar_texto, undefined);
+  assert.equal(postInicio.payload.calentamiento_previo.activo, true);
+  assert.equal(postInicio.payload.calentamiento_previo.nombre, "calentamiento previo");
+  assert.equal(postInicio.payload.calentamiento_previo.duracion_ms, DURACION_CALENTAMIENTO_PRENIVEL_MS);
+  assert.equal(postInicio.payload.calentamiento_previo.modo_siguiente, "letra bendita");
+  assert.ok(postInicio.payload.calentamiento_previo.fin_ts > postInicio.payload.calentamiento_previo.inicio_ts);
+  assert.deepEqual(ctx.ciclo.obtenerEstadoCalentamientoPrevio(), postInicio.payload.calentamiento_previo);
+  assert.equal(
+    ctx.eventos.some(({ event, payload }) => event === "calentamiento_previo_estado" && payload.activo),
+    true
+  );
   assert.deepEqual(ctx.relojesIniciados, []);
   assert.deepEqual(ctx.modosActivados, []);
 
   calentamiento.callback();
+  assert.equal(ctx.ciclo.obtenerEstadoCalentamientoPrevio().activo, false);
   assert.equal(ctx.state.modoActual, "letra bendita");
   assert.deepEqual(ctx.state.modosPendientes, ["frase final"]);
   assert.deepEqual(ctx.relojesIniciados, [20]);

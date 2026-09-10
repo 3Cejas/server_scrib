@@ -41,6 +41,57 @@ function crearCicloPartida({
     videoTutorialPreShow = null,
     registrar = () => {}
 }) {
+    let calentamientoPrevioPartida = {
+        activo: false,
+        nombre: "calentamiento previo",
+        duracion_ms: DURACION_CALENTAMIENTO_PRENIVEL_MS,
+        inicio_ts: 0,
+        fin_ts: 0,
+        modo_siguiente: ""
+    };
+
+    const obtenerEstadoCalentamientoPrevio = () => ({ ...calentamientoPrevioPartida });
+
+    const emitirEstadoCalentamientoPrevio = (socketDestino = null) => {
+        const destino = socketDestino && typeof socketDestino.emit === "function"
+            ? socketDestino
+            : io;
+        destino.emit("calentamiento_previo_estado", obtenerEstadoCalentamientoPrevio());
+        return obtenerEstadoCalentamientoPrevio();
+    };
+
+    const detenerCalentamientoPrevio = ({ emitir = true } = {}) => {
+        const estabaActivo = Boolean(calentamientoPrevioPartida.activo);
+        calentamientoPrevioPartida = {
+            activo: false,
+            nombre: "calentamiento previo",
+            duracion_ms: DURACION_CALENTAMIENTO_PRENIVEL_MS,
+            inicio_ts: 0,
+            fin_ts: 0,
+            modo_siguiente: ""
+        };
+        if (emitir && estabaActivo) {
+            emitirEstadoCalentamientoPrevio();
+        }
+        return obtenerEstadoCalentamientoPrevio();
+    };
+
+    const iniciarCalentamientoPrevio = ({ emitir = true } = {}) => {
+        const inicioTs = Date.now();
+        calentamientoPrevioPartida = {
+            activo: true,
+            nombre: "calentamiento previo",
+            duracion_ms: DURACION_CALENTAMIENTO_PRENIVEL_MS,
+            inicio_ts: inicioTs,
+            fin_ts: inicioTs + DURACION_CALENTAMIENTO_PRENIVEL_MS,
+            modo_siguiente: state.modosPendientes[0] || ""
+        };
+        if (emitir) {
+            emitirEstadoCalentamientoPrevio();
+        }
+        return obtenerEstadoCalentamientoPrevio();
+    };
+
     const cerrarPreShow = (motivo) => {
         if (preShowMusas && typeof preShowMusas.cerrar === "function") {
             preShowMusas.cerrar(motivo);
@@ -95,6 +146,7 @@ function crearCicloPartida({
 
     const reiniciarEstadoPartida = (socket, opciones = {}) => {
         cerrarPreShow("fin_partida");
+        detenerCalentamientoPrevio();
         const prepararPuntuacion = opciones.prepararPuntuacion !== false
             && opciones.capturarPuntuacion !== false;
         const conservarStats = opciones.conservarStats !== false;
@@ -126,6 +178,7 @@ function crearCicloPartida({
     const finalizarPartida = (socket) => {
         if (state.finDelJuego) return false;
         cerrarPreShow("fin_partida");
+        detenerCalentamientoPrevio();
         prepararCapturaPuntuacionFinal();
         state.finJ1 = true;
         state.finJ2 = true;
@@ -158,6 +211,7 @@ function crearCicloPartida({
 
     const iniciarPartida = (socket, datos = {}) => {
         cerrarPreShow("inicio_partida");
+        detenerCalentamientoPrevio();
         const parametros = (datos && datos.parametros) || {};
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
@@ -198,8 +252,17 @@ function crearCicloPartida({
 
         emitirNubeInspiracionEstado(null, true);
         programarInicioTimer(() => {
-            socket.broadcast.emit('post-inicio', { borrar_texto: datos.borrar_texto });
+            const calentamientoPrevio = iniciarCalentamientoPrevio({ emitir: false });
+            socket.broadcast.emit('post-inicio', {
+                borrar_texto: datos.borrar_texto,
+                calentamiento_previo: calentamientoPrevio
+            });
+            // Primero se aplica la escena completa de post-inicio y después se
+            // publica su snapshot. Así el espectador no arranca dos veces la
+            // misma pista al recibir ambos eventos consecutivos.
+            emitirEstadoCalentamientoPrevio();
             programarInicioTimer(() => {
+                detenerCalentamientoPrevio();
                 state.modoAnterior = state.modoActual;
                 state.modoActual = state.modosPendientes[0] || "";
                 state.modosPendientes = state.modosPendientes.slice(1);
@@ -218,6 +281,7 @@ function crearCicloPartida({
     };
 
     const limpiarPartida = (socket, evento) => {
+        detenerCalentamientoPrevio();
         activarSocketsExtratextuales(socket);
         limpiarTimersPalabras();
         limpiarTimersRonda();
@@ -292,6 +356,8 @@ function crearCicloPartida({
         iniciarPartida,
         prepararNuevaPartida,
         limpiarPartida,
+        emitirEstadoCalentamientoPrevio,
+        obtenerEstadoCalentamientoPrevio,
         registrarHandlers,
         reiniciarEstadoPartida
     };

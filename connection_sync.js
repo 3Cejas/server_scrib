@@ -21,6 +21,7 @@ function crearSincronizadorConexion({
     emitirEstadoPreShow = null,
     emitirEstadoVideoTutorial = null,
     emitirEstadoNarracionShow = null,
+    emitirEstadoCalentamientoPrevio = null,
     sincronizarAyudaMusas = null,
     emitirEstadoAyudaControl = null
 }) {
@@ -136,7 +137,13 @@ function crearSincronizadorConexion({
         }
         if (!getModoActual()) {
             socket.emit('modo_actual', partidaSync.withModoSeq({ modo_actual: '' }));
+            if (typeof emitirEstadoCalentamientoPrevio === 'function') {
+                emitirEstadoCalentamientoPrevio(socket);
+            }
             return;
+        }
+        if (typeof emitirEstadoCalentamientoPrevio === 'function') {
+            emitirEstadoCalentamientoPrevio(socket);
         }
         const payloadModo = construirPayloadInspiracionMusaActual();
         emitirActivarModo(payloadModo, socket);

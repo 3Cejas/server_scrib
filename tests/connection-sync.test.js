@@ -18,7 +18,7 @@ function crearSocket({ dramaturgia = false, escritxr = null, espectador = false,
   };
 }
 
-function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteos = null } = {}) {
+function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteos = null, calentamientoActivo = false } = {}) {
   return crearSincronizadorConexion({
     writerChannels: {
       emitirTextos(socket) {
@@ -78,6 +78,14 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteo
         posicion_segundos: 12.5
       });
     },
+    emitirEstadoCalentamientoPrevio(socket) {
+      socket.emit("calentamiento_previo_estado", {
+        activo: calentamientoActivo,
+        nombre: "calentamiento previo",
+        duracion_ms: 30000,
+        modo_siguiente: "letra bendita"
+      });
+    },
     partidaSync: {
       withModoSeq: (payload) => ({ ...payload, modo_seq: 7 }),
       obtenerConteo: (player) => conteos && conteos[player] ? conteos[player] : null,
@@ -125,11 +133,24 @@ test("dramaturgy receives its full snapshot before ordinary sync even when no mo
   sincronizador.sincronizarSocketRecienConectado(socket);
 
   assert.equal(socket.eventos[0].event, "dramaturgia_estado");
-  assert.deepEqual(socket.eventos.at(-1), {
-    event: "modo_actual",
-    payload: { modo_actual: "", modo_seq: 7 }
-  });
+  assert.deepEqual(
+    socket.eventos.find(({ event }) => event === "modo_actual"),
+    { event: "modo_actual", payload: { modo_actual: "", modo_seq: 7 } }
+  );
+  assert.equal(socket.eventos.at(-1).event, "calentamiento_previo_estado");
+  assert.equal(socket.eventos.at(-1).payload.activo, false);
   assert.deepEqual(llamadas, []);
+});
+
+test("a reconnect during pre-level warm-up receives the authoritative stage", () => {
+  const socket = crearSocket({ espectador: true });
+  const sincronizador = crearSincronizador({ modo: "", calentamientoActivo: true });
+
+  sincronizador.sincronizarSocketRecienConectado(socket);
+
+  const estado = socket.eventos.find(({ event }) => event === "calentamiento_previo_estado");
+  assert.equal(estado.payload.activo, true);
+  assert.equal(estado.payload.modo_siguiente, "letra bendita");
 });
 
 test("ordinary roles do not receive the dramaturgy snapshot", () => {
