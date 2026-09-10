@@ -27,6 +27,34 @@ test("conserva solo los niveles activos, sin duplicados", () => {
   );
 });
 
+test("el motor conserva la duracion repartida al avanzar a cada nivel", () => {
+  const runtime = crearRuntimeModos({
+    io: { emit() {} },
+    partidaSync: {
+      withModoSeq: (payload) => payload,
+      construirPayloadCount: (payload) => payload
+    },
+    validarJugador: (player) => Number(player) || null
+  });
+  runtime.prepararParametrosInicio({
+    TIEMPO_CAMBIO_PALABRAS: 30,
+    TIEMPO_BORROSO: 1,
+    TIEMPO_MODIFICADOR: 1,
+    TIEMPO_VOTACION: 1,
+    TIEMPO_CAMBIO_LETRA: 1,
+    DURACION_PARTIDA: 61,
+    LISTA_MODOS: ["letra bendita", "letra prohibida", "tertulia"]
+  });
+
+  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 21);
+  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 21);
+  runtime.estadoMotorModos.indiceModo = 1;
+  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 20);
+  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 20);
+  runtime.estadoMotorModos.tiempoCambioModos = runtime.estadoMotorModos.duracionTiempoModoActual;
+  assert.equal(runtime.estadoMotorModos.tiempoCambioModos, 20);
+});
+
 test("retains both final phrases in reconnect snapshots", () => {
   const runtime = crearRuntimeModos({
     io: { emit() {} },

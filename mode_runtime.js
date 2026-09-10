@@ -354,6 +354,10 @@ function crearRuntimeModos({
         set letrasBenditasPendientes(valor) { letras_benditas_pendientes = Array.isArray(valor) ? valor : [...LETRAS_BENDITAS_PONDERADAS]; },
         get tiempoCambioModos() { return TIEMPO_CAMBIO_MODOS; },
         set tiempoCambioModos(valor) { TIEMPO_CAMBIO_MODOS = Number(valor) || 0; },
+        get duracionTiempoModoActual() {
+            return DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))]
+                || DURACION_TIEMPO_MODOS;
+        },
         get tiempoCambioLetra() { return TIEMPO_CAMBIO_LETRA; },
         get tiempoBorroso() { return TIEMPO_BORROSO; },
         get frasesFinales() { return { ...frases_finales }; },
