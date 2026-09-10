@@ -6,6 +6,7 @@ const MODOS_COMPETITIVOS = Object.freeze([
 ]);
 
 const DESVENTAJAS_RONDA = Object.freeze(["⚡", "🌪️", "🙃", "🖊️"]);
+const RACHA_INACTIVIDAD_MS = 4500;
 
 const NOMBRES_MODO_PUBLICOS = Object.freeze({
     "letra bendita": "LETRA BENDITA",
@@ -48,6 +49,8 @@ function crearCompeticionRondas({
     io,
     random = Math.random,
     now = () => Date.now(),
+    setTimer = setTimeout,
+    clearTimer = clearTimeout,
     getAtributos = () => ({ 1: {}, 2: {} }),
     getModoSeq = () => 0
 } = {}) {
@@ -57,6 +60,7 @@ function crearCompeticionRondas({
     let mazo = [];
     let historial = [];
     let pulsaciones = { 1: 0, 2: 0 };
+    let temporizadoresRacha = { 1: null, 2: null };
     let revision = 0;
 
     const barajar = (entrada) => {
@@ -179,6 +183,46 @@ function crearCompeticionRondas({
         return a > b ? 1 : 2;
     };
 
+    const cancelarCaducidadRacha = (player) => {
+        const id = Number(player);
+        if (id !== 1 && id !== 2) return;
+        if (temporizadoresRacha[id] !== null) {
+            clearTimer(temporizadoresRacha[id]);
+            temporizadoresRacha[id] = null;
+        }
+    };
+
+    const cancelarTodasLasRachas = () => {
+        cancelarCaducidadRacha(1);
+        cancelarCaducidadRacha(2);
+    };
+
+    const programarCaducidadRacha = (player) => {
+        const id = Number(player);
+        if (id !== 1 && id !== 2) return;
+        cancelarCaducidadRacha(id);
+        const modoProgramado = estado.modo;
+        const modoSeqProgramado = estado.modo_seq;
+        const rondaProgramada = estado.ronda;
+        const timer = setTimer(() => {
+            temporizadoresRacha[id] = null;
+            if (
+                !estado.activa
+                || estado.modo !== modoProgramado
+                || estado.modo_seq !== modoSeqProgramado
+                || estado.ronda !== rondaProgramada
+                || (Number(estado.rachas[id]) || 0) <= 0
+            ) {
+                return;
+            }
+            estado.rachas[id] = 0;
+            revision += 1;
+            emitir();
+        }, RACHA_INACTIVIDAD_MS);
+        temporizadoresRacha[id] = timer;
+        if (timer && typeof timer.unref === "function") timer.unref();
+    };
+
     const sincronizarLiderYDesventaja = () => {
         const liderAnterior = estado.lider;
         const portadorAnterior = estado.desventaja_player;
@@ -215,8 +259,10 @@ function crearCompeticionRondas({
         estado.marcador[id] = redondearMarcador((Number(estado.marcador[id]) || 0) + cantidad);
         if (cantidad > 0 && metadata.actualizar_racha !== false) {
             estado.rachas[id] = Math.max(0, Number(estado.rachas[id]) || 0) + 1;
+            programarCaducidadRacha(id);
         } else if (cantidad < 0) {
             estado.rachas[id] = 0;
+            cancelarCaducidadRacha(id);
         }
         revision += 1;
         sincronizarLiderYDesventaja();
@@ -269,6 +315,7 @@ function crearCompeticionRondas({
         if (delta === 0) {
             if (deltaPalabras > 0 && (estado.modo === "letra bendita" || estado.modo === "letra prohibida")) {
                 estado.rachas[Number(player)] = Math.max(0, Number(estado.rachas[Number(player)]) || 0) + deltaPalabras;
+                programarCaducidadRacha(player);
                 revision += 1;
                 return emitir(null, {
                     player: Number(player),
@@ -340,6 +387,7 @@ function crearCompeticionRondas({
     };
 
     const cerrarRonda = (motivo = "fin_nivel") => {
+        cancelarTodasLasRachas();
         if (estado.activa) {
             historial.push({
                 modo: estado.modo,
@@ -401,6 +449,7 @@ function crearCompeticionRondas({
     };
 
     const reset = () => {
+        cancelarTodasLasRachas();
         limpiarDesventajaVisual("reset");
         primerPortador = random() < 0.5 ? 1 : 2;
         ultimoPortadorInicial = null;
@@ -432,6 +481,7 @@ module.exports = {
     DESVENTAJAS_RONDA,
     MODOS_COMPETITIVOS,
     NOMBRES_MODO_PUBLICOS,
+    RACHA_INACTIVIDAD_MS,
     contarLetras,
     contarPalabras,
     crearCompeticionRondas,

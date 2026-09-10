@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   DESVENTAJAS_RONDA,
+  RACHA_INACTIVIDAD_MS,
   crearCompeticionRondas
 } = require("../round_competition.js");
 
@@ -126,6 +127,35 @@ test("las rachas son cosmeticas y no multiplican puntos", () => {
   const estado = gestor.snapshot();
   assert.equal(estado.marcador[1], 3);
   assert.equal(estado.rachas[1], 3);
+});
+
+test("una racha desaparece tras unos segundos sin escribir", () => {
+  const io = crearIo();
+  const timers = [];
+  const gestor = crearCompeticionRondas({
+    io,
+    random: () => 0.1,
+    setTimer(callback, delay) {
+      const timer = { callback, delay, cancelado: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimer(timer) {
+      if (timer) timer.cancelado = true;
+    }
+  });
+  gestor.iniciarRonda("palabras bonus", { modo_seq: 1 });
+  gestor.registrarPuntos(1, 1, { tipo: "palabra", palabra: "uno" });
+  gestor.registrarPuntos(1, 1, { tipo: "palabra", palabra: "dos" });
+
+  assert.equal(gestor.snapshot().rachas[1], 2);
+  const vigente = timers.filter((timer) => !timer.cancelado).at(-1);
+  assert.equal(vigente.delay, RACHA_INACTIVIDAD_MS);
+  vigente.callback();
+
+  assert.equal(gestor.snapshot().rachas[1], 0);
+  assert.equal(io.eventos.at(-1).eventName, "competicion_ronda_estado");
+  assert.equal(io.eventos.at(-1).payload.rachas[1], 0);
 });
 
 test("las palabras se animan al completarse y las letras intermedias solo mueven el marcador", () => {
