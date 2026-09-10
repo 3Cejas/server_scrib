@@ -72,6 +72,27 @@ test("la escritura da impulsos de inspiracion, la fuerza los aumenta y borrar re
   assert.equal(gestor.snapshot().marcador[1], 0.55);
 });
 
+test("cada caracter borrado resta 0.05 y nunca puede hacer avanzar la barra del equipo", () => {
+  const io = crearIo();
+  const gestor = crearCompeticionRondas({ io, random: () => 0.1 });
+  gestor.iniciarRonda("letra bendita", { modo_seq: 1 });
+  gestor.registrarCambioTexto(1, "", "abcdefghij");
+
+  const totales = [];
+  let texto = "abcdefghij";
+  while (texto.length > 5) {
+    const anterior = texto;
+    texto = texto.slice(0, -1);
+    gestor.registrarCambioTexto(1, anterior, texto);
+    totales.push(gestor.snapshot().marcador[1]);
+  }
+
+  assert.deepEqual(totales, [0.95, 0.9, 0.85, 0.8, 0.75]);
+  const borrados = io.eventos.filter((evento) => evento.eventName === "competicion_ronda_punto" && evento.payload.tipo === "borrado");
+  assert.equal(borrados.length, 5);
+  assert.ok(borrados.every((evento) => evento.payload.delta === -0.05));
+});
+
 test("los criterios publicos explican el ritmo sin llamar mini inspiracion a los puntos", () => {
   const gestor = crearCompeticionRondas({ io: crearIo(), random: () => 0.1 });
   gestor.iniciarRonda("letra prohibida", { modo_seq: 1 });

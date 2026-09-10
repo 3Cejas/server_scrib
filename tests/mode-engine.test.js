@@ -248,6 +248,54 @@ test("server timer advances tertulia even when Control has no local timer", () =
   assert.equal(state.modoActual, "tertulia");
   timers.intervalos[0].callback();
   assert.equal(state.modoActual, "palabras bonus");
+  assert.equal(timers.intervalos.length, 2);
+  assert.equal(timers.cancelacionesIntervalo, 1);
+});
+
+test("cada nivel usa su propio intervalo y un callback antiguo no puede saltar otro nivel", () => {
+  const timers = crearTimersFake();
+  const state = crearEstadoMotorFake({
+    modoActual: "letra bendita",
+    modosPendientes: ["letra prohibida", "tertulia", "palabras bonus"],
+    tiempoCambioModos: 1,
+    duracionTiempoModoActual: 1
+  });
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: timers,
+    partidaSync: crearPartidaSyncFake(),
+    limpiarTodosLosModos: () => {},
+    avanzarModoSeguro: (_socket, callback) => { callback(); return true; },
+    emitirActivarModo: () => {},
+    emitirPedirInspiracionMusa: () => {},
+    emitirNubeInspiracionEstado: () => {},
+    emitirTempModos: () => {},
+    statsLive: { actualizar: () => {} },
+    payloadStatsLive: () => ({}),
+    emitirStatsLive: () => {},
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.temp_modos();
+  const callbackLetraBendita = timers.intervalos[0].callback;
+  callbackLetraBendita();
+  assert.equal(state.modoActual, "letra prohibida");
+  assert.deepEqual(state.modosPendientes, ["tertulia", "palabras bonus"]);
+
+  callbackLetraBendita();
+  callbackLetraBendita();
+  assert.equal(state.modoActual, "letra prohibida");
+  assert.deepEqual(state.modosPendientes, ["tertulia", "palabras bonus"]);
+
+  timers.intervalos[1].callback();
+  assert.equal(state.modoActual, "tertulia");
+  assert.deepEqual(state.modosPendientes, ["palabras bonus"]);
 });
 
 test("phrase final clears competition before rendering and never asks muses for inspiration", () => {
@@ -353,11 +401,15 @@ function crearTimersFake() {
   return {
     cambiosLetra: [],
     intervalos: [],
+    cancelacionesIntervalo: 0,
     programarCambioLetra(modo, callback, ms) {
       this.cambiosLetra.push({ modo, callback, ms });
     },
     programarIntervaloModos(callback, ms) {
       this.intervalos.push({ callback, ms });
+    },
+    cancelarIntervaloModos() {
+      this.cancelacionesIntervalo += 1;
     }
   };
 }

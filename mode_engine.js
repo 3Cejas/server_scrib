@@ -164,15 +164,28 @@ function crearMotorModos({
         if (!opciones.continuar) {
             state.segundosTranscurridos = 0;
         }
+        const modoEsperado = state.modoActual;
+        const duracionEsperada = Math.max(1, Math.trunc(Number(state.tiempoCambioModos) || 0));
+        let intervaloCerrado = false;
         timersPartida.programarIntervaloModos(() => {
+            if (intervaloCerrado || state.modoActual !== modoEsperado) {
+                return;
+            }
             state.segundosTranscurridos += 1;
             emitirTempModos();
-            if (state.segundosTranscurridos >= state.tiempoCambioModos) {
+            if (state.segundosTranscurridos >= duracionEsperada) {
                 if (state.modoActual === "frase final") {
                     return;
                 }
+                intervaloCerrado = true;
+                if (typeof timersPartida.cancelarIntervaloModos === "function") {
+                    timersPartida.cancelarIntervaloModos();
+                }
                 state.segundosTranscurridos = 0;
-                avanzarModoSeguro(socket, () => modos_de_juego(socket), 'temp_modos');
+                const avanzado = avanzarModoSeguro(socket, () => modos_de_juego(socket), 'temp_modos');
+                if (avanzado && state.modoActual && state.modoActual !== "frase final") {
+                    temp_modos(socket);
+                }
             }
         }, 1000);
     }
