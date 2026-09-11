@@ -63,10 +63,10 @@
     "modo_actual": "",
     "modo_anterior": "",
     "modos_pendientes": [
+      "palabras bonus",
       "letra bendita",
       "letra prohibida",
       "tertulia",
-      "palabras bonus",
       "palabras prohibidas"
     ],
     "indice_modo": 0,

@@ -1,7 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { crearRuntimeModos, repartirDuracionPartida, normalizarListaModosPartida } = require("../mode_runtime.js");
+const {
+  crearRuntimeModos,
+  repartirDuracionPartida,
+  repartirDuracionPorModos,
+  normalizarListaModosPartida
+} = require("../mode_runtime.js");
 
 test("reparte la duracion total entre todos los niveles sin perder segundos", () => {
   assert.deepEqual(repartirDuracionPartida(1800, 6), [300, 300, 300, 300, 300, 300]);
@@ -13,10 +18,17 @@ test("garantiza al menos un segundo para cada nivel activo", () => {
   assert.deepEqual(repartirDuracionPartida(2, 4), [1, 1, 1, 1]);
 });
 
-test("mantiene Letra maldita después de Letra bendita aunque el orden guardado sea antiguo", () => {
+test("coloca Palabras benditas primero y mantiene Letra maldita después de Letra bendita", () => {
   assert.deepEqual(
-    normalizarListaModosPartida(["tertulia", "letra prohibida", "letra bendita"]),
-    ["letra bendita", "letra prohibida", "tertulia"]
+    normalizarListaModosPartida(["tertulia", "letra prohibida", "palabras bonus", "letra bendita"]),
+    ["palabras bonus", "letra bendita", "letra prohibida", "tertulia"]
+  );
+});
+
+test("Tertulia no consume el tiempo total de escritura", () => {
+  assert.deepEqual(
+    repartirDuracionPorModos(61, ["palabras bonus", "tertulia", "letra bendita"]),
+    [31, 0, 30]
   );
 });
 
@@ -46,13 +58,16 @@ test("el motor conserva la duracion repartida al avanzar a cada nivel", () => {
     LISTA_MODOS: ["letra bendita", "letra prohibida", "tertulia"]
   });
 
-  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 21);
-  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 21);
+  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 31);
+  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 31);
   runtime.estadoMotorModos.indiceModo = 1;
-  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 20);
-  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 20);
+  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 30);
+  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 30);
   runtime.estadoMotorModos.tiempoCambioModos = runtime.estadoMotorModos.duracionTiempoModoActual;
-  assert.equal(runtime.estadoMotorModos.tiempoCambioModos, 20);
+  assert.equal(runtime.estadoMotorModos.tiempoCambioModos, 30);
+  runtime.estadoMotorModos.indiceModo = 2;
+  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 0);
+  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 0);
 });
 
 test("retains both final phrases in reconnect snapshots", () => {

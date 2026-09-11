@@ -1,8 +1,8 @@
 const MODOS_CONTROL_DISPONIBLES = Object.freeze([
+    "palabras bonus",
     "letra bendita",
     "letra prohibida",
     "tertulia",
-    "palabras bonus",
     "palabras prohibidas",
     "frase final"
 ]);

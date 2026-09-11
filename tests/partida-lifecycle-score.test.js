@@ -50,7 +50,7 @@ function crearHarness() {
   const statsLive = crearGestorStatsLive({ io });
   const puntuacionFinal = crearGestorPuntuacionFinal({ io, now: () => 777 });
   const state = {
-    listaModos: ["letra bendita", "frase final"],
+    listaModos: ["palabras bonus", "frase final"],
     modosPendientes: ["frase final"],
     indiceModo: 1,
     modoAnterior: "",
@@ -165,7 +165,7 @@ function crearHarness() {
   };
 }
 
-test("the first level waits for the countdown and 30 seconds of free warm-up", () => {
+test("Palabras benditas starts as the playable warm-up immediately after the countdown", () => {
   const ctx = crearHarness();
 
   ctx.ciclo.iniciarPartida(ctx.socket, { count: "1:00", parametros: {} });
@@ -175,38 +175,30 @@ test("the first level waits for the countdown and 30 seconds of free warm-up", (
   assert.equal(DURACION_CUENTA_ATRAS_INICIO_MS, 7500);
   assert.ok(DURACION_CUENTA_ATRAS_INICIO_MS > 5000);
   assert.equal(ctx.state.modoActual, "");
-  assert.deepEqual(ctx.state.modosPendientes, ["letra bendita", "frase final"]);
+  assert.deepEqual(ctx.state.modosPendientes, ["palabras bonus", "frase final"]);
   assert.deepEqual(ctx.relojesIniciados, []);
   assert.deepEqual(ctx.modosActivados, []);
 
   cuentaAtras.callback();
-  const calentamiento = ctx.getInicioProgramado();
-  assert.equal(calentamiento.delay, DURACION_CALENTAMIENTO_PRENIVEL_MS);
-  assert.equal(DURACION_CALENTAMIENTO_PRENIVEL_MS, 30000);
-  assert.equal(ctx.state.modoActual, "");
-  assert.deepEqual(ctx.state.modosPendientes, ["letra bendita", "frase final"]);
+  assert.equal(DURACION_CALENTAMIENTO_PRENIVEL_MS, 0);
   const postInicio = ctx.eventosBroadcast.at(-1);
   assert.equal(postInicio.event, "post-inicio");
   assert.equal(postInicio.payload.borrar_texto, undefined);
-  assert.equal(postInicio.payload.calentamiento_previo.activo, true);
+  assert.equal(postInicio.payload.calentamiento_previo.activo, false);
   assert.equal(postInicio.payload.calentamiento_previo.nombre, "calentamiento previo");
   assert.equal(postInicio.payload.calentamiento_previo.duracion_ms, DURACION_CALENTAMIENTO_PRENIVEL_MS);
-  assert.equal(postInicio.payload.calentamiento_previo.modo_siguiente, "letra bendita");
-  assert.ok(postInicio.payload.calentamiento_previo.fin_ts > postInicio.payload.calentamiento_previo.inicio_ts);
+  assert.equal(postInicio.payload.calentamiento_previo.modo_siguiente, "");
+  assert.equal(postInicio.payload.calentamiento_previo.fin_ts, 0);
   assert.deepEqual(ctx.ciclo.obtenerEstadoCalentamientoPrevio(), postInicio.payload.calentamiento_previo);
   assert.equal(
     ctx.eventos.some(({ event, payload }) => event === "calentamiento_previo_estado" && payload.activo),
-    true
+    false
   );
-  assert.deepEqual(ctx.relojesIniciados, []);
-  assert.deepEqual(ctx.modosActivados, []);
-
-  calentamiento.callback();
   assert.equal(ctx.ciclo.obtenerEstadoCalentamientoPrevio().activo, false);
-  assert.equal(ctx.state.modoActual, "letra bendita");
+  assert.equal(ctx.state.modoActual, "palabras bonus");
   assert.deepEqual(ctx.state.modosPendientes, ["frase final"]);
   assert.deepEqual(ctx.relojesIniciados, [20]);
-  assert.deepEqual(ctx.modosActivados, ["letra bendita"]);
+  assert.deepEqual(ctx.modosActivados, ["palabras bonus"]);
 });
 
 function crearSocketLifecycle({ control = false, simulacion = false } = {}) {

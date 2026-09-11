@@ -172,14 +172,14 @@ test("pausar marks the match as paused and freezes active disadvantages", () => 
   ]);
 });
 
-test("automatic tertulia pause leaves the total match clock running", () => {
+test("automatic tertulia pause also freezes the total match clock", () => {
   const ctx = crearCanalesRondaFake({ modoActual: "tertulia" });
 
   ctx.handlers.pausar({ motivo: "tertulia" });
 
   assert.deepEqual(ctx.pausaEstados, [true]);
   assert.equal(ctx.pausarDesventajasCalls(), 1);
-  assert.equal(ctx.pausarRelojCalls(), 0);
+  assert.equal(ctx.pausarRelojCalls(), 1);
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "pausar_js", payload: { motivo: "tertulia" } }
   ]);

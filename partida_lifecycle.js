@@ -2,9 +2,9 @@
 // (1 s), 3, 2, 1 y ESCRIBE (1 s cada uno), con medio segundo de margen para
 // que el último rótulo y su sonido lleguen completos a todas las pantallas.
 const DURACION_CUENTA_ATRAS_INICIO_MS = 7500;
-// Tras la cuenta atrás, lxs escritorxs disponen de un calentamiento libre. El
-// primer nivel y el reloj de partida no arrancan hasta que termina este margen.
-const DURACION_CALENTAMIENTO_PRENIVEL_MS = 30000;
+// Ya no existe un tramo libre separado: Palabras benditas es el calentamiento
+// jugable y comienza justo al terminar la cuenta atrás.
+const DURACION_CALENTAMIENTO_PRENIVEL_MS = 0;
 
 function crearCicloPartida({
     state,
@@ -252,31 +252,23 @@ function crearCicloPartida({
 
         emitirNubeInspiracionEstado(null, true);
         programarInicioTimer(() => {
-            const calentamientoPrevio = iniciarCalentamientoPrevio({ emitir: false });
             socket.broadcast.emit('post-inicio', {
                 borrar_texto: datos.borrar_texto,
-                calentamiento_previo: calentamientoPrevio
+                calentamiento_previo: obtenerEstadoCalentamientoPrevio()
             });
-            // Primero se aplica la escena completa de post-inicio y después se
-            // publica su snapshot. Así el espectador no arranca dos veces la
-            // misma pista al recibir ambos eventos consecutivos.
-            emitirEstadoCalentamientoPrevio();
-            programarInicioTimer(() => {
-                detenerCalentamientoPrevio();
-                state.modoAnterior = state.modoActual;
-                state.modoActual = state.modosPendientes[0] || "";
-                state.modosPendientes = state.modosPendientes.slice(1);
-                partidaSync.siguienteModoSeq();
-                registrarTimelineModo(state.modoActual, 'inicio');
-                const duracionTotal = Number(state.duracionPartida) > 0
-                    ? Number(state.duracionPartida)
-                    : Number(state.duracionTiempoModos) * Math.max(1, state.listaModos.length);
-                iniciarRelojPartida(Math.max(1, Math.trunc(duracionTotal || 0)));
-                iniciarCompeticionRonda(state.modoActual);
-                motorModos.activarModo(state.modoActual, socket);
-                emitirNubeInspiracionEstado(null, true);
-                motorModos.temp_modos(socket);
-            }, DURACION_CALENTAMIENTO_PRENIVEL_MS);
+            state.modoAnterior = state.modoActual;
+            state.modoActual = state.modosPendientes[0] || "";
+            state.modosPendientes = state.modosPendientes.slice(1);
+            partidaSync.siguienteModoSeq();
+            registrarTimelineModo(state.modoActual, 'inicio');
+            const duracionTotal = Number(state.duracionPartida) > 0
+                ? Number(state.duracionPartida)
+                : Number(state.duracionTiempoModos) * Math.max(1, state.listaModos.length);
+            iniciarRelojPartida(Math.max(1, Math.trunc(duracionTotal || 0)));
+            iniciarCompeticionRonda(state.modoActual);
+            motorModos.activarModo(state.modoActual, socket);
+            emitirNubeInspiracionEstado(null, true);
+            motorModos.temp_modos(socket);
         }, DURACION_CUENTA_ATRAS_INICIO_MS);
     };
 

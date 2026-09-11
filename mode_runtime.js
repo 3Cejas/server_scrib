@@ -6,7 +6,9 @@ const { ALFABETO_ES } = require('./letter_frequency.js');
 
 const LETRAS_PROHIBIDAS = [...ALFABETO_ES];
 const LETRAS_BENDITAS_PONDERADAS = [...ALFABETO_ES];
-const LISTA_MODOS_DEFAULT = ["letra bendita", "letra prohibida", "tertulia", "palabras bonus", "palabras prohibidas"];
+// Palabras benditas abre la partida y hace de calentamiento jugable. El resto
+// conserva su orden dramatúrgico; Tertulia sigue siendo una pausa intermedia.
+const LISTA_MODOS_DEFAULT = ["palabras bonus", "letra bendita", "letra prohibida", "tertulia", "palabras prohibidas"];
 const ORDEN_MODOS_PARTIDA = [...LISTA_MODOS_DEFAULT, "frase final"];
 
 function normalizarListaModosPartida(lista, fallback = LISTA_MODOS_DEFAULT) {
@@ -24,6 +26,19 @@ function repartirDuracionPartida(totalSegundos, cantidadNiveles) {
     const base = Math.floor(total / niveles);
     const resto = total % niveles;
     return Array.from({ length: niveles }, (_valor, indice) => base + (indice < resto ? 1 : 0));
+}
+
+function repartirDuracionPorModos(totalSegundos, modos = []) {
+    const lista = Array.isArray(modos) ? modos : [];
+    const temporizados = lista.filter((modo) => modo !== "tertulia");
+    const reparto = repartirDuracionPartida(totalSegundos, Math.max(1, temporizados.length));
+    let indiceReparto = 0;
+    return lista.map((modo) => {
+        if (modo === "tertulia") return 0;
+        const duracion = reparto[indiceReparto] || 1;
+        indiceReparto += 1;
+        return duracion;
+    });
 }
 
 function crearRuntimeModos({
@@ -355,8 +370,8 @@ function crearRuntimeModos({
         get tiempoCambioModos() { return TIEMPO_CAMBIO_MODOS; },
         set tiempoCambioModos(valor) { TIEMPO_CAMBIO_MODOS = Number(valor) || 0; },
         get duracionTiempoModoActual() {
-            return DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))]
-                || DURACION_TIEMPO_MODOS;
+            const duracion = DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))];
+            return Number.isFinite(duracion) ? duracion : DURACION_TIEMPO_MODOS;
         },
         get tiempoCambioLetra() { return TIEMPO_CAMBIO_LETRA; },
         get tiempoBorroso() { return TIEMPO_BORROSO; },
@@ -379,14 +394,14 @@ function crearRuntimeModos({
             parametros.LISTA_MODOS || parametros.lista_modos,
             lista_modos
         );
-        const nivelesActivos = Math.max(1, lista_modos.length);
+        const nivelesTemporizados = Math.max(1, lista_modos.filter((modo) => modo !== "tertulia").length);
         const duracionLegacy = Math.max(1, Math.trunc(Number(parametros.DURACION_TIEMPO_MODOS) || 0));
         const totalSolicitado = Math.trunc(Number(parametros.DURACION_PARTIDA) || 0);
         DURACION_PARTIDA = totalSolicitado > 0
-            ? Math.max(nivelesActivos, totalSolicitado)
-            : duracionLegacy * nivelesActivos;
-        DURACIONES_NIVELES = repartirDuracionPartida(DURACION_PARTIDA, nivelesActivos);
-        DURACION_TIEMPO_MODOS = DURACIONES_NIVELES[0];
+            ? Math.max(nivelesTemporizados, totalSolicitado)
+            : duracionLegacy * nivelesTemporizados;
+        DURACIONES_NIVELES = repartirDuracionPorModos(DURACION_PARTIDA, lista_modos);
+        DURACION_TIEMPO_MODOS = DURACIONES_NIVELES.find((duracion) => duracion > 0) || 1;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
 
         if (!modo_bonus) modo_bonus = new PalabrasBonusMode(io, TIEMPO_CAMBIO_PALABRAS, decorarPayloadModoMotor, notificarEstadoPalabrasMusasControl);
@@ -426,8 +441,8 @@ function crearRuntimeModos({
         get duracionTiempoModos() { return DURACION_TIEMPO_MODOS; },
         get duracionPartida() { return DURACION_PARTIDA; },
         get duracionTiempoModoActual() {
-            return DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))]
-                || DURACION_TIEMPO_MODOS;
+            const duracion = DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))];
+            return Number.isFinite(duracion) ? duracion : DURACION_TIEMPO_MODOS;
         },
         get tiempoCambioModos() { return TIEMPO_CAMBIO_MODOS; },
         set tiempoCambioModos(valor) { TIEMPO_CAMBIO_MODOS = Number(valor) || 0; },
@@ -499,5 +514,6 @@ function crearRuntimeModos({
 module.exports = {
     crearRuntimeModos,
     repartirDuracionPartida,
+    repartirDuracionPorModos,
     normalizarListaModosPartida
 };

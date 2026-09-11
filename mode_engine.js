@@ -24,6 +24,7 @@ function crearMotorModos({
     payloadStatsLive = () => ({}),
     emitirStatsLive = () => {},
     iniciarRondaCompeticion = () => {},
+    pausarParaTertulia = () => {},
     getModoBonus,
     getModoMalditas,
     getModoMusas,
@@ -120,6 +121,7 @@ function crearMotorModos({
         'tertulia': function () {
             emitirPedirInspiracionMusa({ modo_actual: state.modoActual });
             emitirActivarModo({ modo_actual: state.modoActual });
+            pausarParaTertulia({ motivo: "tertulia" });
             io.emit('tiempo_muerto_control', {
                 modo_actual: state.modoActual,
                 segundos_transcurridos: 0,
@@ -161,6 +163,14 @@ function crearMotorModos({
     };
 
     function temp_modos(socket, opciones = {}) {
+        if (state.modoActual === "tertulia") {
+            if (typeof timersPartida.cancelarIntervaloModos === "function") {
+                timersPartida.cancelarIntervaloModos();
+            }
+            state.segundosTranscurridos = 0;
+            emitirTempModos();
+            return false;
+        }
         if (!opciones.continuar) {
             state.segundosTranscurridos = 0;
         }
@@ -188,6 +198,7 @@ function crearMotorModos({
                 }
             }
         }, 1000);
+        return true;
     }
 
     function modos_de_juego(socket) {

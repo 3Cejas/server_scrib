@@ -135,11 +135,7 @@ function registrarCanalesRonda({
         if (typeof pausarDesventajasActivas === 'function') {
             pausarDesventajasActivas();
         }
-        const pausaAutomaticaTertulia = state.modoActual === 'tertulia'
-            && evento
-            && typeof evento === 'object'
-            && evento.motivo === 'tertulia';
-        if (!pausaAutomaticaTertulia && typeof pausarRelojPartida === 'function') {
+        if (typeof pausarRelojPartida === 'function') {
             pausarRelojPartida();
         }
         activarSocketsExtratextuales(socket);

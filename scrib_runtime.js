@@ -405,6 +405,13 @@ function crearRuntimeScrib({
         iniciarRondaCompeticion: (modo) => {
             return competicionRondas.iniciarRonda(modo, { modo_seq: partidaSync.obtenerModoSeq() });
         },
+        pausarParaTertulia: (evento = { motivo: "tertulia" }) => {
+            partidaPausada = true;
+            timersPartida.cancelarIntervaloModos();
+            desventajasActivas.pausar();
+            relojPartida.pausar();
+            io.emit("pausar_js", evento);
+        },
         getModoBonus,
         getModoMalditas,
         getModoMusas,

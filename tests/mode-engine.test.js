@@ -214,7 +214,7 @@ test("mode engine consumes the full canonical queue exactly once", () => {
   assert.equal(new Set(activados).size, activados.length);
 });
 
-test("server timer advances tertulia even when Control has no local timer", () => {
+test("tertulia remains paused until Control explicitly continues", () => {
   const timers = crearTimersFake();
   const state = crearEstadoMotorFake({
     modoActual: "tertulia",
@@ -244,12 +244,40 @@ test("server timer advances tertulia even when Control has no local timer", () =
   });
 
   motor.temp_modos();
-  timers.intervalos[0].callback();
+  assert.equal(timers.intervalos.length, 0);
   assert.equal(state.modoActual, "tertulia");
-  timers.intervalos[0].callback();
-  assert.equal(state.modoActual, "palabras bonus");
-  assert.equal(timers.intervalos.length, 2);
   assert.equal(timers.cancelacionesIntervalo, 1);
+});
+
+test("activating tertulia asks the runtime to freeze the whole match", () => {
+  const eventos = [];
+  const pausas = [];
+  const state = crearEstadoMotorFake({ modoActual: "tertulia", tiempoCambioModos: 0 });
+  const motor = crearMotorModos({
+    state,
+    io: { emit: (event, payload) => eventos.push({ event, payload }) },
+    timersPartida: crearTimersFake(),
+    partidaSync: crearPartidaSyncFake(),
+    emitirActivarModo: (payload) => eventos.push({ event: "activar_modo", payload }),
+    emitirPedirInspiracionMusa: (payload) => eventos.push({ event: "pedir_inspiracion_musa", payload }),
+    pausarParaTertulia: (payload) => pausas.push(payload),
+    statsLive: { actualizar: () => {} },
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.activarModo("tertulia");
+
+  assert.deepEqual(pausas, [{ motivo: "tertulia" }]);
+  assert.deepEqual(eventos.map(({ event }) => event), [
+    "pedir_inspiracion_musa",
+    "activar_modo",
+    "tiempo_muerto_control"
+  ]);
 });
 
 test("cada nivel usa su propio intervalo y un callback antiguo no puede saltar otro nivel", () => {
