@@ -118,6 +118,33 @@ test("cada caracter borrado resta 0.05 y nunca puede hacer avanzar la barra del 
   assert.ok(borrados.every((evento) => evento.payload.delta === -0.05));
 });
 
+test("espacios, signos y saltos de linea borrados penalizan como caracteres", () => {
+  const io = crearIo();
+  const gestor = crearCompeticionRondas({ io, random: () => 0.1 });
+  gestor.iniciarRonda("letra bendita", { modo_seq: 1 });
+  gestor.registrarCambioTexto(1, "", "hola !\n");
+  assert.equal(gestor.snapshot().marcador[1], 0.4);
+
+  gestor.registrarCambioTexto(1, "hola !\n", "hola !");
+  gestor.registrarCambioTexto(1, "hola !", "hola ");
+  gestor.registrarCambioTexto(1, "hola ", "hola");
+
+  assert.equal(gestor.snapshot().marcador[1], 0.25);
+  const borrados = io.eventos.filter((evento) => evento.eventName === "competicion_ronda_punto" && evento.payload.tipo === "borrado");
+  assert.deepEqual(borrados.map((evento) => evento.payload.delta), [-0.05, -0.05, -0.05]);
+});
+
+test("el borrado es por caracter tambien en los niveles de palabras", () => {
+  for (const modo of ["palabras bonus", "palabras prohibidas"]) {
+    const gestor = crearCompeticionRondas({ io: crearIo(), random: () => 0.1 });
+    gestor.iniciarRonda(modo, { modo_seq: 1 });
+    gestor.registrarCambioTexto(1, "", "luz ");
+    const antes = gestor.snapshot().marcador[1];
+    gestor.registrarCambioTexto(1, "luz ", "lu ");
+    assert.equal(gestor.snapshot().marcador[1], Number((antes - 0.05).toFixed(2)));
+  }
+});
+
 test("los criterios publicos explican el ritmo sin llamar mini inspiracion a los puntos", () => {
   const gestor = crearCompeticionRondas({ io: crearIo(), random: () => 0.1 });
   gestor.iniciarRonda("letra prohibida", { modo_seq: 1 });

@@ -24,6 +24,11 @@ const contarLetras = (texto) => {
     return coincidencias ? coincidencias.length : 0;
 };
 
+// El borrado se penaliza por cada caracter real retirado del texto. No usamos
+// letras ni palabras para este cálculo porque dejaría sin coste espacios,
+// signos, saltos de línea y borrados parciales dentro de una palabra.
+const contarCaracteres = (texto) => Array.from(String(texto || "")).length;
+
 const contarPalabras = (texto) => {
     const coincidencias = String(texto || "").match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu);
     return coincidencias ? coincidencias.length : 0;
@@ -232,21 +237,24 @@ function crearCompeticionRondas({
         const palabrasAhoraLista = palabrasCompletadas(textoActual);
         const palabrasAntes = palabrasAntesLista.length;
         const palabrasAhora = palabrasAhoraLista.length;
+        const deltaCaracteres = contarCaracteres(textoActual) - contarCaracteres(textoAnterior);
         const deltaLetras = letrasAhora - letrasAntes;
         const deltaPalabras = palabrasAhora - palabrasAntes;
         let delta = 0;
-        if (estado.modo === "letra bendita" || estado.modo === "letra prohibida") {
+        if (deltaCaracteres < 0) {
+            delta = deltaCaracteres * 0.05;
+        } else if (estado.modo === "letra bendita" || estado.modo === "letra prohibida") {
             delta = deltaLetras > 0
                 ? deltaLetras * 0.1 * factorFuerza(player)
-                : deltaLetras * 0.05;
+                : 0;
         } else if (estado.modo === "palabras bonus") {
             delta = deltaPalabras > 0
                 ? deltaPalabras * factorFuerza(player)
-                : deltaPalabras * 0.25;
+                : 0;
         } else if (estado.modo === "palabras prohibidas") {
             delta = deltaPalabras > 0
                 ? deltaPalabras * 0.25 * factorFuerza(player)
-                : deltaPalabras * 0.1;
+                : 0;
         }
         if (delta === 0) {
             if (deltaPalabras > 0 && (estado.modo === "letra bendita" || estado.modo === "letra prohibida")) {
