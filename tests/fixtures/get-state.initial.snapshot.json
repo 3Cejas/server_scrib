@@ -182,6 +182,7 @@
     "override": "tutorial",
     "calentamiento_vista": false,
     "stats_slide_step": 0,
+    "instrucciones_slide_step": 0,
     "puntuacion_slide_step": 0,
     "puntuacion_reveal_phase": 0,
     "jurado_slide_step": 0,

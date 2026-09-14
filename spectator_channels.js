@@ -636,6 +636,18 @@ function registrarCanalesEspectador({
         emitirVistaEspectadorModo();
     });
 
+    socket.on("instrucciones_slide_control_navegar", (payload = {}) => {
+        if (!socket.control || resolverModoVistaEspectador() !== "instrucciones") return;
+        const direccion = payload && payload.direccion === "prev"
+            ? -1
+            : payload && payload.direccion === "next"
+                ? 1
+                : 0;
+        if (!direccion) return;
+        espectador.navegarInstrucciones(direccion);
+        emitirVistaEspectadorModo();
+    });
+
     socket.on("ajustar_escala_espectador", (payload = {}) => {
         const accion = typeof payload?.accion === "string"
             ? payload.accion.trim().toLowerCase()

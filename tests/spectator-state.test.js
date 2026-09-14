@@ -9,6 +9,17 @@ const {
   JURY_RESULT_SLIDE_MAX
 } = require("../spectator_state.js");
 
+test("instructions is authoritative and its seven scenes are remotely navigable", () => {
+  const gestor = crearGestorVistaEspectador({ io: { emit() {} } });
+  assert.equal(gestor.cambiarModo("instrucciones"), "instrucciones");
+  assert.equal(gestor.payload().modo, "instrucciones");
+  assert.equal(gestor.payload().instrucciones_slide_step, 0);
+  for (let index = 0; index < 20; index += 1) gestor.navegarInstrucciones(1);
+  assert.equal(gestor.payload().instrucciones_slide_step, 6);
+  for (let index = 0; index < 20; index += 1) gestor.navegarInstrucciones(-1);
+  assert.equal(gestor.payload().instrucciones_slide_step, 0);
+});
+
 test("spectator view scale defaults to the parameter baseline and clamps remote values", () => {
   const events = [];
   const gestor = crearGestorVistaEspectador({
