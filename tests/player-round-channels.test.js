@@ -6,6 +6,7 @@ const { registrarCanalesRonda } = require("../player_round_channels.js");
 function crearCanalesRondaFake(overrides = {}) {
   const handlers = {};
   const broadcasts = [];
+  const socketEmits = [];
   const labelsAvance = [];
   const tempModosCalls = [];
   const pausaEstados = [];
@@ -18,6 +19,7 @@ function crearCanalesRondaFake(overrides = {}) {
   let tempEmitidos = 0;
   let pulsacionesRegistradas = 0;
   let finalizarPartidaCalls = 0;
+  let sincroModosCalls = 0;
 
   const state = {
     modoActual: overrides.modoActual || "tertulia",
@@ -42,6 +44,9 @@ function crearCanalesRondaFake(overrides = {}) {
     id: overrides.socketId || "socket",
     escritxr: overrides.escritxr,
     control: overrides.control === true,
+    emit(eventName, payload) {
+      socketEmits.push({ eventName, payload });
+    },
     on(eventName, handler) {
       handlers[eventName] = handler;
     },
@@ -60,6 +65,9 @@ function crearCanalesRondaFake(overrides = {}) {
     },
     temp_modos(socketArg, options) {
       tempModosCalls.push({ socket: socketArg, options });
+    },
+    sincro_modos() {
+      sincroModosCalls += 1;
     }
   };
 
@@ -150,6 +158,8 @@ function crearCanalesRondaFake(overrides = {}) {
     reanudarDesventajasCalls: () => reanudarDesventajasCalls,
     pulsacionesRegistradas: () => pulsacionesRegistradas,
     finalizarPartidaCalls: () => finalizarPartidaCalls,
+    sincroModosCalls: () => sincroModosCalls,
+    socketEmits,
     state,
     tempEmitidos: () => tempEmitidos,
     tempModosCalls
@@ -235,7 +245,8 @@ test("reanudar_modo advances the mode and restarts the mode interval", () => {
     nextMode: "palabras bonus"
   });
 
-  ctx.handlers.reanudar_modo({ source: "pause-button" });
+  let respuesta = null;
+  ctx.handlers.reanudar_modo({ source: "pause-button" }, (payload) => { respuesta = payload; });
 
   assert.deepEqual(ctx.labelsAvance, ["reanudar_modo"]);
   assert.deepEqual(ctx.pausaEstados, [false]);
@@ -244,8 +255,18 @@ test("reanudar_modo advances the mode and restarts the mode interval", () => {
   assert.equal(ctx.state.segundosTranscurridos, 0);
   assert.deepEqual(ctx.tempModosCalls.map((call) => call.options), [undefined]);
   assert.deepEqual(ctx.broadcasts, [
-    { eventName: "reanudar_js", payload: { source: "pause-button" } }
+    {
+      eventName: "reanudar_js",
+      payload: { source: "pause-button", motivo: "reanudar_modo", modo_actual: "palabras bonus" }
+    }
   ]);
+  assert.deepEqual(ctx.socketEmits, ctx.broadcasts);
+  assert.deepEqual(respuesta, {
+    ok: true,
+    modo_anterior: "tertulia",
+    modo_actual: "palabras bonus",
+    partida_finalizada: false
+  });
 });
 
 test("reanudar_modo ignores stale requests once tertulia already ended", () => {
@@ -254,12 +275,22 @@ test("reanudar_modo ignores stale requests once tertulia already ended", () => {
     nextMode: "palabras prohibidas"
   });
 
-  ctx.handlers.reanudar_modo({ source: "stale-tertulia-timeout" });
+  let respuesta = null;
+  ctx.handlers.reanudar_modo(
+    { source: "stale-tertulia-timeout" },
+    (payload) => { respuesta = payload; }
+  );
 
   assert.deepEqual(ctx.labelsAvance, []);
   assert.equal(ctx.state.modoActual, "palabras bonus");
   assert.deepEqual(ctx.tempModosCalls, []);
   assert.deepEqual(ctx.broadcasts, []);
+  assert.equal(ctx.sincroModosCalls(), 1);
+  assert.deepEqual(respuesta, {
+    ok: false,
+    code: "NOT_IN_TERTULIA",
+    modo_actual: "palabras bonus"
+  });
 });
 
 test("saltar_tertulia advances the mode, emits timer sync and restarts the mode interval", () => {
@@ -268,7 +299,8 @@ test("saltar_tertulia advances the mode, emits timer sync and restarts the mode 
     nextMode: "palabras bonus"
   });
 
-  ctx.handlers.saltar_tertulia();
+  let respuesta = null;
+  ctx.handlers.saltar_tertulia({}, (payload) => { respuesta = payload; });
 
   assert.deepEqual(ctx.labelsAvance, ["saltar_tertulia"]);
   assert.deepEqual(ctx.pausaEstados, [false]);
@@ -279,8 +311,18 @@ test("saltar_tertulia advances the mode, emits timer sync and restarts the mode 
   assert.deepEqual(ctx.tempModosCalls.map((call) => call.options), [undefined]);
   assert.equal(ctx.tempEmitidos(), 1);
   assert.deepEqual(ctx.broadcasts, [
-    { eventName: "reanudar_js", payload: { motivo: "saltar_tertulia" } }
+    {
+      eventName: "reanudar_js",
+      payload: { motivo: "saltar_tertulia", modo_actual: "palabras bonus" }
+    }
   ]);
+  assert.deepEqual(ctx.socketEmits, ctx.broadcasts);
+  assert.deepEqual(respuesta, {
+    ok: true,
+    modo_anterior: "tertulia",
+    modo_actual: "palabras bonus",
+    partida_finalizada: false
+  });
 });
 
 test("an active writer can finish only their own final phrase", () => {

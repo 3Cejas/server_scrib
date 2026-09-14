@@ -52,6 +52,76 @@ function registrarCanalesRonda({
             && !sesionesEscritor.esActiva(socket, idJugador)
         );
     };
+    const emitirReanudacionATodos = (payload = {}) => {
+        // socket.broadcast excluye precisamente al Control que pulsa el botón.
+        // En Tertulia ese cliente también debe abandonar su estado local de pausa.
+        socket.emit('reanudar_js', payload);
+        socket.broadcast.emit('reanudar_js', payload);
+    };
+    const continuarDesdeTertulia = (evento = {}, callback = null, origen = 'reanudar_modo') => {
+        const responder = resolverCallback(evento, callback);
+        const payloadEvento = evento && typeof evento === 'object' ? evento : {};
+        if (esEventoEscritorInactivo()) {
+            if (typeof responder === 'function') {
+                responder({ ok: false, code: 'INACTIVE_WRITER', modo_actual: state.modoActual || '' });
+            }
+            return false;
+        }
+        if (state.modoActual !== 'tertulia') {
+            // Si Control se quedó visualmente en Tertulia, reenviarle el modo
+            // autoritativo evita que el botón quede bloqueado sin explicación.
+            if (motorModos && typeof motorModos.sincro_modos === 'function') {
+                motorModos.sincro_modos(socket);
+            }
+            if (typeof responder === 'function') {
+                responder({ ok: false, code: 'NOT_IN_TERTULIA', modo_actual: state.modoActual || '' });
+            }
+            return false;
+        }
+        if (typeof reanudarDesventajasActivas === 'function') {
+            reanudarDesventajasActivas();
+        }
+        if (typeof setPartidaPausada === 'function') {
+            setPartidaPausada(false);
+        }
+        if (typeof reanudarRelojPartida === 'function') {
+            reanudarRelojPartida();
+        }
+        timersPartida.cancelarIntervaloModos();
+        state.segundosTranscurridos = 0;
+        const avanzado = avanzarModoSeguro(
+            socket,
+            () => motorModos.modos_de_juego(socket),
+            origen
+        );
+        if (!avanzado) {
+            if (typeof responder === 'function') {
+                responder({ ok: false, code: 'MODE_TRANSITION_BUSY', modo_actual: state.modoActual || '' });
+            }
+            return false;
+        }
+        if (state.modoActual) {
+            motorModos.temp_modos(socket);
+        }
+        if (origen === 'saltar_tertulia') {
+            emitirTempModos();
+        }
+        const respuesta = {
+            ok: true,
+            modo_anterior: 'tertulia',
+            modo_actual: state.modoActual || '',
+            partida_finalizada: !state.modoActual
+        };
+        emitirReanudacionATodos({
+            ...payloadEvento,
+            motivo: origen,
+            modo_actual: respuesta.modo_actual
+        });
+        if (typeof responder === 'function') {
+            responder(respuesta);
+        }
+        return true;
+    };
 
     socket.on('count', (datos = {}) => {
         const idJugador = obtenerIdJugadorValido(datos.player);
@@ -164,51 +234,12 @@ function registrarCanalesRonda({
         socket.broadcast.emit('reanudar_js', evento);
     });
 
-    socket.on('reanudar_modo', (evento) => {
-        if (esEventoEscritorInactivo()) {
-            return;
-        }
-        if (state.modoActual !== 'tertulia') {
-            return;
-        }
-        if (typeof reanudarDesventajasActivas === 'function') {
-            reanudarDesventajasActivas();
-        }
-        if (typeof setPartidaPausada === 'function') {
-            setPartidaPausada(false);
-        }
-        if (typeof reanudarRelojPartida === 'function') {
-            reanudarRelojPartida();
-        }
-        timersPartida.cancelarIntervaloModos();
-        state.segundosTranscurridos = 0;
-        avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'reanudar_modo');
-        motorModos.temp_modos(socket);
-        socket.broadcast.emit('reanudar_js', evento);
+    socket.on('reanudar_modo', (evento = {}, callback = null) => {
+        continuarDesdeTertulia(evento, callback, 'reanudar_modo');
     });
 
-    socket.on('saltar_tertulia', () => {
-        if (esEventoEscritorInactivo()) {
-            return;
-        }
-        if (state.modoActual !== 'tertulia') {
-            return;
-        }
-        if (typeof reanudarDesventajasActivas === 'function') {
-            reanudarDesventajasActivas();
-        }
-        if (typeof setPartidaPausada === 'function') {
-            setPartidaPausada(false);
-        }
-        if (typeof reanudarRelojPartida === 'function') {
-            reanudarRelojPartida();
-        }
-        timersPartida.cancelarIntervaloModos();
-        state.segundosTranscurridos = 0;
-        avanzarModoSeguro(socket, () => motorModos.modos_de_juego(socket), 'saltar_tertulia');
-        motorModos.temp_modos(socket);
-        emitirTempModos();
-        socket.broadcast.emit('reanudar_js', { motivo: 'saltar_tertulia' });
+    socket.on('saltar_tertulia', (evento = {}, callback = null) => {
+        continuarDesdeTertulia(evento, callback, 'saltar_tertulia');
     });
 
     socket.on('fin_de_player', () => {
