@@ -17,42 +17,66 @@ function crearIo() {
   };
 }
 
-test("la primera desventaja es aleatoria y los siguientes portadores se alternan", () => {
+test("una ronda competitiva empieza con batalla y sin desventaja permanente", () => {
   const io = crearIo();
   const gestor = crearCompeticionRondas({ io, random: () => 0.1 });
 
   gestor.iniciarRonda("letra bendita", { modo_seq: 1 });
-  const primera = gestor.snapshot();
+  const batalla = gestor.snapshot();
   gestor.iniciarRonda("tertulia", { modo_seq: 2 });
-  gestor.iniciarRonda("letra prohibida", { modo_seq: 3 });
-  const segunda = gestor.snapshot();
+  const tertulia = gestor.snapshot();
 
-  assert.equal(primera.portador_inicial, 1);
-  assert.equal(segunda.portador_inicial, 2);
-  assert.equal(segunda.modo_publico, "LETRA MALDITA");
-  assert.equal(DESVENTAJAS_RONDA.includes(primera.desventaja), true);
-  assert.equal(DESVENTAJAS_RONDA.includes(segunda.desventaja), true);
-  assert.notEqual(primera.desventaja, segunda.desventaja);
+  assert.equal(batalla.fase, "batalla");
+  assert.equal(batalla.batalla_activa, true);
+  assert.equal(batalla.desventaja_player, null);
+  assert.equal(batalla.desventaja, "");
+  assert.equal(tertulia.fase, "inactiva");
+  assert.equal(tertulia.activa, false);
+  assert.equal(tertulia.modo_publico, "TERTULIA");
 });
 
-test("el empate conserva portador y un cambio de lider transfiere la desventaja", () => {
+test("al cerrar el 80 por ciento se congela el marcador y la votacion aplica la desventaja al perdedor", () => {
   const io = crearIo();
-  const gestor = crearCompeticionRondas({ io, random: () => 0.1 });
+  const gestor = crearCompeticionRondas({
+    io,
+    random: () => 0.1,
+    getAtributos: () => ({ 1: { destreza: 0 }, 2: { destreza: 10 } })
+  });
   gestor.iniciarRonda("letra bendita", { modo_seq: 1 });
-
-  assert.equal(gestor.snapshot().desventaja_player, 1);
   gestor.registrarPuntos(1, 2, { tipo: "test" });
-  assert.equal(gestor.snapshot().lider, 1);
-  assert.equal(gestor.snapshot().desventaja_player, 2);
+  const resultado = gestor.cerrarBatalla({
+    duracion_votacion_ms: 30000,
+    tiempo_restante_segundos: 60
+  });
+  gestor.registrarPuntos(2, 99, { tipo: "fuera_de_batalla" });
+  const aplicada = gestor.registrarDesventajaSeleccionada(2, "⚡", { duracion_ms: 30000 });
+  const estado = gestor.snapshot();
 
-  gestor.registrarPuntos(2, 2, { tipo: "test" });
-  assert.equal(gestor.snapshot().empate, true);
-  assert.equal(gestor.snapshot().desventaja_player, 2);
+  assert.equal(resultado.ganador, 1);
+  assert.equal(resultado.perdedor, 2);
+  assert.equal(resultado.empate, false);
+  assert.equal(estado.marcador[2], 0);
+  assert.equal(estado.fase, "desventaja");
+  assert.equal(estado.batalla_activa, false);
+  assert.equal(estado.desventaja_player, 2);
+  assert.equal(estado.desventaja, "⚡");
+  assert.equal(estado.desventaja_duracion_ms, 30000);
+  assert.equal(aplicada.intensidad, 0.6);
+  assert.ok(io.eventos.some((evento) => evento.eventName === "competicion_batalla_cerrada"));
+  assert.ok(io.eventos.some((evento) => evento.eventName === "competicion_desventaja_elegida"));
+});
 
-  gestor.registrarPuntos(2, 1, { tipo: "test" });
-  assert.equal(gestor.snapshot().lider, 2);
-  assert.equal(gestor.snapshot().desventaja_player, 1);
-  assert.ok(io.eventos.some((evento) => evento.eventName === "competicion_cambio_lider"));
+test("los empates se resuelven de forma aleatoria al principio y alternada despues", () => {
+  const gestor = crearCompeticionRondas({ io: crearIo(), random: () => 0.1 });
+
+  gestor.iniciarRonda("letra bendita", { modo_seq: 1 });
+  const primera = gestor.cerrarBatalla();
+  gestor.iniciarRonda("letra prohibida", { modo_seq: 2 });
+  const segunda = gestor.cerrarBatalla();
+
+  assert.equal(primera.empate, true);
+  assert.equal(segunda.empate, true);
+  assert.notEqual(primera.ganador, segunda.ganador);
 });
 
 test("la escritura da impulsos de inspiracion, la fuerza los aumenta y borrar resta menos", () => {
@@ -175,21 +199,25 @@ test("las palabras se animan al completarse y las letras intermedias solo mueven
   assert.equal(gestor.snapshot().rachas[1], 1);
 });
 
-test("una escritora reconectada recupera marcador y desventaja con su intensidad", () => {
+test("una escritora reconectada recupera la fase, el marcador y la desventaja votada", () => {
   const gestor = crearCompeticionRondas({
     io: crearIo(),
     random: () => 0.1,
     getAtributos: () => ({ 1: { destreza: 10 }, 2: { destreza: 0 } })
   });
   gestor.iniciarRonda("letra bendita", { modo_seq: 1 });
+  gestor.registrarPuntos(1, 3, { tipo: "test" });
+  gestor.cerrarBatalla({ duracion_votacion_ms: 1000 });
+  gestor.registrarDesventajaSeleccionada(2, "🌪️", { duracion_ms: 9000 });
 
   const socket = crearIo();
   gestor.emitir(socket);
 
   const estado = socket.eventos.find((evento) => evento.eventName === "competicion_ronda_estado");
-  const desventaja = socket.eventos.find((evento) => evento.eventName === "desventaja_activa_estado");
   assert.equal(estado.payload.modo_publico, "LETRA BENDITA");
-  assert.equal(desventaja.payload.player, 1);
-  assert.equal(desventaja.payload.intensidad, 0.6);
-  assert.equal(desventaja.payload.motivo, "reconexion");
+  assert.equal(estado.payload.fase, "desventaja");
+  assert.equal(estado.payload.marcador[1], 3);
+  assert.equal(estado.payload.desventaja_player, 2);
+  assert.equal(estado.payload.desventaja, "🌪️");
+  assert.equal(estado.payload.intensidad, 1);
 });

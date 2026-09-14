@@ -1,5 +1,12 @@
 const { elegirLetraPendientePonderada } = require('./letter_frequency.js');
 
+const MODOS_CON_BATALLA_INSPIRACION = new Set([
+    'palabras bonus',
+    'letra bendita',
+    'letra prohibida',
+    'palabras prohibidas'
+]);
+
 function elegirLetraPendiente({ pendientes, base, tipo, random = Math.random }) {
     return elegirLetraPendientePonderada({ pendientes, base, tipo, random });
 }
@@ -24,6 +31,8 @@ function crearMotorModos({
     payloadStatsLive = () => ({}),
     emitirStatsLive = () => {},
     iniciarRondaCompeticion = () => {},
+    cerrarBatallaCompeticion = () => null,
+    prepararNuevaRondaCompeticion = () => {},
     pausarParaTertulia = () => {},
     getModoBonus,
     getModoMalditas,
@@ -177,12 +186,27 @@ function crearMotorModos({
         const modoEsperado = state.modoActual;
         const duracionEsperada = Math.max(1, Math.trunc(Number(state.tiempoCambioModos) || 0));
         let intervaloCerrado = false;
+        let batallaCerrada = false;
         timersPartida.programarIntervaloModos(() => {
             if (intervaloCerrado || state.modoActual !== modoEsperado) {
                 return;
             }
             state.segundosTranscurridos += 1;
             emitirTempModos();
+            const umbralBatalla = Math.max(1, Math.ceil(duracionEsperada * 0.8));
+            if (
+                MODOS_CON_BATALLA_INSPIRACION.has(modoEsperado)
+                && !batallaCerrada
+                && state.segundosTranscurridos >= umbralBatalla
+            ) {
+                batallaCerrada = true;
+                cerrarBatallaCompeticion({
+                    modo: modoEsperado,
+                    duracion_total_segundos: duracionEsperada,
+                    segundos_transcurridos: state.segundosTranscurridos,
+                    tiempo_restante_segundos: Math.max(0, duracionEsperada - state.segundosTranscurridos)
+                });
+            }
             if (state.segundosTranscurridos >= duracionEsperada) {
                 if (state.modoActual === "frase final") {
                     return;
@@ -224,6 +248,7 @@ function crearMotorModos({
         registrarTimelineModo(curr, 'modos_de_juego');
 
         limpiarTodosLosModos();
+        prepararNuevaRondaCompeticion(curr);
         // La ronda anterior y su desventaja deben desaparecer antes de que las
         // pantallas pinten el nivel siguiente, especialmente Frase final.
         iniciarRondaCompeticion(curr);

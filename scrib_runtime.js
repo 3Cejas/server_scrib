@@ -129,10 +129,15 @@ function crearRuntimeScrib({
             || (evento.perdedor === 'j1' ? 1 : (evento.perdedor === 'j2' ? 2 : null))
         );
         const putada = evento.putada || evento.seleccion || evento.ventaja;
-        return desventajasActivas.registrar(player, putada, {
+        const payloadCompeticion = competicionRondas.registrarDesventajaSeleccionada(player, putada, {
             duracion_ms: evento.duracion_ms,
             duracionMs: evento.duracionMs
         });
+        const payloadActivo = desventajasActivas.registrar(player, putada, {
+            duracion_ms: evento.duracion_ms,
+            duracionMs: evento.duracionMs
+        });
+        return payloadCompeticion ? { ...payloadActivo, ...payloadCompeticion } : payloadActivo;
     };
     const emitirEstadoDesventajasActivas = (socketDestino = null) => {
         const snapshots = desventajasActivas.snapshotActivas();
@@ -404,6 +409,31 @@ function crearRuntimeScrib({
         votacionVentaja,
         iniciarRondaCompeticion: (modo) => {
             return competicionRondas.iniciarRonda(modo, { modo_seq: partidaSync.obtenerModoSeq() });
+        },
+        prepararNuevaRondaCompeticion: () => {
+            timersPartida.cancelarVotacion();
+            votacionVentaja.reset();
+            desventajasActivas.reset();
+        },
+        cerrarBatallaCompeticion: ({ tiempo_restante_segundos = 0 } = {}) => {
+            const restanteMs = Math.max(0, Number(tiempo_restante_segundos) || 0) * 1000;
+            const votacionConfiguradaMs = Math.max(1000, Number(getTiempoVotacion()) || 30000);
+            const duracionVotacionMs = restanteMs > 1000
+                ? Math.min(votacionConfiguradaMs, Math.max(1000, restanteMs - 1000))
+                : votacionConfiguradaMs;
+            const resultado = competicionRondas.cerrarBatalla({
+                duracion_votacion_ms: duracionVotacionMs,
+                tiempo_restante_segundos
+            });
+            if (!resultado) return null;
+            const duracionDesventajaMs = Math.max(1000, restanteMs - duracionVotacionMs);
+            votacionVentaja.lanzar({
+                ganador: `j${resultado.ganador}`,
+                perdedor: `j${resultado.perdedor}`,
+                duracion_ms: duracionVotacionMs,
+                duracion_desventaja_ms: duracionDesventajaMs
+            });
+            return resultado;
         },
         pausarParaTertulia: (evento = { motivo: "tertulia" }) => {
             partidaPausada = true;

@@ -326,6 +326,73 @@ test("cada nivel usa su propio intervalo y un callback antiguo no puede saltar o
   assert.deepEqual(state.modosPendientes, ["palabras bonus"]);
 });
 
+test("la batalla se cierra una sola vez al alcanzar el 80 por ciento del nivel", () => {
+  const timers = crearTimersFake();
+  const cierres = [];
+  const state = crearEstadoMotorFake({
+    modoActual: "letra bendita",
+    tiempoCambioModos: 10,
+    duracionTiempoModoActual: 10
+  });
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: timers,
+    partidaSync: crearPartidaSyncFake(),
+    cerrarBatallaCompeticion: (payload) => cierres.push(payload),
+    emitirTempModos: () => {},
+    statsLive: { actualizar: () => {} },
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.temp_modos();
+  const tick = timers.intervalos[0].callback;
+  for (let i = 0; i < 9; i += 1) tick();
+
+  assert.equal(cierres.length, 1);
+  assert.equal(cierres[0].segundos_transcurridos, 8);
+  assert.equal(cierres[0].tiempo_restante_segundos, 2);
+});
+
+test("tertulia y frase final nunca abren la votacion de desventaja", () => {
+  for (const modo of ["tertulia", "frase final"]) {
+    const timers = crearTimersFake();
+    const cierres = [];
+    const state = crearEstadoMotorFake({
+      modoActual: modo,
+      tiempoCambioModos: 10,
+      duracionTiempoModoActual: 10
+    });
+    const motor = crearMotorModos({
+      state,
+      io: { emit: () => {} },
+      timersPartida: timers,
+      partidaSync: crearPartidaSyncFake(),
+      cerrarBatallaCompeticion: (payload) => cierres.push(payload),
+      emitirTempModos: () => {},
+      statsLive: { actualizar: () => {} },
+      getModoBonus: () => crearModoFake(),
+      getModoMalditas: () => crearModoFake(),
+      getModoMusas: () => crearModoFake(),
+      estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+      letrasBenditas: ["z"],
+      letrasProhibidas: ["e"]
+    });
+
+    motor.temp_modos();
+    if (modo === "frase final") {
+      const tick = timers.intervalos[0].callback;
+      for (let i = 0; i < 9; i += 1) tick();
+    }
+    assert.equal(cierres.length, 0);
+  }
+});
+
 test("phrase final clears competition before rendering and never asks muses for inspiration", () => {
   const events = [];
   const state = crearEstadoMotorFake({

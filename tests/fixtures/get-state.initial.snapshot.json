@@ -193,7 +193,6 @@
     "equipo": "",
     "opciones": [],
     "votos": {
-      "🐢": 0,
       "⚡": 0,
       "🌪️": 0,
       "🙃": 0,
@@ -206,6 +205,8 @@
   "desventajas": [],
   "competicion_ronda": {
     "activa": false,
+    "fase": "inactiva",
+    "batalla_activa": false,
     "modo": "",
     "modo_publico": "",
     "modo_seq": 0,
@@ -217,9 +218,14 @@
     },
     "lider": null,
     "empate": true,
-    "portador_inicial": null,
+    "ganador_batalla": null,
+    "perdedor_batalla": null,
+    "batalla_desempate": false,
+    "votacion_duracion_ms": 0,
+    "votacion_termina_en_ts": 0,
     "desventaja_player": null,
     "desventaja": "",
+    "desventaja_duracion_ms": 0,
     "intensidad": 1,
     "rachas": {
       "1": 0,

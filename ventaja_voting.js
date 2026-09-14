@@ -1,5 +1,4 @@
 const OPCIONES_VENTAJA_BASE = [
-    "\u{1F422}",
     "\u26A1",
     "\u{1F32A}\uFE0F",
     "\u{1F643}",
@@ -38,6 +37,8 @@ function crearGestorVotacionVentaja({
     let opciones = [];
     let duracionMs = 0;
     let terminaEnTs = 0;
+    let duracionDesventajaMs = 0;
+    let onCierreActual = null;
     let votantes = new Set();
 
     const leerDuracionVotacionMs = () => Math.max(0, Number(
@@ -98,6 +99,8 @@ function crearGestorVotacionVentaja({
         equipo = "";
         opciones = [];
         duracionMs = 0;
+        duracionDesventajaMs = 0;
+        onCierreActual = null;
         terminaEnTs = 0;
         votantes = new Set();
         votos = crearEstadoVotosVentaja();
@@ -110,7 +113,7 @@ function crearGestorVotacionVentaja({
             perdedor,
             seleccion,
             putada: seleccion,
-            duracion_ms: leerDuracionDesventajaMs()
+            duracion_ms: duracionDesventajaMs || leerDuracionDesventajaMs()
         };
     };
 
@@ -152,14 +155,19 @@ function crearGestorVotacionVentaja({
         equipo = "";
         opciones = [];
         duracionMs = 0;
+        duracionDesventajaMs = 0;
         votantes = new Set();
-        return {
+        const resultado = {
             equipo: equipoGanador,
             perdedor,
             seleccion,
             opciones: opcionesFinal,
             votos: votosFinal
         };
+        const callback = onCierreActual;
+        onCierreActual = null;
+        if (typeof callback === "function") callback(resultado);
+        return resultado;
     };
 
     const prepararEstadoAbierto = (equipoDestino, opcionesEntrada, duracionEntrada) => {
@@ -192,6 +200,7 @@ function crearGestorVotacionVentaja({
             return null;
         }
         const equipoDestino = `j${equipoId}`;
+        duracionDesventajaMs = Math.max(0, Number(payload.duracion_desventaja_ms) || leerDuracionDesventajaMs());
         const opcionesEntrada = Array.isArray(payload.opciones) ? payload.opciones : [];
         const opcionesNormalizadas = opcionesEntrada
             .map((item) => (typeof item === "string" ? item.trim() : ""))
@@ -222,37 +231,18 @@ function crearGestorVotacionVentaja({
         return emojis.slice(0, 3);
     };
 
-    const lanzar = ({ socket = null, ganador, perdedor, onCierreAutomatico = null } = {}) => {
+    const lanzar = ({ ganador, perdedor, duracion_ms, duracion_desventaja_ms, onCierreAutomatico = null } = {}) => {
         const opcionesSeleccionadas = elegirOpcionesAleatorias();
-        prepararEstadoAbierto(ganador, opcionesSeleccionadas, leerDuracionVotacionMs());
+        duracionDesventajaMs = Math.max(0, Number(duracion_desventaja_ms) || leerDuracionDesventajaMs());
+        onCierreActual = onCierreAutomatico;
+        prepararEstadoAbierto(
+            ganador,
+            opcionesSeleccionadas,
+            Math.max(0, Number(duracion_ms) || leerDuracionVotacionMs())
+        );
         if (typeof scheduleTimer === "function") {
             scheduleTimer(() => {
-                if (socket && typeof socket.removeAllListeners === "function") {
-                    socket.removeAllListeners("enviar_voto_ventaja");
-                }
-                const seleccion = escogerGanador(votos);
-                const payloadVentaja = registrarVentajaAplicada(perdedor, seleccion)
-                    || construirPayloadVentajaAplicada(perdedor, seleccion);
-                io.emit(`enviar_ventaja_${perdedor}`, payloadVentaja);
-                const opcionesFinal = Array.isArray(opciones) ? [...opciones] : [];
-                const votosFinal = { ...votos };
-                activa = false;
-                terminaEnTs = 0;
-                emitirEstado({
-                    activa: false,
-                    equipo,
-                    opciones: opcionesFinal,
-                    votos: votosFinal,
-                    tiempo_restante_ms: 0,
-                    termina_en_ts: 0
-                });
-                equipo = "";
-                opciones = [];
-                duracionMs = 0;
-                votantes = new Set();
-                if (typeof onCierreAutomatico === "function") {
-                    onCierreAutomatico({ seleccion, opciones: opcionesFinal, votos: votosFinal });
-                }
+                cerrarConSeleccion({ perdedor });
             }, duracionMs);
         }
         return construirPayloadEstado();

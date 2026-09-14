@@ -324,6 +324,7 @@ function registrarConexionScrib(socket, deps) {
     });
     registrarCanalesVotacion({
         socket,
+        votacionVentaja,
         votacionRepentizado
     });
     registerSimulationChannels({

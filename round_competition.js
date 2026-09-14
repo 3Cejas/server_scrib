@@ -55,25 +55,16 @@ function crearCompeticionRondas({
     getModoSeq = () => 0
 } = {}) {
     let estado;
-    let primerPortador = 1;
-    let ultimoPortadorInicial = null;
-    let mazo = [];
+    let ultimoGanadorDesempate = 1;
     let historial = [];
     let pulsaciones = { 1: 0, 2: 0 };
     let temporizadoresRacha = { 1: null, 2: null };
     let revision = 0;
 
-    const barajar = (entrada) => {
-        const salida = [...entrada];
-        for (let i = salida.length - 1; i > 0; i -= 1) {
-            const j = Math.floor(random() * (i + 1));
-            [salida[i], salida[j]] = [salida[j], salida[i]];
-        }
-        return salida;
-    };
-
     const resetEstadoRonda = () => ({
         activa: false,
+        fase: "inactiva",
+        batalla_activa: false,
         modo: "",
         modo_publico: "",
         modo_seq: 0,
@@ -82,9 +73,14 @@ function crearCompeticionRondas({
         marcador: { 1: 0, 2: 0 },
         lider: null,
         empate: true,
-        portador_inicial: null,
+        ganador_batalla: null,
+        perdedor_batalla: null,
+        batalla_desempate: false,
+        votacion_duracion_ms: 0,
+        votacion_termina_en_ts: 0,
         desventaja_player: null,
         desventaja: "",
+        desventaja_duracion_ms: 0,
         intensidad: 1,
         rachas: { 1: 0, 2: 0 },
         revision: 0,
@@ -121,20 +117,6 @@ function crearCompeticionRondas({
         const destino = socketDestino && typeof socketDestino.emit === "function" ? socketDestino : io;
         if (destino && typeof destino.emit === "function") {
             destino.emit("competicion_ronda_estado", payload);
-            if (socketDestino && estado.activa && estado.desventaja_player && estado.desventaja) {
-                destino.emit("desventaja_activa_estado", {
-                    player: estado.desventaja_player,
-                    putada: estado.desventaja,
-                    seleccion: estado.desventaja,
-                    duracion_ms: 24 * 60 * 60 * 1000,
-                    nivel_completo: true,
-                    intensidad: estado.intensidad,
-                    motivo: "reconexion",
-                    modo: estado.modo,
-                    modo_seq: estado.modo_seq,
-                    revision
-                });
-            }
             if (eventoPunto) destino.emit("competicion_ronda_punto", { ...eventoPunto, estado: payload });
         }
         return payload;
@@ -149,31 +131,6 @@ function crearCompeticionRondas({
                 revision
             });
         }
-    };
-
-    const aplicarDesventaja = (player, motivo = "inicio") => {
-        const id = Number(player);
-        if ((id !== 1 && id !== 2) || !estado.desventaja) return null;
-        const intensidad = intensidadDestreza(id);
-        estado.desventaja_player = id;
-        estado.intensidad = intensidad;
-        const payload = {
-            player: id,
-            putada: estado.desventaja,
-            seleccion: estado.desventaja,
-            duracion_ms: 24 * 60 * 60 * 1000,
-            nivel_completo: true,
-            intensidad,
-            motivo,
-            modo: estado.modo,
-            modo_seq: estado.modo_seq,
-            revision
-        };
-        if (io && typeof io.emit === "function") {
-            io.emit(`enviar_ventaja_j${id}`, payload);
-            io.emit("desventaja_activa_estado", payload);
-        }
-        return payload;
     };
 
     const calcularLider = () => {
@@ -223,37 +180,16 @@ function crearCompeticionRondas({
         if (timer && typeof timer.unref === "function") timer.unref();
     };
 
-    const sincronizarLiderYDesventaja = () => {
-        const liderAnterior = estado.lider;
-        const portadorAnterior = estado.desventaja_player;
+    const sincronizarLider = () => {
         const lider = calcularLider();
-        const portador = lider ? (lider === 1 ? 2 : 1) : portadorAnterior;
         estado.lider = lider;
         estado.empate = lider === null;
-        if (portador && portador !== portadorAnterior) {
-            limpiarDesventajaVisual("cambio_lider");
-            aplicarDesventaja(portador, "cambio_lider");
-            if (io && typeof io.emit === "function") {
-                io.emit("competicion_cambio_lider", {
-                    modo: estado.modo,
-                    modo_publico: estado.modo_publico,
-                    modo_seq: estado.modo_seq,
-                    lider_anterior: liderAnterior,
-                    lider,
-                    desventaja_anterior: portadorAnterior,
-                    desventaja_player: portador,
-                    desventaja: estado.desventaja,
-                    revision,
-                    ts: now()
-                });
-            }
-        }
     };
 
     const registrarPuntos = (player, delta, metadata = {}) => {
         const id = Number(player);
         const cantidad = Number(delta);
-        if (!estado.activa || (id !== 1 && id !== 2) || !Number.isFinite(cantidad) || cantidad === 0) {
+        if (!estado.activa || estado.fase !== "batalla" || (id !== 1 && id !== 2) || !Number.isFinite(cantidad) || cantidad === 0) {
             return snapshot();
         }
         estado.marcador[id] = redondearMarcador((Number(estado.marcador[id]) || 0) + cantidad);
@@ -265,7 +201,7 @@ function crearCompeticionRondas({
             cancelarCaducidadRacha(id);
         }
         revision += 1;
-        sincronizarLiderYDesventaja();
+        sincronizarLider();
         return emitir(null, {
             player: id,
             delta: redondearMarcador(cantidad),
@@ -289,7 +225,7 @@ function crearCompeticionRondas({
     };
 
     const registrarCambioTexto = (player, textoAnterior, textoActual) => {
-        if (!estado.activa) return snapshot();
+        if (!estado.activa || estado.fase !== "batalla") return snapshot();
         const letrasAntes = contarLetras(textoAnterior);
         const letrasAhora = contarLetras(textoActual);
         const palabrasAntesLista = palabrasCompletadas(textoAnterior);
@@ -346,7 +282,7 @@ function crearCompeticionRondas({
     };
 
     const registrarInfraccion = (player, payload = {}) => {
-        if (!estado.activa) return snapshot();
+        if (!estado.activa || estado.fase !== "batalla") return snapshot();
         const tipo = String(payload.tipo || "").toLowerCase();
         if (estado.modo === "letra prohibida" && tipo === "letra") {
             return registrarPuntos(player, -1, { tipo: "letra_maldita", etiqueta: payload.valor });
@@ -362,7 +298,7 @@ function crearCompeticionRondas({
     };
 
     const registrarInspiracion = (player, payload = {}) => {
-        if (!estado.activa) return snapshot();
+        if (!estado.activa || estado.fase !== "batalla") return snapshot();
         const valor = Math.max(0.25, Math.min(1, Number(payload.valor_inspiracion) || 1));
         const esMaldita = estado.modo === "letra prohibida" || estado.modo === "palabras prohibidas";
         const delta = (esMaldita ? -5 : 5) * valor;
@@ -386,6 +322,77 @@ function crearCompeticionRondas({
         return { ...pulsaciones };
     };
 
+    const cerrarBatalla = (opciones = {}) => {
+        if (!estado.activa || estado.fase !== "batalla") return null;
+        const liderPorPuntos = calcularLider();
+        const huboEmpate = liderPorPuntos === null;
+        let ganador = liderPorPuntos;
+        if (!ganador) {
+            ganador = ultimoGanadorDesempate === 1 ? 2 : 1;
+            ultimoGanadorDesempate = ganador;
+        }
+        const perdedor = ganador === 1 ? 2 : 1;
+        estado.fase = "votacion";
+        estado.batalla_activa = false;
+        estado.lider = ganador;
+        estado.empate = huboEmpate;
+        estado.ganador_batalla = ganador;
+        estado.perdedor_batalla = perdedor;
+        estado.batalla_desempate = huboEmpate;
+        estado.votacion_duracion_ms = Math.max(0, Number(opciones.duracion_votacion_ms) || 0);
+        estado.votacion_termina_en_ts = estado.votacion_duracion_ms > 0
+            ? now() + estado.votacion_duracion_ms
+            : 0;
+        revision += 1;
+        const payload = emitir();
+        if (io && typeof io.emit === "function") {
+            io.emit("competicion_batalla_cerrada", {
+                ...payload,
+                tiempo_restante_segundos: Math.max(0, Number(opciones.tiempo_restante_segundos) || 0)
+            });
+        }
+        return {
+            ganador,
+            perdedor,
+            empate: huboEmpate,
+            marcador: { ...estado.marcador },
+            estado: payload
+        };
+    };
+
+    const registrarDesventajaSeleccionada = (player, putada, opciones = {}) => {
+        const id = Number(player);
+        const seleccion = String(putada || "");
+        if (!estado.activa || (id !== 1 && id !== 2) || !DESVENTAJAS_RONDA.includes(seleccion)) {
+            return null;
+        }
+        const duracionMs = Math.max(0, Number(opciones.duracion_ms ?? opciones.duracionMs) || 0);
+        estado.fase = "desventaja";
+        estado.batalla_activa = false;
+        estado.desventaja_player = id;
+        estado.desventaja = seleccion;
+        estado.desventaja_duracion_ms = duracionMs;
+        estado.intensidad = intensidadDestreza(id);
+        estado.votacion_termina_en_ts = 0;
+        revision += 1;
+        const payload = {
+            player: id,
+            putada: seleccion,
+            seleccion,
+            duracion_ms: duracionMs,
+            intensidad: estado.intensidad,
+            motivo: "votacion_musas",
+            modo: estado.modo,
+            modo_seq: estado.modo_seq,
+            revision
+        };
+        emitir();
+        if (io && typeof io.emit === "function") {
+            io.emit("competicion_desventaja_elegida", { ...payload, estado: snapshot() });
+        }
+        return payload;
+    };
+
     const cerrarRonda = (motivo = "fin_nivel") => {
         cancelarTodasLasRachas();
         if (estado.activa) {
@@ -395,10 +402,10 @@ function crearCompeticionRondas({
                 modo_seq: estado.modo_seq,
                 ronda: estado.ronda,
                 marcador: { ...estado.marcador },
-                ganador: estado.lider,
+                ganador: estado.ganador_batalla || estado.lider,
                 empate: estado.empate,
                 desventaja: estado.desventaja,
-                portador_inicial: estado.portador_inicial,
+                desventaja_player: estado.desventaja_player,
                 motivo,
                 ts: now()
             });
@@ -423,37 +430,27 @@ function crearCompeticionRondas({
             revision += 1;
             return emitir();
         }
-        if (!mazo.length) mazo = barajar(DESVENTAJAS_RONDA);
         const ronda = historial.length + 1;
-        const portadorInicial = ultimoPortadorInicial === null
-            ? primerPortador
-            : (ultimoPortadorInicial === 1 ? 2 : 1);
-        ultimoPortadorInicial = portadorInicial;
         estado = {
             ...resetEstadoRonda(),
             activa: true,
+            fase: "batalla",
+            batalla_activa: true,
             modo: modoNormalizado,
             modo_publico: NOMBRES_MODO_PUBLICOS[modoNormalizado] || modoNormalizado.toUpperCase(),
             modo_seq: Number(opciones.modo_seq ?? getModoSeq()) || 0,
             ronda,
-            criterio: criterioModo(modoNormalizado),
-            portador_inicial: portadorInicial,
-            desventaja_player: portadorInicial,
-            desventaja: mazo.shift(),
-            intensidad: intensidadDestreza(portadorInicial)
+            criterio: criterioModo(modoNormalizado)
         };
         revision += 1;
         limpiarDesventajaVisual("inicio_nivel");
-        aplicarDesventaja(portadorInicial, "inicio_nivel");
         return emitir();
     };
 
     const reset = () => {
         cancelarTodasLasRachas();
         limpiarDesventajaVisual("reset");
-        primerPortador = random() < 0.5 ? 1 : 2;
-        ultimoPortadorInicial = null;
-        mazo = barajar(DESVENTAJAS_RONDA);
+        ultimoGanadorDesempate = random() < 0.5 ? 1 : 2;
         historial = [];
         pulsaciones = { 1: 0, 2: 0 };
         estado = resetEstadoRonda();
@@ -465,6 +462,7 @@ function crearCompeticionRondas({
 
     return {
         cerrarRonda,
+        cerrarBatalla,
         emitir,
         iniciarRonda,
         registrarCambioTexto,
@@ -472,6 +470,7 @@ function crearCompeticionRondas({
         registrarInspiracion,
         registrarPulsacion,
         registrarPuntos,
+        registrarDesventajaSeleccionada,
         reset,
         snapshot
     };
