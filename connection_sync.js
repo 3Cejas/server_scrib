@@ -148,13 +148,14 @@ function crearSincronizadorConexion({
         if (typeof emitirEstadoCalentamientoPrevio === 'function') {
             emitirEstadoCalentamientoPrevio(socket);
         }
+        // Los clientes limpian sus escenas al recibir `post-inicio`. Enviar
+        // primero esa señal y después el snapshot autoritativo evita perder el
+        // modo y su música al recargar Espectador en mitad de una partida.
+        socket.emit('post-inicio', { borrar_texto: false, restaurando: true });
         const payloadModo = construirPayloadInspiracionMusaActual();
         emitirActivarModo(payloadModo, socket);
         sincroModos(socket);
-        socket.emit('post-inicio', { borrar_texto: false });
-        // Algunos clientes limpian su superficie al procesar `post-inicio`.
-        // Reenviar después el contenido y los nombres evita que una conexión
-        // a mitad de partida termine mostrando solo el formulario de musa.
+        // El contenido, nombres y deltas se envían después de la limpieza.
         writerChannels.emitirTextos(socket);
         if (typeof writerChannels.emitirNombres === 'function') {
             writerChannels.emitirNombres(socket);

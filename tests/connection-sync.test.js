@@ -229,7 +229,12 @@ test("active-mode sync keeps dramaturgy snapshot first and then sends live delta
     ]
   );
   const postInicioIndex = socket.eventos.findIndex(({ event }) => event === "post-inicio");
+  const activarModoIndex = socket.eventos.findIndex(({ event }) => event === "activar_modo");
+  const modoActualIndex = socket.eventos.findIndex(({ event }) => event === "modo_actual");
   const ultimoTextoIndex = socket.eventos.map(({ event }) => event).lastIndexOf("texto2");
+  assert.deepEqual(socket.eventos[postInicioIndex].payload, { borrar_texto: false, restaurando: true });
+  assert.ok(postInicioIndex < activarModoIndex, "post-inicio must clean before the active mode is restored");
+  assert.ok(postInicioIndex < modoActualIndex, "the authoritative mode must follow the cleanup");
   assert.ok(ultimoTextoIndex > postInicioIndex, "the live text must be restored after post-inicio clears the client");
 });
 
