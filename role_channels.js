@@ -397,6 +397,11 @@ function registrarCanalesRoles({
         }
         emitirEstadoBanderasMusas(socket);
         musasAuxiliares.emitirEstadoRegaloBandera();
+        // Una musa puede incorporarse con la partida ya en marcha. Primero
+        // reconstruimos el estado autoritativo completo (texto, nombres,
+        // reloj, nivel, desventajas y marcador) y después aplicamos el estado
+        // específico de su equipo y su inspiración activa.
+        sincronizarSocketRecienConectado(socket);
         sincronizarEstadoMusa(socket);
         emitirEstadoVideoTutorial();
     });

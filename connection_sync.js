@@ -117,6 +117,9 @@ function crearSincronizadorConexion({
             emitirEstadoDramaturgia(socket);
         }
         writerChannels.emitirTextos(socket);
+        if (typeof writerChannels.emitirNombres === 'function') {
+            writerChannels.emitirNombres(socket);
+        }
         emitirEstadoVotacionVentaja(null, socket);
         emitirNubeInspiracionEstado(socket, true);
         if (typeof emitirEstadoPalabrasMusasControl === 'function') {
@@ -149,6 +152,13 @@ function crearSincronizadorConexion({
         emitirActivarModo(payloadModo, socket);
         sincroModos(socket);
         socket.emit('post-inicio', { borrar_texto: false });
+        // Algunos clientes limpian su superficie al procesar `post-inicio`.
+        // Reenviar después el contenido y los nombres evita que una conexión
+        // a mitad de partida termine mostrando solo el formulario de musa.
+        writerChannels.emitirTextos(socket);
+        if (typeof writerChannels.emitirNombres === 'function') {
+            writerChannels.emitirNombres(socket);
+        }
         emitirConteosGuardados(socket);
         emitirTempModos(socket);
         if (typeof emitirEstadoDesventajasActivas === 'function') {

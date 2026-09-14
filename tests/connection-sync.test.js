@@ -25,6 +25,10 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteo
         socket.emit("texto1", { text: "uno" });
         socket.emit("texto2", { text: "dos" });
       },
+      emitirNombres(socket) {
+        socket.emit("nombre1", "ALMA");
+        socket.emit("nombre2", "VERA");
+      },
       getTextoHtml: () => ""
     },
     resurreccion: {
@@ -215,6 +219,18 @@ test("active-mode sync keeps dramaturgy snapshot first and then sends live delta
   assert.equal(socket.eventos[0].event, "dramaturgia_estado");
   assert.deepEqual(llamadas, ["activar", "sincro", "temp", "desventajas"]);
   assert.equal(socket.eventos.some(({ event }) => event === "post-inicio"), true);
+  assert.deepEqual(
+    socket.eventos.filter(({ event }) => event === "nombre1" || event === "nombre2"),
+    [
+      { event: "nombre1", payload: "ALMA" },
+      { event: "nombre2", payload: "VERA" },
+      { event: "nombre1", payload: "ALMA" },
+      { event: "nombre2", payload: "VERA" }
+    ]
+  );
+  const postInicioIndex = socket.eventos.findIndex(({ event }) => event === "post-inicio");
+  const ultimoTextoIndex = socket.eventos.map(({ event }) => event).lastIndexOf("texto2");
+  assert.ok(ultimoTextoIndex > postInicioIndex, "the live text must be restored after post-inicio clears the client");
 });
 
 test("writer reconnection restores the active delivery after mode sync without advancing it", () => {

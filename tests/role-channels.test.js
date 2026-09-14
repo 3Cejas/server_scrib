@@ -62,7 +62,7 @@ function registrar(socket, deps = {}) {
     normalizarNombreMusa: (valor) => String(valor || "").trim(),
     getNombreEscritxr: deps.getNombreEscritxr || (() => ""),
     emitirEstadoBanderasMusas() {},
-    sincronizarEstadoMusa() {},
+    sincronizarEstadoMusa: deps.sincronizarEstadoMusa || (() => {}),
     sincronizarSocketRecienConectado: deps.sincronizarSocketRecienConectado || (() => {}),
     emitirEstadoDramaturgia: deps.emitirEstadoDramaturgia || (() => {}),
     registrarMusaEnCreditosPartida: deps.registrarMusaEnCreditosPartida || (() => {}),
@@ -359,6 +359,32 @@ test("role channels return the authoritative musa assignment with writer name by
       && payload.escritxr2 === 0),
     true
   );
+});
+
+test("a muse joining an active match receives the complete snapshot before the team-specific state", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const musa = crearSocket("musa-mid-match");
+  const syncOrder = [];
+  registrar(musa, {
+    rolesConectados,
+    sesionesEscritor,
+    sincronizarSocketRecienConectado(socket) {
+      assert.equal(socket, musa);
+      syncOrder.push("partida-completa");
+    },
+    sincronizarEstadoMusa(socket) {
+      assert.equal(socket, musa);
+      syncOrder.push("equipo-musa");
+    }
+  });
+
+  musa.trigger("registrar_musa", {
+    nombre: "Luna",
+    client_id: "luna-mid-match"
+  });
+
+  assert.deepEqual(syncOrder, ["partida-completa", "equipo-musa"]);
 });
 
 test("role channels expose both current writer names and accept an explicit manual muse choice", () => {
