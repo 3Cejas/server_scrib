@@ -18,7 +18,7 @@ function crearSocket({ dramaturgia = false, escritxr = null, espectador = false,
   };
 }
 
-function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteos = null, calentamientoActivo = false } = {}) {
+function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteos = null, calentamientoActivo = false, partidaFinalizada = false } = {}) {
   return crearSincronizadorConexion({
     writerChannels: {
       emitirTextos(socket) {
@@ -101,6 +101,7 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteo
       construirPayloadCount: (payload) => ({ ...payload, modo_seq: 7 })
     },
     getModoActual: () => modo,
+    isPartidaFinalizada: () => partidaFinalizada,
     construirPayloadInspiracionMusaActual: () => ({ modo_actual: modo, modo_seq: 7 }),
     emitirActivarModo(payload, socket) {
       llamadas.push("activar");
@@ -155,6 +156,22 @@ test("a reconnect during pre-level warm-up receives the authoritative stage", ()
   const estado = socket.eventos.find(({ event }) => event === "calentamiento_previo_estado");
   assert.equal(estado.payload.activo, true);
   assert.equal(estado.payload.modo_siguiente, "letra bendita");
+});
+
+test("a reconnect after the match receives the authoritative final state", () => {
+  const socket = crearSocket({ espectador: true });
+  const sincronizador = crearSincronizador({ modo: "", partidaFinalizada: true });
+
+  sincronizador.sincronizarSocketRecienConectado(socket);
+
+  assert.deepEqual(
+    socket.eventos.filter(({ event }) => event === "fin").map(({ payload }) => payload.player),
+    [1, 2]
+  );
+  assert.equal(
+    socket.eventos.some(({ event, payload }) => event === "fin_a_control" && payload.partida_finalizada === true),
+    true
+  );
 });
 
 test("ordinary roles do not receive the dramaturgy snapshot", () => {

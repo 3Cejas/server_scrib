@@ -172,9 +172,8 @@ test("mode engine consumes the full canonical queue exactly once", () => {
   const state = crearEstadoMotorFake({
     modoActual: "letra bendita",
     modosPendientes: [
-      "letra prohibida",
       "tertulia",
-      "palabras bonus",
+      "letra prohibida",
       "palabras prohibidas",
       "frase final"
     ],
@@ -204,9 +203,8 @@ test("mode engine consumes the full canonical queue exactly once", () => {
   while (state.modosPendientes.length) motor.modos_de_juego();
 
   assert.deepEqual(activados, [
-    "letra prohibida",
     "tertulia",
-    "palabras bonus",
+    "letra prohibida",
     "palabras prohibidas",
     "frase final"
   ]);
@@ -214,8 +212,9 @@ test("mode engine consumes the full canonical queue exactly once", () => {
   assert.equal(new Set(activados).size, activados.length);
 });
 
-test("tertulia remains paused until Control explicitly continues", () => {
+test("tertulia advances automatically after its configured duration", () => {
   const timers = crearTimersFake();
+  const reanudaciones = [];
   const state = crearEstadoMotorFake({
     modoActual: "tertulia",
     modosPendientes: ["palabras bonus"],
@@ -228,6 +227,7 @@ test("tertulia remains paused until Control explicitly continues", () => {
     partidaSync: crearPartidaSyncFake(),
     limpiarTodosLosModos: () => {},
     avanzarModoSeguro: (_socket, callback) => { callback(); return true; },
+    reanudarTrasTertulia: (payload) => reanudaciones.push(payload),
     emitirActivarModo: () => {},
     emitirPedirInspiracionMusa: () => {},
     emitirNubeInspiracionEstado: () => {},
@@ -244,9 +244,12 @@ test("tertulia remains paused until Control explicitly continues", () => {
   });
 
   motor.temp_modos();
-  assert.equal(timers.intervalos.length, 0);
+  assert.equal(timers.intervalos.length, 1);
+  timers.intervalos[0].callback();
   assert.equal(state.modoActual, "tertulia");
-  assert.equal(timers.cancelacionesIntervalo, 1);
+  timers.intervalos[0].callback();
+  assert.equal(state.modoActual, "palabras bonus");
+  assert.deepEqual(reanudaciones, [{ motivo: "tertulia_automatica" }]);
 });
 
 test("activating tertulia asks the runtime to freeze the whole match", () => {
@@ -357,6 +360,41 @@ test("la batalla se cierra una sola vez al alcanzar el 80 por ciento del nivel",
   assert.equal(cierres.length, 1);
   assert.equal(cierres[0].segundos_transcurridos, 8);
   assert.equal(cierres[0].tiempo_restante_segundos, 2);
+});
+
+test("el porcentaje final reservado a desventaja cambia el cierre de batalla", () => {
+  const timers = crearTimersFake();
+  const cierres = [];
+  const state = crearEstadoMotorFake({
+    modoActual: "letra bendita",
+    tiempoCambioModos: 20,
+    duracionTiempoModoActual: 20,
+    porcentajeTiempoDesventaja: 35
+  });
+  const motor = crearMotorModos({
+    state,
+    io: { emit: () => {} },
+    timersPartida: timers,
+    partidaSync: crearPartidaSyncFake(),
+    cerrarBatallaCompeticion: (payload) => cierres.push(payload),
+    emitirTempModos: () => {},
+    statsLive: { actualizar: () => {} },
+    getModoBonus: () => crearModoFake(),
+    getModoMalditas: () => crearModoFake(),
+    getModoMusas: () => crearModoFake(),
+    estadoJugadores: { 1: { finished: false }, 2: { finished: false } },
+    letrasBenditas: ["z"],
+    letrasProhibidas: ["e"]
+  });
+
+  motor.temp_modos();
+  const tick = timers.intervalos[0].callback;
+  for (let i = 0; i < 12; i += 1) tick();
+  assert.equal(cierres.length, 0);
+  tick();
+  assert.equal(cierres.length, 1);
+  assert.equal(cierres[0].segundos_transcurridos, 13);
+  assert.equal(cierres[0].tiempo_restante_segundos, 7);
 });
 
 test("tertulia y frase final nunca abren la votacion de desventaja", () => {

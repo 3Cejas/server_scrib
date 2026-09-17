@@ -21,14 +21,18 @@ test("garantiza al menos un segundo para cada nivel activo", () => {
 test("coloca Palabras benditas primero y mantiene Letra maldita después de Letra bendita", () => {
   assert.deepEqual(
     normalizarListaModosPartida(["tertulia", "letra prohibida", "palabras bonus", "letra bendita"]),
-    ["palabras bonus", "letra bendita", "letra prohibida", "tertulia"]
+    ["palabras bonus", "letra bendita", "tertulia", "letra prohibida"]
   );
 });
 
-test("Tertulia no consume el tiempo total de escritura", () => {
+test("Tertulia es un tramo adicional con la reduccion configurada", () => {
   assert.deepEqual(
-    repartirDuracionPorModos(61, ["palabras bonus", "tertulia", "letra bendita"]),
-    [31, 0, 30]
+    repartirDuracionPorModos(61, ["palabras bonus", "tertulia", "letra bendita"], 50),
+    [31, 15, 30]
+  );
+  assert.deepEqual(
+    repartirDuracionPorModos(60, ["palabras bonus", "tertulia", "letra bendita"], 25),
+    [30, 23, 30]
   );
 });
 
@@ -55,19 +59,23 @@ test("el motor conserva la duracion repartida al avanzar a cada nivel", () => {
     TIEMPO_VOTACION: 1,
     TIEMPO_CAMBIO_LETRA: 1,
     DURACION_PARTIDA: 61,
+    REDUCCION_TERTULIA_PORCENTAJE: 50,
+    PORCENTAJE_TIEMPO_DESVENTAJA: 20,
     LISTA_MODOS: ["letra bendita", "letra prohibida", "tertulia"]
   });
 
   assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 31);
   assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 31);
   runtime.estadoMotorModos.indiceModo = 1;
+  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 15);
+  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 15);
+  runtime.estadoMotorModos.tiempoCambioModos = runtime.estadoMotorModos.duracionTiempoModoActual;
+  assert.equal(runtime.estadoMotorModos.tiempoCambioModos, 15);
+  runtime.estadoMotorModos.indiceModo = 2;
   assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 30);
   assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 30);
-  runtime.estadoMotorModos.tiempoCambioModos = runtime.estadoMotorModos.duracionTiempoModoActual;
-  assert.equal(runtime.estadoMotorModos.tiempoCambioModos, 30);
-  runtime.estadoMotorModos.indiceModo = 2;
-  assert.equal(runtime.estadoMotorModos.duracionTiempoModoActual, 0);
-  assert.equal(runtime.estadoCicloPartida.duracionTiempoModoActual, 0);
+  assert.equal(runtime.estadoMotorModos.porcentajeTiempoDesventaja, 20);
+  assert.equal(runtime.estadoCicloPartida.reduccionTertuliaPorcentaje, 50);
 });
 
 test("retains both final phrases in reconnect snapshots", () => {

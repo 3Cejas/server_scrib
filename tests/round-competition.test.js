@@ -163,9 +163,19 @@ test("las musas pesan mas, los descartes escalan su valor y las faltas penalizan
 
   gestor.iniciarRonda("letra prohibida", { modo_seq: 2 });
   gestor.registrarInfraccion(1, { tipo: "letra", valor: "a" });
-  assert.equal(gestor.snapshot().marcador[1], -1);
+  assert.equal(gestor.snapshot().marcador[1], 0);
   gestor.registrarInspiracion(1, { valor_inspiracion: 1, palabra: "alarma" });
-  assert.equal(gestor.snapshot().marcador[1], -6);
+  assert.equal(gestor.snapshot().marcador[1], 0);
+});
+
+test("la inspiracion nunca baja de cero", () => {
+  const gestor = crearCompeticionRondas({ io: crearIo(), random: () => 0.1 });
+  gestor.iniciarRonda("palabras prohibidas", { modo_seq: 1 });
+
+  gestor.registrarPuntos(1, 1, { tipo: "test" });
+  gestor.registrarPuntos(1, -25, { tipo: "palabra_maldita" });
+
+  assert.equal(gestor.snapshot().marcador[1], 0);
 });
 
 test("las rachas son cosmeticas y no multiplican puntos", () => {

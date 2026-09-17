@@ -1,8 +1,8 @@
 const MODOS_CONTROL_DISPONIBLES = Object.freeze([
     "palabras bonus",
     "letra bendita",
-    "letra prohibida",
     "tertulia",
+    "letra prohibida",
     "palabras prohibidas",
     "frase final"
 ]);
@@ -15,6 +15,8 @@ const PARAMETROS_CONTROL_DEFECTO = Object.freeze({
     tiempo_cambio_letra: 60,
     tiempo_cambio_palabras: 20,
     limite_tiempo_inspiracion: 30,
+    porcentaje_tiempo_desventaja: 20,
+    reduccion_tertulia_porcentaje: 50,
     escala_espectador: 100
 });
 
@@ -26,6 +28,8 @@ const LIMITES_PARAMETROS_CONTROL = Object.freeze({
     tiempo_cambio_letra: [1, 360],
     tiempo_cambio_palabras: [1, 360],
     limite_tiempo_inspiracion: [5, 120],
+    porcentaje_tiempo_desventaja: [1, 90],
+    reduccion_tertulia_porcentaje: [0, 95],
     escala_espectador: [82, 128]
 });
 

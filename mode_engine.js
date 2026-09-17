@@ -34,6 +34,7 @@ function crearMotorModos({
     cerrarBatallaCompeticion = () => null,
     prepararNuevaRondaCompeticion = () => {},
     pausarParaTertulia = () => {},
+    reanudarTrasTertulia = () => {},
     getModoBonus,
     getModoMalditas,
     getModoMusas,
@@ -172,14 +173,6 @@ function crearMotorModos({
     };
 
     function temp_modos(socket, opciones = {}) {
-        if (state.modoActual === "tertulia") {
-            if (typeof timersPartida.cancelarIntervaloModos === "function") {
-                timersPartida.cancelarIntervaloModos();
-            }
-            state.segundosTranscurridos = 0;
-            emitirTempModos();
-            return false;
-        }
         if (!opciones.continuar) {
             state.segundosTranscurridos = 0;
         }
@@ -193,7 +186,14 @@ function crearMotorModos({
             }
             state.segundosTranscurridos += 1;
             emitirTempModos();
-            const umbralBatalla = Math.max(1, Math.ceil(duracionEsperada * 0.8));
+            const porcentajeTiempoDesventaja = Math.min(
+                90,
+                Math.max(1, Number(state.porcentajeTiempoDesventaja) || 20)
+            );
+            const umbralBatalla = Math.max(
+                1,
+                Math.ceil(duracionEsperada * (1 - (porcentajeTiempoDesventaja / 100)))
+            );
             if (
                 MODOS_CON_BATALLA_INSPIRACION.has(modoEsperado)
                 && !batallaCerrada
@@ -216,6 +216,9 @@ function crearMotorModos({
                     timersPartida.cancelarIntervaloModos();
                 }
                 state.segundosTranscurridos = 0;
+                if (modoEsperado === "tertulia") {
+                    reanudarTrasTertulia({ motivo: "tertulia_automatica" });
+                }
                 const avanzado = avanzarModoSeguro(socket, () => modos_de_juego(socket), 'temp_modos');
                 if (avanzado && state.modoActual && state.modoActual !== "frase final") {
                     temp_modos(socket);

@@ -10,6 +10,7 @@ function crearSincronizadorConexion({
     emitirEstadoPalabrasMusasControl = null,
     partidaSync,
     getModoActual,
+    isPartidaFinalizada = () => false,
     isPartidaPausada = () => false,
     construirPayloadInspiracionMusaActual,
     emitirActivarModo,
@@ -142,6 +143,25 @@ function crearSincronizadorConexion({
             socket.emit('modo_actual', partidaSync.withModoSeq({ modo_actual: '' }));
             if (typeof emitirEstadoCalentamientoPrevio === 'function') {
                 emitirEstadoCalentamientoPrevio(socket);
+            }
+            if (isPartidaFinalizada()) {
+                // La finalización también es estado autoritativo. Sin esta
+                // repetición, una pantalla recargada después de Frase final
+                // volvía a una escena vacía e incluso podía pintar `undefined`.
+                socket.emit('fin', {
+                    player: 1,
+                    partida_finalizada: true,
+                    origen: 'restauracion'
+                });
+                socket.emit('fin', {
+                    player: 2,
+                    partida_finalizada: true,
+                    origen: 'restauracion'
+                });
+                socket.emit('fin_a_control', {
+                    partida_finalizada: true,
+                    origen: 'restauracion'
+                });
             }
             return;
         }

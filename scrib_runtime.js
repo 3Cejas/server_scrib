@@ -442,6 +442,12 @@ function crearRuntimeScrib({
             relojPartida.pausar();
             io.emit("pausar_js", evento);
         },
+        reanudarTrasTertulia: (evento = { motivo: "tertulia_automatica" }) => {
+            partidaPausada = false;
+            desventajasActivas.reanudar();
+            relojPartida.reanudar();
+            io.emit("reanudar_js", evento);
+        },
         getModoBonus,
         getModoMalditas,
         getModoMusas,
@@ -522,6 +528,11 @@ function crearRuntimeScrib({
         emitirEstadoPalabrasMusasControl,
         partidaSync,
         getModoActual: () => estadoCicloPartida.modoActual,
+        isPartidaFinalizada: () => Boolean(
+            estadoCicloPartida.finDelJuego
+            && estadoCicloPartida.finJ1
+            && estadoCicloPartida.finJ2
+        ),
         isPartidaPausada: () => partidaPausada,
         construirPayloadInspiracionMusaActual,
         emitirActivarModo,

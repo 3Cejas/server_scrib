@@ -197,7 +197,12 @@ function crearCompeticionRondas({
         if (!estado.activa || estado.fase !== "batalla" || (id !== 1 && id !== 2) || !Number.isFinite(cantidad) || cantidad === 0) {
             return snapshot();
         }
-        estado.marcador[id] = redondearMarcador((Number(estado.marcador[id]) || 0) + cantidad);
+        // La inspiración representa una reserva visual: las penalizaciones
+        // pueden agotarla, pero nunca convertirla en un valor negativo.
+        estado.marcador[id] = redondearMarcador(Math.max(
+            0,
+            (Number(estado.marcador[id]) || 0) + cantidad
+        ));
         if (cantidad > 0 && metadata.actualizar_racha !== false) {
             estado.rachas[id] = Math.max(0, Number(estado.rachas[id]) || 0) + 1;
             programarCaducidadRacha(id);

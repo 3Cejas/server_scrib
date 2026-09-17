@@ -6,9 +6,10 @@ const { ALFABETO_ES } = require('./letter_frequency.js');
 
 const LETRAS_PROHIBIDAS = [...ALFABETO_ES];
 const LETRAS_BENDITAS_PONDERADAS = [...ALFABETO_ES];
-// Palabras benditas abre la partida y hace de calentamiento jugable. El resto
-// conserva su orden dramatúrgico; Tertulia sigue siendo una pausa intermedia.
-const LISTA_MODOS_DEFAULT = ["palabras bonus", "letra bendita", "letra prohibida", "tertulia", "palabras prohibidas"];
+// Palabras benditas abre la partida y hace de calentamiento jugable. Tertulia
+// queda entre las dos rondas de letras para separar el bloque bendito del
+// bloque maldito.
+const LISTA_MODOS_DEFAULT = ["palabras bonus", "letra bendita", "tertulia", "letra prohibida", "palabras prohibidas"];
 const ORDEN_MODOS_PARTIDA = [...LISTA_MODOS_DEFAULT, "frase final"];
 
 function normalizarListaModosPartida(lista, fallback = LISTA_MODOS_DEFAULT) {
@@ -28,13 +29,28 @@ function repartirDuracionPartida(totalSegundos, cantidadNiveles) {
     return Array.from({ length: niveles }, (_valor, indice) => base + (indice < resto ? 1 : 0));
 }
 
-function repartirDuracionPorModos(totalSegundos, modos = []) {
+function normalizarPorcentaje(valor, fallback, { min = 0, max = 100 } = {}) {
+    const numero = Number(valor);
+    const base = Number.isFinite(numero) ? numero : Number(fallback);
+    return Math.min(max, Math.max(min, base));
+}
+
+function repartirDuracionPorModos(totalSegundos, modos = [], reduccionTertuliaPorcentaje = 50) {
     const lista = Array.isArray(modos) ? modos : [];
     const temporizados = lista.filter((modo) => modo !== "tertulia");
     const reparto = repartirDuracionPartida(totalSegundos, Math.max(1, temporizados.length));
+    const total = Math.max(1, Math.trunc(Number(totalSegundos) || 0));
+    const reduccionTertulia = normalizarPorcentaje(reduccionTertuliaPorcentaje, 50, { min: 0, max: 95 });
+    const duracionReferencia = temporizados.length > 0
+        ? total / temporizados.length
+        : total;
+    const duracionTertulia = Math.max(
+        1,
+        Math.round(duracionReferencia * (1 - (reduccionTertulia / 100)))
+    );
     let indiceReparto = 0;
     return lista.map((modo) => {
-        if (modo === "tertulia") return 0;
+        if (modo === "tertulia") return duracionTertulia;
         const duracion = reparto[indiceReparto] || 1;
         indiceReparto += 1;
         return duracion;
@@ -81,6 +97,8 @@ function crearRuntimeModos({
     let TIEMPO_MODIFICADOR;
     let TIEMPO_VOTACION;
     let TIEMPO_CAMBIO_LETRA;
+    let PORCENTAJE_TIEMPO_DESVENTAJA = 20;
+    let REDUCCION_TERTULIA_PORCENTAJE = 50;
     let repentizado_enviado = false;
     let transicion_modo_en_curso = false;
     let frases_finales = { 1: "", 2: "" };
@@ -374,6 +392,7 @@ function crearRuntimeModos({
             return Number.isFinite(duracion) ? duracion : DURACION_TIEMPO_MODOS;
         },
         get tiempoCambioLetra() { return TIEMPO_CAMBIO_LETRA; },
+        get porcentajeTiempoDesventaja() { return PORCENTAJE_TIEMPO_DESVENTAJA; },
         get tiempoBorroso() { return TIEMPO_BORROSO; },
         get frasesFinales() { return { ...frases_finales }; },
         get repentizadoEnviado() { return Boolean(repentizado_enviado); },
@@ -386,6 +405,16 @@ function crearRuntimeModos({
         TIEMPO_MODIFICADOR = parametros.TIEMPO_MODIFICADOR;
         TIEMPO_VOTACION = parametros.TIEMPO_VOTACION;
         TIEMPO_CAMBIO_LETRA = parametros.TIEMPO_CAMBIO_LETRA;
+        PORCENTAJE_TIEMPO_DESVENTAJA = normalizarPorcentaje(
+            parametros.PORCENTAJE_TIEMPO_DESVENTAJA,
+            20,
+            { min: 1, max: 90 }
+        );
+        REDUCCION_TERTULIA_PORCENTAJE = normalizarPorcentaje(
+            parametros.REDUCCION_TERTULIA_PORCENTAJE,
+            50,
+            { min: 0, max: 95 }
+        );
         frases_finales = {
             1: String(parametros.FRASE_FINAL_J1 || "").trim(),
             2: String(parametros.FRASE_FINAL_J2 || "").trim()
@@ -400,7 +429,11 @@ function crearRuntimeModos({
         DURACION_PARTIDA = totalSolicitado > 0
             ? Math.max(nivelesTemporizados, totalSolicitado)
             : duracionLegacy * nivelesTemporizados;
-        DURACIONES_NIVELES = repartirDuracionPorModos(DURACION_PARTIDA, lista_modos);
+        DURACIONES_NIVELES = repartirDuracionPorModos(
+            DURACION_PARTIDA,
+            lista_modos,
+            REDUCCION_TERTULIA_PORCENTAJE
+        );
         DURACION_TIEMPO_MODOS = DURACIONES_NIVELES.find((duracion) => duracion > 0) || 1;
         TIEMPO_CAMBIO_MODOS = DURACION_TIEMPO_MODOS;
 
@@ -440,6 +473,8 @@ function crearRuntimeModos({
         set modosPendientes(valor) { modos_pendientes = Array.isArray(valor) ? valor : []; },
         get duracionTiempoModos() { return DURACION_TIEMPO_MODOS; },
         get duracionPartida() { return DURACION_PARTIDA; },
+        get porcentajeTiempoDesventaja() { return PORCENTAJE_TIEMPO_DESVENTAJA; },
+        get reduccionTertuliaPorcentaje() { return REDUCCION_TERTULIA_PORCENTAJE; },
         get duracionTiempoModoActual() {
             const duracion = DURACIONES_NIVELES[Math.min(indice_modo, Math.max(0, DURACIONES_NIVELES.length - 1))];
             return Number.isFinite(duracion) ? duracion : DURACION_TIEMPO_MODOS;
@@ -515,5 +550,6 @@ module.exports = {
     crearRuntimeModos,
     repartirDuracionPartida,
     repartirDuracionPorModos,
+    normalizarPorcentaje,
     normalizarListaModosPartida
 };

@@ -23,6 +23,8 @@ test("control state persists panel parameters and clamps invalid values", () => 
     parametros: {
       duracion_minutos: 9999,
       duracion_segundos: 70,
+      porcentaje_tiempo_desventaja: 0,
+      reduccion_tertulia_porcentaje: 200,
       escala_espectador: 123
     },
     modos: ["stats", "tertulia", "frase final"],
@@ -33,6 +35,8 @@ test("control state persists panel parameters and clamps invalid values", () => 
   assert.deepEqual(estado.frases_finales, { 1: "cierre azul", 2: "cierre rojo" });
   assert.equal(estado.parametros.duracion_minutos, 360);
   assert.equal(estado.parametros.duracion_segundos, 59);
+  assert.equal(estado.parametros.porcentaje_tiempo_desventaja, 1);
+  assert.equal(estado.parametros.reduccion_tertulia_porcentaje, 95);
   assert.equal(estado.parametros.escala_espectador, 123);
   assert.deepEqual(estado.modos, ["tertulia", "frase final"]);
   assert.deepEqual(estado.nombres, { 1: "ANA", 2: "BEA" });
