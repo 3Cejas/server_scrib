@@ -475,6 +475,10 @@ function crearRuntimeScrib({
         emitirPuntuacionFinal,
         emitirNubeInspiracionEstado,
         emitirModoActual,
+        asegurarVistaPartidaEspectador: () => {
+            espectador.cambiarModo("partida");
+            emitirVistaEspectadorModo();
+        },
         limpiarDesventajasActivas: () => desventajasActivas.reset(),
         resetearCompeticion: () => competicionRondas.reset(),
         iniciarCompeticionRonda: (modo) => {

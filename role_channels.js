@@ -268,11 +268,12 @@ function registrarCanalesRoles({
         if (typeof callback === "function") callback(respuesta);
     });
 
-    socket.on("registrar_escritor", (escritxr) => {
+    socket.on("registrar_escritor", (escritxr, callback) => {
         protegerEntradaHumana("escritor");
         const registro = rolesConectados.registrarEscritor(socket, escritxr);
         if (!registro.ok) {
             console.warn(`[servidor] register_escritor: id invalido (${escritxr})`);
+            if (typeof callback === "function") callback({ ok: false, code: "INVALID_PLAYER" });
             return;
         }
         const id_jugador = registro.player;
@@ -307,6 +308,14 @@ function registrarCanalesRoles({
         });
         registrar(`[servidor] socket ${socket.id} registrado como escritor ${id_jugador}`);
         sincronizarSocketRecienConectado(socket);
+        if (typeof callback === "function") {
+            callback({
+                ok: true,
+                player: id_jugador,
+                client_id: clientIdActual,
+                active_socket_id: socket.id
+            });
+        }
     });
 
     socket.on("registrar_actor", (payload = {}) => {

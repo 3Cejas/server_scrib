@@ -147,3 +147,22 @@ test("writer channels ignores attributes from inactive writer sessions", () => {
     2: {}
   });
 });
+
+test("writer channels tells a stale connection when the same browser session can recover", () => {
+  const canales = crearCanalesEscritor({
+    sesionesEscritor: {
+      esActiva: () => false,
+      esMismoClienteActivo: () => true
+    }
+  });
+  const socket = crearSocket("reconnecting-blue");
+  canales.registrarHandlers(socket);
+
+  socket.trigger("texto1", { text: "texto azul pendiente" });
+
+  assert.deepEqual(socket.emitidos, [{
+    event: "escritor_sesion_inactiva",
+    payload: { player: 1, mismo_client_id: true }
+  }]);
+  assert.equal(canales.getTextoPlano(1), "");
+});

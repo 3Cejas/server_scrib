@@ -78,6 +78,16 @@ function crearCanalesEscritor({
         const id = validarJugador(player);
         if (!id) return false;
         if (!esSocketActivoParaJugador(socket, id)) {
+            if (socket && typeof socket.emit === "function") {
+                socket.emit("escritor_sesion_inactiva", {
+                    player: id,
+                    mismo_client_id: Boolean(
+                        sesionesEscritor
+                        && typeof sesionesEscritor.esMismoClienteActivo === "function"
+                        && sesionesEscritor.esMismoClienteActivo(socket, id)
+                    )
+                });
+            }
             return false;
         }
         const textoAnterior = estado.plano[id] || "";

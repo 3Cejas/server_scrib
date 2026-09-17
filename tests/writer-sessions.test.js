@@ -36,6 +36,8 @@ test("writer sessions remember tab client ids across reconnects", () => {
   assert.equal(segunda.previousSocketId, "old");
   assert.equal(segunda.previousClientId, "tab-a");
   assert.equal(segunda.clientId, "tab-a");
+  assert.equal(sesiones.esMismoClienteActivo(socketViejo, 1), true);
+  assert.equal(sesiones.esMismoClienteActivo({ ...socketViejo, escritxr_client_id: "tab-b" }, 1), false);
 });
 
 test("writer sessions isolate writers and ignore inactive disconnects", () => {

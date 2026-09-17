@@ -41,6 +41,7 @@ function crearHarness() {
   const modosActivados = [];
   const relojesIniciados = [];
   let nuevasSesionesMusas = 0;
+  let vistasPartidaAseguradas = 0;
   let inicioProgramado = null;
   const io = {
     emit(event, payload) {
@@ -125,6 +126,7 @@ function crearHarness() {
     emitirPuntuacionFinal: puntuacionFinal.emitir,
     emitirNubeInspiracionEstado: noOp,
     emitirModoActual: noOp,
+    asegurarVistaPartidaEspectador: () => { vistasPartidaAseguradas += 1; },
     iniciarRelojPartida: (segundos) => relojesIniciados.push(segundos),
     setPartidaPausada: noOp,
     registrarTimelineModo: noOp,
@@ -161,6 +163,7 @@ function crearHarness() {
     state,
     statsLive,
     getNuevasSesionesMusas: () => nuevasSesionesMusas,
+    getVistasPartidaAseguradas: () => vistasPartidaAseguradas,
     getInicioProgramado: () => inicioProgramado
   };
 }
@@ -169,6 +172,7 @@ test("Palabras benditas starts as the playable warm-up immediately after the cou
   const ctx = crearHarness();
 
   ctx.ciclo.iniciarPartida(ctx.socket, { count: "1:00", parametros: {} });
+  assert.equal(ctx.getVistasPartidaAseguradas(), 1);
 
   const cuentaAtras = ctx.getInicioProgramado();
   assert.equal(cuentaAtras.delay, DURACION_CUENTA_ATRAS_INICIO_MS);

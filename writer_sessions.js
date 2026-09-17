@@ -64,6 +64,13 @@ function crearRegistroSesionesEscritor(validarJugador = jugadorValidoPorDefecto)
             return id ? socketActivo[id] : null;
         },
 
+        esMismoClienteActivo(socket, jugador) {
+            const id = obtenerJugador(jugador);
+            if (!id || !socket) return false;
+            const clientId = String(socket.escritxr_client_id || "").trim();
+            return Boolean(clientId && clientActivo[id] && clientActivo[id] === clientId);
+        },
+
         snapshot() {
             return {
                 socketActivo: { ...socketActivo },
