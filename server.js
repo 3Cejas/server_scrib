@@ -10,6 +10,7 @@ const esProduccion = process.env.NODE_ENV === 'production';
 const DEPURACION_ACTIVA = process.env.DEBUG_SERVER === '1';
 const TEST_HOOKS_ENABLED = process.env.NODE_ENV === 'test' || process.env.SCRIB_TEST_HOOKS === '1';
 const puerto = process.env.PORT || 3000;
+const host = process.env.HOST || (esProduccion ? '127.0.0.1' : '0.0.0.0');
 const registrar = DEPURACION_ACTIVA ? console.log : () => {};
 
 function crearServidorHttp() {
@@ -45,4 +46,4 @@ const runtime = crearRuntimeScrib({
 });
 
 runtime.iniciar();
-servidor.listen(puerto, () => console.log(`Servidor escuchando en el puerto: ${puerto}`));
+servidor.listen(puerto, host, () => console.log(`Servidor escuchando en ${host}:${puerto}`));
