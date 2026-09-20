@@ -47,7 +47,7 @@ test("jury breakdown has an independent controlled step and supports the combine
 
   for (let index = 0; index < 20; index += 1) gestor.navegarJurado(1);
   assert.equal(gestor.getJuradoSlideStep(), JURY_RESULT_SLIDE_MAX);
-  assert.equal(gestor.payload().jurado_slide_step, 10);
+  assert.equal(gestor.payload().jurado_slide_step, JURY_RESULT_SLIDE_MAX);
 
   assert.equal(gestor.cambiarModo("resultado_final"), "resultado_final");
   assert.equal(gestor.resolverModo(), "resultado_final");

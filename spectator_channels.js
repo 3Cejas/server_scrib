@@ -155,11 +155,10 @@ function registrarCanalesEspectador({
                     2: { nombre: "ESCRITXR 2", total: 7.9 }
                 },
                 criterios: [
-                    ["writing", "idea", 9, 8], ["writing", "voz", 8, 9],
-                    ["writing", "estructura", 9, 7], ["writing", "riesgo", 8, 9],
-                    ["writing", "cierre", 9, 8], ["muses", "inspiracion", 8, 7],
-                    ["muses", "escucha", 9, 8], ["muses", "ritmo", 8, 7],
-                    ["muses", "cooperacion", 10, 8]
+                    ["scene", "interpretacion", 9, 8],
+                    ["scene", "puesta_escena", 8, 9],
+                    ["scene", "ritmo_dramatico", 9, 7],
+                    ["scene", "integracion_impacto", 9, 8]
                 ].map(([scope, id, valor1, valor2]) => ({
                     scope,
                     id,

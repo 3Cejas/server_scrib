@@ -402,11 +402,10 @@ test("Control reveals every Jury category and explicitly advances to the combine
       2: { nombre: "ROJO", total: 6 }
     },
     criterios: [
-      ["writing", "idea", 9, 6], ["writing", "voz", 8, 7],
-      ["writing", "estructura", 9, 6], ["writing", "riesgo", 8, 7],
-      ["writing", "cierre", 9, 6], ["muses", "inspiracion", 9, 5],
-      ["muses", "escucha", 8, 7], ["muses", "ritmo", 9, 6],
-      ["muses", "cooperacion", 10, 4]
+      ["scene", "interpretacion", 9, 6],
+      ["scene", "puesta_escena", 8, 7],
+      ["scene", "ritmo_dramatico", 9, 6],
+      ["scene", "integracion_impacto", 10, 4]
     ].map(([scope, id, value1, value2]) => ({ scope, id, valores: { 1: value1, 2: value2 } }))
   });
   ctx.socket.jurado = false;
@@ -415,7 +414,7 @@ test("Control reveals every Jury category and explicitly advances to the combine
   ctx.socket.emit("mostrar_resultado_jurado", {}, (response) => { shown = response; });
   assert.equal(shown.ok, true);
   assert.deepEqual(ctx.resultadoJurado.payload().revelacion.criterios[0].valores, { 1: 0, 2: 0 });
-  for (let index = 0; index < 9; index += 1) {
+  for (let index = 0; index < 4; index += 1) {
     ctx.socket.emit("jurado_resultado_siguiente", {});
     assert.equal(ctx.espectador.getJuradoSlideStep(), index + 1);
     let blocked = null;
@@ -433,7 +432,7 @@ test("Control reveals every Jury category and explicitly advances to the combine
     ctx.socket.control = true;
   }
   ctx.socket.emit("jurado_resultado_siguiente", {});
-  assert.equal(ctx.espectador.getJuradoSlideStep(), 10);
+  assert.equal(ctx.espectador.getJuradoSlideStep(), 5);
 
   assert.equal(ctx.espectador.resolverModo(), "resultado_jurado");
 
@@ -453,7 +452,7 @@ test("Control cannot show the combined winner before revealing the Jury verdict"
   ctx.socket.emit("jurado_resultado_actualizar", {
     disponible: true,
     jugadores: { 1: { nombre: "AZUL", total: 9 }, 2: { nombre: "ROJO", total: 6 } },
-    criterios: [["writing", "idea", 9, 6]].map(([scope, id, value1, value2]) => ({
+    criterios: [["scene", "interpretacion", 9, 6]].map(([scope, id, value1, value2]) => ({
       scope,
       id,
       valores: { 1: value1, 2: value2 }

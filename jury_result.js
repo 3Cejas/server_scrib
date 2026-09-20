@@ -1,14 +1,9 @@
-const JURY_RESULT_SCHEMA_VERSION = 2;
+const JURY_RESULT_SCHEMA_VERSION = 3;
 const JURY_RESULT_CRITERIA = Object.freeze([
-    { id: "idea", scope: "writing", label: "Idea y mundo" },
-    { id: "voz", scope: "writing", label: "Voz" },
-    { id: "estructura", scope: "writing", label: "Estructura" },
-    { id: "riesgo", scope: "writing", label: "Riesgo" },
-    { id: "cierre", scope: "writing", label: "Cierre" },
-    { id: "inspiracion", scope: "muses", label: "Inspiración útil" },
-    { id: "escucha", scope: "muses", label: "Escucha" },
-    { id: "ritmo", scope: "muses", label: "Ritmo" },
-    { id: "cooperacion", scope: "muses", label: "Cooperación" }
+    { id: "interpretacion", scope: "scene", label: "Interpretación y presencia escénica" },
+    { id: "puesta_escena", scope: "scene", label: "Puesta en escena y uso del espacio" },
+    { id: "ritmo_dramatico", scope: "scene", label: "Ritmo y progresión dramática" },
+    { id: "integracion_impacto", scope: "scene", label: "Integración del texto e impacto final" }
 ]);
 const JURY_RESULT_SLIDE_MAX = JURY_RESULT_CRITERIA.length + 1;
 
@@ -97,7 +92,7 @@ function normalizeJuryResult(payload = {}, now = Date.now()) {
 
 const cloneRevealCriterion = (criterion = {}) => ({
     id: String(criterion.id || ""),
-    scope: String(criterion.scope || "writing"),
+    scope: String(criterion.scope || "scene"),
     label: String(criterion.label || ""),
     referencias: {
         1: cleanScore(criterion.referencias?.[1] ?? criterion.referencias?.["1"]),
