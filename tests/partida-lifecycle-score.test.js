@@ -40,6 +40,8 @@ function crearHarness() {
   const ordenPreShow = [];
   const modosActivados = [];
   const relojesIniciados = [];
+  const registrosIteracionesIniciados = [];
+  const registrosIteracionesFinalizados = [];
   let nuevasSesionesMusas = 0;
   let vistasPartidaAseguradas = 0;
   let inicioProgramado = null;
@@ -141,6 +143,8 @@ function crearHarness() {
       session_id: `partida_test_${++nuevasSesionesMusas}`,
       revision: nuevasSesionesMusas
     }),
+    iniciarRegistroIteraciones: (datos) => registrosIteracionesIniciados.push(datos),
+    finalizarRegistroIteraciones: (motivo) => registrosIteracionesFinalizados.push(motivo),
     preShowMusas: preShow,
     videoTutorialPreShow: videoPreShow
   });
@@ -164,7 +168,9 @@ function crearHarness() {
     statsLive,
     getNuevasSesionesMusas: () => nuevasSesionesMusas,
     getVistasPartidaAseguradas: () => vistasPartidaAseguradas,
-    getInicioProgramado: () => inicioProgramado
+    getInicioProgramado: () => inicioProgramado,
+    registrosIteracionesIniciados,
+    registrosIteracionesFinalizados
   };
 }
 
@@ -281,6 +287,18 @@ test("the authoritative match finish closes both writers at the same time", () =
       { player: 2, partida_finalizada: true, origen: "reloj_partida" }
     ]
   );
+});
+
+test("the iteration recorder follows the authoritative match lifecycle", () => {
+  const ctx = crearHarness();
+  const parametros = { duracion: 90, tertulia: 20 };
+
+  ctx.ciclo.iniciarPartida(ctx.socket, { count: "1:30", parametros, borrar_texto: true });
+  assert.deepEqual(ctx.registrosIteracionesIniciados, [{ parametros, borrar_texto: true }]);
+  assert.deepEqual(ctx.registrosIteracionesFinalizados, []);
+
+  ctx.ciclo.finalizarPartida(ctx.socket);
+  assert.deepEqual(ctx.registrosIteracionesFinalizados, ["fin_partida"]);
 });
 
 test("only control or the internal simulator can open or close pre-show through lifecycle events", () => {

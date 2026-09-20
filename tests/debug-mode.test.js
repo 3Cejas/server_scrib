@@ -4,11 +4,12 @@ const { EventEmitter } = require("node:events");
 
 const { crearGestorModoDebug } = require("../debug_mode.js");
 
-function crearContexto() {
+function crearContexto({ exportacion = null } = {}) {
   const emissions = [];
   const roomEmissions = [];
   const injections = [];
   let clears = 0;
+  let exportRequests = 0;
   const io = {
     emit(event, payload) {
       emissions.push({ event, payload });
@@ -34,11 +35,23 @@ function crearContexto() {
   const manager = crearGestorModoDebug({
     io,
     now: () => 1234,
-    getCalentamientoGestor: () => warmup
+    getCalentamientoGestor: () => warmup,
+    getIteracionesPartida: () => {
+      exportRequests += 1;
+      return exportacion;
+    }
   });
   const socket = new EventEmitter();
   manager.registrarHandlers(socket);
-  return { emissions, getClears: () => clears, injections, manager, roomEmissions, socket };
+  return {
+    emissions,
+    getClears: () => clears,
+    getExportRequests: () => exportRequests,
+    injections,
+    manager,
+    roomEmissions,
+    socket
+  };
 }
 
 test("Debug mode starts disabled and is only mutable by Control", () => {
@@ -129,4 +142,44 @@ test("turning Debug off clears test detonators from every screen", () => {
     payload: { ts: 1234, ok: true, eliminadas: 7 }
   }]);
   assert.equal(ctx.getClears(), 1);
+});
+
+test("iteration export is lazy and restricted to Control with active Debug mode", () => {
+  const exportacion = {
+    tipo: "scrib_iteraciones_partida",
+    resumen: { iteraciones: 42 },
+    iteraciones: []
+  };
+  const ctx = crearContexto({ exportacion });
+  assert.equal(ctx.getExportRequests(), 0);
+
+  let unauthorized = null;
+  ctx.socket.emit("debug_exportar_iteraciones_partida", {}, (result) => { unauthorized = result; });
+  assert.deepEqual(unauthorized, { ok: false, code: "NOT_AUTHORIZED" });
+  assert.equal(ctx.getExportRequests(), 0);
+
+  ctx.socket.control = true;
+  let disabled = null;
+  ctx.socket.emit("debug_exportar_iteraciones_partida", {}, (result) => { disabled = result; });
+  assert.deepEqual(disabled, { ok: false, code: "DEBUG_MODE_REQUIRED" });
+  assert.equal(ctx.getExportRequests(), 0);
+
+  ctx.manager.establecer(true);
+  let response = null;
+  ctx.socket.emit("debug_exportar_iteraciones_partida", {}, (result) => { response = result; });
+  assert.equal(response.ok, true);
+  assert.equal(response.exportacion, exportacion);
+  assert.deepEqual(response.resumen, { iteraciones: 42 });
+  assert.equal(ctx.getExportRequests(), 1);
+});
+
+test("iteration export reports when no match has been recorded", () => {
+  const ctx = crearContexto();
+  ctx.socket.control = true;
+  ctx.manager.establecer(true);
+  let response = null;
+
+  ctx.socket.emit("debug_exportar_iteraciones_partida", {}, (result) => { response = result; });
+
+  assert.deepEqual(response, { ok: false, code: "NO_MATCH_ITERATIONS" });
 });

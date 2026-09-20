@@ -1,6 +1,11 @@
 const { ROLE_ROOMS } = require("./role_connections.js");
 
-function crearGestorModoDebug({ io, now = () => Date.now(), getCalentamientoGestor = () => null } = {}) {
+function crearGestorModoDebug({
+    io,
+    now = () => Date.now(),
+    getCalentamientoGestor = () => null,
+    getIteracionesPartida = () => null
+} = {}) {
     let activo = false;
     let revision = 0;
 
@@ -110,6 +115,36 @@ function crearGestorModoDebug({ io, now = () => Date.now(), getCalentamientoGest
             Object.assign(estado, limpiarDetonadoresReales());
             if (io && typeof io.emit === "function") io.emit("debug_detonadores_detener", estado);
             if (typeof responder === "function") responder({ ok: true, ...estado });
+        });
+
+        socket.on("debug_exportar_iteraciones_partida", (entrada = {}, callback = null) => {
+            const responder = typeof entrada === "function" ? entrada : callback;
+            if (!socket.control) {
+                if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+                return;
+            }
+            if (!activo) {
+                if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+                return;
+            }
+            try {
+                const exportacion = typeof getIteracionesPartida === "function"
+                    ? getIteracionesPartida()
+                    : null;
+                if (!exportacion) {
+                    if (typeof responder === "function") responder({ ok: false, code: "NO_MATCH_ITERATIONS" });
+                    return;
+                }
+                if (typeof responder === "function") {
+                    responder({
+                        ok: true,
+                        exportacion,
+                        resumen: exportacion.resumen || {}
+                    });
+                }
+            } catch (_error) {
+                if (typeof responder === "function") responder({ ok: false, code: "ITERATION_EXPORT_FAILED" });
+            }
         });
     };
 

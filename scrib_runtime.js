@@ -37,6 +37,7 @@ const { crearCompeticionRondas } = require('./round_competition.js');
 const { crearRelojPartida } = require('./match_clock.js');
 const { crearGestorModoDebug } = require('./debug_mode.js');
 const { crearGestorMarcasTecnico } = require('./technician_marks.js');
+const { crearRegistroIteracionesPartida } = require('./match_iterations.js');
 
 function crearRuntimeScrib({
     io,
@@ -52,6 +53,7 @@ function crearRuntimeScrib({
     let calentamientoGestor;
     let calentamiento;
     let dramaturgiaState;
+    let registroIteracionesPartida;
     let simuladorPartidas;
     let preShowMusas;
     let ayudaMusas;
@@ -65,7 +67,20 @@ function crearRuntimeScrib({
     const controlState = crearGestorEstadoControl({ io });
     const modoDebug = crearGestorModoDebug({
         io,
-        getCalentamientoGestor: () => calentamientoGestor
+        getCalentamientoGestor: () => calentamientoGestor,
+        getIteracionesPartida: () => {
+            if (!registroIteracionesPartida) return null;
+            const diario = dramaturgiaState
+                ? dramaturgiaState.snapshot()
+                : { eventos: [] };
+            return registroIteracionesPartida.construirExportacion({
+                eventos: diario.eventos,
+                resumen: {
+                    stats: payloadStatsLive(),
+                    puntuacion_final: payloadPuntuacionFinal()
+                }
+            });
+        }
     });
     const marcasTecnico = crearGestorMarcasTecnico({
         io,
@@ -248,15 +263,24 @@ function crearRuntimeScrib({
         }
     });
 
+    registroIteracionesPartida = crearRegistroIteracionesPartida({
+        getTextos: () => writerChannels ? writerChannels.snapshotTextos() : { 1: {}, 2: {} },
+        getNombres: () => writerChannels ? {
+            1: writerChannels.getNombre(1),
+            2: writerChannels.getNombre(2)
+        } : { 1: "", 2: "" }
+    });
+
     writerChannels = crearCanalesEscritor({
         io,
         validarJugador: obtenerIdJugadorValido,
         sesionesEscritor,
         extraerTextoPlano,
         actualizarTextoJugador: (player, texto) => getModoMalditas().actualizarTextoJugador(player, texto),
-        onTextoActualizado: (player, anterior, actual) => (
-            competicionRondas.registrarCambioTexto(player, anterior, actual)
-        ),
+        onTextoActualizado: (player, anterior, actual) => {
+            competicionRondas.registrarCambioTexto(player, anterior, actual);
+            registroIteracionesPartida.registrarCambio(player, anterior, actual);
+        },
         onNombreCambiado: () => emitirNubeInspiracionEstado(null, true),
         syncMode: (socket) => sincro_modos(socket),
         logger: registrar
@@ -535,6 +559,11 @@ function crearRuntimeScrib({
         reiniciarMusasCreditosPartida: () => rolesConectados.reiniciarMusasCreditosPartidaDesdeActivas(),
         limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
         iniciarNuevaSesionMusas,
+        iniciarRegistroIteraciones: (datos) => registroIteracionesPartida.iniciar(datos),
+        finalizarRegistroIteraciones: (motivo) => registroIteracionesPartida.finalizar(motivo, {
+            stats: payloadStatsLive(),
+            puntuacion_final: payloadPuntuacionFinal()
+        }),
         preShowMusas,
         videoTutorialPreShow,
         registrar
@@ -637,6 +666,7 @@ function crearRuntimeScrib({
         sincronizarSocketRecienConectado,
         emitirEstadoDramaturgia,
         dramaturgiaState,
+        registroIteracionesPartida,
         simuladorPartidas,
         registrar,
         teleprompter,

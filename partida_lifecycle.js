@@ -38,6 +38,8 @@ function crearCicloPartida({
     reiniciarMusasCreditosPartida = () => {},
     limpiarMusasCreditosPartida = () => {},
     iniciarNuevaSesionMusas = () => ({ ok: true }),
+    iniciarRegistroIteraciones = () => {},
+    finalizarRegistroIteraciones = () => {},
     preShowMusas = null,
     videoTutorialPreShow = null,
     registrar = () => {}
@@ -156,6 +158,7 @@ function crearCicloPartida({
         } else if (opciones.resetearPuntuacion === true) {
             resetearPuntuacionFinal();
         }
+        finalizarRegistroIteraciones("fin_partida");
         state.finJ1 = false;
         state.finJ2 = false;
         state.transicionModoEnCurso = false;
@@ -181,6 +184,7 @@ function crearCicloPartida({
         cerrarPreShow("fin_partida");
         detenerCalentamientoPrevio();
         prepararCapturaPuntuacionFinal();
+        finalizarRegistroIteraciones("fin_partida");
         state.finJ1 = true;
         state.finJ2 = true;
         state.transicionModoEnCurso = false;
@@ -225,6 +229,10 @@ function crearCicloPartida({
         musasAuxiliares.resetRegalos({ emitir: true });
         reiniciarMusasCreditosPartida();
         prepararParametrosInicio(parametros);
+        iniciarRegistroIteraciones({
+            parametros,
+            borrar_texto: datos.borrar_texto
+        });
 
         state.modosPendientes = [...state.listaModos];
         partidaSync.resetTiempoSeq();
@@ -279,6 +287,7 @@ function crearCicloPartida({
         activarSocketsExtratextuales(socket);
         limpiarTimersPalabras();
         limpiarTimersRonda();
+        finalizarRegistroIteraciones("limpiar_partida");
         resetearEstadoAuxiliarParaTests();
         resetearPuntuacionFinal();
         limpiarDesventajasActivas();
