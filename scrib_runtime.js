@@ -63,7 +63,10 @@ function crearRuntimeScrib({
 
     const accesoRoles = crearGestorAccesoRoles({ passwordRoles });
     const controlState = crearGestorEstadoControl({ io });
-    const modoDebug = crearGestorModoDebug({ io });
+    const modoDebug = crearGestorModoDebug({
+        io,
+        getCalentamientoGestor: () => calentamientoGestor
+    });
     const marcasTecnico = crearGestorMarcasTecnico({
         io,
         validarJugador: obtenerIdJugadorValido,

@@ -18,6 +18,11 @@ const TIPOS_SOLICITUD_CALENTAMIENTO = new Set([
     SOLICITUD_CALENTAMIENTO_SIN_ACTIVA,
     ...ORDEN_SOLICITUD_CALENTAMIENTO
 ]);
+const PALABRAS_DEBUG_CALENTAMIENTO = Object.freeze([
+    "VOLCAN", "SECRETO", "TORMENTA", "LABERINTO", "SALTO", "RUIDO",
+    "FUEGO", "SUEÑO", "GIRO", "DESTELLO", "BRUJULA", "ECLIPSE",
+    "VIAJE", "SOMBRA", "RISA", "PUERTA", "RAYO", "MISTERIO"
+]);
 
 const crearEstadoCalentamiento = (aciertos = 0) => ({
     semillas: { 1: null, 2: null },
@@ -629,6 +634,81 @@ function crearGestorCalentamiento({
         return emitirEstado();
     };
 
+    const inyectarDetonadoresDebug = (payload = {}) => {
+        const cantidad = Math.min(8, Math.max(1, Math.round(Number(payload.cantidad) || 3)));
+        const secuencia = Math.max(0, Math.round(Number(payload.seq) || 0));
+        let vistaActivada = false;
+        if (!estado.activo) {
+            estado.activo = true;
+            onTutorialIniciado();
+        }
+        if (!estado.vista) {
+            estado.vista = true;
+            vistaActivada = true;
+            io.emit("calentamiento_vista", { activo: true });
+            onVistaCambiada();
+        }
+        if (!esSolicitudActiva()) {
+            estado.solicitud = "lugares";
+        }
+
+        const agregadas = [];
+        for (let indice = 0; indice < cantidad; indice += 1) {
+            const equipo = ((secuencia + indice) % 2) + 1;
+            const data = estado.equipos[equipo];
+            if (data && data.bloqueado) {
+                data.bloqueado = false;
+                data.final = null;
+            }
+            const palabra = PALABRAS_DEBUG_CALENTAMIENTO[
+                (secuencia * cantidad + indice) % PALABRAS_DEBUG_CALENTAMIENTO.length
+            ];
+            const resultado = agregarPalabra(
+                equipo,
+                `debug-musa-${equipo}-${secuencia}-${indice}`,
+                palabra,
+                equipo === 1 ? `MUSA AZUL ${indice + 1}` : `MUSA ROJA ${indice + 1}`
+            );
+            if (resultado.ok) agregadas.push(resultado.registro);
+        }
+        emitirEstado();
+        return {
+            ok: true,
+            agregadas: agregadas.length,
+            solicitud: estado.solicitud,
+            vista: estado.vista,
+            vista_activada: vistaActivada
+        };
+    };
+
+    const limpiarDetonadoresDebug = () => {
+        let eliminadas = 0;
+        [1, 2].forEach((equipo) => {
+            const data = estado.equipos[equipo];
+            if (!data || !Array.isArray(data.palabras)) return;
+            const idsEliminados = new Set(data.palabras
+                .filter((entrada) => (
+                    entrada
+                    && typeof entrada.socketId === "string"
+                    && entrada.socketId.startsWith("debug-musa-")
+                ))
+                .map((entrada) => entrada.id));
+            const anteriores = data.palabras.length;
+            data.palabras = data.palabras.filter((entrada) => (
+                !entrada || typeof entrada.socketId !== "string" || !entrada.socketId.startsWith("debug-musa-")
+            ));
+            const eliminadasEquipo = anteriores - data.palabras.length;
+            eliminadas += eliminadasEquipo;
+            data.intentos = Math.max(0, (Number(data.intentos) || 0) - eliminadasEquipo);
+            if (data.ultimo_intento && idsEliminados.has(data.ultimo_intento.id)) {
+                data.ultimo_intento = null;
+            }
+            revisarAsignacionesEquipo(equipo);
+        });
+        if (eliminadas > 0) emitirEstado();
+        return { ok: true, eliminadas };
+    };
+
     const forzarEstado = (payload = {}) => {
         const activo = typeof payload.activo === "boolean" ? payload.activo : true;
         const vista = typeof payload.vista === "boolean" ? payload.vista : activo;
@@ -818,6 +898,8 @@ function crearGestorCalentamiento({
         forzarEstado,
         iniciar,
         iniciarIntervaloPurga,
+        inyectarDetonadoresDebug,
+        limpiarDetonadoresDebug,
         normalizarSolicitud: normalizarSolicitudCalentamiento,
         payloadEstado,
         registrarHandlers,

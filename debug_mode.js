@@ -1,6 +1,6 @@
 const { ROLE_ROOMS } = require("./role_connections.js");
 
-function crearGestorModoDebug({ io, now = () => Date.now() } = {}) {
+function crearGestorModoDebug({ io, now = () => Date.now(), getCalentamientoGestor = () => null } = {}) {
     let activo = false;
     let revision = 0;
 
@@ -9,6 +9,18 @@ function crearGestorModoDebug({ io, now = () => Date.now() } = {}) {
         revision,
         ts: now()
     });
+
+    const obtenerCalentamiento = () => (
+        typeof getCalentamientoGestor === "function" ? getCalentamientoGestor() : null
+    );
+
+    const limpiarDetonadoresReales = () => {
+        const calentamiento = obtenerCalentamiento();
+        if (!calentamiento || typeof calentamiento.limpiarDetonadoresDebug !== "function") {
+            return { ok: true, eliminadas: 0 };
+        }
+        return calentamiento.limpiarDetonadoresDebug() || { ok: true, eliminadas: 0 };
+    };
 
     const emitir = (destino = null) => {
         const estado = payload();
@@ -30,7 +42,7 @@ function crearGestorModoDebug({ io, now = () => Date.now() } = {}) {
             activo = siguiente;
             revision += 1;
             if (!activo && io && typeof io.emit === "function") {
-                io.emit("debug_detonadores_detener", { ts: now() });
+                io.emit("debug_detonadores_detener", { ts: now(), ...limpiarDetonadoresReales() });
             }
         }
         return emitir();
@@ -75,8 +87,13 @@ function crearGestorModoDebug({ io, now = () => Date.now() } = {}) {
                 velocidad: Math.min(10, Math.max(1, Number(datos.velocidad) || 5)),
                 ts: now()
             };
-            if (io && typeof io.emit === "function") io.emit("debug_detonadores_visual", visual);
-            if (typeof responder === "function") responder({ ok: true, ...visual });
+            const calentamiento = obtenerCalentamiento();
+            if (!calentamiento || typeof calentamiento.inyectarDetonadoresDebug !== "function") {
+                if (typeof responder === "function") responder({ ok: false, code: "WARMUP_UNAVAILABLE" });
+                return;
+            }
+            const resultado = calentamiento.inyectarDetonadoresDebug(visual);
+            if (typeof responder === "function") responder({ ...visual, ...(resultado || {}), ok: true });
         });
 
         socket.on("debug_detonadores_detener", (entrada = {}, callback = null) => {
@@ -90,6 +107,7 @@ function crearGestorModoDebug({ io, now = () => Date.now() } = {}) {
                 return;
             }
             const estado = { ts: now() };
+            Object.assign(estado, limpiarDetonadoresReales());
             if (io && typeof io.emit === "function") io.emit("debug_detonadores_detener", estado);
             if (typeof responder === "function") responder({ ok: true, ...estado });
         });

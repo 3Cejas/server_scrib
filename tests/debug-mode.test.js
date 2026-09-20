@@ -7,6 +7,8 @@ const { crearGestorModoDebug } = require("../debug_mode.js");
 function crearContexto() {
   const emissions = [];
   const roomEmissions = [];
+  const injections = [];
+  let clears = 0;
   const io = {
     emit(event, payload) {
       emissions.push({ event, payload });
@@ -19,10 +21,24 @@ function crearContexto() {
       };
     }
   };
-  const manager = crearGestorModoDebug({ io, now: () => 1234 });
+  const warmup = {
+    inyectarDetonadoresDebug(payload) {
+      injections.push(payload);
+      return { ok: true, agregadas: payload.cantidad, solicitud: "lugares", vista: true };
+    },
+    limpiarDetonadoresDebug() {
+      clears += 1;
+      return { ok: true, eliminadas: 7 };
+    }
+  };
+  const manager = crearGestorModoDebug({
+    io,
+    now: () => 1234,
+    getCalentamientoGestor: () => warmup
+  });
   const socket = new EventEmitter();
   manager.registrarHandlers(socket);
-  return { emissions, manager, roomEmissions, socket };
+  return { emissions, getClears: () => clears, injections, manager, roomEmissions, socket };
 }
 
 test("Debug mode starts disabled and is only mutable by Control", () => {
@@ -74,7 +90,7 @@ test("detonator tests require Control and active Debug mode", () => {
   assert.deepEqual(disabled, { ok: false, code: "DEBUG_MODE_REQUIRED" });
 });
 
-test("active Debug mode relays normalized detonator tests to every role", () => {
+test("active Debug mode injects normalized detonators through the real Muse flow", () => {
   const ctx = crearContexto();
   ctx.socket.control = true;
   ctx.manager.establecer(true);
@@ -92,12 +108,13 @@ test("active Debug mode relays normalized detonator tests to every role", () => 
     seq: 4,
     cantidad: 8,
     velocidad: 5,
-    ts: 1234
+    ts: 1234,
+    agregadas: 8,
+    solicitud: "lugares",
+    vista: true
   });
-  assert.deepEqual(ctx.emissions, [{
-    event: "debug_detonadores_visual",
-    payload: { seq: 4, cantidad: 8, velocidad: 5, ts: 1234 }
-  }]);
+  assert.deepEqual(ctx.injections, [{ seq: 4, cantidad: 8, velocidad: 5, ts: 1234 }]);
+  assert.deepEqual(ctx.emissions, []);
 });
 
 test("turning Debug off clears test detonators from every screen", () => {
@@ -109,6 +126,7 @@ test("turning Debug off clears test detonators from every screen", () => {
 
   assert.deepEqual(ctx.emissions, [{
     event: "debug_detonadores_detener",
-    payload: { ts: 1234 }
+    payload: { ts: 1234, ok: true, eliminadas: 7 }
   }]);
+  assert.equal(ctx.getClears(), 1);
 });
