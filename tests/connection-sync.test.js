@@ -82,6 +82,14 @@ function crearSincronizador({ modo = "", llamadas = [], restaurar = null, conteo
         posicion_segundos: 12.5
       });
     },
+    emitirEstadoCantoShow(socket) {
+      socket.emit("canto_estado", {
+        activo: true,
+        session_id: "canto-session-test",
+        secuencia: 2,
+        posicion_segundos: 6.5
+      });
+    },
     emitirEstadoCalentamientoPrevio(socket) {
       socket.emit("calentamiento_previo_estado", {
         activo: calentamientoActivo,
@@ -200,6 +208,10 @@ test("ordinary roles do not receive the dramaturgy snapshot", () => {
     socket.eventos.some(({ event }) => event === "narracion_show_estado"),
     true
   );
+  assert.equal(
+    socket.eventos.some(({ event }) => event === "canto_estado"),
+    true
+  );
 });
 
 test("muse role sync receives the authoritative video sequence after registration", () => {
@@ -223,6 +235,13 @@ test("muse role sync receives the authoritative video sequence after registratio
     session_id: "show-session-test",
     secuencia: 3,
     posicion_segundos: 12.5
+  });
+  const canto = socket.eventos.find(({ event }) => event === "canto_estado");
+  assert.deepEqual(canto.payload, {
+    activo: true,
+    session_id: "canto-session-test",
+    secuencia: 2,
+    posicion_segundos: 6.5
   });
 });
 

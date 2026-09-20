@@ -20,6 +20,7 @@ const MONITOR_EVENTOS_LECTURA = new Set([
     "pedir_vista_espectador_modo",
     "pedir_video_tutorial_estado",
     "pedir_narracion_show_estado",
+    "pedir_canto_estado",
     "registrar_monitor_pantalla",
     "validar_password_roles"
 ]);

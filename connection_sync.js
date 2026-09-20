@@ -22,6 +22,7 @@ function crearSincronizadorConexion({
     emitirEstadoPreShow = null,
     emitirEstadoVideoTutorial = null,
     emitirEstadoNarracionShow = null,
+    emitirEstadoCantoShow = null,
     emitirEstadoCalentamientoPrevio = null,
     sincronizarAyudaMusas = null,
     emitirEstadoAyudaControl = null
@@ -76,6 +77,9 @@ function crearSincronizadorConexion({
         }
         if (typeof emitirEstadoNarracionShow === 'function') {
             emitirEstadoNarracionShow(socket);
+        }
+        if (typeof emitirEstadoCantoShow === 'function') {
+            emitirEstadoCantoShow(socket);
         }
         if (typeof sincronizarAyudaMusas === 'function') {
             sincronizarAyudaMusas(socket);
@@ -135,6 +139,9 @@ function crearSincronizadorConexion({
         }
         if (typeof emitirEstadoNarracionShow === 'function') {
             emitirEstadoNarracionShow(socket);
+        }
+        if (typeof emitirEstadoCantoShow === 'function') {
+            emitirEstadoCantoShow(socket);
         }
         if (socket.control && typeof emitirEstadoAyudaControl === 'function') {
             emitirEstadoAyudaControl(socket);

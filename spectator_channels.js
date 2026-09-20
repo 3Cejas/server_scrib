@@ -27,6 +27,7 @@ function registrarCanalesEspectador({
     resolverModoVistaEspectador,
     preShowMusas = null,
     detenerExperienciasTutorial = () => {},
+    detenerCanto = () => {},
     isDebugMode = () => false
 }) {
     const resolverCallback = (payload, callback) => (
@@ -180,6 +181,7 @@ function registrarCanalesEspectador({
                 modoAnterior,
                 modoSiguiente
             });
+            if (modoSiguiente !== "partida") detenerCanto();
         }
         return modoSiguiente;
     };

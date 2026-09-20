@@ -148,6 +148,7 @@ function registrarConexionScrib(socket, deps) {
         preShowMusas,
         videoTutorialPreShow,
         narracionShow,
+        cantoShow,
         marcasTecnico
     } = deps;
 
@@ -168,6 +169,9 @@ function registrarConexionScrib(socket, deps) {
     }
     if (narracionShow && typeof narracionShow.registrarHandlers === "function") {
         narracionShow.registrarHandlers(socket);
+    }
+    if (cantoShow && typeof cantoShow.registrarHandlers === "function") {
+        cantoShow.registrarHandlers(socket);
     }
     if (ayudaMusas && typeof ayudaMusas.registrarHandlers === "function") {
         ayudaMusas.registrarHandlers(socket);
@@ -224,6 +228,7 @@ function registrarConexionScrib(socket, deps) {
             narracionShow,
             ...cambio
         }),
+        detenerCanto: () => cantoShow && cantoShow.desactivar(),
         isDebugMode: () => Boolean(modoDebug && modoDebug.isActive())
     });
     bolzanoCalentamientoGestor.registrarHandlers(socket);

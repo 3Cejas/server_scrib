@@ -16,6 +16,7 @@ const {
     crearGestorNarracionShow,
     restaurarPreShowTrasNarracion
 } = require('./show_narration.js');
+const { crearGestorCantoShow } = require('./canto_show.js');
 const { crearGestorSincronizacionPartida } = require('./partida_sync.js');
 const {
     crearGestorIdioma,
@@ -56,6 +57,7 @@ function crearRuntimeScrib({
     let ayudaMusas;
     let videoTutorialPreShow;
     let narracionShow;
+    let cantoShow;
     let deps;
     let partidaPausada = false;
 
@@ -225,11 +227,15 @@ function crearRuntimeScrib({
         logger: registrar,
         onReproducir: () => {
             if (narracionShow) narracionShow.detener();
+            if (cantoShow) cantoShow.desactivar();
         }
     });
     narracionShow = crearGestorNarracionShow({
         io,
-        onStart: () => videoTutorialPreShow.suspenderTemporalmente(),
+        onStart: () => {
+            if (cantoShow) cantoShow.desactivar();
+            videoTutorialPreShow.suspenderTemporalmente();
+        },
         onStop: () => {
             videoTutorialPreShow.reanudarTemporalmente();
             restaurarPreShowTrasNarracion({
@@ -286,6 +292,36 @@ function crearRuntimeScrib({
         statsLive,
         temporizadorShow
     } = gestoresVistaEstado;
+
+    cantoShow = crearGestorCantoShow({
+        io,
+        onActivate: () => {
+            if (narracionShow) narracionShow.detener();
+            const estadoVideo = videoTutorialPreShow && typeof videoTutorialPreShow.payload === 'function'
+                ? videoTutorialPreShow.payload()
+                : null;
+            if (
+                estadoVideo
+                && estadoVideo.configuracion
+                && estadoVideo.configuracion.habilitado
+                && typeof videoTutorialPreShow.desactivarRepeticion === 'function'
+            ) {
+                videoTutorialPreShow.desactivarRepeticion();
+            }
+            if (
+                estadoVideo
+                && estadoVideo.reproduciendo
+                && typeof videoTutorialPreShow.detener === 'function'
+            ) {
+                videoTutorialPreShow.detener({
+                    session_id: estadoVideo.session_id,
+                    phase_seq: estadoVideo.phase_seq
+                });
+            }
+            espectador.cambiarModo('partida');
+            emitirVistaEspectadorModo();
+        }
+    });
 
     const payloadEstadoCalentamiento = () => calentamientoGestor.payloadEstado();
     const emitirEstadoCalentamiento = () => calentamientoGestor.emitirEstado();
@@ -362,6 +398,7 @@ function crearRuntimeScrib({
         espectador.reset();
         creditosShow.reset();
         resultadoJurado.reset();
+        cantoShow.reset();
         temporizadorShow.reset();
         rolesConectados.limpiarMusasCreditosPartida();
         resetearTimelineModosTest();
@@ -548,6 +585,7 @@ function crearRuntimeScrib({
         emitirEstadoPreShow: (socketDestino) => preShowMusas.emitirEstado(socketDestino),
         emitirEstadoVideoTutorial: (socketDestino) => videoTutorialPreShow.emitirEstado(socketDestino),
         emitirEstadoNarracionShow: (socketDestino) => narracionShow.emitirEstado(socketDestino),
+        emitirEstadoCantoShow: (socketDestino) => cantoShow.emitirEstado(socketDestino),
         emitirEstadoCalentamientoPrevio: (socketDestino) => partidaLifecycle.emitirEstadoCalentamientoPrevio(socketDestino),
         sincronizarAyudaMusas: (socketDestino) => ayudaMusas.sincronizarMusa(socketDestino),
         emitirEstadoAyudaControl: (socketDestino) => ayudaMusas.emitirEstadoControl(socketDestino)
@@ -655,6 +693,7 @@ function crearRuntimeScrib({
         preShowMusas,
         videoTutorialPreShow,
         narracionShow,
+        cantoShow,
         marcasTecnico
     };
 
@@ -682,6 +721,7 @@ function crearRuntimeScrib({
         dramaturgiaState,
         simuladorPartidas,
         narracionShow,
+        cantoShow,
         videoTutorialPreShow,
         iniciar,
         registrarConexion,
