@@ -1,9 +1,9 @@
-const JURY_RESULT_SCHEMA_VERSION = 3;
+const JURY_RESULT_SCHEMA_VERSION = 4;
 const JURY_RESULT_CRITERIA = Object.freeze([
-    { id: "interpretacion", scope: "scene", label: "Interpretación y presencia escénica" },
-    { id: "puesta_escena", scope: "scene", label: "Puesta en escena y uso del espacio" },
-    { id: "ritmo_dramatico", scope: "scene", label: "Ritmo y progresión dramática" },
-    { id: "integracion_impacto", scope: "scene", label: "Integración del texto e impacto final" }
+    { id: "interpretacion", scope: "scene", label: "Interpretación" },
+    { id: "puesta_escena", scope: "scene", label: "Puesta en escena" },
+    { id: "ritmo_dramatico", scope: "scene", label: "Ritmo" },
+    { id: "integracion_impacto", scope: "scene", label: "Integración del texto" }
 ]);
 const JURY_RESULT_SLIDE_MAX = JURY_RESULT_CRITERIA.length + 1;
 

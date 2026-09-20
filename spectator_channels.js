@@ -105,34 +105,35 @@ function registrarCanalesEspectador({
         }
         return resultado;
     };
-    const cargarDatosPruebaDeliberacion = () => {
-        const stats = {
-            modo_actual: "frase final",
-            players: {
-                1: {
-                    nombre: "ESCRITXR 1",
-                    palabrasTotal: 214,
-                    palabrasUnicas: 137,
-                    ritmoPpm: 68,
-                    palabrasBenditas: ["volcán", "brújula", "noche", "latido", "espejo", "puente", "ceniza"],
-                    valorInspiracion: 7,
-                    intentosLetraProhibida: 2,
-                    intentosPalabraProhibida: 1,
-                    pulsacionesTotal: 1180
-                },
-                2: {
-                    nombre: "ESCRITXR 2",
-                    palabrasTotal: 196,
-                    palabrasUnicas: 151,
-                    ritmoPpm: 74,
-                    palabrasBenditas: ["aurora", "bosque", "eco", "lluvia", "humo", "faro", "marea", "cristal", "viaje", "secreto"],
-                    valorInspiracion: 10,
-                    intentosLetraProhibida: 1,
-                    intentosPalabraProhibida: 0,
-                    pulsacionesTotal: 1275
-                }
+    const crearStatsPruebaVideojuego = () => ({
+        modo_actual: "frase final",
+        players: {
+            1: {
+                nombre: "ESCRITXR 1",
+                palabrasTotal: 214,
+                palabrasUnicas: 137,
+                ritmoPpm: 68,
+                palabrasBenditas: ["volcán", "brújula", "noche", "latido", "espejo", "puente", "ceniza"],
+                valorInspiracion: 7,
+                intentosLetraProhibida: 2,
+                intentosPalabraProhibida: 1,
+                pulsacionesTotal: 1180
+            },
+            2: {
+                nombre: "ESCRITXR 2",
+                palabrasTotal: 196,
+                palabrasUnicas: 151,
+                ritmoPpm: 74,
+                palabrasBenditas: ["aurora", "bosque", "eco", "lluvia", "humo", "faro", "marea", "cristal", "viaje", "secreto"],
+                valorInspiracion: 10,
+                intentosLetraProhibida: 1,
+                intentosPalabraProhibida: 0,
+                pulsacionesTotal: 1275
             }
-        };
+        }
+    });
+    const cargarDatosPruebaVideojuego = () => {
+        const stats = crearStatsPruebaVideojuego();
         const statsActualizadas = typeof statsLive.actualizarDesdeControl === "function"
             ? statsLive.actualizarDesdeControl(stats)
             : statsLive.actualizar(stats);
@@ -143,6 +144,11 @@ function registrarCanalesEspectador({
                 forzar: true
             })
             : null;
+        emitirPuntuacionFinal();
+        return { ok: true, puntuacion };
+    };
+    const cargarDatosPruebaDeliberacion = () => {
+        const resultadoVideojuego = cargarDatosPruebaVideojuego();
         const actualizarJurado = resultadoJurado && typeof resultadoJurado.loadTestFixture === "function"
             ? resultadoJurado.loadTestFixture.bind(resultadoJurado)
             : resultadoJurado && typeof resultadoJurado.update === "function"
@@ -167,11 +173,10 @@ function registrarCanalesEspectador({
                 }))
             })
             : null;
-        emitirPuntuacionFinal();
         emitirResultadoJurado();
         cambiarModoEspectador("deliberacion");
         const vista = emitirVistaEspectadorModo();
-        return { ok: true, puntuacion, jurado, vista };
+        return { ok: true, puntuacion: resultadoVideojuego.puntuacion, jurado, vista };
     };
     const cambiarModoEspectador = (modo) => {
         const modoAnterior = resolverModoVistaEspectador();
@@ -314,6 +319,20 @@ function registrarCanalesEspectador({
             return;
         }
         const resultado = cargarDatosPruebaDeliberacion();
+        if (typeof responder === "function") responder(resultado);
+    });
+
+    socket.on("cargar_datos_prueba_videojuego", (_payload = {}, callback = null) => {
+        const responder = resolverCallback(_payload, callback);
+        if (!socket.control) {
+            if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (!isDebugMode()) {
+            if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+            return;
+        }
+        const resultado = cargarDatosPruebaVideojuego();
         if (typeof responder === "function") responder(resultado);
     });
 

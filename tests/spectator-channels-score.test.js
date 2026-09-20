@@ -182,10 +182,26 @@ test("Debug Control can load and clear a deterministic deliberation fixture with
   assert.equal(cleared.jurado.disponible, false);
 });
 
+test("Debug Control can load only a fake videogame result without changing the spectator view", () => {
+  const ctx = crearContexto({ control: true, debug: true, disponible: false });
+  let loaded = null;
+  ctx.socket.emit("cargar_datos_prueba_videojuego", {}, (response) => { loaded = response; });
+
+  assert.equal(loaded.ok, true);
+  assert.equal(loaded.puntuacion.disponible, true);
+  assert.equal(loaded.puntuacion.categorias.length, 6);
+  assert.equal(loaded.puntuacion.ganador, 2);
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
+  assert.equal(ctx.resultadoJurado.payload().disponible, false);
+});
+
 test("deliberation fixtures require an authenticated Control socket", () => {
   const ctx = crearContexto({ control: false, disponible: false });
   let loaded = null;
   ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
+  assert.deepEqual(loaded, { ok: false, code: "NOT_AUTHORIZED" });
+
+  ctx.socket.emit("cargar_datos_prueba_videojuego", {}, (response) => { loaded = response; });
   assert.deepEqual(loaded, { ok: false, code: "NOT_AUTHORIZED" });
 });
 
@@ -193,6 +209,9 @@ test("deliberation fixtures remain blocked for Control while Debug mode is off",
   const ctx = crearContexto({ control: true, debug: false, disponible: false });
   let loaded = null;
   ctx.socket.emit("cargar_datos_prueba_deliberacion", {}, (response) => { loaded = response; });
+  assert.deepEqual(loaded, { ok: false, code: "DEBUG_MODE_REQUIRED" });
+
+  ctx.socket.emit("cargar_datos_prueba_videojuego", {}, (response) => { loaded = response; });
   assert.deepEqual(loaded, { ok: false, code: "DEBUG_MODE_REQUIRED" });
 });
 

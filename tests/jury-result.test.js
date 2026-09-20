@@ -40,6 +40,12 @@ test("jury result preserves the four stage criteria and calculates each winner",
   }, 4567);
 
   assert.equal(result.criterios.length, 4);
+  assert.deepEqual(result.criterios.map(({ label }) => label), [
+    "Interpretación",
+    "Puesta en escena",
+    "Ritmo",
+    "Integración del texto"
+  ]);
   assert.deepEqual(result.criterios[0].valores, { 1: 10, 2: 8 });
   assert.equal(result.criterios[0].ganador, 1);
   assert.equal(result.criterios[1].empate, true);
