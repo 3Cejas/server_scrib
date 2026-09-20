@@ -463,6 +463,13 @@ test("Control reveals every Jury category and explicitly advances to the combine
   assert.equal(finalEvent.payload.disponible, true);
   assert.ok([1, 2].includes(finalEvent.payload.ganador));
   assert.equal(finalEvent.payload.formula, "50% videojuego + 50% jurado");
+
+  let returned = null;
+  ctx.socket.emit("jurado_resultado_anterior", {}, (response) => { returned = response; });
+  assert.equal(returned.ok, true);
+  assert.equal(returned.paso, 5);
+  assert.equal(ctx.espectador.resolverModo(), "resultado_jurado");
+  assert.equal(ctx.espectador.getJuradoSlideStep(), 5);
 });
 
 test("Control cannot show the combined winner before revealing the Jury verdict", () => {

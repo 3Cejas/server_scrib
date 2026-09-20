@@ -552,7 +552,19 @@ function registrarCanalesEspectador({
             if (typeof callback === "function") callback({ ok: false, code: "NOT_AUTHORIZED" });
             return;
         }
-        if (resolverModoVistaEspectador() !== "resultado_jurado") {
+        const modoActual = resolverModoVistaEspectador();
+        if (modoActual === "resultado_final" && direccion < 0) {
+            cambiarModoEspectador("resultado_jurado");
+            const paso = espectador.navegarJurado(JURY_RESULT_SLIDE_MAX);
+            if (resultadoJurado && typeof resultadoJurado.setRevealStep === "function") {
+                resultadoJurado.setRevealStep(paso);
+            }
+            const vista = emitirVistaEspectadorModo();
+            emitirResultadoJurado();
+            if (typeof callback === "function") callback({ ok: true, paso, vista });
+            return;
+        }
+        if (modoActual !== "resultado_jurado") {
             if (typeof callback === "function") callback({ ok: false, code: "JURY_RESULT_NOT_VISIBLE" });
             return;
         }
