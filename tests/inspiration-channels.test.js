@@ -20,7 +20,13 @@ test("construirPostgameMusa incluye estadisticas personales y los dos textos", (
     musasAuxiliares: {
       payloadResumenPdf: () => ({
         equipos: {
-          1: { musas: [{ client_id: "luna", nombre: "LUNA", stats: { enviadas: 8, introducidas: 5, efectividad_pct: 63 } }] }
+          1: { musas: [
+            { client_id: "luna", nombre: "LUNA", stats: { enviadas: 8, introducidas: 5, efectividad_pct: 63, superbonus: 1, impacto_neto: 4 } },
+            { client_id: "sol", nombre: "SOL", stats: { enviadas: 9, introducidas: 7, efectividad_pct: 78, superbonus: 2, impacto_neto: 8 } }
+          ] },
+          2: { musas: [
+            { client_id: "mar", nombre: "MAR", stats: { enviadas: 11, introducidas: 4, efectividad_pct: 36, superbonus: 0, impacto_neto: 2 } }
+          ] }
         }
       })
     },
@@ -41,6 +47,13 @@ test("construirPostgameMusa incluye estadisticas personales y los dos textos", (
 
   assert.equal(payload.musa.nombre, "LUNA");
   assert.equal(payload.musa.stats.enviadas, 8);
+  assert.equal(payload.version, 2);
+  assert.deepEqual(payload.ranking.map(({ posicion, nombre, actual }) => ({ posicion, nombre, actual })), [
+    { posicion: 1, nombre: "SOL", actual: false },
+    { posicion: 2, nombre: "LUNA", actual: true },
+    { posicion: 3, nombre: "MAR", actual: false }
+  ]);
+  assert.equal(payload.ranking[1].stats.impacto_neto, 4);
   assert.equal(payload.escritores[1].nombre, "ANA MAR");
   assert.equal(payload.escritores[1].texto, "Texto propio");
   assert.equal(payload.escritores[2].texto, "Texto contrario");

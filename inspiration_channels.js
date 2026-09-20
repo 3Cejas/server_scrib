@@ -18,6 +18,59 @@ const estadisticasMusaVacias = () => ({
     impacto_neto: 0
 });
 
+const estadisticasMusaRanking = (valor = {}) => ({
+    ...estadisticasMusaVacias(),
+    ...(valor && typeof valor === "object" ? valor : {})
+});
+
+const construirRankingMusas = ({ resumen = {}, clientId = "", player = 1, nombre = "" } = {}) => {
+    const equipos = resumen && resumen.equipos && typeof resumen.equipos === "object"
+        ? resumen.equipos
+        : {};
+    const clientIdActual = String(clientId || "");
+    const nombreActual = String(nombre || "").trim().toUpperCase();
+    const entradas = [1, 2].flatMap((equipo) => {
+        const musas = equipos[equipo] && Array.isArray(equipos[equipo].musas)
+            ? equipos[equipo].musas
+            : [];
+        return musas.map((musa) => {
+            const stats = estadisticasMusaRanking(musa && musa.stats);
+            const musaClientId = String(musa && musa.client_id ? musa.client_id : "");
+            const musaNombre = String(musa && musa.nombre ? musa.nombre : "MUSA").slice(0, 24);
+            return {
+                player: equipo,
+                nombre: musaNombre,
+                actual: Boolean(
+                    (clientIdActual && musaClientId === clientIdActual)
+                    || (!clientIdActual && equipo === player && musaNombre.toUpperCase() === nombreActual)
+                ),
+                stats
+            };
+        });
+    });
+    entradas.sort((a, b) => (
+        (Number(b.stats.introducidas) || 0) - (Number(a.stats.introducidas) || 0)
+        || (Number(b.stats.efectividad_pct) || 0) - (Number(a.stats.efectividad_pct) || 0)
+        || (Number(b.stats.superbonus) || 0) - (Number(a.stats.superbonus) || 0)
+        || (Number(b.stats.impacto_neto) || 0) - (Number(a.stats.impacto_neto) || 0)
+        || (Number(b.stats.enviadas) || 0) - (Number(a.stats.enviadas) || 0)
+        || a.nombre.localeCompare(b.nombre)
+    ));
+    return entradas.map((entrada, indice) => ({
+        posicion: indice + 1,
+        player: entrada.player,
+        nombre: entrada.nombre,
+        actual: entrada.actual,
+        stats: {
+            enviadas: Math.max(0, Number(entrada.stats.enviadas) || 0),
+            introducidas: Math.max(0, Number(entrada.stats.introducidas) || 0),
+            efectividad_pct: Math.max(0, Math.min(100, Number(entrada.stats.efectividad_pct) || 0)),
+            superbonus: Math.max(0, Number(entrada.stats.superbonus) || 0),
+            impacto_neto: Number(entrada.stats.impacto_neto) || 0
+        }
+    }));
+};
+
 const normalizarPdfEscritxrPostgame = (valor, player) => {
     if (!valor || typeof valor !== "object") return null;
     const data = typeof valor.data === "string" ? valor.data : "";
@@ -72,12 +125,18 @@ function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChan
         if (pdf) escritores[id].pdf = pdf;
     });
     return {
-        version: 1,
+        version: 2,
         player,
         musa: {
             nombre: String((resumenMusa && resumenMusa.nombre) || regalo.musa_nombre || "MUSA").slice(0, 24),
             stats: { ...estadisticasMusaVacias(), ...((resumenMusa && resumenMusa.stats) || {}) }
         },
+        ranking: construirRankingMusas({
+            resumen,
+            clientId: String((resumenMusa && resumenMusa.client_id) || clientId || ""),
+            player,
+            nombre: (resumenMusa && resumenMusa.nombre) || regalo.musa_nombre || "MUSA"
+        }),
         escritores
     };
 }
@@ -284,13 +343,29 @@ function registrarCanalesInspiracion({
             1: { nombre: "NÉBULA", stats: { enviadas: 18, introducidas: 13, efectividad_pct: 72, superbonus: 3, bonus: 9, malditas: 4, letras: 5, impacto_positivo: 24, impacto_negativo: 8, impacto_neto: 16 } },
             2: { nombre: "CASIOPEA", stats: { enviadas: 16, introducidas: 9, efectividad_pct: 56, superbonus: 2, bonus: 7, malditas: 5, letras: 4, impacto_positivo: 18, impacto_negativo: 10, impacto_neto: 8 } }
         };
+        const rankingBase = [
+            { posicion: 1, player: 1, nombre: "NÉBULA", stats: { enviadas: 18, introducidas: 13, efectividad_pct: 72, superbonus: 3, impacto_neto: 16 } },
+            { posicion: 2, player: 2, nombre: "CASIOPEA", stats: { enviadas: 16, introducidas: 9, efectividad_pct: 56, superbonus: 2, impacto_neto: 8 } },
+            { posicion: 3, player: 1, nombre: "LUNA", stats: { enviadas: 14, introducidas: 7, efectividad_pct: 50, superbonus: 1, impacto_neto: 6 } },
+            { posicion: 4, player: 2, nombre: "ORÁCULO", stats: { enviadas: 11, introducidas: 5, efectividad_pct: 45, superbonus: 0, impacto_neto: 2 } }
+        ];
         [1, 2].forEach((player) => {
             const payload = musasAuxiliares.guardarRegalo({
                 player,
                 debug: true,
                 data: pdfDemo,
                 filename: `regalo_musa_j${player}_debug.pdf`,
-                postgame: { version: 1, player, musa: musas[player], escritores }
+                postgame: {
+                    version: 2,
+                    player,
+                    musa: musas[player],
+                    ranking: rankingBase.map((entrada) => ({
+                        ...entrada,
+                        stats: { ...entrada.stats },
+                        actual: entrada.player === player && entrada.nombre === musas[player].nombre
+                    })),
+                    escritores
+                }
             });
             if (payload) io.to(`musa_j${player}`).emit("regalo_pdf_musas", payload);
         });
