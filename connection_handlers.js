@@ -319,6 +319,7 @@ function registrarConexionScrib(socket, deps) {
         emitirEstadoRegaloBanderaMusas,
         writerChannels,
         payloadStatsLive,
+        isDebugMode: () => Boolean(modoDebug && modoDebug.isActive()),
         sesionesEscritor,
         getModoSeq: () => partidaSync.obtenerModoSeq(),
         isPartidaPausada,

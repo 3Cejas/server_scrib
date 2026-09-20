@@ -18,6 +18,16 @@ const estadisticasMusaVacias = () => ({
     impacto_neto: 0
 });
 
+const normalizarPdfEscritxrPostgame = (valor, player) => {
+    if (!valor || typeof valor !== "object") return null;
+    const data = typeof valor.data === "string" ? valor.data : "";
+    if (!data.startsWith("data:application/pdf")) return null;
+    return {
+        data,
+        filename: String(valor.filename || `historia_j${player}.pdf`).slice(0, 180)
+    };
+};
+
 function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChannels = null, payloadStatsLive = () => ({}) } = {}) {
     const player = Number(regalo && regalo.player) === 2 ? 2 : 1;
     const clientId = String(regalo && regalo.client_id ? regalo.client_id : "");
@@ -34,6 +44,9 @@ function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChan
     const statsLive = typeof payloadStatsLive === "function" ? payloadStatsLive() : {};
     const jugadores = statsLive && statsLive.players && typeof statsLive.players === "object" ? statsLive.players : {};
     const textos = writerChannels && typeof writerChannels.snapshotTextos === "function" ? writerChannels.snapshotTextos() : {};
+    const pdfsEscritores = regalo && regalo.writer_pdfs && typeof regalo.writer_pdfs === "object"
+        ? regalo.writer_pdfs
+        : {};
     const escritores = {};
     [1, 2].forEach((id) => {
         const stats = jugadores[id] && typeof jugadores[id] === "object" ? jugadores[id] : {};
@@ -44,10 +57,19 @@ function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChan
             texto: String(textos[id] && (textos[id].plano || textos[id].html) ? (textos[id].plano || textos[id].html) : ""),
             stats: {
                 palabras: Math.max(0, Math.trunc(Number(stats.palabrasTotal) || 0)),
+                palabras_unicas: Math.max(0, Math.trunc(Number(stats.palabrasUnicas) || 0)),
                 pulsaciones: Math.max(0, Math.trunc(Number(stats.pulsacionesTotal) || 0)),
-                ritmo_ppm: Math.max(0, Math.round(Number(stats.ritmoPpm) || 0))
+                ritmo_ppm: Math.max(0, Math.round(Number(stats.ritmoPpm) || 0)),
+                inspiracion: Math.max(0, Math.round(Number(stats.valorInspiracion) || 0)),
+                retos: Math.max(0, Math.trunc(Number(stats.intentosLetraProhibida) || 0))
+                    + Math.max(0, Math.trunc(Number(stats.intentosPalabraProhibida) || 0))
             }
         };
+        const pdfPropio = id === player
+            ? normalizarPdfEscritxrPostgame({ data: regalo.data, filename: regalo.filename }, id)
+            : null;
+        const pdf = pdfPropio || normalizarPdfEscritxrPostgame(pdfsEscritores[id] || pdfsEscritores[String(id)], id);
+        if (pdf) escritores[id].pdf = pdf;
     });
     return {
         version: 1,
@@ -137,6 +159,7 @@ function registrarCanalesInspiracion({
     emitirEstadoRegaloBanderaMusas = () => {},
     writerChannels = null,
     payloadStatsLive = () => ({}),
+    isDebugMode = () => false,
     sesionesEscritor = null,
     getModoSeq = () => 0,
     isPartidaPausada = () => false,
@@ -227,6 +250,51 @@ function registrarCanalesInspiracion({
         }
         io.to(`musa_j${salida.player}`).emit("regalo_pdf_musas", salida);
         if (typeof responder === "function") responder({ ok: true, player: salida.player, client_id: "" });
+    });
+
+    socket.on("cargar_datos_prueba_musas", (_payload = {}, responder = null) => {
+        const callback = typeof _payload === "function" ? _payload : responder;
+        if (!socket.control) {
+            if (typeof callback === "function") callback({ ok: false, code: "NOT_AUTHORIZED" });
+            return;
+        }
+        if (!isDebugMode()) {
+            if (typeof callback === "function") callback({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+            return;
+        }
+
+        const pdfDemo = "data:application/pdf;base64,JVBERi0xLjQKJSBTQ1JJQiBERUJVRwo=";
+        const escritores = {
+            1: {
+                player: 1,
+                nombre: "LUCÍA",
+                texto: "La ciudad despertó bajo una lluvia de estrellas. Lucía guardó la brújula en el bolsillo y siguió la voz que nacía del puerto, donde cada faro parecía recordar un nombre distinto.",
+                stats: { palabras: 238, palabras_unicas: 151, pulsaciones: 1314, ritmo_ppm: 76, inspiracion: 12, retos: 3 },
+                pdf: { data: pdfDemo, filename: "historia_lucia_debug.pdf" }
+            },
+            2: {
+                player: 2,
+                nombre: "MATEO",
+                texto: "Mateo abrió la última puerta del teatro y encontró el mar al otro lado. Sobre las butacas flotaban cartas sin remitente, esperando que alguien se atreviera a leer el final en voz alta.",
+                stats: { palabras: 211, palabras_unicas: 139, pulsaciones: 1196, ritmo_ppm: 69, inspiracion: 9, retos: 5 },
+                pdf: { data: pdfDemo, filename: "historia_mateo_debug.pdf" }
+            }
+        };
+        const musas = {
+            1: { nombre: "NÉBULA", stats: { enviadas: 18, introducidas: 13, efectividad_pct: 72, superbonus: 3, bonus: 9, malditas: 4, letras: 5, impacto_positivo: 24, impacto_negativo: 8, impacto_neto: 16 } },
+            2: { nombre: "CASIOPEA", stats: { enviadas: 16, introducidas: 9, efectividad_pct: 56, superbonus: 2, bonus: 7, malditas: 5, letras: 4, impacto_positivo: 18, impacto_negativo: 10, impacto_neto: 8 } }
+        };
+        [1, 2].forEach((player) => {
+            const payload = musasAuxiliares.guardarRegalo({
+                player,
+                debug: true,
+                data: pdfDemo,
+                filename: `regalo_musa_j${player}_debug.pdf`,
+                postgame: { version: 1, player, musa: musas[player], escritores }
+            });
+            if (payload) io.to(`musa_j${player}`).emit("regalo_pdf_musas", payload);
+        });
+        if (typeof callback === "function") callback({ ok: true, equipos: [1, 2] });
     });
 
     socket.on("pedir_resumen_musas_pdf", (payload = {}, responder = null) => {

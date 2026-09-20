@@ -107,12 +107,14 @@ test("guardarRegalo soporta regalos personalizados por musa y fallback de equipo
     musa_nombre: "LUNA",
     data: "data:application/pdf;base64,luna",
     filename: "luna.pdf",
+    debug: true,
     postgame: { player: 1, musa: { nombre: "LUNA" } }
   });
 
   assert.equal(generico.client_id, undefined);
   assert.equal(personalizado.client_id, "musa_1");
   assert.equal(personalizado.personalizado, true);
+  assert.equal(personalizado.debug, true);
   assert.equal(personalizado.postgame.musa.nombre, "LUNA");
   assert.equal(gestor.obtenerRegalo(1, "musa_1").filename, "luna.pdf");
   assert.equal(gestor.obtenerRegalo(1, "musa_1").postgame.player, 1);

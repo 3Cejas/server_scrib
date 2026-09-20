@@ -6,7 +6,17 @@ const { construirPostgameMusa, registrarCanalesInspiracion } = require("../inspi
 
 test("construirPostgameMusa incluye estadisticas personales y los dos textos", () => {
   const payload = construirPostgameMusa({
-    regalo: { player: 1, client_id: "luna", musa_nombre: "LUNA" },
+    regalo: {
+      player: 1,
+      client_id: "luna",
+      musa_nombre: "LUNA",
+      data: "data:application/pdf;base64,UEVSU09OQUw=",
+      filename: "luna-personalizado.pdf",
+      writer_pdfs: {
+        1: { data: "data:application/pdf;base64,QQ==", filename: "ana.pdf" },
+        2: { data: "data:application/pdf;base64,Qg==", filename: "bea.pdf" }
+      }
+    },
     musasAuxiliares: {
       payloadResumenPdf: () => ({
         equipos: {
@@ -23,8 +33,8 @@ test("construirPostgameMusa incluye estadisticas personales y los dos textos", (
     },
     payloadStatsLive: () => ({
       players: {
-        1: { palabrasTotal: 42, pulsacionesTotal: 320, ritmoPpm: 71 },
-        2: { palabrasTotal: 38, pulsacionesTotal: 299, ritmoPpm: 66 }
+        1: { palabrasTotal: 42, palabrasUnicas: 31, pulsacionesTotal: 320, ritmoPpm: 71, valorInspiracion: 8, intentosLetraProhibida: 2, intentosPalabraProhibida: 1 },
+        2: { palabrasTotal: 38, palabrasUnicas: 29, pulsacionesTotal: 299, ritmoPpm: 66, valorInspiracion: 6 }
       }
     })
   });
@@ -34,7 +44,19 @@ test("construirPostgameMusa incluye estadisticas personales y los dos textos", (
   assert.equal(payload.escritores[1].nombre, "ANA MAR");
   assert.equal(payload.escritores[1].texto, "Texto propio");
   assert.equal(payload.escritores[2].texto, "Texto contrario");
-  assert.deepEqual(payload.escritores[1].stats, { palabras: 42, pulsaciones: 320, ritmo_ppm: 71 });
+  assert.deepEqual(payload.escritores[1].stats, {
+    palabras: 42,
+    palabras_unicas: 31,
+    pulsaciones: 320,
+    ritmo_ppm: 71,
+    inspiracion: 8,
+    retos: 3
+  });
+  assert.deepEqual(payload.escritores[2].pdf, {
+    data: "data:application/pdf;base64,Qg==",
+    filename: "bea.pdf"
+  });
+  assert.equal(payload.escritores[1].pdf.filename, "luna-personalizado.pdf");
 });
 
 function createFakeSocket() {
@@ -402,6 +424,59 @@ test("regalo_pdf_musas targets personalized gifts to the muse client room", () =
     }
   }]);
   assert.deepEqual(ack, { ok: true, player: 1, client_id: "client_1", destinatarios: 0 });
+});
+
+test("cargar_datos_prueba_musas emits complete postgame gifts only from Debug Control", () => {
+  const socket = createFakeSocket();
+  socket.control = true;
+  const events = [];
+  const io = {
+    to(room) {
+      return { emit(event, payload) { events.push({ room, event, payload }); } };
+    }
+  };
+
+  registrarCanalesInspiracion({
+    socket,
+    io,
+    musasAuxiliares: {
+      registrarCorazon: () => null,
+      guardarRegalo: (payload) => payload
+    },
+    nubeInspiracion: { registrarInspiracion: () => {} },
+    obtenerIdJugadorValido: (valor) => {
+      const id = Number(valor);
+      return id === 1 || id === 2 ? id : null;
+    },
+    isDebugMode: () => true
+  });
+
+  let ack = null;
+  socket.emit("cargar_datos_prueba_musas", {}, (payload) => { ack = payload; });
+
+  assert.deepEqual(ack, { ok: true, equipos: [1, 2] });
+  assert.equal(events.length, 2);
+  assert.deepEqual(events.map(({ room }) => room), ["musa_j1", "musa_j2"]);
+  assert.equal(events.every(({ event, payload }) => event === "regalo_pdf_musas" && payload.debug === true), true);
+  assert.equal(events[0].payload.postgame.escritores[1].nombre, "LUCÍA");
+  assert.equal(events[0].payload.postgame.escritores[2].stats.palabras_unicas, 139);
+  assert.match(events[0].payload.postgame.escritores[2].pdf.data, /^data:application\/pdf/);
+});
+
+test("cargar_datos_prueba_musas rejects requests outside Debug Control", () => {
+  const socket = createFakeSocket();
+  socket.control = true;
+  registrarCanalesInspiracion({
+    socket,
+    io: { to: () => ({ emit: () => {} }) },
+    musasAuxiliares: { registrarCorazon: () => null },
+    nubeInspiracion: { registrarInspiracion: () => {} },
+    obtenerIdJugadorValido: (valor) => Number(valor) || null,
+    isDebugMode: () => false
+  });
+  let ack = null;
+  socket.emit("cargar_datos_prueba_musas", {}, (payload) => { ack = payload; });
+  assert.deepEqual(ack, { ok: false, code: "DEBUG_MODE_REQUIRED" });
 });
 
 test("pedir_resumen_musas_pdf responds through ack when available", () => {

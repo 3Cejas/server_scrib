@@ -341,6 +341,9 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
         if (payload.postgame && typeof payload.postgame === "object") {
             salida.postgame = payload.postgame;
         }
+        if (payload.debug === true) {
+            salida.debug = true;
+        }
         if (clientId) {
             salida.client_id = clientId;
             salida.musa_nombre = normalizarNombreMusa(payload.musa_nombre || payload.musa);
