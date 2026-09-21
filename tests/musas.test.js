@@ -251,6 +251,61 @@ test("Musas clearAll preserves counters but clears queues and pending state", ()
   cleanupMode(mode);
 });
 
+test("Musas clearAll clears an active delivery through its original event", () => {
+  const io = createFakeIo();
+  const mode = new Musas(io, 10000);
+  mode._prepararEntregaInspiracion(1, "recibir_palabra", {
+    palabra: "aurora",
+    musa_nombre: "Luna",
+    origen_musa: "musa"
+  }, {
+    entregaMusa: { palabra: "aurora", musa_nombre: "Luna" }
+  });
+
+  mode.clearAll();
+
+  const limpieza = io.events.find((item) => item.event === "recibir_palabra");
+  assert.ok(limpieza);
+  assert.equal(limpieza.room, "j1");
+  assert.equal(limpieza.payload.limpiar_inspiracion, true);
+  assert.equal(limpieza.payload.motivo, "cambio_modo");
+  assert.equal(mode.players[1].entregaInspiracionActual, null);
+});
+
+test("Musas revalidates active inspiration after a letter change", () => {
+  const io = createFakeIo();
+  let modoSeq = 7;
+  const mode = new Musas(io, 10000, (payload) => ({
+    ...payload,
+    modo_actual: "letra bendita",
+    modo_seq: modoSeq
+  }));
+  mode.players[1].pending = true;
+  mode.addMusa(1, { palabra: "aurora", musa: "Luna" });
+  io.events.length = 0;
+
+  modoSeq = 8;
+  mode.revalidarInspiraciones((palabra) => palabra.includes("a"));
+
+  assert.equal(io.events.length, 1);
+  assert.equal(io.events[0].event, "inspirar_j1");
+  assert.equal(io.events[0].payload.palabra, "aurora");
+  assert.equal(io.events[0].payload.modo_seq, 8);
+  assert.equal(io.events[0].payload.requisito_actualizado, true);
+  assert.equal(mode.players[1].entregaInspiracionActual.payload.modo_seq, 8);
+
+  io.events.length = 0;
+  modoSeq = 9;
+  mode.revalidarInspiraciones((palabra) => palabra.includes("z"));
+
+  assert.equal(io.events.length, 1);
+  assert.equal(io.events[0].event, "inspirar_j1");
+  assert.equal(io.events[0].payload.limpiar_inspiracion, true);
+  assert.equal(io.events[0].payload.motivo, "cambio_requisito");
+  assert.equal(mode.players[1].entregaInspiracionActual, null);
+  cleanupMode(mode);
+});
+
 test("Musas ignores stale pending timers after clearAll", (t) => {
   const io = createFakeIo();
   const callbacks = [];

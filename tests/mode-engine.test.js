@@ -89,6 +89,10 @@ test("mode engine changes blessed letters through the timer path", () => {
 
   assert.equal(state.letraBendita, "z");
   assert.deepEqual(letras, [{ tipo: "bendita", letra: "z" }]);
+  assert.equal(musas.revalidations.length, 1);
+  assert.equal(musas.revalidations[0].reason, "cambio_letra_bendita");
+  assert.equal(musas.revalidations[0].fn("azul"), true);
+  assert.equal(musas.revalidations[0].fn("cine"), false);
   assert.deepEqual(musas.startPlayers, [1, 2]);
   assert.equal(timers.cambiosLetra.length, 1);
 });
@@ -521,9 +525,11 @@ function crearModoFake() {
   return {
     clearAllCalls: 0,
     clearCounterCalls: 0,
+    revalidations: [],
     insertedCount: { 1: 1, 2: 0 },
     startPlayers: [],
     clearAll() { this.clearAllCalls += 1; },
+    revalidarInspiraciones(fn, reason) { this.revalidations.push({ fn, reason }); },
     start(player) { this.startPlayers.push(player); },
     getInsertedCount(player) { return this.insertedCount[player] || 0; },
     clearCounters() { this.clearCounterCalls += 1; }

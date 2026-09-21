@@ -285,7 +285,10 @@ function crearMotorModos({
         state.letraBendita = seleccion.letra;
         state.letrasBenditasPendientes = seleccion.pendientes;
         emitirNuevaLetra("bendita", state.letraBendita);
-        modoMusas().clearAll();
+        const letraNormalizada = String(state.letraBendita || '').toLocaleLowerCase('es-ES');
+        modoMusas().revalidarInspiraciones((palabra) => (
+            String(palabra || '').toLocaleLowerCase('es-ES').includes(letraNormalizada)
+        ), 'cambio_letra_bendita');
         emitirPedirInspiracionMusa({ modo_actual: state.modoActual, letra_bendita: state.letraBendita });
         modoMusas().start(1);
         modoMusas().start(2);
@@ -303,7 +306,10 @@ function crearMotorModos({
         state.letraProhibida = seleccion.letra;
         state.letrasProhibidasPendientes = seleccion.pendientes;
         emitirNuevaLetra("prohibida", state.letraProhibida);
-        modoMusas().clearAll();
+        const letraNormalizada = String(state.letraProhibida || '').toLocaleLowerCase('es-ES');
+        modoMusas().revalidarInspiraciones((palabra) => (
+            !String(palabra || '').toLocaleLowerCase('es-ES').includes(letraNormalizada)
+        ), 'cambio_letra_maldita');
         emitirPedirInspiracionMusa({ modo_actual: state.modoActual, letra_prohibida: state.letraProhibida });
         modoMusas().start(1);
         modoMusas().start(2);

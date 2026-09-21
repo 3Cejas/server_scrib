@@ -286,7 +286,10 @@ class Musas {
       caduca_en_ts: 0
     })
     this._limpiarEntregaInspiracionActual(playerId)
-    this.io.to(`j${playerId}`).emit(`inspirar_j${playerId}`, payload)
+    const evento = entregaAnterior && entregaAnterior.evento
+      ? String(entregaAnterior.evento)
+      : `inspirar_j${playerId}`
+    this.io.to(`j${playerId}`).emit(evento, payload)
   }
 
   _notifyStateChange(playerId = null) {
@@ -511,9 +514,18 @@ class Musas {
    * Úsalo al cambiar de modo para mantener el historial de peticiones.
    */
   clearAll() {
+    const entregasActivas = Object.fromEntries(
+      Object.entries(this.players).map(([playerId, st]) => [playerId, st && st.entregaInspiracionActual
+        ? { ...st.entregaInspiracionActual, payload: { ...(st.entregaInspiracionActual.payload || {}) } }
+        : null])
+    )
     this._nextGeneration()
     console.log('[MusasMode] clearMode() → colas, timers y flags limpiados (contadores intactos)')
-    Object.values(this.players).forEach(st => {
+    Object.entries(this.players).forEach(([playerId, st]) => {
+      const entregaAnterior = entregasActivas[playerId]
+      if (entregaAnterior) {
+        this._emitClear(Number(playerId), entregaAnterior, 'cambio_modo')
+      }
       // 1) vaciar cola
       st.queue = []
       // 2) limpiar timers
@@ -534,6 +546,46 @@ class Musas {
       st.protocoloInspiracionV2 = false
     })
     this._notifyStateChange()
+  }
+
+  /**
+   * Conserva las inspiraciones que siguen cumpliendo la nueva letra y elimina
+   * de forma sincronizada las que ya no son válidas.
+   */
+  revalidarInspiraciones(esValida, reason = 'cambio_requisito') {
+    if (typeof esValida !== 'function') return this.clearAll()
+    this._nextGeneration()
+    Object.entries(this.players).forEach(([playerIdRaw, st]) => {
+      const playerId = Number(playerIdRaw)
+      if (!st) return
+      if (st.emitTimer) { clearTimeout(st.emitTimer); st.emitTimer = null }
+      if (st.pendingTimer) { clearTimeout(st.pendingTimer); st.pendingTimer = null }
+      st.queue = (Array.isArray(st.queue) ? st.queue : []).filter((item) => {
+        const normalizado = this._normalizarMusaItemConMeta(item)
+        return Boolean(normalizado && esValida(normalizado.palabra))
+      })
+      const entrega = st.entregaInspiracionActual
+      const palabraActiva = String(entrega && entrega.payload && entrega.payload.palabra || '').trim()
+      if (entrega && palabraActiva && !esValida(palabraActiva)) {
+        this._emitClear(playerId, { ...entrega, payload: { ...(entrega.payload || {}) } }, reason)
+      } else if (entrega) {
+        entrega.payload = this._withModePayload({ ...(entrega.payload || {}) })
+        if (entrega.entrega_musa) entrega.entrega_musa.modo = entrega.payload.modo_actual || ''
+        // Cambiar de letra incrementa modo_seq. La entrega sigue siendo válida,
+        // pero el navegador necesita recibir su metadato actualizado; de otro
+        // modo intentaría aprovecharla con la secuencia anterior y el servidor
+        // la rechazaría como STALE_MODE.
+        if (entrega.evento) {
+          this.io.to(`j${playerId}`).emit(entrega.evento, {
+            ...entrega.payload,
+            restaurando_inspiracion: true,
+            requisito_actualizado: true
+          })
+        }
+      }
+      st.pending = !st.entregaInspiracionActual && st.queue.length === 0
+      this._notifyStateChange(playerId)
+    })
   }
 
   /**
