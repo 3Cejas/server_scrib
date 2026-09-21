@@ -1,4 +1,4 @@
-const ITERACIONES_SCHEMA_VERSION = 1;
+const ITERACIONES_SCHEMA_VERSION = 2;
 const MAX_ITERACIONES_POR_PARTIDA = 120000;
 const MAX_BYTES_ITERACIONES = 8 * 1024 * 1024;
 
@@ -11,6 +11,96 @@ const clonarJson = (valor, fallback = null) => {
 };
 
 const texto = (valor) => String(valor ?? "");
+
+const normalizarStatsMusa = (valor = {}) => {
+    const entrada = valor && typeof valor === "object" ? valor : {};
+    return {
+        enviadas: Math.max(0, Math.trunc(Number(entrada.enviadas) || 0)),
+        introducidas: Math.max(0, Math.trunc(Number(entrada.introducidas) || 0)),
+        efectividad_pct: Math.max(0, Math.min(100, Math.round(Number(entrada.efectividad_pct) || 0))),
+        superbonus: Math.max(0, Math.trunc(Number(entrada.superbonus) || 0)),
+        bonus: Math.max(0, Math.trunc(Number(entrada.bonus) || 0)),
+        malditas: Math.max(0, Math.trunc(Number(entrada.malditas) || 0)),
+        letras: Math.max(0, Math.trunc(Number(entrada.letras) || 0)),
+        impacto_positivo: Number(entrada.impacto_positivo) || 0,
+        impacto_negativo: Number(entrada.impacto_negativo) || 0,
+        impacto_neto: Number(entrada.impacto_neto) || 0
+    };
+};
+
+const agregarStatsMusas = (musas = []) => {
+    const resumen = normalizarStatsMusa();
+    musas.forEach((musa) => {
+        const stats = normalizarStatsMusa(musa && musa.stats);
+        Object.keys(resumen).forEach((campo) => {
+            if (campo !== "efectividad_pct") resumen[campo] += stats[campo];
+        });
+    });
+    resumen.efectividad_pct = resumen.enviadas
+        ? Math.round((resumen.introducidas / resumen.enviadas) * 100)
+        : 0;
+    return resumen;
+};
+
+function construirResumenMusasExportacion(valor = {}) {
+    const entrada = valor && typeof valor === "object" ? valor : {};
+    const equiposEntrada = entrada.equipos && typeof entrada.equipos === "object"
+        ? entrada.equipos
+        : {};
+    const participantes = entrada.participantes && typeof entrada.participantes === "object"
+        ? entrada.participantes
+        : {};
+    const equipos = {};
+
+    [1, 2].forEach((player) => {
+        const equipoEntrada = equiposEntrada[player] || equiposEntrada[String(player)] || {};
+        const musas = (Array.isArray(equipoEntrada.musas) ? equipoEntrada.musas : []).map((musa) => ({
+            player,
+            client_id: texto(musa && musa.client_id),
+            nombre: texto(musa && musa.nombre) || "MUSA",
+            stats: normalizarStatsMusa(musa && musa.stats),
+            inspiraciones: clonarJson(
+                musa && (musa.inspiraciones || musa.palabras),
+                []
+            ) || []
+        }));
+        const nombresParticipantes = player === 1 ? participantes.azules : participantes.rojas;
+        (Array.isArray(nombresParticipantes) ? nombresParticipantes : []).forEach((nombre) => {
+            const nombreNormalizado = texto(nombre).trim() || "MUSA";
+            const existe = musas.some((musa) => (
+                musa.nombre.trim().toLocaleLowerCase("es") === nombreNormalizado.toLocaleLowerCase("es")
+            ));
+            if (!existe) {
+                musas.push({
+                    player,
+                    client_id: "",
+                    nombre: nombreNormalizado,
+                    stats: normalizarStatsMusa(),
+                    inspiraciones: []
+                });
+            }
+        });
+        musas.sort((a, b) => a.nombre.localeCompare(b.nombre, "es") || a.client_id.localeCompare(b.client_id));
+        equipos[player] = {
+            player,
+            resumen_grupal: {
+                musas: musas.length,
+                ...agregarStatsMusas(musas)
+            },
+            musas
+        };
+    });
+
+    const todasLasMusas = [...equipos[1].musas, ...equipos[2].musas];
+    return {
+        generado_ts: Number(entrada.ts) || null,
+        resumen_global: {
+            musas: todasLasMusas.length,
+            ...agregarStatsMusas(todasLasMusas)
+        },
+        equipos
+    };
+}
 
 function calcularParcheTexto(anterior, actual) {
     const origen = texto(anterior);
@@ -172,7 +262,13 @@ function crearRegistroIteracionesPartida({
 
     const finalizar = (motivo = "fin_partida", resumen = {}) => guardarCierre(motivo, resumen);
 
-    const construirExportacion = ({ eventos = [], resumen = {} } = {}) => {
+    const construirExportacion = ({
+        eventos = [],
+        resumen = {},
+        musas = {},
+        estadoPartida = {},
+        jurado = null
+    } = {}) => {
         if (!partida) return null;
         const finTs = partida.fin_ts || now();
         const textosFinales = partida.textos_finales || obtenerTextos();
@@ -183,9 +279,13 @@ function crearRegistroIteracionesPartida({
                 return ts >= partida.inicio_ts && ts <= finTs;
             })
             .map((evento) => compactarEvento(evento, partida.inicio_ts));
-        const resumenFinal = Object.keys(partida.resumen_final || {}).length
-            ? partida.resumen_final
-            : clonarJson(resumen, {});
+        const resumenCierre = clonarJson(partida.resumen_final, {});
+        const estadoPartidaCierre = resumenCierre.estado_partida;
+        delete resumenCierre.estado_partida;
+        const resumenFinal = {
+            ...resumenCierre,
+            ...clonarJson(resumen, {})
+        };
 
         return {
             schema_version: ITERACIONES_SCHEMA_VERSION,
@@ -226,6 +326,14 @@ function crearRegistroIteracionesPartida({
             },
             iteraciones: partida.operaciones.map((operacion) => [...operacion]),
             contexto: eventosPartida,
+            musas: construirResumenMusasExportacion(musas),
+            estado_partida: clonarJson(
+                estadoPartidaCierre && typeof estadoPartidaCierre === "object"
+                    ? estadoPartidaCierre
+                    : estadoPartida,
+                {}
+            ),
+            jurado: clonarJson(jurado, null),
             resumen: {
                 iteraciones: partida.operaciones.length,
                 eventos_contexto: eventosPartida.length,
@@ -259,5 +367,6 @@ module.exports = {
     MAX_ITERACIONES_POR_PARTIDA,
     aplicarParcheTexto,
     calcularParcheTexto,
+    construirResumenMusasExportacion,
     crearRegistroIteracionesPartida
 };

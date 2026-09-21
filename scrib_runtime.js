@@ -68,17 +68,33 @@ function crearRuntimeScrib({
     const modoDebug = crearGestorModoDebug({
         io,
         getCalentamientoGestor: () => calentamientoGestor,
+        getTemporizadorShow: () => temporizadorShow,
         getIteracionesPartida: () => {
             if (!registroIteracionesPartida) return null;
             const diario = dramaturgiaState
                 ? dramaturgiaState.snapshot()
                 : { eventos: [] };
+            const resumenMusas = musasAuxiliares && typeof musasAuxiliares.payloadResumenPdf === "function"
+                ? musasAuxiliares.payloadResumenPdf()
+                : { ts: Date.now(), equipos: { 1: { player: 1, musas: [] }, 2: { player: 2, musas: [] } } };
+            resumenMusas.participantes = rolesConectados && typeof rolesConectados.obtenerMusasCreditosPartida === "function"
+                ? rolesConectados.obtenerMusasCreditosPartida()
+                : { azules: [], rojas: [] };
+            const estadoPartida = construirEstadoDramaturgiaActual();
+            // Los textos completos ya viajan en `escritores`; no se duplican en
+            // el snapshot para mantener ligero el archivo y su transferencia.
+            delete estadoPartida.textos;
             return registroIteracionesPartida.construirExportacion({
                 eventos: diario.eventos,
                 resumen: {
                     stats: payloadStatsLive(),
                     puntuacion_final: payloadPuntuacionFinal()
-                }
+                },
+                musas: resumenMusas,
+                estadoPartida,
+                jurado: resultadoJurado && typeof resultadoJurado.payload === "function"
+                    ? resultadoJurado.payload()
+                    : null
             });
         }
     });
@@ -560,10 +576,15 @@ function crearRuntimeScrib({
         limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
         iniciarNuevaSesionMusas,
         iniciarRegistroIteraciones: (datos) => registroIteracionesPartida.iniciar(datos),
-        finalizarRegistroIteraciones: (motivo) => registroIteracionesPartida.finalizar(motivo, {
-            stats: payloadStatsLive(),
-            puntuacion_final: payloadPuntuacionFinal()
-        }),
+        finalizarRegistroIteraciones: (motivo) => {
+            const estadoPartida = construirEstadoDramaturgiaActual();
+            delete estadoPartida.textos;
+            return registroIteracionesPartida.finalizar(motivo, {
+                stats: payloadStatsLive(),
+                puntuacion_final: payloadPuntuacionFinal(),
+                estado_partida: estadoPartida
+            });
+        },
         preShowMusas,
         videoTutorialPreShow,
         registrar

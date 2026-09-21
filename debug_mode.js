@@ -4,6 +4,7 @@ function crearGestorModoDebug({
     io,
     now = () => Date.now(),
     getCalentamientoGestor = () => null,
+    getTemporizadorShow = () => null,
     getIteracionesPartida = () => null
 } = {}) {
     let activo = false;
@@ -115,6 +116,35 @@ function crearGestorModoDebug({
             Object.assign(estado, limpiarDetonadoresReales());
             if (io && typeof io.emit === "function") io.emit("debug_detonadores_detener", estado);
             if (typeof responder === "function") responder({ ok: true, ...estado });
+        });
+
+        socket.on("debug_finalizar_temporizador_gigante", (entrada = {}, callback = null) => {
+            const responder = typeof entrada === "function" ? entrada : callback;
+            if (!socket.control) {
+                if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+                return;
+            }
+            if (!activo) {
+                if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+                return;
+            }
+            const temporizador = typeof getTemporizadorShow === "function"
+                ? getTemporizadorShow()
+                : null;
+            if (
+                !temporizador
+                || typeof temporizador.payload !== "function"
+                || typeof temporizador.finalizar !== "function"
+            ) {
+                if (typeof responder === "function") responder({ ok: false, code: "SHOW_TIMER_UNAVAILABLE" });
+                return;
+            }
+            if (temporizador.payload().estado !== "activo") {
+                if (typeof responder === "function") responder({ ok: false, code: "SHOW_TIMER_NOT_ACTIVE" });
+                return;
+            }
+            const estado = temporizador.finalizar();
+            if (typeof responder === "function") responder({ ok: true, temporizador: estado });
         });
 
         socket.on("debug_exportar_iteraciones_partida", (entrada = {}, callback = null) => {
