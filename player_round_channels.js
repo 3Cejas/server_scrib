@@ -23,6 +23,7 @@ function registrarCanalesRonda({
     registrarPulsacionCompeticion = null,
     setPartidaPausada = null,
     sesionesEscritor = null,
+    getNombreEscritxr = () => "",
     isDebugMode = () => false,
     finalizarPartida = () => false,
     registrar = () => {}
@@ -259,6 +260,11 @@ function registrarCanalesRonda({
         state.estadoJugadores[idJugador].finished = true;
         state.setNuevaPalabra(idJugador, false);
         cancelarCambioPalabra(idJugador);
+        io.emit('frase_final_completada', {
+            player: idJugador,
+            nombre: String(getNombreEscritxr(idJugador) || `ESCRITXR ${idJugador}`),
+            ts: Date.now()
+        });
         socket.broadcast.emit('fin_de_player_a_control', idJugador);
 
         if (state.finJ1 && state.finJ2) {

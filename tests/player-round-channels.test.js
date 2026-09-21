@@ -6,6 +6,7 @@ const { registrarCanalesRonda } = require("../player_round_channels.js");
 function crearCanalesRondaFake(overrides = {}) {
   const handlers = {};
   const broadcasts = [];
+  const globalEvents = [];
   const socketEmits = [];
   const labelsAvance = [];
   const tempModosCalls = [];
@@ -73,7 +74,11 @@ function crearCanalesRondaFake(overrides = {}) {
 
   registrarCanalesRonda({
     socket,
-    io: { emit() {} },
+    io: {
+      emit(eventName, payload) {
+        globalEvents.push({ eventName, payload });
+      }
+    },
     state,
     partidaSync: {
       obtenerModoSeq: () => 1,
@@ -133,6 +138,7 @@ function crearCanalesRondaFake(overrides = {}) {
       pausaEstados.push(Boolean(valor));
     },
     sesionesEscritor: overrides.sesionesEscritor || null,
+    getNombreEscritxr: (player) => (Number(player) === 1 ? "LUCÍA" : "MATEO"),
     isDebugMode: () => overrides.debug === true,
     finalizarPartida() {
       finalizarPartidaCalls += 1;
@@ -147,6 +153,7 @@ function crearCanalesRondaFake(overrides = {}) {
 
   return {
     broadcasts,
+    globalEvents,
     cancelarInicioCalls: () => cancelarInicioCalls,
     cancelarIntervaloModosCalls: () => cancelarIntervaloModosCalls,
     desventajasRegistradas,
@@ -338,6 +345,11 @@ test("an active writer can finish only their own final phrase", () => {
   assert.equal(ctx.state.finJ2, false);
   assert.equal(ctx.state.estadoJugadores[1].finished, true);
   assert.equal(ctx.finalizarPartidaCalls(), 0);
+  assert.equal(ctx.globalEvents.length, 1);
+  assert.equal(ctx.globalEvents[0].eventName, "frase_final_completada");
+  assert.equal(ctx.globalEvents[0].payload.player, 1);
+  assert.equal(ctx.globalEvents[0].payload.nombre, "LUCÍA");
+  assert.equal(Number.isFinite(ctx.globalEvents[0].payload.ts), true);
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "fin_de_player_a_control", payload: 1 },
     { eventName: "fin", payload: { player: 1, motivo: "frase_final" } }
@@ -358,6 +370,9 @@ test("the second final phrase finishes the authoritative match once", () => {
   assert.equal(ctx.state.finJ2, true);
   assert.equal(ctx.finalizarPartidaCalls(), 1);
   assert.equal(ctx.state.finDelJuego, true);
+  assert.equal(ctx.globalEvents.length, 1);
+  assert.equal(ctx.globalEvents[0].eventName, "frase_final_completada");
+  assert.equal(ctx.globalEvents[0].payload.nombre, "MATEO");
   assert.deepEqual(ctx.broadcasts, [
     { eventName: "fin_de_player_a_control", payload: 2 }
   ]);

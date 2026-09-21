@@ -223,6 +223,7 @@ function registrarCanalesInspiracion({
     getModoSeq = () => 0,
     isPartidaPausada = () => false,
     isFinDelJuego = () => false,
+    isVotacionVentajaActiva = () => false,
     registrarInspiracionCompeticion = () => null,
     registrarInfraccionCompeticion = () => null,
     registrar = () => {}
@@ -826,23 +827,45 @@ function registrarCanalesInspiracion({
         return respuesta;
     });
 
-    socket.on("enviar_inspiracion", (evento) => {
+    socket.on("enviar_inspiracion", (evento, callback = null) => {
+        const responder = (payload) => {
+            if (typeof callback === "function") callback(payload);
+            return payload;
+        };
+        if (isVotacionVentajaActiva()) {
+            return responder({ ok: false, code: "VOTING_IN_PROGRESS" });
+        }
         const musaActiva = typeof obtenerMusaActiva === "function"
             ? obtenerMusaActiva(socket)
             : null;
         const id_jugador = obtenerIdJugadorValido(musaActiva && musaActiva.player);
         if (!id_jugador) {
-            return;
+            return responder({ ok: false, code: "MUSE_NOT_REGISTERED" });
         }
         const datos = (evento && typeof evento === "object") ? evento : { palabra: evento };
         const palabra = typeof datos.palabra === "string" ? datos.palabra.trim() : "";
         if (!palabra) {
-            return;
+            return responder({ ok: false, code: "EMPTY_INSPIRATION" });
         }
         const nombre_musa = nombreMusaPublico(musaActiva && musaActiva.nombre);
         const musa_client_id = normalizarMusaClientId(musaActiva && musaActiva.clientId);
         const payload_musa = { palabra, musa: nombre_musa, client_id: musa_client_id };
         const modo_actual = getModoActual();
+        const modosAdmitidos = new Set([
+            "palabras bonus",
+            "palabras prohibidas",
+            "letra bendita",
+            "letra prohibida"
+        ]);
+        if (!modosAdmitidos.has(modo_actual)) {
+            return responder({ ok: false, code: "MODE_NOT_ACCEPTING_INSPIRATION", modo_actual });
+        }
+        const modoDestino = modo_actual === "palabras bonus"
+            ? getModoBonus()
+            : (modo_actual === "palabras prohibidas" ? getModoMalditas() : getModoMusas());
+        if (!modoDestino || typeof modoDestino.addMusa !== "function") {
+            return responder({ ok: false, code: "MODE_NOT_AVAILABLE", modo_actual });
+        }
         const target_player = modo_actual === "palabras prohibidas"
             ? (id_jugador === 1 ? 2 : 1)
             : id_jugador;
@@ -868,26 +891,32 @@ function registrarCanalesInspiracion({
 
         switch (modo_actual) {
             case "palabras bonus":
-                getModoBonus().addMusa(id_jugador, payload_musa);
+                modoDestino.addMusa(id_jugador, payload_musa);
                 registrar(`[bonus] Se anadio musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
                 break;
 
             case "palabras prohibidas":
-                getModoMalditas().addMusa(id_jugador, payload_musa);
+                modoDestino.addMusa(id_jugador, payload_musa);
                 registrar(`[maldita] Se anadio musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
                 break;
 
             case "letra bendita":
             case "letra prohibida":
                 {
-                    const modoMusas = getModoMusas();
-                    modoMusas.addMusa(id_jugador, payload_musa);
-                    entregarInspiracionEnColaAEscritoraActiva(modoMusas, id_jugador);
+                    modoDestino.addMusa(id_jugador, payload_musa);
+                    entregarInspiracionEnColaAEscritoraActiva(modoDestino, id_jugador);
                 }
                 registrar(`[modo_musas] Se anadio musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
                 break;
         }
         emitirNubeInspiracionEstado(null, true);
+        return responder({
+            ok: true,
+            player: id_jugador,
+            target_player,
+            palabra,
+            modo_actual
+        });
     });
 }
 

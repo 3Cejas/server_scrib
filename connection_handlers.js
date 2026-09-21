@@ -296,6 +296,7 @@ function registrarConexionScrib(socket, deps) {
         registrarPulsacionCompeticion,
         setPartidaPausada,
         sesionesEscritor,
+        getNombreEscritxr: (player) => writerChannels.getNombreEquipo(player),
         isDebugMode: () => Boolean(modoDebug && modoDebug.isActive()),
         finalizarPartida: (socketOrigen) => partidaLifecycle.finalizarPartida(socketOrigen),
         registrar
@@ -324,6 +325,11 @@ function registrarConexionScrib(socket, deps) {
         getModoSeq: () => partidaSync.obtenerModoSeq(),
         isPartidaPausada,
         isFinDelJuego,
+        isVotacionVentajaActiva: () => Boolean(
+            votacionVentaja
+            && typeof votacionVentaja.construirPayloadEstado === "function"
+            && votacionVentaja.construirPayloadEstado().activa
+        ),
         registrarInspiracionCompeticion,
         registrarInfraccionCompeticion,
         registrar

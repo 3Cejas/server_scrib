@@ -123,10 +123,13 @@ test("enviar_inspiracion uses the active muse identity and ignores spoofed paylo
     }
   });
 
+  let ackEntrega = null;
   socket.emit("enviar_inspiracion", {
     palabra: " cometa ",
     nombre: " impostora ",
     client_id: "client_falso"
+  }, (payload) => {
+    ackEntrega = payload;
   });
 
   assert.deepEqual(queued, {
@@ -155,6 +158,13 @@ test("enviar_inspiracion uses the active muse identity and ignores spoofed paylo
     modo: "palabras bonus"
   });
   assert.equal(cloudEmitted, true);
+  assert.deepEqual(ackEntrega, {
+    ok: true,
+    player: 1,
+    target_player: 1,
+    palabra: "cometa",
+    modo_actual: "palabras bonus"
+  });
 
   activeMuse = null;
   socket.emit("enviar_inspiracion", {
@@ -174,6 +184,34 @@ test("enviar_inspiracion uses the active muse identity and ignores spoofed paylo
   assert.equal(queued.payload.musa, "MUSA");
   assert.equal(cloud.payload.musa, "MUSA");
   assert.equal(JSON.stringify(queued).includes("P.U.T.A"), false);
+});
+
+test("enviar_inspiracion rejects new prompts while the advantage vote is active", () => {
+  const socket = createFakeSocket();
+  let queued = 0;
+  let cloud = 0;
+  registrarCanalesInspiracion({
+    socket,
+    io: { to: () => ({ emit: () => {} }) },
+    musasAuxiliares: { registrarCorazon: () => null },
+    nubeInspiracion: { registrarInspiracion: () => { cloud += 1; } },
+    getModoActual: () => "palabras bonus",
+    getModoBonus: () => ({ addMusa: () => { queued += 1; } }),
+    getModoMalditas: () => null,
+    getModoMusas: () => null,
+    obtenerIdJugadorValido: (valor) => (Number(valor) === 1 ? 1 : null),
+    obtenerMusaActiva: () => ({ player: 1, nombre: "LUNA", clientId: "socket_client" }),
+    isVotacionVentajaActiva: () => true
+  });
+
+  let respuesta = null;
+  socket.emit("enviar_inspiracion", { palabra: "cometa" }, (payload) => {
+    respuesta = payload;
+  });
+
+  assert.deepEqual(respuesta, { ok: false, code: "VOTING_IN_PROGRESS" });
+  assert.equal(queued, 0);
+  assert.equal(cloud, 0);
 });
 
 test("enviar_inspiracion records forbidden words against the opposing writer", () => {
