@@ -553,6 +553,31 @@ function crearRuntimeScrib({
         emitirStatsLive,
         puntuacionFinal,
         emitirPuntuacionFinal,
+        capturarPuntuacionFinalAlFinalizar: () => {
+            if (!puntuacionFinal || typeof puntuacionFinal.capturarPendiente !== "function") return null;
+            const statsBase = payloadStatsLive() || {};
+            const pulsaciones = competicionRondas.snapshot().pulsaciones || {};
+            const playersBase = statsBase.players && typeof statsBase.players === "object" ? statsBase.players : {};
+            return puntuacionFinal.capturarPendiente({
+                ...statsBase,
+                players: {
+                    1: { ...(playersBase[1] || {}), pulsacionesTotal: Number(pulsaciones[1]) || 0 },
+                    2: { ...(playersBase[2] || {}), pulsacionesTotal: Number(pulsaciones[2]) || 0 }
+                }
+            }, {
+                datosRecibidos: typeof statsLive.payloadDatosRecibidos === "function"
+                    ? statsLive.payloadDatosRecibidos()
+                    : undefined
+            });
+        },
+        mostrarPuntuacionFinalEspectador: () => {
+            const estado = payloadPuntuacionFinal();
+            if (!estado || estado.disponible !== true) return false;
+            espectador.cambiarModo("puntuacion");
+            emitirVistaEspectadorModo();
+            emitirPuntuacionFinal();
+            return true;
+        },
         emitirNubeInspiracionEstado,
         emitirModoActual,
         asegurarVistaPartidaEspectador: () => {

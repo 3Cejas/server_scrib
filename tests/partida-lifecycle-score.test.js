@@ -45,6 +45,8 @@ function crearHarness() {
   let nuevasSesionesMusas = 0;
   let vistasPartidaAseguradas = 0;
   let inicioProgramado = null;
+  let capturasFinales = 0;
+  let vistasResultado = 0;
   const io = {
     emit(event, payload) {
       eventos.push({ event, payload });
@@ -126,6 +128,16 @@ function crearHarness() {
     emitirStatsLive: statsLive.emitir,
     puntuacionFinal,
     emitirPuntuacionFinal: puntuacionFinal.emitir,
+    capturarPuntuacionFinalAlFinalizar: () => {
+      capturasFinales += 1;
+      return puntuacionFinal.capturarPendiente(statsLive.payload(), {
+        datosRecibidos: statsLive.payloadDatosRecibidos()
+      });
+    },
+    mostrarPuntuacionFinalEspectador: () => {
+      vistasResultado += 1;
+      return puntuacionFinal.payload().disponible === true;
+    },
     emitirNubeInspiracionEstado: noOp,
     emitirModoActual: noOp,
     asegurarVistaPartidaEspectador: () => { vistasPartidaAseguradas += 1; },
@@ -169,6 +181,8 @@ function crearHarness() {
     getNuevasSesionesMusas: () => nuevasSesionesMusas,
     getVistasPartidaAseguradas: () => vistasPartidaAseguradas,
     getInicioProgramado: () => inicioProgramado,
+    getCapturasFinales: () => capturasFinales,
+    getVistasResultado: () => vistasResultado,
     registrosIteracionesIniciados,
     registrosIteracionesFinalizados
   };
@@ -248,7 +262,9 @@ test("a captured final score survives repeated finish cleanup and resets on the 
     datosRecibidos: ctx.statsLive.payloadDatosRecibidos()
   });
   assert.equal(capturada.ok, true);
-  assert.equal(capturada.capturada, true);
+  assert.equal(capturada.ya_capturada, true);
+  assert.equal(ctx.getCapturasFinales(), 1);
+  assert.equal(ctx.getVistasResultado(), 1);
   const totalFijado = capturada.puntuacion.jugadores[1].total;
 
   ctx.statsLive.actualizarDesdeControl(telemetriaFinal(1, 999));
@@ -268,6 +284,7 @@ test("a captured final score survives repeated finish cleanup and resets on the 
 
 test("the authoritative match finish closes both writers at the same time", () => {
   const ctx = crearHarness();
+  ctx.statsLive.actualizarDesdeControl(telemetriaFinal());
   ctx.state.finJ1 = false;
   ctx.state.finJ2 = false;
   ctx.state.finDelJuego = false;
@@ -280,6 +297,9 @@ test("the authoritative match finish closes both writers at the same time", () =
   assert.equal(ctx.state.finJ2, true);
   assert.equal(ctx.state.estadoJugadores[1].finished, true);
   assert.equal(ctx.state.estadoJugadores[2].finished, true);
+  assert.equal(ctx.getCapturasFinales(), 1);
+  assert.equal(ctx.puntuacionFinal.payload().disponible, true);
+  assert.equal(ctx.getVistasResultado(), 1);
   assert.deepEqual(
     ctx.eventos.filter(({ event }) => event === "fin").map(({ payload }) => payload),
     [

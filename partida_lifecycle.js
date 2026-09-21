@@ -23,6 +23,8 @@ function crearCicloPartida({
     emitirStatsLive,
     puntuacionFinal = null,
     emitirPuntuacionFinal = () => null,
+    capturarPuntuacionFinalAlFinalizar = () => null,
+    mostrarPuntuacionFinalEspectador = () => false,
     emitirNubeInspiracionEstado,
     emitirModoActual,
     asegurarVistaPartidaEspectador = () => {},
@@ -184,6 +186,7 @@ function crearCicloPartida({
         cerrarPreShow("fin_partida");
         detenerCalentamientoPrevio();
         prepararCapturaPuntuacionFinal();
+        capturarPuntuacionFinalAlFinalizar();
         finalizarRegistroIteraciones("fin_partida");
         state.finJ1 = true;
         state.finJ2 = true;
@@ -210,6 +213,7 @@ function crearCicloPartida({
             partida_finalizada: true,
             origen: 'reloj_partida'
         });
+        mostrarPuntuacionFinalEspectador();
         io.emit('fin_a_control', { partida_finalizada: true });
         return true;
     };
