@@ -3,7 +3,7 @@ const { randomBytes } = require("node:crypto");
 const CANTO_SHOW_VERSION = 1;
 const CANTO_SHOW_AUDIO_URL = "../media/musica-iliada.mp3";
 const CANTO_SHOW_AUDIO_SECONDS = 32;
-const CANTO_SHOW_FADE_MS = 1800;
+const CANTO_SHOW_FADE_MS = 3600;
 const CANTO_SHOW_TEXT = "Musas, con esta inspiración inicial, ha llegado el momento de que las historias se hagan realidad. La Odisea de Homero comienza diciendo ‘Cántame a mí, Musa, la historia’. Y eso es lo que debéis hacer hoy: contar una historia. Junto con vuestra escritora, junto con vuestro equipo. Es la única forma de ganar.";
 const MAX_REQUESTS_REMEMBERED = 256;
 
