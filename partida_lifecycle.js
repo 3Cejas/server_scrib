@@ -107,6 +107,14 @@ function crearCicloPartida({
         }
     };
 
+    const rearmarVideoTutorialTrasPartida = () => {
+        if (!videoTutorialPreShow || typeof videoTutorialPreShow.abrirFase !== "function") {
+            return false;
+        }
+        videoTutorialPreShow.abrirFase();
+        return true;
+    };
+
     const limpiarModoActual = (socket) => {
         const modo = state.modoActual;
         if (modo && limpiezasModo[modo]) {
@@ -216,6 +224,10 @@ function crearCicloPartida({
         });
         mostrarPuntuacionFinalEspectador();
         io.emit('fin_a_control', { partida_finalizada: true });
+        // La partida ya no está activa: el botón puede volver a reproducir el
+        // tutorial sin exigir un Limpiar previo. Abrir la fase no muestra el
+        // vídeo ni cambia la vista; solo entrega una sesión nueva y válida.
+        rearmarVideoTutorialTrasPartida();
         return true;
     };
 

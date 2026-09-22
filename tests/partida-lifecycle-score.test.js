@@ -316,6 +316,11 @@ test("the authoritative match finish closes both writers at the same time", () =
   assert.equal(ctx.getCapturasFinales(), 1);
   assert.equal(ctx.puntuacionFinal.payload().disponible, true);
   assert.equal(ctx.getVistasResultado(), 1);
+  assert.equal(ctx.videoPreShow.activo, true);
+  assert.equal(ctx.videoPreShow.aperturas, 1);
+  assert.equal(ctx.videoPreShow.cierres.at(-1), "fin_partida");
+  assert.equal(ctx.preShow.activo, false);
+  assert.equal(ctx.preShow.aperturas, 0);
   assert.deepEqual(
     ctx.eventos.filter(({ event }) => event === "fin_a_control").map(({ payload }) => payload),
     [{ partida_finalizada: true }]
