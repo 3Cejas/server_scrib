@@ -11,6 +11,7 @@ function crearContexto({ exportacion = null, temporizadorEstado = "oculto" } = {
   let clears = 0;
   let exportRequests = 0;
   let timerFinishes = 0;
+  let writerSessionCloses = 0;
   const io = {
     emit(event, payload) {
       emissions.push({ event, payload });
@@ -48,6 +49,10 @@ function crearContexto({ exportacion = null, temporizadorEstado = "oculto" } = {
     now: () => 1234,
     getCalentamientoGestor: () => warmup,
     getTemporizadorShow: () => temporizadorShow,
+    cerrarSesionesEscritores: () => {
+      writerSessionCloses += 1;
+      return { cerradas: 2, sesiones: [{ player: 1 }, { player: 2 }] };
+    },
     getIteracionesPartida: () => {
       exportRequests += 1;
       return exportacion;
@@ -60,6 +65,7 @@ function crearContexto({ exportacion = null, temporizadorEstado = "oculto" } = {
     getClears: () => clears,
     getExportRequests: () => exportRequests,
     getTimerFinishes: () => timerFinishes,
+    getWriterSessionCloses: () => writerSessionCloses,
     injections,
     manager,
     roomEmissions,
@@ -221,4 +227,26 @@ test("iteration export reports when no match has been recorded", () => {
   ctx.socket.emit("debug_exportar_iteraciones_partida", {}, (result) => { response = result; });
 
   assert.deepEqual(response, { ok: false, code: "NO_MATCH_ITERATIONS" });
+});
+
+test("closing writer sessions is restricted to authenticated Control in active Debug mode", () => {
+  const ctx = crearContexto();
+  let unauthorized = null;
+  ctx.socket.emit("debug_cerrar_sesiones_escritores", {}, (result) => { unauthorized = result; });
+  assert.deepEqual(unauthorized, { ok: false, code: "NOT_AUTHORIZED" });
+
+  ctx.socket.control = true;
+  let disabled = null;
+  ctx.socket.emit("debug_cerrar_sesiones_escritores", {}, (result) => { disabled = result; });
+  assert.deepEqual(disabled, { ok: false, code: "DEBUG_MODE_REQUIRED" });
+
+  ctx.manager.establecer(true);
+  let response = null;
+  ctx.socket.emit("debug_cerrar_sesiones_escritores", {}, (result) => { response = result; });
+  assert.deepEqual(response, {
+    ok: true,
+    cerradas: 2,
+    sesiones: [{ player: 1 }, { player: 2 }]
+  });
+  assert.equal(ctx.getWriterSessionCloses(), 1);
 });

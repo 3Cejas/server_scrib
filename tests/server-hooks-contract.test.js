@@ -479,6 +479,7 @@ test("scrib_test:force_finish_player marks the requested player as finished", as
 });
 
 test("stale writer sockets cannot overwrite the active writer text", async () => {
+  await emitAck(adminSocket, "scrib_test:force_mode", { mode: "letra bendita", letra: "K" });
   const watcher = await connectPassiveSocket();
   const staleWriter = await connectRole("registrar_escritor", 1);
   await waitForState(

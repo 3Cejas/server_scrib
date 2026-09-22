@@ -73,6 +73,24 @@ test("role registry tracks writers, control, spectators, jury, dramaturgy and ac
   });
 });
 
+test("role registry exposes only active writer sessions for Debug cleanup", () => {
+  const roles = crearRegistroRoles();
+  const writer1 = crearSocket("writer-clean-1");
+  const writer2 = crearSocket("writer-clean-2");
+  roles.registrarEscritor(writer1, { player: 1, client_id: "tab-blue" });
+  roles.registrarEscritor(writer2, { player: 2, client_id: "tab-red" });
+
+  assert.deepEqual(roles.listarEscritoresActivos(), [
+    { player: 1, socketId: "writer-clean-1", clientId: "tab-blue" },
+    { player: 2, socketId: "writer-clean-2", clientId: "tab-red" }
+  ]);
+
+  roles.desregistrarSocket(writer1);
+  assert.deepEqual(roles.listarEscritoresActivos(), [
+    { player: 2, socketId: "writer-clean-2", clientId: "tab-red" }
+  ]);
+});
+
 test("technician role follows one writer room and is removed on disconnect", () => {
   const roles = crearRegistroRoles();
   const technician = crearSocket("technician-1");
@@ -250,11 +268,13 @@ test("role registry keeps writer tab client ids for replacement decisions", () =
   const oldWriter = crearSocket("writer-old");
   const newWriter = crearSocket("writer-new");
 
-  roles.registrarEscritor(oldWriter, { player: 1, client_id: "tab-a" });
-  const second = roles.registrarEscritor(newWriter, { player: 1, client_id: "tab-a" });
+  roles.registrarEscritor(oldWriter, { player: 1, client_id: "tab-a", session_started_at: 1700000000000 });
+  const second = roles.registrarEscritor(newWriter, { player: 1, client_id: "tab-a", session_started_at: 1700000000000 });
 
   assert.equal(second.ok, true);
   assert.equal(second.clientId, "tab-a");
+  assert.equal(second.startedAt, 1700000000000);
+  assert.equal(newWriter.escritxr_started_at, 1700000000000);
   assert.deepEqual(second.previousSessions, [{ socketId: "writer-old", clientId: "tab-a" }]);
   assert.equal(newWriter.escritxr_client_id, "tab-a");
 });

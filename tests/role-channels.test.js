@@ -169,6 +169,53 @@ test("role channels do not warn a writer tab during its own socket reconnect", (
   assert.equal(sesionesEscritor.esActiva(newWriter, 1), true);
 });
 
+test("a delayed old writer reconnect cannot replace the newer active session", () => {
+  const rolesConectados = crearRegistroRoles();
+  const sesionesEscritor = crearRegistroSesionesEscritor();
+  const roomEvents = [];
+  const io = {
+    emit() {},
+    to(room) {
+      return {
+        emit(event, payload) {
+          roomEvents.push({ room, event, payload });
+        }
+      };
+    }
+  };
+  const oldWriter = crearSocket("old-writer");
+  const currentWriter = crearSocket("current-writer");
+  registrar(oldWriter, { io, rolesConectados, sesionesEscritor });
+  registrar(currentWriter, { io, rolesConectados, sesionesEscritor });
+
+  const oldIdentity = {
+    player: 1,
+    client_id: "writer-1-loyw3v28-old",
+    session_started_at: 1700000000000
+  };
+  oldWriter.trigger("registrar_escritor", oldIdentity);
+  currentWriter.trigger("registrar_escritor", {
+    player: 1,
+    client_id: "writer-1-loyw3xzg-current",
+    session_started_at: 1700000010000
+  });
+  roomEvents.length = 0;
+  let ack = null;
+
+  oldWriter.trigger("registrar_escritor", oldIdentity, (payload) => { ack = payload; });
+
+  assert.equal(ack.ok, false);
+  assert.equal(ack.code, "STALE_WRITER_SESSION");
+  assert.equal(ack.active_socket_id, "current-writer");
+  assert.equal(roomEvents.length, 0);
+  assert.equal(sesionesEscritor.esActiva(currentWriter, 1), true);
+  assert.equal(sesionesEscritor.obtenerSocketActivo(1), "current-writer");
+  assert.deepEqual(oldWriter.emitted.at(-1), {
+    event: "escritor_reemplazado",
+    payload: ack
+  });
+});
+
 test("role channels register jury as a read-only live role", () => {
   const rolesConectados = crearRegistroRoles();
   const sesionesEscritor = crearRegistroSesionesEscritor();

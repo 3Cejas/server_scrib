@@ -312,6 +312,35 @@ function registrarCanalesInspiracion({
         if (typeof responder === "function") responder({ ok: true, player: salida.player, client_id: "" });
     });
 
+    // El wrapped no debe depender de que Control genere y transporte los PDF.
+    // Esta respuesta es ligera, se construye con el estado autoritativo que ya
+    // conserva el servidor y permite mostrar el resumen inmediatamente.
+    socket.on("pedir_postgame_musas", (_payload = {}, responder = null) => {
+        const callback = typeof _payload === "function" ? _payload : responder;
+        const musa = obtenerMusaActiva(socket);
+        const player = obtenerIdJugadorValido(musa && musa.player);
+        if (!musa || !player) {
+            if (typeof callback === "function") callback({ ok: false, code: "MUSE_NOT_REGISTERED" });
+            return;
+        }
+        const postgame = construirPostgameMusa({
+            regalo: {
+                player,
+                client_id: musa.clientId || "",
+                musa_nombre: musa.nombre || "MUSA"
+            },
+            musasAuxiliares,
+            writerChannels,
+            payloadStatsLive
+        });
+        const salida = { ok: true, postgame };
+        if (typeof callback === "function") {
+            callback(salida);
+            return;
+        }
+        socket.emit("postgame_musas_estado", salida);
+    });
+
     socket.on("cargar_datos_prueba_musas", (_payload = {}, responder = null) => {
         const callback = typeof _payload === "function" ? _payload : responder;
         if (!socket.control) {

@@ -40,6 +40,35 @@ test("writer sessions remember tab client ids across reconnects", () => {
   assert.equal(sesiones.esMismoClienteActivo({ ...socketViejo, escritxr_client_id: "tab-b" }, 1), false);
 });
 
+test("an older writer session cannot reclaim the role after a newer tab became active", () => {
+  const sesiones = crearRegistroSesionesEscritor();
+  const antigua = {
+    id: "old",
+    escritxr: 1,
+    escritxr_client_id: "writer-1-loyw3v28-old",
+    escritxr_started_at: 1700000000000
+  };
+  const actual = {
+    id: "current",
+    escritxr: 1,
+    escritxr_client_id: "writer-1-loyw3xzg-current",
+    escritxr_started_at: 1700000010000
+  };
+
+  sesiones.activar(antigua, 1);
+  sesiones.activar(actual, 1);
+  const decision = sesiones.puedeReclamar(1, {
+    clientId: antigua.escritxr_client_id,
+    startedAt: antigua.escritxr_started_at
+  });
+
+  assert.equal(decision.ok, false);
+  assert.equal(decision.code, "STALE_WRITER_SESSION");
+  assert.equal(decision.activeSocketId, "current");
+  assert.equal(sesiones.obtenerSocketActivo(1), "current");
+  assert.equal(sesiones.esActiva(actual, 1), true);
+});
+
 test("writer sessions isolate writers and ignore inactive disconnects", () => {
   const sesiones = crearRegistroSesionesEscritor();
   const writer1 = { id: "writer-1", escritxr: 1 };

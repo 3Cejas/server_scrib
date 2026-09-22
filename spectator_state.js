@@ -6,6 +6,10 @@ const ESCALA_UI_ESPECTADOR_MIN = 0.82;
 const ESCALA_UI_ESPECTADOR_MAX = 1.28;
 const ESCALA_UI_ESPECTADOR_DEFAULT = 1;
 const ESCALA_UI_ESPECTADOR_PASO = 0.06;
+const ESCALA_TEXTO_ESPECTADOR_MIN = 0.9;
+const ESCALA_TEXTO_ESPECTADOR_MAX = 1.7;
+const ESCALA_TEXTO_ESPECTADOR_DEFAULT = 1;
+const ESCALA_TEXTO_ESPECTADOR_PASO = 0.05;
 const PUNTUACION_SLIDE_MAX = CATEGORIAS_PUNTUACION.length + 1;
 // Cada apartado se resuelve en tres estados: misterio, azul y rojo + ganador.
 const PUNTUACION_REVEAL_PHASE_MAX = 2;
@@ -21,6 +25,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
     let puntuacionRevealPhase = 0;
     let juradoSlideStep = 0;
     let escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
+    let escalaTexto = ESCALA_TEXTO_ESPECTADOR_DEFAULT;
 
     const normalizarModo = (valor) => {
         const modo = typeof valor === "string" ? valor.trim().toLowerCase() : "";
@@ -33,6 +38,12 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
             return fallback;
         }
         return clampNumber(numero, ESCALA_UI_ESPECTADOR_MIN, ESCALA_UI_ESPECTADOR_MAX);
+    };
+
+    const normalizarEscalaTexto = (valor, fallback = ESCALA_TEXTO_ESPECTADOR_DEFAULT) => {
+        const numero = Number(valor);
+        if (!Number.isFinite(numero)) return fallback;
+        return clampNumber(numero, ESCALA_TEXTO_ESPECTADOR_MIN, ESCALA_TEXTO_ESPECTADOR_MAX);
     };
 
     const normalizarPasoSlideStats = (valor) => {
@@ -84,6 +95,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         puntuacion_reveal_phase: normalizarFasePuntuacion(puntuacionRevealPhase),
         jurado_slide_step: normalizarPasoSlideJurado(juradoSlideStep),
         escala_ui: normalizarEscala(escalaUi),
+        escala_texto: normalizarEscalaTexto(escalaTexto),
         ts: Date.now()
     });
 
@@ -187,6 +199,23 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         return escalaUi;
     };
 
+    const ajustarEscalaTexto = (payloadEscala = {}) => {
+        const accion = typeof payloadEscala?.accion === "string"
+            ? payloadEscala.accion.trim().toLowerCase()
+            : "";
+        const escalaActual = normalizarEscalaTexto(escalaTexto);
+        if (accion === "reset") {
+            escalaTexto = ESCALA_TEXTO_ESPECTADOR_DEFAULT;
+        } else if (accion === "down") {
+            escalaTexto = normalizarEscalaTexto(escalaActual - ESCALA_TEXTO_ESPECTADOR_PASO, escalaActual);
+        } else if (accion === "up") {
+            escalaTexto = normalizarEscalaTexto(escalaActual + ESCALA_TEXTO_ESPECTADOR_PASO, escalaActual);
+        } else if (Object.prototype.hasOwnProperty.call(payloadEscala || {}, "valor")) {
+            escalaTexto = normalizarEscalaTexto(payloadEscala.valor, escalaActual);
+        }
+        return escalaTexto;
+    };
+
     const reset = () => {
         override = "tutorial";
         statsSlideStep = 0;
@@ -195,11 +224,13 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         puntuacionRevealPhase = 0;
         juradoSlideStep = 0;
         escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
+        escalaTexto = ESCALA_TEXTO_ESPECTADOR_DEFAULT;
         return payload();
     };
 
     return {
         ajustarEscala,
+        ajustarEscalaTexto,
         cambiarModo,
         emitir,
         getOverride: () => normalizarModo(override),
@@ -222,6 +253,8 @@ module.exports = {
     crearGestorVistaEspectador,
     ESCALA_UI_ESPECTADOR_DEFAULT,
     ESCALA_UI_ESPECTADOR_MAX,
+    ESCALA_TEXTO_ESPECTADOR_DEFAULT,
+    ESCALA_TEXTO_ESPECTADOR_MAX,
     PUNTUACION_SLIDE_MAX,
     PUNTUACION_REVEAL_PHASE_MAX,
     JURY_RESULT_SLIDE_MAX,

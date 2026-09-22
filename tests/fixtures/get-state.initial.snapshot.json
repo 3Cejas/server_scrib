@@ -187,6 +187,7 @@
     "puntuacion_reveal_phase": 0,
     "jurado_slide_step": 0,
     "escala_ui": 1,
+    "escala_texto": 1,
     "ts": "__TS__"
   },
   "votacion_ventaja": {

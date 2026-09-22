@@ -477,6 +477,41 @@ test("regalo_pdf_musas targets personalized gifts to the muse client room", () =
   assert.deepEqual(ack, { ok: true, player: 1, client_id: "client_1", destinatarios: 0 });
 });
 
+test("pedir_postgame_musas returns the wrapped without waiting for PDF generation", () => {
+  const socket = createFakeSocket();
+  let ack = null;
+
+  registrarCanalesInspiracion({
+    socket,
+    io: { to: () => ({ emit: () => {} }) },
+    musasAuxiliares: {
+      registrarCorazon: () => null,
+      payloadResumenPdf: () => ({
+        equipos: {
+          1: { musas: [{ client_id: "socket_client", nombre: "LUNA", stats: { enviadas: 5, introducidas: 3 } }] },
+          2: { musas: [] }
+        }
+      })
+    },
+    writerChannels: {
+      getNombre: (player) => `ESCRITXR ${player}`,
+      snapshotTextos: () => ({ 1: { plano: "Historia azul" }, 2: { plano: "Historia roja" } })
+    },
+    payloadStatsLive: () => ({ players: { 1: { palabrasTotal: 2 }, 2: { palabrasTotal: 2 } } }),
+    nubeInspiracion: { registrarInspiracion: () => {} },
+    obtenerIdJugadorValido: (valor) => ([1, 2].includes(Number(valor)) ? Number(valor) : null),
+    obtenerMusaActiva: () => ({ player: 1, nombre: "LUNA", clientId: "socket_client" })
+  });
+
+  socket.emit("pedir_postgame_musas", {}, (payload) => { ack = payload; });
+
+  assert.equal(ack.ok, true);
+  assert.equal(ack.postgame.musa.nombre, "LUNA");
+  assert.equal(ack.postgame.musa.stats.introducidas, 3);
+  assert.equal(ack.postgame.escritores[1].texto, "Historia azul");
+  assert.equal(Object.prototype.hasOwnProperty.call(ack.postgame.escritores[1], "pdf"), false);
+});
+
 test("cargar_datos_prueba_musas emits complete postgame gifts only from Debug Control", () => {
   const socket = createFakeSocket();
   socket.control = true;

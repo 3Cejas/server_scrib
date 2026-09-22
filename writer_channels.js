@@ -18,6 +18,7 @@ function crearCanalesEscritor({
         return "";
     },
     actualizarTextoJugador = () => {},
+    puedeActualizarTexto = () => true,
     onTextoActualizado = () => {},
     onNombreCambiado = () => {},
     syncMode = () => {},
@@ -88,6 +89,9 @@ function crearCanalesEscritor({
                     )
                 });
             }
+            return false;
+        }
+        if (!puedeActualizarTexto({ socket, player: id, evento })) {
             return false;
         }
         const textoAnterior = estado.plano[id] || "";

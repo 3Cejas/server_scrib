@@ -69,6 +69,37 @@ function crearRuntimeScrib({
         io,
         getCalentamientoGestor: () => calentamientoGestor,
         getTemporizadorShow: () => temporizadorShow,
+        cerrarSesionesEscritores: () => {
+            const sesiones = rolesConectados && typeof rolesConectados.listarEscritoresActivos === "function"
+                ? rolesConectados.listarEscritoresActivos()
+                : [];
+            sesiones.forEach(({ player, socketId }) => {
+                const registroSockets = io && io.sockets ? io.sockets.sockets : null;
+                const socketEscritora = registroSockets && typeof registroSockets.get === "function"
+                    ? registroSockets.get(socketId)
+                    : (
+                        (io && io.sockets && io.sockets.connected && io.sockets.connected[socketId])
+                        || (registroSockets && registroSockets[socketId])
+                        || null
+                    );
+                if (!socketEscritora) return;
+                socketEscritora.emit("escritor_reemplazado", {
+                    player,
+                    motivo: "cerrada_control",
+                    titulo: "Sesi\u00f3n cerrada desde Control",
+                    mensaje: "Control ha cerrado las sesiones de escritoras. Vuelve a entrar en el rol cuando te lo indiquen."
+                });
+                setTimeout(() => {
+                    if (socketEscritora.connected !== false && typeof socketEscritora.disconnect === "function") {
+                        socketEscritora.disconnect(true);
+                    }
+                }, 150);
+            });
+            return {
+                cerradas: sesiones.length,
+                sesiones: sesiones.map(({ player, clientId }) => ({ player, client_id: clientId }))
+            };
+        },
         getIteracionesPartida: () => {
             if (!registroIteracionesPartida) return null;
             const diario = dramaturgiaState
@@ -292,6 +323,7 @@ function crearRuntimeScrib({
         validarJugador: obtenerIdJugadorValido,
         sesionesEscritor,
         extraerTextoPlano,
+        puedeActualizarTexto: () => !estadoCicloPartida.finDelJuego,
         actualizarTextoJugador: (player, texto) => getModoMalditas().actualizarTextoJugador(player, texto),
         onTextoActualizado: (player, anterior, actual) => {
             competicionRondas.registrarCambioTexto(player, anterior, actual);

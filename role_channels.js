@@ -270,6 +270,34 @@ function registrarCanalesRoles({
 
     socket.on("registrar_escritor", (escritxr, callback) => {
         protegerEntradaHumana("escritor");
+        const datosEscritor = (escritxr && typeof escritxr === "object")
+            ? escritxr
+            : { player: escritxr };
+        const jugadorSolicitado = obtenerIdJugadorValido(
+            datosEscritor.player ?? datosEscritor.escritxr ?? datosEscritor.writer ?? datosEscritor.jugador
+        );
+        const clientIdSolicitado = String(
+            datosEscritor.client_id ?? datosEscritor.clientId ?? datosEscritor.tab_id ?? datosEscritor.tabId ?? ""
+        ).trim().slice(0, 160);
+        const elegibilidad = sesionesEscritor && typeof sesionesEscritor.puedeReclamar === "function"
+            ? sesionesEscritor.puedeReclamar(jugadorSolicitado, {
+                clientId: clientIdSolicitado,
+                startedAt: datosEscritor.session_started_at ?? datosEscritor.sessionStartedAt
+            })
+            : { ok: true };
+        if (jugadorSolicitado && elegibilidad.ok === false) {
+            const rechazo = {
+                ok: false,
+                code: elegibilidad.code || "STALE_WRITER_SESSION",
+                player: jugadorSolicitado,
+                role: `escritxr ${jugadorSolicitado}`,
+                active_socket_id: elegibilidad.activeSocketId || "",
+                mensaje: "Esta conexi\u00f3n pertenece a una sesi\u00f3n anterior. La sesi\u00f3n actual de Escritxr sigue activa."
+            };
+            socket.emit("escritor_reemplazado", rechazo);
+            if (typeof callback === "function") callback(rechazo);
+            return;
+        }
         const registro = rolesConectados.registrarEscritor(socket, escritxr);
         if (!registro.ok) {
             console.warn(`[servidor] register_escritor: id invalido (${escritxr})`);

@@ -166,3 +166,31 @@ test("writer channels tells a stale connection when the same browser session can
   }]);
   assert.equal(canales.getTextoPlano(1), "");
 });
+
+test("writer channels preserves final texts when a finished writer reconnects empty", () => {
+  let partidaFinalizada = false;
+  const canales = crearCanalesEscritor({
+    sesionesEscritor: { esActiva: () => true },
+    extraerTextoPlano: (evento) => evento.texto_guardado || evento.text || "",
+    puedeActualizarTexto: () => !partidaFinalizada
+  });
+  const socket = crearSocket("writer-final");
+  canales.registrarHandlers(socket);
+
+  socket.trigger("texto1", {
+    text: "AZUL LÍNEA UNO<br>AZUL LÍNEA DOS",
+    texto_guardado: "AZUL LÍNEA UNO\nAZUL LÍNEA DOS"
+  });
+  partidaFinalizada = true;
+  socket.trigger("texto1", { text: "", texto_guardado: "" });
+  socket.trigger("pedir_texto", { player: 1 });
+
+  assert.equal(canales.getTextoPlano(1), "AZUL LÍNEA UNO\nAZUL LÍNEA DOS");
+  assert.deepEqual(socket.emitidos.at(-1), {
+    event: "texto1",
+    payload: {
+      text: "AZUL LÍNEA UNO<br>AZUL LÍNEA DOS",
+      texto_guardado: "AZUL LÍNEA UNO\nAZUL LÍNEA DOS"
+    }
+  });
+});

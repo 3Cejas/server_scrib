@@ -233,6 +233,14 @@ function crearRegistroRoles({
         connections: payloadConexiones()
     });
 
+    const listarEscritoresActivos = () => ([1, 2].flatMap((player) => (
+        Array.from(escritores[player]).map((socketId) => ({
+            player,
+            socketId,
+            clientId: escritoresClientIds.get(socketId) || ""
+        }))
+    )));
+
     const registrarControl = (socket) => {
         socket.control = true;
         socket.join(ROLE_ROOMS.CONTROL);
@@ -336,11 +344,13 @@ function crearRegistroRoles({
         const clientId = String(data.client_id ?? data.clientId ?? data.tab_id ?? data.tabId ?? "")
             .trim()
             .slice(0, 160);
-        return { id, clientId };
+        const inicioRaw = Number(data.session_started_at ?? data.sessionStartedAt ?? data.started_at ?? 0);
+        const startedAt = Number.isFinite(inicioRaw) && inicioRaw > 0 ? Math.trunc(inicioRaw) : 0;
+        return { id, clientId, startedAt };
     };
 
     const registrarEscritor = (socket, player) => {
-        const { id, clientId } = normalizarPayloadEscritor(player);
+        const { id, clientId, startedAt } = normalizarPayloadEscritor(player);
         if (!id) {
             return { ok: false, player: null };
         }
@@ -359,6 +369,7 @@ function crearRegistroRoles({
         previousSocketIds.forEach((socketId) => escritoresClientIds.delete(socketId));
         socket.escritxr = id;
         socket.escritxr_client_id = clientId;
+        socket.escritxr_started_at = startedAt;
         socket.join(`j${id}`);
         socket.join(ROLE_ROOMS.writer(id));
         escritores[id].add(socket.id);
@@ -367,6 +378,7 @@ function crearRegistroRoles({
             ok: true,
             player: id,
             clientId,
+            startedAt,
             previous: anterior || null,
             previousSocketIds,
             previousSessions,
@@ -726,6 +738,7 @@ function crearRegistroRoles({
         estadoEscritores,
         iniciarNuevaSesionMusas,
         limpiarMusasCreditosPartida,
+        listarEscritoresActivos,
         listarMusasActivas,
         obtenerContadorMusas: clonarContadorMusas,
         obtenerSesionMusas,

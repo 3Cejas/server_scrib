@@ -5,7 +5,8 @@ function crearGestorModoDebug({
     now = () => Date.now(),
     getCalentamientoGestor = () => null,
     getTemporizadorShow = () => null,
-    getIteracionesPartida = () => null
+    getIteracionesPartida = () => null,
+    cerrarSesionesEscritores = () => ({ cerradas: 0, sesiones: [] })
 } = {}) {
     let activo = false;
     let revision = 0;
@@ -174,6 +175,26 @@ function crearGestorModoDebug({
                 }
             } catch (_error) {
                 if (typeof responder === "function") responder({ ok: false, code: "ITERATION_EXPORT_FAILED" });
+            }
+        });
+
+        socket.on("debug_cerrar_sesiones_escritores", (entrada = {}, callback = null) => {
+            const responder = typeof entrada === "function" ? entrada : callback;
+            if (!socket.control) {
+                if (typeof responder === "function") responder({ ok: false, code: "NOT_AUTHORIZED" });
+                return;
+            }
+            if (!activo) {
+                if (typeof responder === "function") responder({ ok: false, code: "DEBUG_MODE_REQUIRED" });
+                return;
+            }
+            try {
+                const resultado = typeof cerrarSesionesEscritores === "function"
+                    ? cerrarSesionesEscritores()
+                    : { cerradas: 0, sesiones: [] };
+                if (typeof responder === "function") responder({ ok: true, ...(resultado || {}) });
+            } catch (_error) {
+                if (typeof responder === "function") responder({ ok: false, code: "WRITER_SESSIONS_CLOSE_FAILED" });
             }
         });
     };
