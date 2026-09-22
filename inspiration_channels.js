@@ -1,4 +1,5 @@
 const { contieneLenguajeOfensivo } = require("./profanity_filter.js");
+const { extraerTextoPlano } = require("./runtime_config.js");
 
 const normalizarNombreMusaPorDefecto = (valor) => {
     if (typeof valor !== "string") return "";
@@ -81,6 +82,14 @@ const normalizarPdfEscritxrPostgame = (valor, player) => {
     };
 };
 
+const textoEscritxrPostgame = (snapshot = {}) => {
+    if (!snapshot || typeof snapshot !== "object") return "";
+    if (typeof snapshot.plano === "string" && snapshot.plano.length > 0) {
+        return snapshot.plano.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    }
+    return extraerTextoPlano(snapshot.html);
+};
+
 function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChannels = null, payloadStatsLive = () => ({}) } = {}) {
     const player = Number(regalo && regalo.player) === 2 ? 2 : 1;
     const clientId = String(regalo && regalo.client_id ? regalo.client_id : "");
@@ -107,7 +116,7 @@ function construirPostgameMusa({ regalo = {}, musasAuxiliares = null, writerChan
         escritores[id] = {
             player: id,
             nombre: String(nombreServidor || stats.nombre || `ESCRITXR ${id}`).slice(0, 80),
-            texto: String(textos[id] && (textos[id].plano || textos[id].html) ? (textos[id].plano || textos[id].html) : ""),
+            texto: textoEscritxrPostgame(textos[id]),
             stats: {
                 palabras: Math.max(0, Math.trunc(Number(stats.palabrasTotal) || 0)),
                 palabras_unicas: Math.max(0, Math.trunc(Number(stats.palabrasUnicas) || 0)),

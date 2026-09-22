@@ -33,8 +33,8 @@ test("construirPostgameMusa incluye estadisticas personales y los dos textos", (
     writerChannels: {
       getNombre: (player) => (player === 1 ? "ANA MAR" : "BEA SOL"),
       snapshotTextos: () => ({
-        1: { plano: "Texto propio" },
-        2: { plano: "Texto contrario" }
+        1: { plano: "Texto propio\nSegunda línea" },
+        2: { plano: "", html: { text: "<div>Texto contrario</div><div>Tercera línea</div>" } }
       })
     },
     payloadStatsLive: () => ({
@@ -55,8 +55,8 @@ test("construirPostgameMusa incluye estadisticas personales y los dos textos", (
   ]);
   assert.equal(payload.ranking[1].stats.impacto_neto, 4);
   assert.equal(payload.escritores[1].nombre, "ANA MAR");
-  assert.equal(payload.escritores[1].texto, "Texto propio");
-  assert.equal(payload.escritores[2].texto, "Texto contrario");
+  assert.equal(payload.escritores[1].texto, "Texto propio\nSegunda línea");
+  assert.equal(payload.escritores[2].texto, "Texto contrario\nTercera línea");
   assert.deepEqual(payload.escritores[1].stats, {
     palabras: 42,
     palabras_unicas: 31,

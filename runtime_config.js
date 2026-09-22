@@ -60,6 +60,18 @@ function normalizarNombreMusa(valor) {
 }
 
 function extraerTextoPlano(evento) {
+    const textoGuardado = evento && typeof evento === 'object'
+        && typeof evento.texto_guardado === 'string'
+        ? evento.texto_guardado
+        : null;
+    if (textoGuardado !== null) {
+        // La escritora genera esta copia recorriendo el DOM del editor. Es la
+        // fuente más fiel para el wrapped porque conserva los Enter sin tener
+        // que deducirlos de las etiquetas que decide crear cada navegador.
+        return textoGuardado
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
+    }
     const html = typeof evento === 'string'
         ? evento
         : (evento && typeof evento.text === 'string' ? evento.text : '');
