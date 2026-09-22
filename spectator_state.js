@@ -10,6 +10,10 @@ const ESCALA_TEXTO_ESPECTADOR_MIN = 0.9;
 const ESCALA_TEXTO_ESPECTADOR_MAX = 1.7;
 const ESCALA_TEXTO_ESPECTADOR_DEFAULT = 1;
 const ESCALA_TEXTO_ESPECTADOR_PASO = 0.05;
+const ESCALA_DETONADORES_ESPECTADOR_MIN = 0.7;
+const ESCALA_DETONADORES_ESPECTADOR_MAX = 2;
+const ESCALA_DETONADORES_ESPECTADOR_DEFAULT = 1;
+const ESCALA_DETONADORES_ESPECTADOR_PASO = 0.05;
 const PUNTUACION_SLIDE_MAX = CATEGORIAS_PUNTUACION.length + 1;
 // Cada apartado se resuelve en tres estados: misterio, azul y rojo + ganador.
 const PUNTUACION_REVEAL_PHASE_MAX = 2;
@@ -26,6 +30,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
     let juradoSlideStep = 0;
     let escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
     let escalaTexto = ESCALA_TEXTO_ESPECTADOR_DEFAULT;
+    let escalaDetonadores = ESCALA_DETONADORES_ESPECTADOR_DEFAULT;
 
     const normalizarModo = (valor) => {
         const modo = typeof valor === "string" ? valor.trim().toLowerCase() : "";
@@ -44,6 +49,12 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         const numero = Number(valor);
         if (!Number.isFinite(numero)) return fallback;
         return clampNumber(numero, ESCALA_TEXTO_ESPECTADOR_MIN, ESCALA_TEXTO_ESPECTADOR_MAX);
+    };
+
+    const normalizarEscalaDetonadores = (valor, fallback = ESCALA_DETONADORES_ESPECTADOR_DEFAULT) => {
+        const numero = Number(valor);
+        if (!Number.isFinite(numero)) return fallback;
+        return clampNumber(numero, ESCALA_DETONADORES_ESPECTADOR_MIN, ESCALA_DETONADORES_ESPECTADOR_MAX);
     };
 
     const normalizarPasoSlideStats = (valor) => {
@@ -96,6 +107,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         jurado_slide_step: normalizarPasoSlideJurado(juradoSlideStep),
         escala_ui: normalizarEscala(escalaUi),
         escala_texto: normalizarEscalaTexto(escalaTexto),
+        escala_detonadores: normalizarEscalaDetonadores(escalaDetonadores),
         ts: Date.now()
     });
 
@@ -216,6 +228,29 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         return escalaTexto;
     };
 
+    const ajustarEscalaDetonadores = (payloadEscala = {}) => {
+        const accion = typeof payloadEscala?.accion === "string"
+            ? payloadEscala.accion.trim().toLowerCase()
+            : "";
+        const escalaActual = normalizarEscalaDetonadores(escalaDetonadores);
+        if (accion === "reset") {
+            escalaDetonadores = ESCALA_DETONADORES_ESPECTADOR_DEFAULT;
+        } else if (accion === "down") {
+            escalaDetonadores = normalizarEscalaDetonadores(
+                escalaActual - ESCALA_DETONADORES_ESPECTADOR_PASO,
+                escalaActual
+            );
+        } else if (accion === "up") {
+            escalaDetonadores = normalizarEscalaDetonadores(
+                escalaActual + ESCALA_DETONADORES_ESPECTADOR_PASO,
+                escalaActual
+            );
+        } else if (Object.prototype.hasOwnProperty.call(payloadEscala || {}, "valor")) {
+            escalaDetonadores = normalizarEscalaDetonadores(payloadEscala.valor, escalaActual);
+        }
+        return escalaDetonadores;
+    };
+
     const reset = () => {
         override = "tutorial";
         statsSlideStep = 0;
@@ -225,11 +260,13 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         juradoSlideStep = 0;
         escalaUi = ESCALA_UI_ESPECTADOR_DEFAULT;
         escalaTexto = ESCALA_TEXTO_ESPECTADOR_DEFAULT;
+        escalaDetonadores = ESCALA_DETONADORES_ESPECTADOR_DEFAULT;
         return payload();
     };
 
     return {
         ajustarEscala,
+        ajustarEscalaDetonadores,
         ajustarEscalaTexto,
         cambiarModo,
         emitir,
@@ -255,6 +292,8 @@ module.exports = {
     ESCALA_UI_ESPECTADOR_MAX,
     ESCALA_TEXTO_ESPECTADOR_DEFAULT,
     ESCALA_TEXTO_ESPECTADOR_MAX,
+    ESCALA_DETONADORES_ESPECTADOR_DEFAULT,
+    ESCALA_DETONADORES_ESPECTADOR_MAX,
     PUNTUACION_SLIDE_MAX,
     PUNTUACION_REVEAL_PHASE_MAX,
     JURY_RESULT_SLIDE_MAX,

@@ -613,6 +613,11 @@ function crearRuntimeScrib({
         },
         emitirNubeInspiracionEstado,
         emitirModoActual,
+        aplicarEscalasEspectador: (parametros = {}) => {
+            espectador.ajustarEscala({ valor: parametros.ESCALA_UI_ESPECTADOR });
+            espectador.ajustarEscalaTexto({ valor: parametros.ESCALA_TEXTO_ESPECTADOR });
+            espectador.ajustarEscalaDetonadores({ valor: parametros.ESCALA_DETONADORES_ESPECTADOR });
+        },
         asegurarVistaPartidaEspectador: () => {
             espectador.cambiarModo("partida");
             emitirVistaEspectadorModo();

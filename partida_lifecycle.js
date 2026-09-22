@@ -28,6 +28,7 @@ function crearCicloPartida({
     emitirNubeInspiracionEstado,
     emitirModoActual,
     asegurarVistaPartidaEspectador = () => {},
+    aplicarEscalasEspectador = () => {},
     limpiarDesventajasActivas = () => {},
     resetearCompeticion = () => {},
     iniciarCompeticionRonda = () => {},
@@ -224,6 +225,7 @@ function crearCicloPartida({
         const parametros = (datos && datos.parametros) || {};
         limpiarTimersRonda();
         resetearEstadoAuxiliarParaTests();
+        aplicarEscalasEspectador(parametros);
         asegurarVistaPartidaEspectador();
         resetearPuntuacionFinal();
         limpiarDesventajasActivas();

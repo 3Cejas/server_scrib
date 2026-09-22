@@ -702,6 +702,17 @@ function registrarCanalesEspectador({
         espectador.ajustarEscalaTexto(payload);
         emitirVistaEspectadorModo();
     });
+
+    socket.on("ajustar_escala_detonadores_espectador", (payload = {}) => {
+        if (!socket.control) return;
+        const accion = typeof payload?.accion === "string"
+            ? payload.accion.trim().toLowerCase()
+            : "";
+        const tieneValor = Object.prototype.hasOwnProperty.call(payload || {}, "valor");
+        if (accion !== "reset" && accion !== "down" && accion !== "up" && !tieneValor) return;
+        espectador.ajustarEscalaDetonadores(payload);
+        emitirVistaEspectadorModo();
+    });
 }
 
 module.exports = {

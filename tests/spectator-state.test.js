@@ -7,6 +7,8 @@ const {
   ESCALA_UI_ESPECTADOR_MAX,
   ESCALA_TEXTO_ESPECTADOR_DEFAULT,
   ESCALA_TEXTO_ESPECTADOR_MAX,
+  ESCALA_DETONADORES_ESPECTADOR_DEFAULT,
+  ESCALA_DETONADORES_ESPECTADOR_MAX,
   PUNTUACION_SLIDE_MAX,
   JURY_RESULT_SLIDE_MAX
 } = require("../spectator_state.js");
@@ -34,13 +36,16 @@ test("spectator view scale defaults to the parameter baseline and clamps remote 
 
   assert.equal(gestor.payload().escala_ui, ESCALA_UI_ESPECTADOR_DEFAULT);
   assert.equal(gestor.payload().escala_texto, ESCALA_TEXTO_ESPECTADOR_DEFAULT);
+  assert.equal(gestor.payload().escala_detonadores, ESCALA_DETONADORES_ESPECTADOR_DEFAULT);
   assert.equal(gestor.payload().modo, "tutorial");
   assert.equal(gestor.payload().override, "tutorial");
   assert.equal(gestor.ajustarEscala({ valor: 9 }), ESCALA_UI_ESPECTADOR_MAX);
   assert.equal(gestor.ajustarEscalaTexto({ valor: 9 }), ESCALA_TEXTO_ESPECTADOR_MAX);
+  assert.equal(gestor.ajustarEscalaDetonadores({ valor: 9 }), ESCALA_DETONADORES_ESPECTADOR_MAX);
   const reset = gestor.reset();
   assert.equal(reset.escala_ui, ESCALA_UI_ESPECTADOR_DEFAULT);
   assert.equal(reset.escala_texto, ESCALA_TEXTO_ESPECTADOR_DEFAULT);
+  assert.equal(reset.escala_detonadores, ESCALA_DETONADORES_ESPECTADOR_DEFAULT);
   assert.equal(reset.modo, "tutorial");
   assert.equal(reset.override, "tutorial");
 });

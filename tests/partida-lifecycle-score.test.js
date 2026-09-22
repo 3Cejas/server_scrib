@@ -105,6 +105,7 @@ function crearHarness() {
       this.cierres.push(motivo);
     }
   };
+  const escalasAplicadas = [];
   const ciclo = crearCicloPartida({
     state,
     io,
@@ -140,6 +141,7 @@ function crearHarness() {
     },
     emitirNubeInspiracionEstado: noOp,
     emitirModoActual: noOp,
+    aplicarEscalasEspectador: (parametros) => escalasAplicadas.push(parametros),
     asegurarVistaPartidaEspectador: () => { vistasPartidaAseguradas += 1; },
     iniciarRelojPartida: (segundos) => relojesIniciados.push(segundos),
     setPartidaPausada: noOp,
@@ -183,6 +185,7 @@ function crearHarness() {
     getInicioProgramado: () => inicioProgramado,
     getCapturasFinales: () => capturasFinales,
     getVistasResultado: () => vistasResultado,
+    escalasAplicadas,
     registrosIteracionesIniciados,
     registrosIteracionesFinalizados
   };
@@ -223,6 +226,19 @@ test("Palabras benditas starts as the playable warm-up immediately after the cou
   assert.deepEqual(ctx.state.modosPendientes, ["frase final"]);
   assert.deepEqual(ctx.relojesIniciados, [20]);
   assert.deepEqual(ctx.modosActivados, ["palabras bonus"]);
+});
+
+test("match start reapplies the spectator visual scales after the lifecycle reset", () => {
+  const ctx = crearHarness();
+  const parametros = {
+    ESCALA_UI_ESPECTADOR: 1.12,
+    ESCALA_TEXTO_ESPECTADOR: 1.35,
+    ESCALA_DETONADORES_ESPECTADOR: 1.6
+  };
+
+  ctx.ciclo.iniciarPartida(ctx.socket, { count: "1:00", parametros });
+
+  assert.deepEqual(ctx.escalasAplicadas, [parametros]);
 });
 
 function crearSocketLifecycle({ control = false, simulacion = false } = {}) {
@@ -300,6 +316,10 @@ test("the authoritative match finish closes both writers at the same time", () =
   assert.equal(ctx.getCapturasFinales(), 1);
   assert.equal(ctx.puntuacionFinal.payload().disponible, true);
   assert.equal(ctx.getVistasResultado(), 1);
+  assert.deepEqual(
+    ctx.eventos.filter(({ event }) => event === "fin_a_control").map(({ payload }) => payload),
+    [{ partida_finalizada: true }]
+  );
   assert.deepEqual(
     ctx.eventos.filter(({ event }) => event === "fin").map(({ payload }) => payload),
     [
