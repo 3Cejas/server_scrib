@@ -290,6 +290,7 @@ function crearRuntimeScrib({
         obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket),
         listarMusasActivas: () => rolesConectados.listarMusasActivas(),
         logger: registrar,
+        obtenerVistaActiva: () => resolverModoVistaEspectador(),
         onReproducir: () => {
             if (narracionShow) narracionShow.detener();
             if (cantoShow) cantoShow.desactivar();

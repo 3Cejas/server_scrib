@@ -186,7 +186,8 @@ function crearGestorVideoTutorialPreShow({
     clearTimeoutFn = clearTimeout,
     crearSessionId = () => `video_${randomBytes(12).toString("hex")}`,
     logger = () => {},
-    onReproducir = () => {}
+    onReproducir = () => {},
+    obtenerVistaActiva = () => "tutorial"
 } = {}) {
     let config = normalizarConfigVideoTutorial(almacen.cargar());
     let revision = 1;
@@ -602,7 +603,13 @@ function crearGestorVideoTutorialPreShow({
                 if (typeof responder === "function") responder(respuestaError("NOT_AUTHORIZED"));
                 return;
             }
-            const resultado = await configurar(typeof entrada === "function" ? {} : entrada);
+            const configuracion = typeof entrada === "function" ? {} : entrada;
+            const vistaActiva = String(obtenerVistaActiva() || "").trim().toLowerCase();
+            if (configuracion.habilitado === true && vistaActiva !== "tutorial") {
+                if (typeof responder === "function") responder(respuestaError("TUTORIAL_VIEW_INACTIVE"));
+                return;
+            }
+            const resultado = await configurar(configuracion);
             if (typeof responder === "function") responder(resultado);
         });
         socket.on("video_tutorial_reproducir", (entrada = {}, callback = null) => {

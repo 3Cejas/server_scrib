@@ -104,7 +104,7 @@ function crearAlmacenMemoria(config = {}, { fallar = false } = {}) {
   };
 }
 
-function crearContexto({ config = {}, almacen = null, inicio = 0 } = {}) {
+function crearContexto({ config = {}, almacen = null, inicio = 0, vistaActiva = "tutorial" } = {}) {
   const io = crearIo();
   const reloj = crearReloj(inicio);
   const roles = crearRegistroRoles();
@@ -118,7 +118,8 @@ function crearContexto({ config = {}, almacen = null, inicio = 0 } = {}) {
     now: reloj.now,
     setTimeoutFn: reloj.setTimeoutFn,
     clearTimeoutFn: reloj.clearTimeoutFn,
-    crearSessionId: () => `video-session-${++secuenciaSesion}`
+    crearSessionId: () => `video-session-${++secuenciaSesion}`,
+    obtenerVistaActiva: () => vistaActiva
   });
   return { gestor, io, reloj, roles, almacen: store };
 }
@@ -462,4 +463,18 @@ test("socket handlers authorize Control mutations, sync reconnects and ACK muse 
     forgedAck = ack;
   });
   assert.equal(forgedAck.code, "MUSA_NOT_REGISTERED");
+});
+
+test("automatic tutorial repetition cannot be enabled outside the tutorial view", async () => {
+  const { gestor } = crearContexto({ vistaActiva: "partida" });
+  const control = crearSocket("control", { control: true });
+  gestor.registrarHandlers(control);
+
+  let ack = null;
+  await control.trigger("video_tutorial_configurar", { habilitado: true }, (respuesta) => {
+    ack = respuesta;
+  });
+  assert.equal(ack.ok, false);
+  assert.equal(ack.code, "TUTORIAL_VIEW_INACTIVE");
+  assert.equal(gestor.payload().configuracion.habilitado, false);
 });
