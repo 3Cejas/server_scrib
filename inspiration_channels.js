@@ -243,24 +243,15 @@ function registrarCanalesInspiracion({
         return !sesionesEscritor || sesionesEscritor.esActiva(socket, id);
     };
 
-    const hayEscritorActivo = (player) => {
-        const id = obtenerIdJugadorValido(player);
-        if (!id) return false;
-        if (sesionesEscritor && typeof sesionesEscritor.obtenerSocketActivo === "function") {
-            return Boolean(sesionesEscritor.obtenerSocketActivo(id));
-        }
-        return true;
-    };
-
     const nombreMusaPublico = (valor) => {
         const nombre = normalizarNombreMusa(valor);
         if (!nombre || contieneLenguajeOfensivo(nombre)) return "MUSA";
         return nombre;
     };
 
-    const entregarInspiracionEnColaAEscritoraActiva = (modo, player) => {
+    const entregarInspiracionEnCola = (modo, player) => {
         const id = obtenerIdJugadorValido(player);
-        if (!id || !modo || !hayEscritorActivo(id)) {
+        if (!id || !modo) {
             return false;
         }
         if (
@@ -942,11 +933,17 @@ function registrarCanalesInspiracion({
             case "letra prohibida":
                 {
                     modoDestino.addMusa(id_jugador, payload_musa);
-                    entregarInspiracionEnColaAEscritoraActiva(modoDestino, id_jugador);
                 }
                 registrar(`[modo_musas] Se anadio musa para J${id_jugador}: "${palabra}" (${nombre_musa})`);
                 break;
         }
+        // La primera inspiración de una ronda no puede depender de que el
+        // navegador de la escritora haya alcanzado antes a pedirla. Si el
+        // envío quedó en cola y no hay otra inspiración de musa activa, la
+        // promovemos inmediatamente en cualquier nivel compatible. La
+        // entrega queda además guardada por el modo para poder restaurarla si
+        // la escritora se registra o reconecta unas décimas más tarde.
+        entregarInspiracionEnCola(modoDestino, target_player);
         emitirNubeInspiracionEstado(null, true);
         return responder({
             ok: true,

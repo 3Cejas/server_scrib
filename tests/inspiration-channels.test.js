@@ -317,7 +317,77 @@ test("enviar_inspiracion pushes queued letter-mode muse words to active writers"
   ]);
 });
 
-test("enviar_inspiracion keeps letter-mode muse words queued when the writer is disconnected", () => {
+test("enviar_inspiracion immediately promotes the first blue bonus word without a prior writer request", () => {
+  const socket = createFakeSocket();
+  const calls = [];
+  let queued = [];
+  const mode = {
+    addMusa: (player, payload) => {
+      calls.push({ type: "add", player, payload });
+      queued.push(payload);
+    },
+    obtenerEstadoPalabrasMusas: (player) => ({
+      player,
+      activa: queued.length > 0,
+      origen_estado: queued.length > 0 ? "cola" : "",
+      palabra: queued[0]?.palabra || "",
+      cola: queued.length,
+      cola_palabras_musas: queued.length
+    }),
+    handleRequest: (player) => {
+      calls.push({ type: "handle", player });
+      queued = [];
+    }
+  };
+
+  registrarCanalesInspiracion({
+    socket,
+    io: { to: () => ({ emit: () => {} }) },
+    musasAuxiliares: {
+      registrarCorazon: () => null,
+      registrarInspiracionEnviada: () => {}
+    },
+    nubeInspiracion: { registrarInspiracion: () => {} },
+    getModoActual: () => "palabras bonus",
+    getModoBonus: () => mode,
+    getModoMalditas: () => null,
+    getModoMusas: () => null,
+    obtenerIdJugadorValido: (valor) => (Number(valor) === 1 ? 1 : null),
+    obtenerMusaActiva: () => ({ player: 1, nombre: "LUNA", clientId: "blue-muse" }),
+    normalizarNombreMusa: (valor) => String(valor || "").trim().toUpperCase(),
+    normalizarMusaClientId: (valor) => String(valor || "").trim(),
+    sesionesEscritor: {
+      obtenerSocketActivo: () => null
+    }
+  });
+
+  let ack = null;
+  socket.emit("enviar_inspiracion", { palabra: "aurora" }, (payload) => {
+    ack = payload;
+  });
+
+  assert.deepEqual(calls, [
+    {
+      type: "add",
+      player: 1,
+      payload: {
+        palabra: "aurora",
+        musa: "LUNA",
+        client_id: "blue-muse"
+      }
+    },
+    { type: "handle", player: 1 }
+  ]);
+  assert.deepEqual(ack, {
+    ok: true,
+    player: 1,
+    target_player: 1,
+    palabra: "aurora",
+    modo_actual: "palabras bonus"
+  });
+});
+
+test("enviar_inspiracion promotes letter-mode muse words even before the writer reconnects", () => {
   const socket = createFakeSocket();
   const calls = [];
   const mode = {
@@ -353,7 +423,11 @@ test("enviar_inspiracion keeps letter-mode muse words queued when the writer is 
 
   socket.emit("enviar_inspiracion", { palabra: "sombra" });
 
-  assert.deepEqual(calls, [{ type: "add", player: 1 }]);
+  assert.deepEqual(calls, [
+    { type: "add", player: 1 },
+    { type: "status", player: 1 },
+    { type: "handle", player: 1 }
+  ]);
 });
 
 test("nueva_palabra marks the delivered muse word before requesting the next bonus", () => {
