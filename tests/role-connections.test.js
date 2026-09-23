@@ -98,6 +98,7 @@ test("technician role follows one writer room and is removed on disconnect", () 
   const result = roles.registrarTecnico(technician, { player: 1 });
   assert.equal(result.ok, true);
   assert.equal(technician.salas.has("j1"), true);
+  assert.equal(technician.salas.has(ROLE_ROOMS.TECHNICIAN), true);
   assert.equal(technician.salas.has(ROLE_ROOMS.technician(1)), true);
   assert.deepEqual(roles.payloadConexiones().technicians[1], { count: 1, connected: true });
 

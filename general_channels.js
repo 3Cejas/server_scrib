@@ -6,7 +6,8 @@ const DESTINOS_REINICIO_ROL = Object.freeze({
     espectador: { rol: "espectador", room: ROLE_ROOMS.SPECTATOR },
     jurado: { rol: "jurado", room: ROLE_ROOMS.JURY },
     actorxs1: { rol: "actorxs1", room: ROLE_ROOMS.actor(1) },
-    actorxs2: { rol: "actorxs2", room: ROLE_ROOMS.actor(2) }
+    actorxs2: { rol: "actorxs2", room: ROLE_ROOMS.actor(2) },
+    tecnica: { rol: "tecnica", room: ROLE_ROOMS.TECHNICIAN }
 });
 
 function normalizarDestinoReinicioRol(valor) {
@@ -19,6 +20,7 @@ function normalizarDestinoReinicioRol(valor) {
     if (normalizado === "jury" || normalizado === "judge") return "jurado";
     if (normalizado === "actor1" || normalizado === "actores1") return "actorxs1";
     if (normalizado === "actor2" || normalizado === "actores2") return "actorxs2";
+    if (normalizado === "technician" || normalizado === "technicians" || normalizado === "tecnico") return "tecnica";
     return Object.prototype.hasOwnProperty.call(DESTINOS_REINICIO_ROL, normalizado) ? normalizado : "";
 }
 

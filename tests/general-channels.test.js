@@ -110,14 +110,18 @@ test("control can remotely reload a targeted role page", () => {
 
   socket.emit("reiniciar_rol_remoto", { rol: "actorxs2" });
   socket.emit("reiniciar_rol_remoto", { rol: "jury" });
+  socket.emit("reiniciar_rol_remoto", { rol: "technician" });
 
-  assert.equal(roomEvents.length, 2);
+  assert.equal(roomEvents.length, 3);
   assert.equal(roomEvents[0].room, "role_actor_2");
   assert.equal(roomEvents[0].event, "recargar_rol_remoto");
   assert.equal(roomEvents[0].payload.rol, "actorxs2");
   assert.equal(roomEvents[1].room, "role_jurado");
   assert.equal(roomEvents[1].event, "recargar_rol_remoto");
   assert.equal(roomEvents[1].payload.rol, "jurado");
+  assert.equal(roomEvents[2].room, "role_tecnica");
+  assert.equal(roomEvents[2].event, "recargar_rol_remoto");
+  assert.equal(roomEvents[2].payload.rol, "tecnica");
 });
 
 test("non-control sockets cannot remotely reload role pages", () => {

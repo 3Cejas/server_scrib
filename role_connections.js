@@ -4,6 +4,7 @@ const ROLE_ROOMS = Object.freeze({
     SPECTATOR: "role_espectador",
     JURY: "role_jurado",
     DRAMATURGY: "role_dramaturgia",
+    TECHNICIAN: "role_tecnica",
     writer: (player) => `role_escritor_${player}`,
     actor: (player) => `role_actor_${player}`,
     technician: (player) => `role_tecnico_${player}`
@@ -421,6 +422,7 @@ function crearRegistroRoles({
         socket.tecnico = id;
         tecnicos[id].add(socket.id);
         socket.join(`j${id}`);
+        socket.join(ROLE_ROOMS.TECHNICIAN);
         socket.join(ROLE_ROOMS.technician(id));
         return { ok: true, player: id, previous: anterior || null, connections: payloadConexiones() };
     };
