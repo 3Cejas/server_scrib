@@ -111,6 +111,7 @@
     }
   },
   "tutorial": {
+    "revision": "__SEQ__",
     "activo": false,
     "vista": false,
     "solicitud": "ninguna",

@@ -139,6 +139,7 @@
     }
   },
   "tutorial": {
+    "revision": "__SEQ__",
     "activo": true,
     "vista": true,
     "solicitud": "lugares",

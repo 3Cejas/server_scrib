@@ -1,4 +1,5 @@
 const { contieneLenguajeOfensivo } = require("./profanity_filter.js");
+const { ROLE_ROOMS } = require("./role_connections.js");
 
 const REGEX_LIMPIEZA_PALABRA = /[^\p{L}\p{N}\p{M}\s-]/gu;
 const MAX_PALABRA_CALENTAMIENTO = 24;
@@ -48,6 +49,7 @@ const crearCursorCalentamiento = () => ({
 });
 
 const crearEstadoBase = () => ({
+    revision: 0,
     activo: false,
     vista: false,
     solicitud: SOLICITUD_CALENTAMIENTO_POR_DEFECTO,
@@ -466,6 +468,7 @@ function crearGestorCalentamiento({
     };
 
     const payloadEstado = () => ({
+        revision: Math.max(0, Math.trunc(Number(estado.revision) || 0)),
         activo: estado.activo,
         vista: estado.vista,
         solicitud: estado.solicitud,
@@ -479,6 +482,7 @@ function crearGestorCalentamiento({
     const payloadEstadoMusa = (equipo) => {
         const data = estadoEquipo(equipo);
         return {
+            revision: Math.max(0, Math.trunc(Number(estado.revision) || 0)),
             activo: estado.activo,
             vista: estado.vista,
             solicitud: estado.solicitud,
@@ -514,10 +518,22 @@ function crearGestorCalentamiento({
     };
 
     const emitirEstado = () => {
-        io.emit("calentamiento_estado_espectador", payloadEstado());
+        estado.revision = Math.max(0, Math.trunc(Number(estado.revision) || 0)) + 1;
+        const payload = payloadEstado();
+        io.emit("calentamiento_estado_espectador", payload);
+        // El estado global sigue alimentando Espectador y Control, pero las
+        // escritoras reciben ademas una copia por su sala de rol. Asi un
+        // paquete global perdido o una suscripcion desincronizada no deja a
+        // un solo equipo sin los detonadores de sus musas.
+        [1, 2].forEach((equipo) => {
+            io.to(ROLE_ROOMS.writer(equipo)).emit("calentamiento_estado_escritor", {
+                ...payload,
+                equipo_destino: equipo
+            });
+        });
         emitirEstadoMusa(1);
         emitirEstadoMusa(2);
-        return payloadEstado();
+        return payload;
     };
 
     const revisarAsignacionesEquipo = (equipo) => {

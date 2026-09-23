@@ -37,6 +37,48 @@ test("warmup state reaches muse rooms so read-only dramaturgy replicas stay exac
   assert.equal(museEvents[0].payload.equipo, 1);
   assert.equal(museEvents[1].payload.equipo, 2);
   assert.equal(museEvents.every(({ payload }) => payload.activo), true);
+
+  const writerEvents = io.events.filter(({ event }) => event === "calentamiento_estado_escritor");
+  assert.deepEqual(writerEvents.map(({ scope, room }) => [scope, room]), [
+    ["room", "role_escritor_1"],
+    ["room", "role_escritor_2"]
+  ]);
+  assert.equal(writerEvents[0].payload.equipo_destino, 1);
+  assert.equal(writerEvents[1].payload.equipo_destino, 2);
+  assert.equal(writerEvents[0].payload.revision, writerEvents[1].payload.revision);
+  assert.ok(writerEvents[0].payload.revision > 0);
+});
+
+test("each blue Muse detonator is confirmed to the blue writer room", () => {
+  const io = createIo();
+  const warmup = crearGestorCalentamiento({
+    io,
+    validarJugador: (value) => ([1, 2].includes(Number(value)) ? Number(value) : null)
+  });
+  const musa = new (require("node:events").EventEmitter)();
+  musa.id = "blue-muse";
+  musa.musa = 1;
+  warmup.registrarMusa(musa, 1, "LUNA");
+  warmup.registrarHandlers(musa);
+  warmup.forzarEstado({ activo: true, vista: true, solicitud: "lugares" });
+  io.events.length = 0;
+
+  musa.emit("calentamiento_intento", { palabra: "faro" });
+
+  const blue = io.events.filter(({ room, event }) => (
+    room === "role_escritor_1" && event === "calentamiento_estado_escritor"
+  ));
+  const red = io.events.filter(({ room, event }) => (
+    room === "role_escritor_2" && event === "calentamiento_estado_escritor"
+  ));
+  assert.equal(blue.length, 1);
+  assert.equal(red.length, 1);
+  assert.deepEqual(
+    blue[0].payload.equipos[1].palabras.map(({ palabra, nombre_musa }) => ({ palabra, nombre_musa })),
+    [{ palabra: "faro", nombre_musa: "LUNA" }]
+  );
+  assert.equal(blue[0].payload.equipo_destino, 1);
+  assert.equal(red[0].payload.equipo_destino, 2);
 });
 
 test("Debug detonators use the real warmup model and can be removed without touching real Muse words", () => {
