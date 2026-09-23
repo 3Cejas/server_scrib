@@ -373,8 +373,8 @@
       "1": {
         "id": 1,
         "nombre": "ESCRITXR 1",
-        "palabrasTotal": 0,
-        "palabrasUnicas": 0,
+        "palabrasTotal": 2,
+        "palabrasUnicas": 2,
         "pulsacionesTotal": 0,
         "teclasDistintas": 0,
         "topTeclas": [],
@@ -393,13 +393,14 @@
         "palabrasBenditas": [],
         "palabrasMalditas": [],
         "intentosLetraProhibida": 0,
-        "intentosPalabraProhibida": 0
+        "intentosPalabraProhibida": 0,
+        "valorInspiracion": 0
       },
       "2": {
         "id": 2,
         "nombre": "ESCRITXR 2",
-        "palabrasTotal": 0,
-        "palabrasUnicas": 0,
+        "palabrasTotal": 2,
+        "palabrasUnicas": 2,
         "pulsacionesTotal": 0,
         "teclasDistintas": 0,
         "topTeclas": [],
@@ -418,7 +419,8 @@
         "palabrasBenditas": [],
         "palabrasMalditas": [],
         "intentosLetraProhibida": 0,
-        "intentosPalabraProhibida": 0
+        "intentosPalabraProhibida": 0,
+        "valorInspiracion": 0
       }
     }
   },

@@ -47,3 +47,17 @@ const runtime = crearRuntimeScrib({
 
 runtime.iniciar();
 servidor.listen(puerto, host, () => console.log(`Servidor escuchando en ${host}:${puerto}`));
+
+let cierreEnCurso = false;
+const cerrarConCheckpoint = async (signal) => {
+    if (cierreEnCurso) return;
+    cierreEnCurso = true;
+    try {
+        if (runtime && typeof runtime.persistirAhora === 'function') await runtime.persistirAhora();
+    } catch (_error) {}
+    servidor.close(() => process.exit(0));
+    const forceTimer = setTimeout(() => process.exit(0), 1500);
+    if (forceTimer && typeof forceTimer.unref === 'function') forceTimer.unref();
+};
+process.once('SIGTERM', () => cerrarConCheckpoint('SIGTERM'));
+process.once('SIGINT', () => cerrarConCheckpoint('SIGINT'));

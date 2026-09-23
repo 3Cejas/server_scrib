@@ -194,3 +194,57 @@ test("writer channels preserves final texts when a finished writer reconnects em
     }
   });
 });
+
+test("writer channels applies revisioned deltas and only sends them to subscribed clients", () => {
+  const writer = crearSocket("writer");
+  const deltaClient = crearSocket("delta-client");
+  const otherTeam = crearSocket("other-team");
+  writer.escritxr = 1;
+  const sockets = new Map([
+    [writer.id, writer],
+    [deltaClient.id, deltaClient],
+    [otherTeam.id, otherTeam]
+  ]);
+  const canales = crearCanalesEscritor({
+    io: { sockets: { sockets } },
+    sesionesEscritor: { esActiva: (socket, player) => socket === writer && player === 1 },
+    extraerTextoPlano: (evento) => evento.texto_guardado || evento.text || ""
+  });
+  [writer, deltaClient, otherTeam].forEach((socket) => canales.registrarHandlers(socket));
+  deltaClient.handlers.suscribir_textos({ players: [1], deltas: true, cursors: true });
+  otherTeam.handlers.suscribir_textos({ players: [2], deltas: true });
+
+  let ack = null;
+  writer.handlers.texto_delta_actualizar({
+    player: 1,
+    baseRevision: 0,
+    htmlPatch: { start: 0, deleteCount: 0, insert: "hola" },
+    plainPatch: { start: 0, deleteCount: 0, insert: "hola" },
+    meta: { points: 1 }
+  }, (respuesta) => { ack = respuesta; });
+
+  assert.deepEqual(ack, { ok: true, player: 1, revision: 1 });
+  assert.equal(canales.getTextoPlano(1), "hola");
+  assert.equal(deltaClient.emitidos.filter((evento) => evento.event === "texto_delta").length, 1);
+  assert.equal(otherTeam.emitidos.filter((evento) => evento.event === "texto_delta").length, 0);
+});
+
+test("writer channels rejects an out-of-order delta with an authoritative snapshot", () => {
+  const writer = crearSocket("writer-revision");
+  const canales = crearCanalesEscritor({
+    sesionesEscritor: { esActiva: () => true },
+    extraerTextoPlano: (evento) => evento.texto_guardado || evento.text || ""
+  });
+  canales.registrarHandlers(writer);
+  let ack = null;
+  writer.handlers.texto_delta_actualizar({
+    player: 1,
+    baseRevision: 4,
+    htmlPatch: { start: 0, deleteCount: 0, insert: "fuera de orden" },
+    plainPatch: { start: 0, deleteCount: 0, insert: "fuera de orden" }
+  }, (respuesta) => { ack = respuesta; });
+
+  assert.equal(ack.code, "REVISION_MISMATCH");
+  assert.equal(writer.emitidos.at(-1).event, "texto_snapshot");
+  assert.equal(writer.emitidos.at(-1).payload.revision, 0);
+});

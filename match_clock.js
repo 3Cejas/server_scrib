@@ -146,12 +146,34 @@ function crearRelojPartida({
         return emitir();
     };
 
+    const restaurar = (entrada = {}, { forzarPausa = true } = {}) => {
+        limpiarIntervalo();
+        limpiarTimeoutFin();
+        duracionTotalSegundos = Math.max(0, Math.trunc(Number(entrada.duracion_total_segundos) || 0));
+        const restanteGuardado = Math.max(0, Math.trunc(Number(entrada.tiempo_restante_segundos) || 0));
+        const terminaGuardado = Math.max(0, Number(entrada.termina_en_ts) || 0);
+        restanteSegundos = entrada.activo === true && entrada.pausado !== true && terminaGuardado > 0
+            ? Math.max(0, Math.ceil((terminaGuardado - now()) / 1000))
+            : restanteGuardado;
+        activo = entrada.activo === true && restanteSegundos > 0;
+        pausado = activo ? (forzarPausa || entrada.pausado === true) : false;
+        terminaEnTs = activo && !pausado ? now() + (restanteSegundos * 1000) : 0;
+        revision = Math.max(0, Math.trunc(Number(entrada.revision) || 0)) + 1;
+        finalNotificado = false;
+        if (activo && !pausado) {
+            asegurarIntervalo();
+            programarFinalExacto();
+        }
+        return emitir();
+    };
+
     return {
         detener,
         emitir,
         iniciar,
         pausar,
         reanudar,
+        restaurar,
         snapshot,
         tick
     };

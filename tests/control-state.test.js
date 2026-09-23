@@ -60,3 +60,27 @@ test("control state normalizers preserve previous values when fields are absent"
     ["tertulia"]
   );
 });
+
+test("control state restores a normalized checkpoint without emitting side effects", () => {
+  const events = [];
+  const gestor = crearGestorEstadoControl({ io: { emit: (...args) => events.push(args) } });
+  const restaurado = gestor.restaurar({
+    borrar_texto: true,
+    frases_finales: { 1: " azul ", 2: " rojo " },
+    parametros: { duracion_minutos: 999, duracion_segundos: -2 },
+    modos: ["palabras bonus", "modo inexistente"],
+    nombres: { 1: "ana", 2: "bea" },
+    revision: 17,
+    ts: 1234
+  });
+
+  assert.equal(restaurado.borrar_texto, true);
+  assert.deepEqual(restaurado.frases_finales, { 1: "azul", 2: "rojo" });
+  assert.equal(restaurado.parametros.duracion_minutos, 360);
+  assert.equal(restaurado.parametros.duracion_segundos, 0);
+  assert.deepEqual(restaurado.modos, ["palabras bonus"]);
+  assert.deepEqual(restaurado.nombres, { 1: "ANA", 2: "BEA" });
+  assert.equal(restaurado.revision, 17);
+  assert.equal(restaurado.ts, 1234);
+  assert.equal(events.length, 0);
+});

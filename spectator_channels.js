@@ -137,7 +137,11 @@ function registrarCanalesEspectador({
         const statsActualizadas = typeof statsLive.actualizarDesdeControl === "function"
             ? statsLive.actualizarDesdeControl(stats)
             : statsLive.actualizar(stats);
-        emitirStatsLive();
+        if (typeof statsLive.programarEmision === "function") {
+            statsLive.programarEmision();
+        } else {
+            emitirStatsLive();
+        }
         const puntuacion = puntuacionFinal && typeof puntuacionFinal.capturar === "function"
             ? puntuacionFinal.capturar(statsActualizadas, {
                 ...opcionesDatosPuntuacion(),
@@ -229,7 +233,11 @@ function registrarCanalesEspectador({
         } else {
             statsLive.actualizar(payload);
         }
-        emitirStatsLive();
+        if (typeof statsLive.programarEmision === "function") {
+            statsLive.programarEmision();
+        } else {
+            emitirStatsLive();
+        }
         if (typeof callback === "function") {
             callback({ ok: true });
         }

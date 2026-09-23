@@ -38,6 +38,7 @@ const { crearRelojPartida } = require('./match_clock.js');
 const { crearGestorModoDebug } = require('./debug_mode.js');
 const { crearGestorMarcasTecnico } = require('./technician_marks.js');
 const { crearRegistroIteracionesPartida } = require('./match_iterations.js');
+const { crearPersistenciaRuntime } = require('./runtime_persistence.js');
 
 function crearRuntimeScrib({
     io,
@@ -45,6 +46,10 @@ function crearRuntimeScrib({
     testHooksEnabled = false,
     registrar = () => {}
 }) {
+    const persistenciaRuntime = crearPersistenciaRuntime({ logger: registrar });
+    const estadoPersistidoInicial = persistenciaRuntime.load();
+    let construirCheckpointPersistencia = () => null;
+    const programarCheckpointPersistencia = () => persistenciaRuntime.schedule(construirCheckpointPersistencia);
     let partidaLifecycle;
     let motorModos;
     let writerChannels;
@@ -326,11 +331,25 @@ function crearRuntimeScrib({
         extraerTextoPlano,
         puedeActualizarTexto: () => !estadoCicloPartida.finDelJuego,
         actualizarTextoJugador: (player, texto) => getModoMalditas().actualizarTextoJugador(player, texto),
-        onTextoActualizado: (player, anterior, actual) => {
+        onTextoActualizado: (player, anterior, actual, evento = {}) => {
             competicionRondas.registrarCambioTexto(player, anterior, actual);
             registroIteracionesPartida.registrarCambio(player, anterior, actual);
+            if (statsLive && typeof statsLive.registrarTexto === "function") {
+                statsLive.registrarTexto(player, {
+                    html: typeof evento === "string" ? evento : (evento.text || ""),
+                    plano: actual,
+                    points: evento && typeof evento === "object" ? evento.points : undefined,
+                    nombre: writerChannels ? writerChannels.getNombre(player) : ""
+                });
+            }
         },
-        onNombreCambiado: () => emitirNubeInspiracionEstado(null, true),
+        onNombreCambiado: (player, nombre) => {
+            emitirNubeInspiracionEstado(null, true);
+            if (statsLive && typeof statsLive.registrarNombre === "function") {
+                statsLive.registrarNombre(player, nombre);
+            }
+        },
+        onStateChanged: programarCheckpointPersistencia,
         syncMode: (socket) => sincro_modos(socket),
         logger: registrar
     });
@@ -452,6 +471,44 @@ function crearRuntimeScrib({
         obtenerEstadoActual: construirEstadoDramaturgiaActual,
         registrar
     });
+
+    construirCheckpointPersistencia = () => ({
+        writer: writerChannels.snapshotEstado(),
+        stats: statsLive.payload(),
+        control: controlState.snapshot(),
+        reloj: relojPartida.snapshot(),
+        partida: snapshotPartidaTest([]),
+        partida_pausada: partidaPausada
+    });
+
+    if (estadoPersistidoInicial && typeof estadoPersistidoInicial === "object") {
+        if (estadoPersistidoInicial.writer) writerChannels.restaurar(estadoPersistidoInicial.writer);
+        if (estadoPersistidoInicial.stats && typeof statsLive.restaurar === "function") {
+            statsLive.restaurar(estadoPersistidoInicial.stats);
+        }
+        if (estadoPersistidoInicial.control && typeof controlState.restaurar === "function") {
+            controlState.restaurar(estadoPersistidoInicial.control);
+        }
+        const partidaGuardada = estadoPersistidoInicial.partida;
+        if (partidaGuardada && typeof partidaGuardada === "object") {
+            estadoCicloPartida.modoActual = partidaGuardada.modo_actual || "";
+            estadoCicloPartida.modoAnterior = partidaGuardada.modo_anterior || "";
+            estadoCicloPartida.modosPendientes = Array.isArray(partidaGuardada.modos_pendientes)
+                ? [...partidaGuardada.modos_pendientes]
+                : [];
+            estadoCicloPartida.indiceModo = partidaGuardada.indice_modo;
+            estadoCicloPartida.finJ1 = partidaGuardada.fin_j1;
+            estadoCicloPartida.finJ2 = partidaGuardada.fin_j2;
+            estadoCicloPartida.finDelJuego = partidaGuardada.fin_del_juego;
+        }
+        if (estadoPersistidoInicial.reloj && typeof relojPartida.restaurar === "function") {
+            relojPartida.restaurar(estadoPersistidoInicial.reloj, { forzarPausa: true });
+        }
+        partidaPausada = Boolean(
+            estadoPersistidoInicial.partida_pausada
+            || (estadoPersistidoInicial.reloj && estadoPersistidoInicial.reloj.activo)
+        );
+    }
 
     const resetearEstadoAuxiliarParaTests = () => {
         limpiarTimersRonda();
@@ -804,7 +861,13 @@ function crearRuntimeScrib({
         registrarInfraccionCompeticion: (player, payload) => competicionRondas.registrarInfraccion(player, payload),
         pausarRelojPartida: () => relojPartida.pausar(),
         reanudarRelojPartida: () => relojPartida.reanudar(),
-        registrarPulsacionCompeticion: (player, payload) => competicionRondas.registrarPulsacion(player, payload),
+        registrarPulsacionCompeticion: (player, payload) => {
+            const resultado = competicionRondas.registrarPulsacion(player, payload);
+            if (statsLive && typeof statsLive.registrarPulsacion === "function") {
+                statsLive.registrarPulsacion(player, payload);
+            }
+            return resultado;
+        },
         getPulsacionesCompeticion: () => competicionRondas.snapshot().pulsaciones,
         ayudaMusas,
         preShowMusas,
@@ -826,6 +889,8 @@ function crearRuntimeScrib({
         nubeInspiracion.iniciarIntervalo(1000);
         bolzanoCalentamientoGestor.iniciar();
         videoTutorialPreShow.iniciar();
+        const intervaloPersistencia = setInterval(programarCheckpointPersistencia, 1000);
+        if (intervaloPersistencia && typeof intervaloPersistencia.unref === "function") intervaloPersistencia.unref();
         io.on('connection', registrarConexion);
         io.on('disconnect', () => {
             registrar('Un escritxr ha abandonado la partida.');
@@ -840,6 +905,10 @@ function crearRuntimeScrib({
         narracionShow,
         cantoShow,
         videoTutorialPreShow,
+        persistirAhora: () => {
+            programarCheckpointPersistencia();
+            return persistenciaRuntime.flush();
+        },
         iniciar,
         registrarConexion,
         sincro_modos

@@ -156,9 +156,24 @@ function crearGestorEstadoControl({ io } = {}) {
         return snapshot();
     };
 
+    const restaurar = (payload = {}) => {
+        const data = payload && typeof payload === "object" ? payload : {};
+        estado = {
+            borrar_texto: data.borrar_texto === true,
+            frases_finales: normalizarFrasesFinalesControl(data.frases_finales, {}),
+            parametros: normalizarParametrosControl(data.parametros, PARAMETROS_CONTROL_DEFECTO),
+            modos: normalizarModosControl(data.modos, MODOS_CONTROL_DISPONIBLES),
+            nombres: normalizarNombresControl(data.nombres, {}),
+            revision: Math.max(0, Math.trunc(Number(data.revision) || 0)),
+            ts: Math.max(0, Math.trunc(Number(data.ts) || 0))
+        };
+        return snapshot();
+    };
+
     return {
         actualizar,
         emitir,
+        restaurar,
         reset,
         snapshot
     };

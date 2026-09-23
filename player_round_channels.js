@@ -1,3 +1,5 @@
+const { ROLE_ROOMS } = require('./role_connections.js');
+
 function registrarCanalesRonda({
     socket,
     io,
@@ -380,7 +382,8 @@ function registrarCanalesRonda({
         if (!idJugador || esEventoEscritorInactivo(idJugador)) {
             return;
         }
-        io.emit('tecla_jugador_control', {
+        const destinoControl = io && typeof io.to === 'function' ? io.to(ROLE_ROOMS.CONTROL) : io;
+        destinoControl.emit('tecla_jugador_control', {
             player: idJugador,
             code: evento.code,
             key: evento.key || ''

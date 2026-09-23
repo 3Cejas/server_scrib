@@ -651,3 +651,95 @@ test("teleprompter broadcast latency stays bounded under multi-role load", async
     loadId
   });
 });
+
+test("revisioned text stream keeps team routing and traffic growth bounded", async () => {
+  const startedAt = Date.now();
+  const modo = await emitAck(adminSocket, "scrib_test:force_mode", {
+    mode: "palabras bonus"
+  });
+  assert.equal(modo.ok, true);
+  const writer = await connectSocket(serverPort);
+  const spectator = await openRole("registrar_espectador");
+  const actor1 = await openRole("registrar_actor", { player: 1 });
+  const actor2 = await openRole("registrar_actor", { player: 2 });
+  sockets.add(writer);
+  const registro = await emitAck(writer, "registrar_escritor", {
+    player: 1,
+    client_id: "soak-text-writer",
+    session_started_at: Date.now()
+  });
+  assert.equal(registro.ok, true);
+
+  await Promise.all([
+    emitAck(spectator, "suscribir_textos", { players: [1, 2], deltas: true, cursors: true }),
+    emitAck(actor1, "suscribir_textos", { players: [1], deltas: true }),
+    emitAck(actor2, "suscribir_textos", { players: [2], deltas: true })
+  ]);
+
+  const totalChars = Math.max(500, Number(process.env.SCRIB_TEXT_SOAK_CHARS) || 2000);
+  let spectatorBytes = 0;
+  let spectatorDeltas = 0;
+  let actor1Deltas = 0;
+  let actor2Deltas = 0;
+  spectator.on("texto_delta", (payload) => {
+    if (Number(payload.player) !== 1) return;
+    spectatorDeltas += 1;
+    spectatorBytes += Buffer.byteLength(JSON.stringify(payload));
+  });
+  actor1.on("texto_delta", (payload) => {
+    if (Number(payload.player) === 1) actor1Deltas += 1;
+  });
+  actor2.on("texto_delta", (payload) => {
+    if (Number(payload.player) === 1) actor2Deltas += 1;
+  });
+
+  const finalDelivery = createTimedEventPromise(
+    spectator,
+    "texto_delta",
+    (payload) => Number(payload.player) === 1 && Number(payload.revision) === totalChars,
+    20000
+  );
+  const acknowledgements = [];
+  for (let index = 0; index < totalChars; index += 1) {
+    acknowledgements.push(emitAck(writer, "texto_delta_actualizar", {
+      player: 1,
+      baseRevision: index,
+      htmlPatch: { start: index, deleteCount: 0, insert: "a" },
+      plainPatch: { start: index, deleteCount: 0, insert: "a" },
+      meta: { points: Math.floor((index + 1) / 5) }
+    }, 20000));
+  }
+  const responses = await Promise.all(acknowledgements);
+  const rejected = responses.find((response) => !response || response.ok !== true);
+  assert.equal(rejected, undefined, `Text delta rejected: ${JSON.stringify(rejected)}`);
+  const entrega = await finalDelivery;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const state = await emitAck(adminSocket, "scrib_test:get_state", {});
+
+  assert.equal(state.textos[1].plano.length, totalChars);
+  assert.equal(spectatorDeltas, totalChars);
+  assert.equal(actor1Deltas, totalChars);
+  assert.equal(actor2Deltas, 0);
+  let legacyBytesEstimados = 0;
+  for (let length = 1; length <= totalChars; length += 1) {
+    const legacyText = "a".repeat(length);
+    legacyBytesEstimados += Buffer.byteLength(JSON.stringify({
+      text: legacyText,
+      texto_guardado: legacyText,
+      points: Math.floor(length / 5)
+    }));
+  }
+  assert.ok(
+    spectatorBytes < legacyBytesEstimados * 0.5,
+    `Delta stream unexpectedly large: ${spectatorBytes} vs ${legacyBytesEstimados} legacy bytes`
+  );
+  recordMetric("revisioned-text-stream", {
+    durationMs: Date.now() - startedAt,
+    chars: totalChars,
+    packets: spectatorDeltas,
+    bytes: spectatorBytes,
+    legacyBytesEstimated: legacyBytesEstimados,
+    compressionRatio: Number((spectatorBytes / legacyBytesEstimados).toFixed(4)),
+    finalLatencyMs: entrega.latencyMs
+  });
+});

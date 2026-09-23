@@ -72,3 +72,34 @@ test("el reloj finaliza exactamente por timeout aunque el intervalo no llegue a 
   reloj.tick();
   assert.equal(finishes, 1);
 });
+
+test("el reloj restaurado queda pausado para una recuperacion segura", () => {
+  let ahora = 20_000;
+  let intervaloProgramado = false;
+  let finProgramado = false;
+  const reloj = crearRelojPartida({
+    io: { emit: () => {} },
+    now: () => ahora,
+    setIntervalFn: () => { intervaloProgramado = true; return 1; },
+    clearIntervalFn: () => { intervaloProgramado = false; },
+    setTimeoutFn: () => { finProgramado = true; return 2; },
+    clearTimeoutFn: () => { finProgramado = false; }
+  });
+
+  const restaurado = reloj.restaurar({
+    activo: true,
+    pausado: false,
+    duracion_total_segundos: 120,
+    tiempo_restante_segundos: 70,
+    termina_en_ts: ahora + 60_000,
+    revision: 8
+  }, { forzarPausa: true });
+
+  assert.equal(restaurado.activo, true);
+  assert.equal(restaurado.pausado, true);
+  assert.equal(restaurado.tiempo_restante_segundos, 60);
+  assert.equal(restaurado.termina_en_ts, 0);
+  assert.equal(restaurado.revision, 9);
+  assert.equal(intervaloProgramado, false);
+  assert.equal(finProgramado, false);
+});
