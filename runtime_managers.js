@@ -126,7 +126,8 @@ function crearGestoresVistaEstado({
     getModoActual,
     getNombreEquipo,
     getMotores,
-    getMusasCreditos = () => null
+    getMusasCreditos = () => null,
+    getProtectionLevel = () => 0
 }) {
     const espectador = crearGestorVistaEspectador({
         io,
@@ -139,7 +140,8 @@ function crearGestoresVistaEstado({
     });
     const statsLive = crearGestorStatsLive({
         io,
-        getModoActual
+        getModoActual,
+        getProtectionLevel
     });
     const puntuacionFinal = crearGestorPuntuacionFinal({
         io,

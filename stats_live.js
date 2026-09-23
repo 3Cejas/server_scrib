@@ -3,7 +3,7 @@ const {
     normalizarPayloadStatsLive
 } = require('./server_state_utils');
 
-function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
+function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel = () => 0 } = {}) {
     const normalizar = (payload = {}) => normalizarPayloadStatsLive(payload, {
         modoActual: getModoActual(),
         now: Date.now()
@@ -18,7 +18,12 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
     let ultimoEmitTs = 0;
     let timerEmit = null;
     const heatmaps = { 1: new Map(), 2: new Map() };
-    const STATS_EMIT_MIN_MS = 250;
+    const obtenerIntervaloMinimoEmision = () => {
+        const nivel = Math.max(0, Math.min(2, Number(getProtectionLevel()) || 0));
+        if (nivel >= 2) return 3000;
+        if (nivel >= 1) return 1000;
+        return 250;
+    };
 
     const tokenizar = (texto = "") => String(texto || "")
         .normalize("NFKC")
@@ -188,7 +193,7 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
     };
 
     const programarEmision = ({ inmediata = false } = {}) => {
-        const espera = inmediata ? 0 : Math.max(0, STATS_EMIT_MIN_MS - (Date.now() - ultimoEmitTs));
+        const espera = inmediata ? 0 : Math.max(0, obtenerIntervaloMinimoEmision() - (Date.now() - ultimoEmitTs));
         if (espera === 0) {
             if (timerEmit) clearTimeout(timerEmit);
             timerEmit = null;

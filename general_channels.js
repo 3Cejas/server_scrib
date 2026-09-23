@@ -38,7 +38,8 @@ function registrarCanalesGenerales({
     controlState = null,
     emitirEstadoPalabrasMusasControl = null,
     payloadEstadoPalabrasMusasControl = null,
-    temporizadorShow = null
+    temporizadorShow = null,
+    payloadProteccionRendimiento = null
 }) {
     const esEventoEscritorInactivo = (player) => (
         sesionesEscritor
@@ -65,6 +66,9 @@ function registrarCanalesGenerales({
         const estado = obtenerEstadoEscritores();
         if (typeof payloadEstadoPalabrasMusasControl === "function") {
             estado.palabras_musas_control = payloadEstadoPalabrasMusasControl();
+        }
+        if (typeof payloadProteccionRendimiento === "function") {
+            estado.performance_protection = payloadProteccionRendimiento();
         }
         if (typeof callback === "function") {
             callback(estado);

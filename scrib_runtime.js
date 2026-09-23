@@ -39,6 +39,7 @@ const { crearGestorModoDebug } = require('./debug_mode.js');
 const { crearGestorMarcasTecnico } = require('./technician_marks.js');
 const { crearRegistroIteracionesPartida } = require('./match_iterations.js');
 const { crearPersistenciaRuntime } = require('./runtime_persistence.js');
+const { crearGestorProteccionRendimiento } = require('./performance_protection.js');
 
 function crearRuntimeScrib({
     io,
@@ -283,6 +284,11 @@ function crearRuntimeScrib({
         sesionesEscritor
     } = gestoresAuxiliares;
 
+    const proteccionRendimiento = crearGestorProteccionRendimiento({
+        io,
+        registrar
+    });
+
     preShowMusas = crearGestorPreShowMusas({
         io,
         obtenerMusaActiva: (socket) => rolesConectados.obtenerMusaActiva(socket)
@@ -368,7 +374,8 @@ function crearRuntimeScrib({
             malditas: getModoMalditas(),
             musas: getModoMusas()
         }),
-        getMusasCreditos: () => rolesConectados.obtenerMusasCreditosPartida()
+        getMusasCreditos: () => rolesConectados.obtenerMusasCreditosPartida(),
+        getProtectionLevel: () => proteccionRendimiento.getGlobalLevel()
     });
     const {
         creditosShow,
@@ -913,7 +920,8 @@ function crearRuntimeScrib({
         videoTutorialPreShow,
         narracionShow,
         cantoShow,
-        marcasTecnico
+        marcasTecnico,
+        proteccionRendimiento
     };
 
     function sincro_modos(socket = null) {
@@ -928,6 +936,7 @@ function crearRuntimeScrib({
         nubeInspiracion.iniciarIntervalo(1000);
         bolzanoCalentamientoGestor.iniciar();
         videoTutorialPreShow.iniciar();
+        proteccionRendimiento.iniciar();
         const intervaloPersistencia = setInterval(programarCheckpointPersistencia, 1000);
         if (intervaloPersistencia && typeof intervaloPersistencia.unref === "function") intervaloPersistencia.unref();
         io.on('connection', registrarConexion);

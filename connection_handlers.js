@@ -151,7 +151,8 @@ function registrarConexionScrib(socket, deps) {
         videoTutorialPreShow,
         narracionShow,
         cantoShow,
-        marcasTecnico
+        marcasTecnico,
+        proteccionRendimiento
     } = deps;
 
     const query = socket && socket.handshake && socket.handshake.query;
@@ -181,6 +182,9 @@ function registrarConexionScrib(socket, deps) {
     if (marcasTecnico && typeof marcasTecnico.registrarHandlers === "function") {
         marcasTecnico.registrarHandlers(socket);
     }
+    if (proteccionRendimiento && typeof proteccionRendimiento.registrarHandlers === "function") {
+        proteccionRendimiento.registrarHandlers(socket);
+    }
 
     registrarCanalesGenerales({
         socket,
@@ -196,7 +200,8 @@ function registrarConexionScrib(socket, deps) {
         controlState,
         emitirEstadoPalabrasMusasControl,
         payloadEstadoPalabrasMusasControl,
-        temporizadorShow
+        temporizadorShow,
+        payloadProteccionRendimiento: proteccionRendimiento && proteccionRendimiento.payload
     });
 
     registrarCanalesEspectador({
