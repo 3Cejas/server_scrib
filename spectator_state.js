@@ -264,6 +264,24 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         return payload();
     };
 
+    const restaurar = (entrada = {}) => {
+        const data = entrada && typeof entrada === "object" ? entrada : {};
+        override = normalizarModo(data.override || data.modo);
+        statsSlideStep = normalizarPasoSlideStats(data.stats_slide_step);
+        instruccionesSlideStep = clampNumber(
+            normalizarPasoSlideStats(data.instrucciones_slide_step),
+            0,
+            INSTRUCCIONES_SLIDE_MAX
+        );
+        puntuacionSlideStep = normalizarPasoSlidePuntuacion(data.puntuacion_slide_step);
+        puntuacionRevealPhase = normalizarFasePuntuacion(data.puntuacion_reveal_phase);
+        juradoSlideStep = normalizarPasoSlideJurado(data.jurado_slide_step);
+        escalaUi = normalizarEscala(data.escala_ui);
+        escalaTexto = normalizarEscalaTexto(data.escala_texto);
+        escalaDetonadores = normalizarEscalaDetonadores(data.escala_detonadores);
+        return payload();
+    };
+
     return {
         ajustarEscala,
         ajustarEscalaDetonadores,
@@ -282,6 +300,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         normalizarModo,
         payload,
         resolverModo,
+        restaurar,
         reset
     };
 }

@@ -64,3 +64,32 @@ test("server typing rate keeps advancing instead of freezing at the first keystr
     Date.now = realNow;
   }
 });
+
+test("server rule events cannot be overwritten by stale Control summaries", () => {
+  const gestor = crearGestorStatsLive({ getModoActual: () => "letra prohibida" });
+  gestor.registrarLetra("bendita", "r");
+  gestor.registrarLetra("prohibida", "ñ");
+  gestor.registrarInfraccion(1, { tipo: "letra", valor: "Ñ" });
+  gestor.registrarInfraccion(1, { tipo: "palabra", valor: "Nunca" });
+
+  gestor.actualizarDesdeControl({
+    players: {
+      1: {
+        letrasBenditas: ["X"],
+        letrasMalditas: ["Y"],
+        palabrasMalditas: ["FALSA"],
+        intentosLetraProhibida: 99,
+        intentosPalabraProhibida: 99,
+        vida: { actual: 12 }
+      }
+    }
+  });
+
+  const player = gestor.payload().players[1];
+  assert.deepEqual(player.letrasBenditas, ["R"]);
+  assert.deepEqual(player.letrasMalditas, ["Ñ"]);
+  assert.deepEqual(player.palabrasMalditas, ["NUNCA"]);
+  assert.equal(player.intentosLetraProhibida, 1);
+  assert.equal(player.intentosPalabraProhibida, 1);
+  assert.equal(player.vida.actual, 12);
+});

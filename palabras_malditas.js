@@ -49,6 +49,30 @@ class PalabrasMalditasMode extends MusasMode {
     this.texto_por_jugador[playerId] = typeof texto === 'string' ? texto : '';
   }
 
+  snapshotEstado(now = Date.now()) {
+    return {
+      ...super.snapshotEstado(now),
+      texto_por_jugador: { ...this.texto_por_jugador },
+      palabras_usadas: {
+        1: Array.from(this.palabras_usadas[1] || []),
+        2: Array.from(this.palabras_usadas[2] || [])
+      }
+    };
+  }
+
+  restaurarEstado(snapshot = {}, opciones = {}) {
+    super.restaurarEstado(snapshot, opciones);
+    this.texto_por_jugador = {
+      1: String(snapshot.texto_por_jugador && snapshot.texto_por_jugador[1] || ''),
+      2: String(snapshot.texto_por_jugador && snapshot.texto_por_jugador[2] || '')
+    };
+    this.palabras_usadas = {
+      1: new Set(Array.isArray(snapshot.palabras_usadas && snapshot.palabras_usadas[1]) ? snapshot.palabras_usadas[1] : []),
+      2: new Set(Array.isArray(snapshot.palabras_usadas && snapshot.palabras_usadas[2]) ? snapshot.palabras_usadas[2] : [])
+    };
+    return this.snapshotEstado(opciones.now || Date.now());
+  }
+
   _normalizarTexto(texto) {
     const legible = this._extraerTextoLegible(texto);
     return legible

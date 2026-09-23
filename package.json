@@ -6,6 +6,7 @@
         "test": "node --test",
         "test:unit": "node --test",
         "test:soak": "node --test tests/server-load.soak.js",
+        "test:soak:progressive": "node tests/server-progressive.soak.js",
         "test:soak:update-baseline": "node scripts/update-soak-baseline.js"
     },
     "engines": {

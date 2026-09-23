@@ -471,6 +471,42 @@ function crearCompeticionRondas({
         return emitir();
     };
 
+    const restaurar = (entrada = {}) => {
+        cancelarTodasLasRachas();
+        const data = entrada && typeof entrada === "object" ? entrada : {};
+        const base = resetEstadoRonda();
+        const marcador = data.marcador && typeof data.marcador === "object" ? data.marcador : {};
+        const rachas = data.rachas && typeof data.rachas === "object" ? data.rachas : {};
+        estado = {
+            ...base,
+            ...data,
+            marcador: {
+                1: redondearMarcador(Math.max(0, Number(marcador[1]) || 0)),
+                2: redondearMarcador(Math.max(0, Number(marcador[2]) || 0))
+            },
+            rachas: {
+                1: Math.max(0, Math.trunc(Number(rachas[1]) || 0)),
+                2: Math.max(0, Math.trunc(Number(rachas[2]) || 0))
+            },
+            ts: now()
+        };
+        historial = Array.isArray(data.historial)
+            ? data.historial.slice(-64).map((item) => ({
+                ...(item && typeof item === "object" ? item : {}),
+                marcador: { ...((item && item.marcador) || {}) }
+            }))
+            : [];
+        pulsaciones = {
+            1: Math.max(0, Math.trunc(Number(data.pulsaciones && data.pulsaciones[1]) || 0)),
+            2: Math.max(0, Math.trunc(Number(data.pulsaciones && data.pulsaciones[2]) || 0))
+        };
+        revision = Math.max(0, Math.trunc(Number(data.revision) || 0));
+        // Las rachas conservan su valor visual, pero no se rearman timers
+        // mientras la partida restaurada permanece pausada.
+        sincronizarLider();
+        return snapshot();
+    };
+
     reset();
 
     return {
@@ -485,6 +521,7 @@ function crearCompeticionRondas({
         registrarPuntos,
         registrarDesventajaSeleccionada,
         reset,
+        restaurar,
         snapshot
     };
 }

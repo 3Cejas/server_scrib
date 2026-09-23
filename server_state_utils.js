@@ -14,6 +14,9 @@ function construirPayloadEstadoVotacionVentaja(estado = {}) {
     tiempo_restante_ms: tiempoRestanteMs,
     termina_en_ts: terminaEnTs || 0
   };
+  if (estado.pausada === true) {
+    payload.pausada = true;
+  }
   if (typeof estado.ya_voto === "boolean") {
     payload.ya_voto = estado.ya_voto;
   }

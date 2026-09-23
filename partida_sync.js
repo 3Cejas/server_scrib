@@ -97,6 +97,25 @@ function crearGestorSincronizacionPartida({ validarJugador = (valor) => {
         return payload;
     };
 
+    const snapshot = () => ({
+        modo_seq: obtenerModoSeq(),
+        tiempo_seq: { 1: obtenerTiempoSeq(1), 2: obtenerTiempoSeq(2) },
+        conteos: {
+            1: { ...obtenerConteo(1) },
+            2: { ...obtenerConteo(2) }
+        }
+    });
+
+    const restaurar = (entrada = {}) => {
+        const data = entrada && typeof entrada === "object" ? entrada : {};
+        modoSeq = Math.max(0, Math.trunc(Number(data.modo_seq) || 0));
+        [1, 2].forEach((id) => {
+            tiempoSeq[id] = Math.max(0, Math.trunc(Number(data.tiempo_seq && data.tiempo_seq[id]) || 0));
+            guardarConteo(id, data.conteos && data.conteos[id]);
+        });
+        return snapshot();
+    };
+
     return {
         construirPayloadCount,
         convertirTextoCountASegundos,
@@ -107,8 +126,10 @@ function crearGestorSincronizacionPartida({ validarJugador = (valor) => {
         obtenerTiempoSeq,
         resetConteoSync,
         resetTiempoSeq,
+        restaurar,
         siguienteModoSeq,
         siguienteTiempoSeq,
+        snapshot,
         withModoSeq
     };
 }

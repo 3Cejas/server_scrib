@@ -509,6 +509,84 @@ class Musas {
 
   // ─── Métodos públicos de limpieza ─────────────────────────────---
 
+  _clonarDato(valor) {
+    if (valor == null) return valor
+    try {
+      return JSON.parse(JSON.stringify(valor))
+    } catch (_error) {
+      return null
+    }
+  }
+
+  snapshotEstado(now = Date.now()) {
+    const players = {}
+    ;[1, 2].forEach((playerId) => {
+      const st = this.players[playerId]
+      this._podarColaMusaCaducada(st, now)
+      const entrega = this.obtenerEntregaInspiracionActiva(playerId, now)
+      players[playerId] = {
+        queue: (st.queue || []).map((item) => this._normalizarMusaItemConMeta(item)).filter(Boolean),
+        pending: Boolean(st.pending),
+        insertedCount: Math.max(0, Number(st.insertedCount) || 0),
+        ultimaEntregaMusa: this._clonarDato(st.ultimaEntregaMusa),
+        ultimaEntregaMusaCaducaEnTs: Math.max(0, Number(st.ultimaEntregaMusaCaducaEnTs) || 0),
+        entregaInspiracionActual: this._clonarDato(entrega),
+        descartesConsecutivos: Math.max(0, Math.trunc(Number(st.descartesConsecutivos) || 0)),
+        ultimoDescarteInspiracion: this._clonarDato(st.ultimoDescarteInspiracion),
+        ultimoAprovechamientoInspiracion: this._clonarDato(st.ultimoAprovechamientoInspiracion),
+        protocoloInspiracionV2: Boolean(st.protocoloInspiracionV2),
+        lastDeliveredFromMusa: Boolean(st.lastDeliveredFromMusa),
+        ultimoMusaNombre: String(st.ultimoMusaNombre || ''),
+        entregaActualAutomatica: Boolean(st.entregaActualAutomatica),
+        peticionAutomaticaPendiente: Boolean(st.peticionAutomaticaPendiente),
+        bonusRequestSeq: Math.max(0, Math.trunc(Number(st.bonusRequestSeq) || 0))
+      }
+    })
+    return {
+      timeout: Math.max(0, Number(this.timeout) || 0),
+      generation: Math.max(0, Number(this.generation) || 0),
+      inspiration_seq: Math.max(0, Number(this.inspirationSeq) || 0),
+      players
+    }
+  }
+
+  restaurarEstado(snapshot = {}, { forzarPausa = true, now = Date.now() } = {}) {
+    const data = snapshot && typeof snapshot === 'object' ? snapshot : {}
+    const players = data.players && typeof data.players === 'object' ? data.players : {}
+    this._nextGeneration()
+    this.inspirationSeq = Math.max(0, Math.trunc(Number(data.inspiration_seq) || 0))
+    if (Number(data.timeout) > 0) this.timeout = Number(data.timeout)
+    ;[1, 2].forEach((playerId) => {
+      const st = this.players[playerId]
+      const saved = players[playerId] && typeof players[playerId] === 'object' ? players[playerId] : {}
+      if (st.emitTimer) clearTimeout(st.emitTimer)
+      if (st.pendingTimer) clearTimeout(st.pendingTimer)
+      st.emitTimer = null
+      st.pendingTimer = null
+      st.queue = (Array.isArray(saved.queue) ? saved.queue : [])
+        .map((item) => this._prepararMusaItemParaCola(item, now))
+        .filter(Boolean)
+      this._podarColaMusaCaducada(st, now)
+      st.pending = Boolean(saved.pending)
+      st.insertedCount = Math.max(0, Number(saved.insertedCount) || 0)
+      st.ultimaEntregaMusa = this._clonarDato(saved.ultimaEntregaMusa)
+      st.ultimaEntregaMusaCaducaEnTs = Math.max(0, Number(saved.ultimaEntregaMusaCaducaEnTs) || 0)
+      st.entregaInspiracionActual = this._clonarDato(saved.entregaInspiracionActual)
+      const caducaEnTs = Number(st.entregaInspiracionActual && st.entregaInspiracionActual.caduca_en_ts || 0)
+      if (caducaEnTs > 0 && caducaEnTs <= now) this._limpiarEntregaInspiracionActual(playerId)
+      st.descartesConsecutivos = Math.max(0, Math.trunc(Number(saved.descartesConsecutivos) || 0))
+      st.ultimoDescarteInspiracion = this._clonarDato(saved.ultimoDescarteInspiracion)
+      st.ultimoAprovechamientoInspiracion = this._clonarDato(saved.ultimoAprovechamientoInspiracion)
+      st.protocoloInspiracionV2 = Boolean(saved.protocoloInspiracionV2)
+      st.lastDeliveredFromMusa = Boolean(saved.lastDeliveredFromMusa)
+      st.ultimoMusaNombre = String(saved.ultimoMusaNombre || '')
+      st.entregaActualAutomatica = Boolean(saved.entregaActualAutomatica)
+      st.peticionAutomaticaPendiente = forzarPausa ? false : Boolean(saved.peticionAutomaticaPendiente)
+      st.bonusRequestSeq = Math.max(0, Math.trunc(Number(saved.bonusRequestSeq) || 0))
+    })
+    return this.snapshotEstado(now)
+  }
+
   /**
    * Limpia colas, timers y flags (pending) **pero NO** toca los contadores.
    * Úsalo al cambiar de modo para mantener el historial de peticiones.

@@ -40,6 +40,8 @@ function crearGestorVotacionVentaja({
     let duracionDesventajaMs = 0;
     let onCierreActual = null;
     let votantes = new Set();
+    let pausada = false;
+    let restantePausaMs = 0;
 
     const leerDuracionVotacionMs = () => Math.max(0, Number(
         typeof getDuracionVotacionMs === "function"
@@ -77,6 +79,7 @@ function crearGestorVotacionVentaja({
         votos,
         duracion_ms: duracionMs,
         termina_en_ts: terminaEnTs,
+        pausada,
         ya_voto: socketDestino ? musaYaVoto(socketDestino) : undefined,
         now: Date.now()
     });
@@ -102,6 +105,8 @@ function crearGestorVotacionVentaja({
         duracionDesventajaMs = 0;
         onCierreActual = null;
         terminaEnTs = 0;
+        pausada = false;
+        restantePausaMs = 0;
         votantes = new Set();
         votos = crearEstadoVotosVentaja();
     };
@@ -139,6 +144,8 @@ function crearGestorVotacionVentaja({
             : (escogerGanador(votos) || opcionesFinal[0] || "");
         activa = false;
         terminaEnTs = 0;
+        pausada = false;
+        restantePausaMs = 0;
         emitirEstado({
             activa: false,
             equipo: equipoGanador,
@@ -180,6 +187,8 @@ function crearGestorVotacionVentaja({
         opciones = [...opcionesEntrada];
         duracionMs = Math.max(0, Number(duracionEntrada) || 0);
         terminaEnTs = duracionMs > 0 ? Date.now() + duracionMs : 0;
+        pausada = false;
+        restantePausaMs = 0;
         votantes = new Set();
         io.emit(`elegir_ventaja_${equipoDestino}`, {
             opciones: [...opcionesEntrada],
@@ -251,7 +260,7 @@ function crearGestorVotacionVentaja({
     const registrarVoto = (socket, payload = {}) => {
         const data = (payload && typeof payload === "object") ? payload : { voto: payload };
         const clave = typeof data.voto === "string" ? data.voto : "";
-        if (!activa || !Object.prototype.hasOwnProperty.call(votos, clave)) {
+        if (!activa || pausada || !Object.prototype.hasOwnProperty.call(votos, clave)) {
             return false;
         }
         const equipoMusa = obtenerIdJugadorValido(socket.musa);
@@ -275,6 +284,74 @@ function crearGestorVotacionVentaja({
         return true;
     };
 
+    const pausar = () => {
+        if (!activa || pausada) return construirPayloadEstado();
+        if (typeof cancelTimer === "function") cancelTimer();
+        restantePausaMs = terminaEnTs > 0
+            ? Math.max(0, terminaEnTs - Date.now())
+            : Math.max(0, duracionMs);
+        pausada = true;
+        terminaEnTs = 0;
+        emitirEstado();
+        return construirPayloadEstado();
+    };
+
+    const reanudar = () => {
+        if (!activa || !pausada) return construirPayloadEstado();
+        pausada = false;
+        duracionMs = Math.max(0, restantePausaMs || duracionMs);
+        restantePausaMs = 0;
+        terminaEnTs = duracionMs > 0 ? Date.now() + duracionMs : 0;
+        if (duracionMs > 0 && typeof scheduleTimer === "function") {
+            scheduleTimer(() => cerrarConSeleccion(), duracionMs);
+        }
+        emitirEstado();
+        return construirPayloadEstado();
+    };
+
+    const snapshot = () => ({
+        activa,
+        pausada,
+        equipo,
+        opciones: [...opciones],
+        votos: { ...votos },
+        duracion_ms: duracionMs,
+        duracion_desventaja_ms: duracionDesventajaMs,
+        tiempo_restante_ms: pausada
+            ? restantePausaMs
+            : (terminaEnTs > 0 ? Math.max(0, terminaEnTs - Date.now()) : duracionMs),
+        votantes: Array.from(votantes)
+    });
+
+    const restaurar = (entrada = {}, { forzarPausa = true } = {}) => {
+        if (typeof cancelTimer === "function") cancelTimer();
+        resetEstado();
+        const data = entrada && typeof entrada === "object" ? entrada : {};
+        if (!data.activa) return construirPayloadEstado();
+        const equipoId = obtenerIdJugadorValido(String(data.equipo || "").replace(/^j/, ""));
+        const opcionesEntrada = Array.isArray(data.opciones)
+            ? data.opciones.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3)
+            : [];
+        if (!equipoId || !opcionesEntrada.length) return construirPayloadEstado();
+        activa = true;
+        equipo = `j${equipoId}`;
+        opciones = opcionesEntrada;
+        votos = Object.fromEntries(opciones.map((opcion) => [
+            opcion,
+            Math.max(0, Math.trunc(Number(data.votos && data.votos[opcion]) || 0))
+        ]));
+        votantes = new Set(Array.isArray(data.votantes) ? data.votantes.map(String).slice(0, 512) : []);
+        duracionDesventajaMs = Math.max(0, Number(data.duracion_desventaja_ms) || 0);
+        duracionMs = Math.max(0, Number(data.tiempo_restante_ms ?? data.duracion_ms) || 0);
+        restantePausaMs = duracionMs;
+        pausada = forzarPausa || Boolean(data.pausada);
+        terminaEnTs = pausada || duracionMs <= 0 ? 0 : Date.now() + duracionMs;
+        if (!pausada && duracionMs > 0 && typeof scheduleTimer === "function") {
+            scheduleTimer(() => cerrarConSeleccion(), duracionMs);
+        }
+        return construirPayloadEstado();
+    };
+
     const reset = () => {
         resetEstado();
         return construirPayloadEstado();
@@ -286,8 +363,12 @@ function crearGestorVotacionVentaja({
         construirPayloadEstado,
         emitirEstado,
         lanzar,
+        pausar,
+        reanudar,
         registrarVoto,
+        restaurar,
         reset,
+        snapshot,
         snapshotVotos: () => ({ ...votos })
     };
 }

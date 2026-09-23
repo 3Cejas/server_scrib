@@ -136,12 +136,38 @@ function crearGestorDesventajasActivas({
         return snapshotActivas();
     };
 
+    const restaurar = (entrada = [], { forzarPausa = true } = {}) => {
+        reset();
+        const items = Array.isArray(entrada) ? entrada : [];
+        items.forEach((item) => {
+            const id = normalizarJugador(item && item.player);
+            const putada = String(item && item.putada || "").trim();
+            const restanteMs = normalizarDuracion(
+                item && (item.tiempo_restante_ms ?? item.restante_ms ?? item.duracion_ms)
+            );
+            if (!id || !putada || restanteMs <= 0) return;
+            const ahora = now();
+            const pausada = forzarPausa || Boolean(item.pausada);
+            estado[id] = {
+                player: id,
+                putada,
+                inicioTs: ahora,
+                duracionMs: Math.max(restanteMs, Number(item.duracion_ms) || 0),
+                terminaEnTs: pausada ? 0 : ahora + restanteMs,
+                pausada,
+                restanteMs
+            };
+        });
+        return snapshotActivas();
+    };
+
     return {
         limpiarJugador,
         pausar,
         registrar,
         reset,
         reanudar,
+        restaurar,
         snapshotActivas,
         snapshotJugador
     };

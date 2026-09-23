@@ -510,6 +510,90 @@ function crearRuntimeModos({
         timeline: [...timeline]
     });
 
+    const snapshotEstado = () => ({
+        ...snapshotPartidaTest([]),
+        segundos_transcurridos: Math.max(0, Number(segundos_transcurridos) || 0),
+        modo_pendiente_ventaja,
+        lista_modos: [...lista_modos],
+        letras_benditas_pendientes: [...letras_benditas_pendientes],
+        letras_prohibidas_pendientes: [...letras_prohibidas_pendientes],
+        tiempos: [...tiempos],
+        parametros: {
+            TIEMPO_CAMBIO_PALABRAS,
+            DURACION_PARTIDA,
+            DURACIONES_NIVELES: [...DURACIONES_NIVELES],
+            DURACION_TIEMPO_MODOS,
+            TIEMPO_CAMBIO_MODOS,
+            TIEMPO_BORROSO,
+            TIEMPO_MODIFICADOR,
+            TIEMPO_VOTACION,
+            TIEMPO_CAMBIO_LETRA,
+            PORCENTAJE_TIEMPO_DESVENTAJA,
+            REDUCCION_TERTULIA_PORCENTAJE
+        },
+        frases_finales: { ...frases_finales },
+        estado_jugadores: {
+            1: { ...estado_jugadores[1] },
+            2: { ...estado_jugadores[2] }
+        },
+        nueva_palabra_j1: Boolean(nueva_palabra_j1),
+        nueva_palabra_j2: Boolean(nueva_palabra_j2),
+        repentizado_enviado: Boolean(repentizado_enviado)
+    });
+
+    const restaurarEstado = (entrada = {}) => {
+        const data = entrada && typeof entrada === "object" ? entrada : {};
+        const params = data.parametros && typeof data.parametros === "object" ? data.parametros : {};
+        segundos_transcurridos = Math.max(0, Number(data.segundos_transcurridos) || 0);
+        modo_actual = typeof data.modo_actual === "string" ? data.modo_actual : "";
+        modo_anterior = typeof data.modo_anterior === "string" ? data.modo_anterior : "";
+        modo_pendiente_ventaja = typeof data.modo_pendiente_ventaja === "string" ? data.modo_pendiente_ventaja : "";
+        indice_modo = Math.max(0, Math.trunc(Number(data.indice_modo) || 0));
+        lista_modos = normalizarListaModosPartida(data.lista_modos, LISTA_MODOS_DEFAULT);
+        modos_pendientes = Array.isArray(data.modos_pendientes) ? [...data.modos_pendientes] : [];
+        letra_prohibida = typeof data.letra_prohibida === "string" ? data.letra_prohibida : "";
+        letra_bendita = typeof data.letra_bendita === "string" ? data.letra_bendita : "";
+        letras_benditas_pendientes = Array.isArray(data.letras_benditas_pendientes)
+            ? [...data.letras_benditas_pendientes]
+            : [...LETRAS_BENDITAS_PONDERADAS];
+        letras_prohibidas_pendientes = Array.isArray(data.letras_prohibidas_pendientes)
+            ? [...data.letras_prohibidas_pendientes]
+            : [...LETRAS_PROHIBIDAS];
+        tiempos = Array.isArray(data.tiempos) ? [...data.tiempos] : [];
+        fin_j1 = Boolean(data.fin_j1);
+        fin_j2 = Boolean(data.fin_j2);
+        fin_del_juego = Boolean(data.fin_del_juego);
+        nueva_palabra_j1 = Boolean(data.nueva_palabra_j1);
+        nueva_palabra_j2 = Boolean(data.nueva_palabra_j2);
+        repentizado_enviado = Boolean(data.repentizado_enviado);
+        transicion_modo_en_curso = false;
+        frases_finales = {
+            1: String(data.frases_finales && data.frases_finales[1] || ""),
+            2: String(data.frases_finales && data.frases_finales[2] || "")
+        };
+        [1, 2].forEach((id) => {
+            const jugador = data.estado_jugadores && data.estado_jugadores[id];
+            estado_jugadores[id].inserts = Number(jugador && jugador.inserts);
+            if (!Number.isFinite(estado_jugadores[id].inserts)) estado_jugadores[id].inserts = -1;
+            estado_jugadores[id].finished = Boolean(jugador && jugador.finished);
+        });
+        TIEMPO_CAMBIO_PALABRAS = Number(params.TIEMPO_CAMBIO_PALABRAS) || TIEMPO_CAMBIO_PALABRAS;
+        DURACION_PARTIDA = Number(params.DURACION_PARTIDA) || DURACION_PARTIDA;
+        DURACIONES_NIVELES = Array.isArray(params.DURACIONES_NIVELES) ? [...params.DURACIONES_NIVELES] : DURACIONES_NIVELES;
+        DURACION_TIEMPO_MODOS = Number(params.DURACION_TIEMPO_MODOS) || DURACION_TIEMPO_MODOS;
+        TIEMPO_CAMBIO_MODOS = Number(params.TIEMPO_CAMBIO_MODOS) || TIEMPO_CAMBIO_MODOS;
+        TIEMPO_BORROSO = Number(params.TIEMPO_BORROSO) || TIEMPO_BORROSO;
+        TIEMPO_MODIFICADOR = Number(params.TIEMPO_MODIFICADOR) || TIEMPO_MODIFICADOR;
+        TIEMPO_VOTACION = Number(params.TIEMPO_VOTACION) || TIEMPO_VOTACION;
+        TIEMPO_CAMBIO_LETRA = Number(params.TIEMPO_CAMBIO_LETRA) || TIEMPO_CAMBIO_LETRA;
+        PORCENTAJE_TIEMPO_DESVENTAJA = normalizarPorcentaje(params.PORCENTAJE_TIEMPO_DESVENTAJA, PORCENTAJE_TIEMPO_DESVENTAJA, { min: 1, max: 90 });
+        REDUCCION_TERTULIA_PORCENTAJE = normalizarPorcentaje(params.REDUCCION_TERTULIA_PORCENTAJE, REDUCCION_TERTULIA_PORCENTAJE, { min: 0, max: 95 });
+        actualizarTimeoutModo(modo_bonus, TIEMPO_CAMBIO_PALABRAS);
+        actualizarTimeoutModo(modo_malditas, TIEMPO_CAMBIO_PALABRAS);
+        actualizarTimeoutModo(modo_musas, TIEMPO_CAMBIO_PALABRAS);
+        return snapshotEstado();
+    };
+
     return {
         timersPartida,
         limpiezasModo,
@@ -536,6 +620,8 @@ function crearRuntimeModos({
         cancelarCambioPalabra,
         limpiarTimersRonda,
         avanzarModoSeguro,
+        restaurarEstado,
+        snapshotEstado,
         snapshotPartidaTest,
         getModoActual: () => modo_actual,
         getModoBonus: () => modo_bonus,

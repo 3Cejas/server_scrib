@@ -13,6 +13,7 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
     let datosRecibidos = { 1: false, 2: false };
     let datosServidorTexto = { 1: false, 2: false };
     let datosServidorPulsacion = { 1: false, 2: false };
+    let datosServidorReglas = { 1: false, 2: false };
     let inicioTs = 0;
     let ultimoEmitTs = 0;
     let timerEmit = null;
@@ -139,6 +140,17 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
                     mezcla[clave] = actual[clave];
                 });
             }
+            if (datosServidorReglas[player]) {
+                [
+                    "letrasBenditas",
+                    "letrasMalditas",
+                    "palabrasMalditas",
+                    "intentosLetraProhibida",
+                    "intentosPalabraProhibida"
+                ].forEach((clave) => {
+                    mezcla[clave] = actual[clave];
+                });
+            }
             combinados[player] = mezcla;
         });
         return actualizar({ ...entrada, players: combinados });
@@ -148,6 +160,7 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
         datosRecibidos = { 1: false, 2: false };
         datosServidorTexto = { 1: false, 2: false };
         datosServidorPulsacion = { 1: false, 2: false };
+        datosServidorReglas = { 1: false, 2: false };
         inicioTs = 0;
         heatmaps[1].clear();
         heatmaps[2].clear();
@@ -275,6 +288,50 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
         return payload();
     };
 
+    const registrarLetra = (tipo, letra) => {
+        const clave = String(tipo || "").toLowerCase() === "bendita"
+            ? "letrasBenditas"
+            : (String(tipo || "").toLowerCase() === "prohibida" ? "letrasMalditas" : "");
+        const valor = String(letra || "").trim().toLocaleUpperCase("es-ES").slice(0, 8);
+        if (!clave || !valor) return payload();
+        const players = { ...estado.players };
+        [1, 2].forEach((id) => {
+            datosServidorReglas[id] = true;
+            const actual = players[id] || crearJugadorStatsLiveVacio(id);
+            players[id] = {
+                ...actual,
+                [clave]: Array.from(new Set([...(actual[clave] || []), valor])).slice(0, 26)
+            };
+        });
+        estado = normalizar({ ...estado, modo_actual: getModoActual(), players });
+        programarEmision();
+        return payload();
+    };
+
+    const registrarInfraccion = (player, entrada = {}) => {
+        const id = Number(player);
+        const tipo = String(entrada && entrada.tipo || "").toLowerCase();
+        if ((id !== 1 && id !== 2) || (tipo !== "letra" && tipo !== "palabra")) return payload();
+        datosServidorReglas[id] = true;
+        const actual = estado.players[id] || crearJugadorStatsLiveVacio(id);
+        const valor = String(entrada && entrada.valor || "").trim().toLocaleUpperCase("es-ES").slice(0, 26);
+        const cambios = tipo === "letra"
+            ? { intentosLetraProhibida: (Number(actual.intentosLetraProhibida) || 0) + 1 }
+            : {
+                intentosPalabraProhibida: (Number(actual.intentosPalabraProhibida) || 0) + 1,
+                palabrasMalditas: valor
+                    ? Array.from(new Set([...(actual.palabrasMalditas || []), valor])).slice(0, 48)
+                    : [...(actual.palabrasMalditas || [])]
+            };
+        estado = normalizar({
+            ...estado,
+            modo_actual: getModoActual(),
+            players: { ...estado.players, [id]: { ...actual, ...cambios } }
+        });
+        programarEmision();
+        return payload();
+    };
+
     const restaurar = (snapshot = {}) => {
         estado = normalizar(snapshot);
         [1, 2].forEach((id) => {
@@ -282,6 +339,12 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
             Object.entries(estado.players[id].heatmap || {}).forEach(([code, count]) => {
                 heatmaps[id].set(code, Math.max(0, Number(count) || 0));
             });
+            // El checkpoint ya es la fotografía combinada y validada del
+            // servidor. Tras reiniciar, Control no debe poder degradarla con
+            // una copia local antigua mientras se resincronizan los textos.
+            datosServidorTexto[id] = true;
+            datosServidorPulsacion[id] = heatmaps[id].size > 0;
+            datosServidorReglas[id] = true;
         });
         const maxTiempo = Math.max(
             Number(estado.players[1].tiempoTotalMs) || 0,
@@ -299,6 +362,8 @@ function crearGestorStatsLive({ io, getModoActual = () => "" } = {}) {
         payloadDatosRecibidos,
         programarEmision,
         registrarNombre,
+        registrarInfraccion,
+        registrarLetra,
         registrarPulsacion,
         registrarTexto,
         restaurar,

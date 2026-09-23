@@ -181,6 +181,8 @@ function crearRuntimeScrib({
         cancelarCambioPalabra,
         limpiarTimersRonda,
         avanzarModoSeguro,
+        restaurarEstado: restaurarEstadoModos,
+        snapshotEstado: snapshotEstadoModos,
         snapshotPartidaTest,
         getModoBonus,
         getModoMalditas,
@@ -477,7 +479,17 @@ function crearRuntimeScrib({
         stats: statsLive.payload(),
         control: controlState.snapshot(),
         reloj: relojPartida.snapshot(),
-        partida: snapshotPartidaTest([]),
+        partida: snapshotEstadoModos(),
+        partida_sync: partidaSync.snapshot(),
+        competicion: competicionRondas.snapshot(),
+        desventajas: desventajasActivas.snapshotActivas(),
+        votacion_ventaja: votacionVentaja.snapshot(),
+        espectador: espectador.payload(),
+        motores_musas: {
+            bonus: getModoBonus().snapshotEstado(),
+            malditas: getModoMalditas().snapshotEstado(),
+            letras: getModoMusas().snapshotEstado()
+        },
         partida_pausada: partidaPausada
     });
 
@@ -491,15 +503,22 @@ function crearRuntimeScrib({
         }
         const partidaGuardada = estadoPersistidoInicial.partida;
         if (partidaGuardada && typeof partidaGuardada === "object") {
-            estadoCicloPartida.modoActual = partidaGuardada.modo_actual || "";
-            estadoCicloPartida.modoAnterior = partidaGuardada.modo_anterior || "";
-            estadoCicloPartida.modosPendientes = Array.isArray(partidaGuardada.modos_pendientes)
-                ? [...partidaGuardada.modos_pendientes]
-                : [];
-            estadoCicloPartida.indiceModo = partidaGuardada.indice_modo;
-            estadoCicloPartida.finJ1 = partidaGuardada.fin_j1;
-            estadoCicloPartida.finJ2 = partidaGuardada.fin_j2;
-            estadoCicloPartida.finDelJuego = partidaGuardada.fin_del_juego;
+            restaurarEstadoModos(partidaGuardada);
+        }
+        if (estadoPersistidoInicial.partida_sync) partidaSync.restaurar(estadoPersistidoInicial.partida_sync);
+        if (estadoPersistidoInicial.competicion) competicionRondas.restaurar(estadoPersistidoInicial.competicion);
+        if (estadoPersistidoInicial.desventajas) {
+            desventajasActivas.restaurar(estadoPersistidoInicial.desventajas, { forzarPausa: true });
+        }
+        if (estadoPersistidoInicial.votacion_ventaja) {
+            votacionVentaja.restaurar(estadoPersistidoInicial.votacion_ventaja, { forzarPausa: true });
+        }
+        if (estadoPersistidoInicial.espectador) espectador.restaurar(estadoPersistidoInicial.espectador);
+        const motoresGuardados = estadoPersistidoInicial.motores_musas;
+        if (motoresGuardados && typeof motoresGuardados === "object") {
+            getModoBonus().restaurarEstado(motoresGuardados.bonus, { forzarPausa: true });
+            getModoMalditas().restaurarEstado(motoresGuardados.malditas, { forzarPausa: true });
+            getModoMusas().restaurarEstado(motoresGuardados.letras, { forzarPausa: true });
         }
         if (estadoPersistidoInicial.reloj && typeof relojPartida.restaurar === "function") {
             relojPartida.restaurar(estadoPersistidoInicial.reloj, { forzarPausa: true });
@@ -507,6 +526,11 @@ function crearRuntimeScrib({
         partidaPausada = Boolean(
             estadoPersistidoInicial.partida_pausada
             || (estadoPersistidoInicial.reloj && estadoPersistidoInicial.reloj.activo)
+            || (
+                partidaGuardada
+                && partidaGuardada.modo_actual
+                && !partidaGuardada.fin_del_juego
+            )
         );
     }
 
@@ -571,6 +595,11 @@ function crearRuntimeScrib({
         emitirModoActual,
         emitirPedirInspiracionMusa,
         emitirNuevaLetra,
+        registrarLetraStats: (tipo, letra) => {
+            if (statsLive && typeof statsLive.registrarLetra === "function") {
+                statsLive.registrarLetra(tipo, letra);
+            }
+        },
         emitirNubeInspiracionEstado,
         emitirResultadoJurado,
         statsLive,
@@ -610,12 +639,14 @@ function crearRuntimeScrib({
             timersPartida.cancelarIntervaloModos();
             desventajasActivas.pausar();
             relojPartida.pausar();
+            votacionVentaja.pausar();
             io.emit("pausar_js", evento);
         },
         reanudarTrasTertulia: (evento = { motivo: "tertulia_automatica" }) => {
             partidaPausada = false;
             desventajasActivas.reanudar();
             relojPartida.reanudar();
+            votacionVentaja.reanudar();
             io.emit("reanudar_js", evento);
         },
         getModoBonus,
@@ -858,9 +889,17 @@ function crearRuntimeScrib({
         isPartidaPausada: () => partidaPausada,
         isFinDelJuego: () => Boolean(estadoCicloPartida.finDelJuego),
         registrarInspiracionCompeticion: (player, payload) => competicionRondas.registrarInspiracion(player, payload),
-        registrarInfraccionCompeticion: (player, payload) => competicionRondas.registrarInfraccion(player, payload),
+        registrarInfraccionCompeticion: (player, payload) => {
+            const resultado = competicionRondas.registrarInfraccion(player, payload);
+            if (statsLive && typeof statsLive.registrarInfraccion === "function") {
+                statsLive.registrarInfraccion(player, payload);
+            }
+            return resultado;
+        },
         pausarRelojPartida: () => relojPartida.pausar(),
         reanudarRelojPartida: () => relojPartida.reanudar(),
+        pausarVotacionVentaja: () => votacionVentaja.pausar(),
+        reanudarVotacionVentaja: () => votacionVentaja.reanudar(),
         registrarPulsacionCompeticion: (player, payload) => {
             const resultado = competicionRondas.registrarPulsacion(player, payload);
             if (statsLive && typeof statsLive.registrarPulsacion === "function") {

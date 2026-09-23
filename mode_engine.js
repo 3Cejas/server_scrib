@@ -26,6 +26,7 @@ function crearMotorModos({
     emitirModoActual = () => {},
     emitirPedirInspiracionMusa = () => {},
     emitirNuevaLetra = () => {},
+    registrarLetraStats = () => {},
     emitirNubeInspiracionEstado = () => {},
     statsLive,
     payloadStatsLive = () => ({}),
@@ -69,6 +70,7 @@ function crearMotorModos({
         });
         state.letraBendita = seleccion.letra;
         state.letrasBenditasPendientes = seleccion.pendientes;
+        registrarLetraStats("bendita", state.letraBendita);
         emitirPedirInspiracionMusa({ modo_actual: state.modoActual, letra_bendita: state.letraBendita });
         programarLetraBendita();
         Object.values(estadoJugadores).forEach((jugador) => {
@@ -88,6 +90,7 @@ function crearMotorModos({
         });
         state.letraProhibida = seleccion.letra;
         state.letrasProhibidasPendientes = seleccion.pendientes;
+        registrarLetraStats("prohibida", state.letraProhibida);
         emitirPedirInspiracionMusa({ modo_actual: state.modoActual, letra_prohibida: state.letraProhibida });
         programarLetraProhibida();
         reiniciarMusas();
@@ -284,6 +287,7 @@ function crearMotorModos({
         });
         state.letraBendita = seleccion.letra;
         state.letrasBenditasPendientes = seleccion.pendientes;
+        registrarLetraStats("bendita", state.letraBendita);
         emitirNuevaLetra("bendita", state.letraBendita);
         const letraNormalizada = String(state.letraBendita || '').toLocaleLowerCase('es-ES');
         modoMusas().revalidarInspiraciones((palabra) => (
@@ -305,6 +309,7 @@ function crearMotorModos({
         });
         state.letraProhibida = seleccion.letra;
         state.letrasProhibidasPendientes = seleccion.pendientes;
+        registrarLetraStats("prohibida", state.letraProhibida);
         emitirNuevaLetra("prohibida", state.letraProhibida);
         const letraNormalizada = String(state.letraProhibida || '').toLocaleLowerCase('es-ES');
         modoMusas().revalidarInspiraciones((palabra) => (

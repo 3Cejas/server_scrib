@@ -22,6 +22,8 @@ function registrarCanalesRonda({
     reanudarDesventajasActivas = null,
     pausarRelojPartida = null,
     reanudarRelojPartida = null,
+    pausarVotacionVentaja = null,
+    reanudarVotacionVentaja = null,
     registrarPulsacionCompeticion = null,
     setPartidaPausada = null,
     sesionesEscritor = null,
@@ -89,6 +91,9 @@ function registrarCanalesRonda({
         }
         if (typeof reanudarRelojPartida === 'function') {
             reanudarRelojPartida();
+        }
+        if (typeof reanudarVotacionVentaja === 'function') {
+            reanudarVotacionVentaja();
         }
         timersPartida.cancelarIntervaloModos();
         state.segundosTranscurridos = 0;
@@ -211,6 +216,9 @@ function registrarCanalesRonda({
         if (typeof pausarRelojPartida === 'function') {
             pausarRelojPartida();
         }
+        if (typeof pausarVotacionVentaja === 'function') {
+            pausarVotacionVentaja();
+        }
         activarSocketsExtratextuales(socket);
         socket.broadcast.emit('pausar_js', evento);
     });
@@ -230,6 +238,9 @@ function registrarCanalesRonda({
         }
         if (typeof reanudarRelojPartida === 'function') {
             reanudarRelojPartida();
+        }
+        if (typeof reanudarVotacionVentaja === 'function') {
+            reanudarVotacionVentaja();
         }
         partidaSync.siguienteModoSeq();
         motorModos.activarModo(state.modoActual, socket);
@@ -298,6 +309,7 @@ function registrarCanalesRonda({
         if (typeof reanudarDesventajasActivas === 'function') reanudarDesventajasActivas();
         if (typeof setPartidaPausada === 'function') setPartidaPausada(false);
         if (typeof reanudarRelojPartida === 'function') reanudarRelojPartida();
+        if (typeof reanudarVotacionVentaja === 'function') reanudarVotacionVentaja();
         state.segundosTranscurridos = 0;
         const avanzado = avanzarModoSeguro(
             socket,
