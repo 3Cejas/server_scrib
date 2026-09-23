@@ -320,7 +320,9 @@ test("enviar_inspiracion pushes queued letter-mode muse words to active writers"
 test("enviar_inspiracion immediately promotes the first blue bonus word without a prior writer request", () => {
   const socket = createFakeSocket();
   const calls = [];
+  const directEmits = [];
   let queued = [];
+  let activeDelivery = null;
   const mode = {
     addMusa: (player, payload) => {
       calls.push({ type: "add", player, payload });
@@ -336,13 +338,27 @@ test("enviar_inspiracion immediately promotes the first blue bonus word without 
     }),
     handleRequest: (player) => {
       calls.push({ type: "handle", player });
+      activeDelivery = {
+        evento: `enviar_palabra_j${player}`,
+        payload: { palabra_bonus: [[queued[0].palabra]], inspiracion_id: 71 }
+      };
       queued = [];
+    },
+    emitirEntregaInspiracionActiva: (player, destino) => {
+      if (!activeDelivery) return null;
+      const payload = { ...activeDelivery.payload, restaurando_inspiracion: true };
+      destino.emit(activeDelivery.evento, payload);
+      return payload;
     }
   };
 
   registrarCanalesInspiracion({
     socket,
-    io: { to: () => ({ emit: () => {} }) },
+    io: {
+      to: (target) => ({
+        emit: (event, payload) => directEmits.push({ target, event, payload })
+      })
+    },
     musasAuxiliares: {
       registrarCorazon: () => null,
       registrarInspiracionEnviada: () => {}
@@ -357,7 +373,7 @@ test("enviar_inspiracion immediately promotes the first blue bonus word without 
     normalizarNombreMusa: (valor) => String(valor || "").trim().toUpperCase(),
     normalizarMusaClientId: (valor) => String(valor || "").trim(),
     sesionesEscritor: {
-      obtenerSocketActivo: () => null
+      obtenerSocketActivo: (player) => (Number(player) === 1 ? "writer-blue-active" : null)
     }
   });
 
@@ -385,6 +401,87 @@ test("enviar_inspiracion immediately promotes the first blue bonus word without 
     palabra: "aurora",
     modo_actual: "palabras bonus"
   });
+  assert.deepEqual(directEmits, [{
+    target: "writer-blue-active",
+    event: "enviar_palabra_j1",
+    payload: {
+      palabra_bonus: [["aurora"]],
+      inspiracion_id: 71,
+      restaurando_inspiracion: true
+    }
+  }]);
+});
+
+test("enviar_inspiracion confirms the red delivery only to the active red writer", () => {
+  const socket = createFakeSocket();
+  const directEmits = [];
+  socket.musa = 2;
+  socket.nombre_musa = "ROSA";
+  socket.musa_client_id = "red-muse";
+  let queued = [];
+  let activeDelivery = null;
+  const mode = {
+    addMusa: (_player, payload) => {
+      queued.push(payload);
+    },
+    obtenerEstadoPalabrasMusas: (player) => ({
+      player,
+      activa: queued.length > 0,
+      origen_estado: queued.length ? "cola" : "",
+      cola: queued.length,
+      cola_palabras_musas: queued.length
+    }),
+    handleRequest: (player) => {
+      activeDelivery = {
+        evento: `enviar_palabra_j${player}`,
+        payload: { palabra_bonus: [[queued[0].palabra]], inspiracion_id: 72 }
+      };
+      queued = [];
+    },
+    emitirEntregaInspiracionActiva: (player, destino) => {
+      if (!activeDelivery || player !== 2) return null;
+      const payload = { ...activeDelivery.payload, restaurando_inspiracion: true };
+      destino.emit(activeDelivery.evento, payload);
+      return payload;
+    }
+  };
+
+  registrarCanalesInspiracion({
+    socket,
+    io: {
+      to: (target) => ({
+        emit: (event, payload) => directEmits.push({ target, event, payload })
+      })
+    },
+    musasAuxiliares: {
+      registrarCorazon: () => null,
+      registrarInspiracionEnviada: () => {}
+    },
+    nubeInspiracion: { registrarInspiracion: () => {} },
+    getModoActual: () => "palabras bonus",
+    getModoBonus: () => mode,
+    getModoMalditas: () => null,
+    getModoMusas: () => null,
+    obtenerIdJugadorValido: (valor) => (Number(valor) === 1 || Number(valor) === 2 ? Number(valor) : null),
+    obtenerMusaActiva: () => ({ player: 2, nombre: "ROSA", clientId: "red-muse" }),
+    normalizarNombreMusa: (valor) => String(valor || "").trim().toUpperCase(),
+    normalizarMusaClientId: (valor) => String(valor || "").trim(),
+    sesionesEscritor: {
+      obtenerSocketActivo: (player) => (Number(player) === 2 ? "writer-red-active" : "writer-blue-active")
+    }
+  });
+
+  socket.emit("enviar_inspiracion", { palabra: "memoria" });
+
+  assert.deepEqual(directEmits, [{
+    target: "writer-red-active",
+    event: "enviar_palabra_j2",
+    payload: {
+      palabra_bonus: [["memoria"]],
+      inspiracion_id: 72,
+      restaurando_inspiracion: true
+    }
+  }]);
 });
 
 test("enviar_inspiracion promotes letter-mode muse words even before the writer reconnects", () => {

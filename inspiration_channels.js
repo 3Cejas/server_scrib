@@ -276,6 +276,32 @@ function registrarCanalesInspiracion({
         return true;
     };
 
+    const confirmarInspiracionAlEscritorActivo = (modo, player) => {
+        const id = obtenerIdJugadorValido(player);
+        if (
+            !id
+            || !modo
+            || typeof modo.emitirEntregaInspiracionActiva !== "function"
+            || !sesionesEscritor
+            || typeof sesionesEscritor.obtenerSocketActivo !== "function"
+            || !io
+            || typeof io.to !== "function"
+        ) {
+            return false;
+        }
+        const socketId = String(sesionesEscritor.obtenerSocketActivo(id) || "").trim();
+        if (!socketId) return false;
+
+        // Los motores publican primero por el canal normal del nivel. Esta
+        // confirmacion vuelve a enviar la entrega autoritativa unicamente al
+        // socket escritor vigente: evita que una perdida puntual del evento o
+        // una sala desincronizada deje a un equipo sin la palabra de su musa.
+        const destino = {
+            emit: (evento, payload) => io.to(socketId).emit(evento, payload)
+        };
+        return Boolean(modo.emitirEntregaInspiracionActiva(id, destino));
+    };
+
     socket.on("musa_corazon", () => {
         const equipo = obtenerIdJugadorValido(socket.musa);
         if (!equipo) {
@@ -944,6 +970,7 @@ function registrarCanalesInspiracion({
         // entrega queda además guardada por el modo para poder restaurarla si
         // la escritora se registra o reconecta unas décimas más tarde.
         entregarInspiracionEnCola(modoDestino, target_player);
+        confirmarInspiracionAlEscritorActivo(modoDestino, target_player);
         emitirNubeInspiracionEstado(null, true);
         return responder({
             ok: true,
