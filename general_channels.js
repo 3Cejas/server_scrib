@@ -47,6 +47,20 @@ function registrarCanalesGenerales({
         && socket.escritxr
         && !sesionesEscritor.esActiva(socket, player)
     );
+    const detenerTemporizadorShowPorEscenaExclusiva = () => {
+        if (!temporizadorShow || typeof temporizadorShow.detener !== "function") {
+            return false;
+        }
+        const estado = typeof temporizadorShow.payload === "function"
+            ? temporizadorShow.payload()
+            : null;
+        if (estado && estado.estado === "oculto" && estado.mostrar === false) {
+            return false;
+        }
+        temporizadorShow.detener();
+        io.emit("temporizador_gigante_detener");
+        return true;
+    };
 
     socket.on("validar_password_roles", (payload, callback) => {
         const pass = (typeof payload === "string")
@@ -145,10 +159,17 @@ function registrarCanalesGenerales({
     });
 
     socket.on("temporizador_gigante_detener", () => {
-        if (temporizadorShow && typeof temporizadorShow.detener === "function") {
-            temporizadorShow.detener();
+        detenerTemporizadorShowPorEscenaExclusiva();
+    });
+
+    socket.on("teleprompter_control", (payload = {}) => {
+        if (!socket.control) return;
+        const estado = payload && payload.state && typeof payload.state === "object"
+            ? payload.state
+            : {};
+        if (estado.visible === true || estado.preparing === true) {
+            detenerTemporizadorShowPorEscenaExclusiva();
         }
-        io.emit("temporizador_gigante_detener");
     });
 
     socket.on("enviar_comentario", (evento) => {

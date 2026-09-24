@@ -34,7 +34,7 @@ const crearTelemetria = (palabras1 = 80, palabras2 = 40) => ({
   }
 });
 
-function crearContexto({ control = false, debug = false, disponible = true, pendiente = false, preShowActivo = true, pulsaciones = { 1: 120, 2: 80 } } = {}) {
+function crearContexto({ control = false, debug = false, disponible = true, pendiente = false, preShowActivo = true, pulsaciones = { 1: 120, 2: 80 }, timerActive = false } = {}) {
   const socket = new EventEmitter();
   socket.control = control;
   const ioEvents = [];
@@ -76,6 +76,17 @@ function crearContexto({ control = false, debug = false, disponible = true, pend
     estaActivo: () => preShowActivo || aperturasPreShow > 0,
     abrir() { aperturasPreShow += 1; }
   };
+  let timerStops = 0;
+  let timerState = timerActive
+    ? { estado: "activo", mostrar: true }
+    : { estado: "oculto", mostrar: false };
+  const temporizadorShow = {
+    payload: () => ({ ...timerState }),
+    detener() {
+      timerStops += 1;
+      timerState = { estado: "oculto", mostrar: false };
+    }
+  };
 
   registrarCanalesEspectador({
     socket,
@@ -100,6 +111,7 @@ function crearContexto({ control = false, debug = false, disponible = true, pend
     espectador,
     creditosShow: { actualizar() {}, incrementarAnimacion() {} },
     resultadoJurado,
+    temporizadorShow,
     resolverModoVistaEspectador: espectador.resolverModo,
     preShowMusas,
     detenerExperienciasTutorial: (cambio) => cambiosConParada.push(cambio),
@@ -116,7 +128,8 @@ function crearContexto({ control = false, debug = false, disponible = true, pend
     puntuacionFinal,
     resultadoJurado,
     statsLive,
-    socket
+    socket,
+    timerStops: () => timerStops
   };
 }
 
@@ -133,6 +146,16 @@ test("deliberation is restricted to Control and replaces the active spectator vi
     modoAnterior: "tutorial",
     modoSiguiente: "deliberacion"
   }]);
+});
+
+test("a Control view selection closes the giant timer even when the base view is unchanged", () => {
+  const ctx = crearContexto({ control: true, timerActive: true });
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "tutorial" });
+
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
+  assert.equal(ctx.timerStops(), 1);
+  assert.ok(ctx.ioEvents.some(({ event }) => event === "temporizador_gigante_detener"));
 });
 
 test("only Jury can publish its result and only Control can reveal it", () => {

@@ -24,6 +24,7 @@ function registrarCanalesEspectador({
     espectador,
     creditosShow,
     resultadoJurado = null,
+    temporizadorShow = null,
     resolverModoVistaEspectador,
     preShowMusas = null,
     detenerExperienciasTutorial = () => {},
@@ -185,6 +186,17 @@ function registrarCanalesEspectador({
     const cambiarModoEspectador = (modo) => {
         const modoAnterior = resolverModoVistaEspectador();
         const modoSiguiente = espectador.cambiarModo(modo);
+        if (temporizadorShow && typeof temporizadorShow.detener === "function") {
+            const estadoTemporizador = typeof temporizadorShow.payload === "function"
+                ? temporizadorShow.payload()
+                : null;
+            if (!estadoTemporizador || estadoTemporizador.estado !== "oculto" || estadoTemporizador.mostrar !== false) {
+                temporizadorShow.detener();
+                if (io && typeof io.emit === "function") {
+                    io.emit("temporizador_gigante_detener");
+                }
+            }
+        }
         if (modoSiguiente !== modoAnterior) {
             detenerExperienciasTutorial({
                 modoAnterior,

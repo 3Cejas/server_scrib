@@ -228,6 +228,7 @@ function registrarConexionScrib(socket, deps) {
         espectador,
         creditosShow,
         resultadoJurado,
+        temporizadorShow,
         resolverModoVistaEspectador,
         preShowMusas,
         detenerExperienciasTutorial: (cambio = {}) => detenerExperienciasTutorialActivas({

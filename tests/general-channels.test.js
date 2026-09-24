@@ -281,3 +281,37 @@ test("giant timer delegates to the persistent show manager", () => {
     "temporizador_gigante_detener"
   ]);
 });
+
+test("opening the teleprompter from Control closes the exclusive giant timer", () => {
+  const socket = crearSocket();
+  socket.control = true;
+  const ioEvents = [];
+  let timerState = { estado: "activo", mostrar: true };
+  let stops = 0;
+  const temporizadorShow = {
+    emitir() {},
+    payload: () => ({ ...timerState }),
+    detener() {
+      stops += 1;
+      timerState = { estado: "oculto", mostrar: false };
+      return timerState;
+    }
+  };
+
+  registrarCanalesGenerales({
+    socket,
+    io: { emit(event, payload) { ioEvents.push({ event, payload }); } },
+    passwordRoles: "pass",
+    obtenerEstadoEscritores: () => ({}),
+    obtenerIdJugadorValido: () => null,
+    partidaSync: crearGestorSincronizacionPartida(),
+    construirPayloadCount: (payload) => payload,
+    temporizadorShow
+  });
+
+  socket.emit("teleprompter_control", { state: { preparing: true } });
+  socket.emit("teleprompter_control", { state: { visible: true } });
+
+  assert.equal(stops, 1);
+  assert.deepEqual(ioEvents.map(({ event }) => event), ["temporizador_gigante_detener"]);
+});
