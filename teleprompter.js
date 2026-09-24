@@ -87,6 +87,14 @@ function crearGestorTeleprompter({ io, getTextoEscritor = () => ({ 1: "", 2: "" 
         if (Number.isFinite(payload.loadId)) {
             salida.loadId = Math.max(0, Math.trunc(Number(payload.loadId)));
         }
+        // Reabrir los controles despues de otra escena no debe sustituir un
+        // texto ya cargado por la pantalla de preparacion. Clientes antiguos
+        // enviaban `preparing: true` aunque conservaran el texto y dejaban al
+        // espectador en la vista base de Partida.
+        if (salida.preparing && typeof salida.text === "string" && salida.text.trim().length > 0) {
+            salida.preparing = false;
+            salida.visible = true;
+        }
         const revision = normalizarRevision(payload.revision);
         if (revision !== null) {
             salida.revision = revision;
@@ -139,17 +147,14 @@ function crearGestorTeleprompter({ io, getTextoEscritor = () => ({ 1: "", 2: "" 
                 ? payload.state
                 : {};
             const incomingRevision = normalizarRevision(incomingState.revision);
-            if (incomingRevision !== null && incomingRevision < revisionSeq) {
-                emitirEstado(socket);
-                return;
-            }
             const nextState = normalizarPayload(incomingState);
-            if (incomingRevision === null) {
-                nextState.revision = siguienteRevision();
-            } else {
-                revisionSeq = Math.max(revisionSeq, incomingRevision);
-                nextState.revision = revisionSeq;
-            }
+            // Las revisiones del cliente sirven para ordenar su UI, no para
+            // vetar una accion posterior. Con varias pestañas, el Control que
+            // pulsaba Teleprompter podia llevar una revision menor: el servidor
+            // aceptaba el cambio a Partida pero descartaba la proyeccion. El
+            // servidor asigna ahora el orden total a cada accion recibida.
+            revisionSeq = Math.max(revisionSeq, incomingRevision || 0);
+            nextState.revision = siguienteRevision();
             state = nextState;
             emitirEstado();
         });
