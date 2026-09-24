@@ -158,12 +158,16 @@ function crearSincronizadorConexion({
                 socket.emit('fin', {
                     player: 1,
                     partida_finalizada: true,
-                    origen: 'restauracion'
+                    origen: 'restauracion',
+                    restaurando: true,
+                    suprimir_confetti_espectador: true
                 });
                 socket.emit('fin', {
                     player: 2,
                     partida_finalizada: true,
-                    origen: 'restauracion'
+                    origen: 'restauracion',
+                    restaurando: true,
+                    suprimir_confetti_espectador: true
                 });
                 socket.emit('fin_a_control', {
                     partida_finalizada: true,

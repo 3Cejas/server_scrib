@@ -94,15 +94,18 @@ function registrarCanalesEspectador({
             diferencia
         };
     };
-    const emitirResultadoFinal = (destino = null) => {
+    const emitirResultadoFinal = (destino = null, opciones = {}) => {
         const resultado = construirResultadoFinal();
+        const restaurando = opciones && opciones.restaurando === true;
         const receptor = destino && typeof destino.emit === "function"
             ? destino
             : io && typeof io.emit === "function"
                 ? io
                 : socket.server;
         if (receptor && typeof receptor.emit === "function") {
-            receptor.emit("resultado_final_estado", resultado || { disponible: false });
+            receptor.emit("resultado_final_estado", resultado
+                ? { ...resultado, restaurando }
+                : { disponible: false, restaurando });
         }
         return resultado;
     };
@@ -216,7 +219,7 @@ function registrarCanalesEspectador({
     emitirPuntuacionFinal(socket);
     emitirNubeInspiracionEstado(socket, true);
     emitirResultadoJurado(socket);
-    emitirResultadoFinal(socket);
+    emitirResultadoFinal(socket, { restaurando: true });
     emitirEstadoBanderasMusas(socket);
     emitirEstadoRegaloBanderaMusas(socket);
     emitirCreditosShow(socket);
@@ -286,7 +289,7 @@ function registrarCanalesEspectador({
     });
 
     socket.on("pedir_resultado_final", () => {
-        emitirResultadoFinal(socket);
+        emitirResultadoFinal(socket, { restaurando: true });
     });
 
     socket.on("jurado_resultado_actualizar", (payload = {}, callback = null) => {

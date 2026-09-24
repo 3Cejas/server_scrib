@@ -37,6 +37,10 @@ const crearTelemetria = (palabras1 = 80, palabras2 = 40) => ({
 function crearContexto({ control = false, debug = false, disponible = true, pendiente = false, preShowActivo = true, pulsaciones = { 1: 120, 2: 80 }, timerActive = false } = {}) {
   const socket = new EventEmitter();
   socket.control = control;
+  const socketEvents = [];
+  socket.on("resultado_final_estado", (payload) => {
+    socketEvents.push({ event: "resultado_final_estado", payload });
+  });
   const ioEvents = [];
   const io = {
     emit(event, payload) {
@@ -127,11 +131,36 @@ function crearContexto({ control = false, debug = false, disponible = true, pend
     ioEvents,
     puntuacionFinal,
     resultadoJurado,
+    socketEvents,
     statsLive,
     socket,
     timerStops: () => timerStops
   };
 }
+
+test("restored final results are marked silent while live reveals remain celebratory", () => {
+  const ctx = crearContexto({ control: true });
+  const restored = ctx.socketEvents.at(-1);
+
+  assert.equal(restored.event, "resultado_final_estado");
+  assert.equal(restored.payload.restaurando, true);
+
+  ctx.socket.emit("pedir_resultado_final");
+  assert.equal(ctx.socketEvents.at(-1).payload.restaurando, true);
+
+  ctx.socket.jurado = true;
+  ctx.socket.emit("jurado_resultado_actualizar", {
+    disponible: true,
+    jugadores: {
+      1: { nombre: "AZUL", total: 8 },
+      2: { nombre: "ROJO", total: 7 }
+    }
+  });
+  ctx.socket.jurado = false;
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "resultado_final" });
+  const live = ctx.ioEvents.findLast(({ event }) => event === "resultado_final_estado");
+  assert.equal(live.payload.restaurando, false);
+});
 
 test("deliberation is restricted to Control and replaces the active spectator view", () => {
   const ctx = crearContexto();

@@ -177,6 +177,15 @@ test("a reconnect after the match receives the authoritative final state", () =>
     [1, 2]
   );
   assert.equal(
+    socket.eventos
+      .filter(({ event }) => event === "fin")
+      .every(({ payload }) => (
+        payload.restaurando === true
+        && payload.suprimir_confetti_espectador === true
+      )),
+    true
+  );
+  assert.equal(
     socket.eventos.some(({ event, payload }) => event === "fin_a_control" && payload.partida_finalizada === true),
     true
   );
