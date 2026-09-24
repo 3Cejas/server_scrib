@@ -44,3 +44,19 @@ test("teleprompter keeps the spectator preparation state until a text is loaded"
   assert.equal(manager.snapshot().state.visible, true);
   assert.equal(manager.snapshot().state.text, "Texto cargado");
 });
+
+test("teleprompter preserves projector-sized font settings", () => {
+  const socket = new EventEmitter();
+  const manager = crearGestorTeleprompter({ io: { emit() {} } });
+
+  manager.registrarHandlers(socket);
+  socket.emit("teleprompter_control", {
+    state: { fontSize: 160 }
+  });
+  assert.equal(manager.snapshot().state.fontSize, 160);
+
+  socket.emit("teleprompter_control", {
+    state: { fontSize: 999 }
+  });
+  assert.equal(manager.snapshot().state.fontSize, 160);
+});

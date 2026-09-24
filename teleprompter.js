@@ -2,7 +2,7 @@ const TELEPROMPTER_TEXT_MAX = 50000;
 
 const TELEPROMPTER_LIMITES = {
     fontMin: 18,
-    fontMax: 96,
+    fontMax: 160,
     speedMin: 5,
     speedMax: 300
 };
