@@ -7,8 +7,14 @@ const {
   normalizarMusasCreditosShow
 } = require("../credits_show.js");
 
-test("credits use Pablo Pineño as the default dramaturgy credit", () => {
-  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.dramaturgia, "PABLO PINEÑO");
+test("credits use the requested uppercase cast and dramaturgy defaults", () => {
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.escritxr_rojo, "PABLO PINEÑO");
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.escritxr_azul, "ALVARA STRINGANA");
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.interprete_azul_1, "ELENA CONDE");
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.interprete_azul_2, "ANA SEMPERE");
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.interprete_rojo_1, "LAURA ESCOBAR");
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.interprete_rojo_2, "VERÓNICA ANTONUCCI");
+  assert.equal(ESTADO_CREDITOS_POR_DEFECTO.dramaturgia, "ÁNGELA BUENO Y PABLO PINEÑO");
 });
 
 test("credits show payload injects current match muses without storing stale names", () => {

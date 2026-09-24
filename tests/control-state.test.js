@@ -3,9 +3,16 @@ const assert = require("node:assert/strict");
 
 const {
   crearGestorEstadoControl,
+  PARAMETROS_CONTROL_DEFECTO,
   normalizarModosControl,
   normalizarParametrosControl
 } = require("../control_state.js");
+
+test("control uses the requested match duration and muse cooldown defaults", () => {
+  assert.equal(PARAMETROS_CONTROL_DEFECTO.duracion_minutos, 35);
+  assert.equal(PARAMETROS_CONTROL_DEFECTO.duracion_segundos, 0);
+  assert.equal(PARAMETROS_CONTROL_DEFECTO.limite_tiempo_inspiracion, 10);
+});
 
 test("control state persists panel parameters and clamps invalid values", () => {
   const events = [];

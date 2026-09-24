@@ -4,14 +4,14 @@ const CREDITOS_MUSAS_MAX = 60;
 const CREDITOS_MUSA_NOMBRE_MAX = 48;
 
 const ESTADO_CREDITOS_POR_DEFECTO = Object.freeze({
-    escritxr_rojo: "\u00c1NGELA BUENO",
-    escritxr_azul: "MIRIAM DEL VALLE",
-    interprete_azul_1: "PAULA CM",
-    interprete_azul_2: "DIEGO VALVERDE",
-    interprete_rojo_1: "ANA SEMPERE",
-    interprete_rojo_2: "PABLO PINE\u00d1O",
+    escritxr_rojo: "PABLO PINE\u00d1O",
+    escritxr_azul: "ALVARA STRINGANA",
+    interprete_azul_1: "ELENA CONDE",
+    interprete_azul_2: "ANA SEMPERE",
+    interprete_rojo_1: "LAURA ESCOBAR",
+    interprete_rojo_2: "VER\u00d3NICA ANTONUCCI",
     programacion: "DAVID VI\u00d1AS",
-    dramaturgia: "PABLO PINE\u00d1O",
+    dramaturgia: "\u00c1NGELA BUENO Y PABLO PINE\u00d1O",
     iluminacion: "TERESA TIMPER",
     musica: "ARNY RAM\u00cdREZ",
     voz_off: "NINACHASKA ZL",

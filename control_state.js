@@ -10,11 +10,11 @@ const MODOS_CONTROL_DISPONIBLES = Object.freeze([
 const PARAMETROS_CONTROL_DEFECTO = Object.freeze({
     tiempo_modificador: 60,
     tiempo_votacion: 30,
-    duracion_minutos: 30,
+    duracion_minutos: 35,
     duracion_segundos: 0,
     tiempo_cambio_letra: 60,
     tiempo_cambio_palabras: 20,
-    limite_tiempo_inspiracion: 30,
+    limite_tiempo_inspiracion: 10,
     porcentaje_tiempo_desventaja: 20,
     reduccion_tertulia_porcentaje: 50,
     escala_espectador: 100,
