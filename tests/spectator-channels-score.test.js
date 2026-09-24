@@ -296,6 +296,21 @@ test("control can switch the spectator between tutorial and game as distinct vie
     modoAnterior: "tutorial",
     modoSiguiente: "partida"
   }]);
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "temporizador" });
+  assert.equal(ctx.espectador.resolverModo(), "temporizador");
+  assert.equal(ctx.ioEvents.some(({ event, payload }) => (
+    event === "vista_espectador_modo" && payload?.modo === "temporizador"
+  )), true);
+});
+
+test("only Control can select the exclusive giant timer view", () => {
+  const ctx = crearContexto();
+
+  ctx.socket.emit("cambiar_vista_espectador_modo", { modo: "temporizador" });
+
+  assert.equal(ctx.espectador.resolverModo(), "tutorial");
+  assert.equal(ctx.ioEvents.some(({ payload }) => payload?.modo === "temporizador"), false);
 });
 
 test("changing the authoritative view stops tutorial media once, but reselecting it does not", () => {

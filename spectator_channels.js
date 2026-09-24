@@ -435,8 +435,8 @@ function registrarCanalesEspectador({
             : "";
         if (
             !socket.control
-            && (["puntuacion", "deliberacion", "resultado_jurado", "resultado_final"].includes(modoEntrada)
-                || ["puntuacion", "deliberacion", "resultado_jurado", "resultado_final"].includes(resolverModoVistaEspectador()))
+            && (["puntuacion", "deliberacion", "resultado_jurado", "resultado_final", "temporizador"].includes(modoEntrada)
+                || ["puntuacion", "deliberacion", "resultado_jurado", "resultado_final", "temporizador"].includes(resolverModoVistaEspectador()))
         ) {
             return;
         }

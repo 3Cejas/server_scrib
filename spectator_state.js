@@ -1,7 +1,7 @@
 const { CATEGORIAS_PUNTUACION } = require('./final_scoring.js');
 const { JURY_RESULT_SLIDE_MAX } = require('./jury_result.js');
 
-const MODOS_VISTA_ESPECTADOR = new Set(["partida", "tutorial", "instrucciones", "stats", "puntuacion", "nube_inspiracion", "creditos", "deliberacion", "resultado_jurado", "resultado_final"]);
+const MODOS_VISTA_ESPECTADOR = new Set(["partida", "tutorial", "instrucciones", "stats", "puntuacion", "nube_inspiracion", "creditos", "deliberacion", "resultado_jurado", "resultado_final", "temporizador"]);
 const ESCALA_UI_ESPECTADOR_MIN = 0.82;
 const ESCALA_UI_ESPECTADOR_MAX = 1.28;
 const ESCALA_UI_ESPECTADOR_DEFAULT = 1;
@@ -82,6 +82,7 @@ function crearGestorVistaEspectador({ io, isCalentamientoVisible = () => false }
         const modoOverride = normalizarModo(override);
         if (
             modoOverride === "tutorial"
+            || modoOverride === "temporizador"
             || modoOverride === "instrucciones"
             || modoOverride === "stats"
             || modoOverride === "puntuacion"

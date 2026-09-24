@@ -24,6 +24,16 @@ test("instructions is authoritative and its seven scenes are remotely navigable"
   assert.equal(gestor.payload().instrucciones_slide_step, 0);
 });
 
+test("the giant timer is an authoritative spectator view, not game view", () => {
+  const gestor = crearGestorVistaEspectador({ io: { emit() {} } });
+
+  assert.equal(gestor.cambiarModo("partida"), "partida");
+  assert.equal(gestor.payload().modo, "partida");
+  assert.equal(gestor.cambiarModo("temporizador"), "temporizador");
+  assert.equal(gestor.payload().modo, "temporizador");
+  assert.equal(gestor.payload().override, "temporizador");
+});
+
 test("spectator view scale defaults to the parameter baseline and clamps remote values", () => {
   const events = [];
   const gestor = crearGestorVistaEspectador({
