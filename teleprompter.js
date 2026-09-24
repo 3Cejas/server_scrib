@@ -135,6 +135,26 @@ function crearGestorTeleprompter({ io, getTextoEscritor = () => ({ 1: "", 2: "" 
         }
     });
 
+    const restaurar = (snapshotGuardado = {}) => {
+        const estadoGuardado = snapshotGuardado
+            && snapshotGuardado.state
+            && typeof snapshotGuardado.state === "object"
+            ? snapshotGuardado.state
+            : snapshotGuardado;
+        if (!estadoGuardado || typeof estadoGuardado !== "object") {
+            return snapshot();
+        }
+        const siguienteEstado = normalizarPayload(estadoGuardado);
+        const revisionGuardada = normalizarRevision(siguienteEstado.revision);
+        revisionSeq = Math.max(revisionSeq, revisionGuardada || 0);
+        siguienteEstado.revision = siguienteRevision();
+        state = siguienteEstado;
+        // Los ACK pertenecen a conexiones de la ejecucion anterior; recuperar
+        // solo la escena evita mostrar confirmaciones obsoletas en Control.
+        feedbackState = crearFeedbackVacio();
+        return snapshot();
+    };
+
     const reset = () => {
         state = crearEstadoTeleprompter(siguienteRevision());
         feedbackState = crearFeedbackVacio();
@@ -210,6 +230,7 @@ function crearGestorTeleprompter({ io, getTextoEscritor = () => ({ 1: "", 2: "" 
         emitirEstado,
         registrarHandlers,
         reset,
+        restaurar,
         snapshot
     };
 }

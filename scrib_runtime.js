@@ -492,6 +492,7 @@ function crearRuntimeScrib({
         desventajas: desventajasActivas.snapshotActivas(),
         votacion_ventaja: votacionVentaja.snapshot(),
         espectador: espectador.payload(),
+        teleprompter: teleprompter.snapshot(),
         motores_musas: {
             bonus: getModoBonus().snapshotEstado(),
             malditas: getModoMalditas().snapshotEstado(),
@@ -521,6 +522,9 @@ function crearRuntimeScrib({
             votacionVentaja.restaurar(estadoPersistidoInicial.votacion_ventaja, { forzarPausa: true });
         }
         if (estadoPersistidoInicial.espectador) espectador.restaurar(estadoPersistidoInicial.espectador);
+        if (estadoPersistidoInicial.teleprompter && typeof teleprompter.restaurar === "function") {
+            teleprompter.restaurar(estadoPersistidoInicial.teleprompter);
+        }
         const motoresGuardados = estadoPersistidoInicial.motores_musas;
         if (motoresGuardados && typeof motoresGuardados === "object") {
             getModoBonus().restaurarEstado(motoresGuardados.bonus, { forzarPausa: true });

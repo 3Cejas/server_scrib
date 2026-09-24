@@ -99,3 +99,36 @@ test("a later teleprompter action wins even when another tab left a newer client
   assert.ok(state.revision > 40);
   assert.equal(broadcasts.at(-1).payload.state.visible, true);
 });
+
+test("teleprompter restores the projected scene after a server restart", () => {
+  const original = crearGestorTeleprompter({ io: { emit() {} } });
+  const socket = new EventEmitter();
+  original.registrarHandlers(socket);
+  socket.emit("teleprompter_control", {
+    state: {
+      revision: 12,
+      visible: true,
+      preparing: false,
+      text: "Primera linea\nSegunda linea",
+      source: 2,
+      loadId: 7,
+      fontSize: 72,
+      speed: 40,
+      scroll: 180
+    }
+  });
+
+  const restored = crearGestorTeleprompter({ io: { emit() {} } });
+  const state = restored.restaurar(original.snapshot()).state;
+
+  assert.equal(state.visible, true);
+  assert.equal(state.preparing, false);
+  assert.equal(state.text, "Primera linea\nSegunda linea");
+  assert.equal(state.source, 2);
+  assert.equal(state.loadId, 7);
+  assert.equal(state.fontSize, 72);
+  assert.equal(state.speed, 40);
+  assert.equal(state.scroll, 180);
+  assert.ok(state.revision > 12);
+  assert.equal(restored.snapshot().feedback, null);
+});

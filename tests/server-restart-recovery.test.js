@@ -111,6 +111,19 @@ test("a real server restart restores live state and keeps it paused", { timeout:
   });
   admin.emit("registrar_control");
   admin.emit("cambiar_vista_espectador_modo", { modo: "stats" });
+  admin.emit("teleprompter_control", {
+    state: {
+      revision: 8,
+      visible: true,
+      preparing: false,
+      text: "Primera línea\nSegunda línea",
+      source: 1,
+      loadId: 3,
+      fontSize: 84,
+      speed: 36,
+      scroll: 120
+    }
+  });
   await new Promise((resolve) => setTimeout(resolve, 350));
 
   admin.close();
@@ -120,6 +133,8 @@ test("a real server restart restores live state and keeps it paused", { timeout:
   assert.equal(stored.state.partida.modo_actual, "letra prohibida");
   assert.equal(stored.state.partida.letra_prohibida, "Ñ");
   assert.equal(stored.state.writer.textos[1].plano, "Texto persistente");
+  assert.equal(stored.state.teleprompter.state.visible, true);
+  assert.equal(stored.state.teleprompter.state.text, "Primera línea\nSegunda línea");
 
   const secondPort = await getFreePort();
   const second = await spawnServer(secondPort, stateFile);
@@ -135,4 +150,8 @@ test("a real server restart restores live state and keeps it paused", { timeout:
   assert.equal(restored.votacion_ventaja.pausada, true);
   assert.equal(restored.espectador.modo, "stats");
   assert.equal(restored.competicion_ronda.modo, "letra prohibida");
+  assert.equal(restored.teleprompter.state.visible, true);
+  assert.equal(restored.teleprompter.state.text, "Primera línea\nSegunda línea");
+  assert.equal(restored.teleprompter.state.source, 1);
+  assert.equal(restored.teleprompter.state.fontSize, 84);
 });
