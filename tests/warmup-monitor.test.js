@@ -81,6 +81,29 @@ test("each blue Muse detonator is confirmed to the blue writer room", () => {
   assert.equal(red[0].payload.equipo_destino, 2);
 });
 
+test("warmup snapshots timestamp the server reference freshly, including both directed writer copies", (t) => {
+  let serverNow = 1900000000000;
+  t.mock.method(Date, "now", () => serverNow);
+  const io = createIo();
+  const warmup = crearGestorCalentamiento({ io });
+  warmup.inyectarDetonadoresDebug({ cantidad: 2 });
+  const snapshot = warmup.payloadEstado();
+  const word = snapshot.equipos[1].palabras[0];
+  assert.equal(snapshot.server_ts, serverNow);
+  assert.equal(word.ts, serverNow);
+  serverNow += 4200;
+  const restored = warmup.payloadEstado();
+  assert.equal(restored.revision, snapshot.revision);
+  assert.equal(restored.server_ts - restored.equipos[1].palabras[0].ts, 4200);
+  io.events.length = 0;
+  warmup.emitirEstado();
+  const global = io.events.find(({ event }) => event === "calentamiento_estado_espectador");
+  const directed = io.events.filter(({ event }) => event === "calentamiento_estado_escritor");
+  assert.equal(directed.length, 2);
+  assert.equal(global.payload.server_ts, serverNow);
+  assert.ok(directed.every(({ payload }) => payload.server_ts === global.payload.server_ts));
+});
+
 test("Debug detonators use the real warmup model and can be removed without touching real Muse words", () => {
   const io = createIo();
   const warmup = crearGestorCalentamiento({

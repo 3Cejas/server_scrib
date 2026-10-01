@@ -469,6 +469,9 @@ function crearGestorCalentamiento({
 
     const payloadEstado = () => ({
         revision: Math.max(0, Math.trunc(Number(estado.revision) || 0)),
+        // Word timestamps and this reference share the server clock. Clients
+        // advance it with a monotonic timer instead of their device date/time.
+        server_ts: Date.now(),
         activo: estado.activo,
         vista: estado.vista,
         solicitud: estado.solicitud,

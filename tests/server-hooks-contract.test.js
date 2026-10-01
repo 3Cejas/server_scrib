@@ -167,7 +167,7 @@ function sanitizeState(value, key = "") {
     if ((key === "portador_inicial" || key === "desventaja_player") && (Number(value) === 1 || Number(value) === 2)) {
       return "__RANDOM_PLAYER__";
     }
-    if ((key === "ts" || key === "now" || key === "actualizado_en" || key === "termina_en_ts" || key === "solicitado_en") && Number(value) > 0) {
+    if ((key === "ts" || key === "server_ts" || key === "now" || key === "actualizado_en" || key === "termina_en_ts" || key === "solicitado_en") && Number(value) > 0) {
       return "__TS__";
     }
     if ((key === "revision" || key === "modo_seq" || key === "count_seq" || key === "tiempo_seq") && Number.isFinite(Number(value)) && Number(value) > 0) {

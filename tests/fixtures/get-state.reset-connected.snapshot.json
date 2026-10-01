@@ -112,6 +112,7 @@
   },
   "tutorial": {
     "revision": "__SEQ__",
+    "server_ts": "__TS__",
     "activo": false,
     "vista": false,
     "solicitud": "ninguna",
