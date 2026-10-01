@@ -42,6 +42,7 @@ function crearHarness() {
   const relojesIniciados = [];
   const registrosIteracionesIniciados = [];
   const registrosIteracionesFinalizados = [];
+  const limpiezasAuxiliares = [];
   let nuevasSesionesMusas = 0;
   let vistasPartidaAseguradas = 0;
   let inicioProgramado = null;
@@ -119,7 +120,7 @@ function crearHarness() {
     limpiarTimersRonda: noOp,
     limpiarTodosLosModos: noOp,
     activarSocketsExtratextuales: noOp,
-    resetearEstadoAuxiliarParaTests: noOp,
+    resetearEstadoAuxiliarParaTests: (opciones) => limpiezasAuxiliares.push(opciones),
     resetearEstadoResurreccion: noOp,
     payloadEstadoResurreccion: () => ({ 1: {}, 2: {} }),
     musasAuxiliares: { resetRegalos: noOp },
@@ -187,8 +188,25 @@ function crearHarness() {
     getVistasResultado: () => vistasResultado,
     escalasAplicadas,
     registrosIteracionesIniciados,
-    registrosIteracionesFinalizados
+    registrosIteracionesFinalizados,
+    limpiezasAuxiliares
   };
+}
+
+for (const accion of ["iniciarPartida", "limpiarPartida", "prepararNuevaPartida"]) {
+  test(`${accion} preserves both writer names while resetting match data`, () => {
+    const ctx = crearHarness();
+    ctx.statsLive.actualizarDesdeControl(telemetriaFinal());
+
+    ctx.ciclo[accion](ctx.socket, { count: "1:00", parametros: {} });
+
+    assert.deepEqual(ctx.limpiezasAuxiliares, [{ conservarNombres: true }]);
+    assert.equal(ctx.statsLive.payload().players[1].nombre, "AZUL");
+    assert.equal(ctx.statsLive.payload().players[2].nombre, "ROJO");
+    assert.equal(ctx.statsLive.payload().players[1].palabrasTotal, 0);
+    assert.equal(ctx.statsLive.payload().players[2].palabrasTotal, 0);
+    assert.deepEqual(ctx.statsLive.payloadDatosRecibidos(), { 1: false, 2: false });
+  });
 }
 
 test("Palabras benditas starts as the playable warm-up immediately after the countdown", () => {

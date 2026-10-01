@@ -76,6 +76,41 @@ test("writer channels handles names, forced musa name requests and mode sync", (
   ]);
 });
 
+test("match cleanup preserves writer identities while clearing text, attributes and revisions", () => {
+  const checkpoints = [];
+  const canales = crearCanalesEscritor({
+    onStateChanged: (estado) => checkpoints.push(estado)
+  });
+  canales.restaurar({
+    textos: {
+      1: { html: "<p>Historia azul</p>", plano: "Historia azul" },
+      2: { html: "<p>Historia roja</p>", plano: "Historia roja" }
+    },
+    nombres: { 1: "ÁNGELA", 2: "PABLO" },
+    atributos: { 1: { rol: "A" }, 2: { rol: "B" } },
+    revisiones: { 1: 12, 2: 23 }
+  });
+
+  canales.reset({ conservarNombres: true });
+  const esperado = {
+    textos: { 1: { html: "", plano: "" }, 2: { html: "", plano: "" } },
+    nombres: { 1: "ÁNGELA", 2: "PABLO" },
+    atributos: { 1: {}, 2: {} },
+    revisiones: { 1: 0, 2: 0 }
+  };
+  assert.deepEqual(canales.snapshotEstado(), esperado);
+  assert.deepEqual(checkpoints.at(-1), esperado);
+  const socket = crearSocket();
+  canales.emitirNombres(socket);
+  assert.deepEqual(socket.emitidos, [
+    { event: "nombre1", payload: "ÁNGELA" },
+    { event: "nombre2", payload: "PABLO" }
+  ]);
+
+  canales.reset();
+  assert.deepEqual(canales.snapshotEstado().nombres, { 1: "", 2: "" });
+});
+
 test("writer channels resolve actor and monitor teams when requests omit a payload", () => {
   const canales = crearCanalesEscritor();
   const writer = crearSocket("names");

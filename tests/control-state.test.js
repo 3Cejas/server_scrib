@@ -57,6 +57,23 @@ test("control state persists panel parameters and clamps invalid values", () => 
   assert.equal(events[0].payload.borrar_texto, true);
 });
 
+test("match cleanup preserves configured names but resets gameplay configuration", () => {
+  const gestor = crearGestorEstadoControl();
+  gestor.actualizar({
+    nombres: { 1: "ángela", 2: "pablo" },
+    frases_finales: { 1: "última", 2: "frase" },
+    borrar_texto: true,
+    parametros: { duracion_minutos: 2 }
+  });
+
+  const estado = gestor.reset({ conservarNombres: true });
+  assert.deepEqual(estado.nombres, { 1: "ÁNGELA", 2: "PABLO" });
+  assert.deepEqual(estado.frases_finales, { 1: "", 2: "" });
+  assert.equal(estado.borrar_texto, false);
+  assert.deepEqual(estado.parametros, PARAMETROS_CONTROL_DEFECTO);
+  assert.deepEqual(gestor.reset().nombres, { 1: "ESCRITXR 1", 2: "ESCRITXR 2" });
+});
+
 test("control state normalizers preserve previous values when fields are absent", () => {
   assert.deepEqual(
     normalizarParametrosControl({ duracion_minutos: 20 }, { duracion_minutos: 30, tiempo_votacion: 40 }),

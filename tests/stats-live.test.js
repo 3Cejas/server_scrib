@@ -27,6 +27,29 @@ test("stats manager only marks explicit control telemetry and reset clears its p
   assert.equal(gestor.payload().players[1].palabrasTotal, 0);
 });
 
+test("match cleanup preserves names without carrying over stats or telemetry provenance", () => {
+  const gestor = crearGestorStatsLive();
+  gestor.actualizarDesdeControl({
+    players: {
+      1: { nombre: "ÁNGELA", palabrasTotal: 40, palabrasUnicas: 30, ritmoPpm: 60 },
+      2: { nombre: "PABLO", palabrasTotal: 20, palabrasUnicas: 12, ritmoPpm: 45 }
+    }
+  });
+
+  const estado = gestor.reset({ conservarNombres: true });
+  assert.equal(estado.players[1].nombre, "ÁNGELA");
+  assert.equal(estado.players[2].nombre, "PABLO");
+  for (const player of Object.values(estado.players)) {
+    assert.equal(player.palabrasTotal, 0);
+    assert.equal(player.palabrasUnicas, 0);
+    assert.equal(player.ritmoPpm, 0);
+  }
+  assert.deepEqual(gestor.payloadDatosRecibidos(), { 1: false, 2: false });
+  const completo = gestor.reset();
+  assert.equal(completo.players[1].nombre, "ESCRITXR 1");
+  assert.equal(completo.players[2].nombre, "ESCRITXR 2");
+});
+
 test("server text telemetry preserves inspiration scoring semantics and clears removed marks", () => {
   const gestor = crearGestorStatsLive({ getModoActual: () => "palabras bonus" });
 

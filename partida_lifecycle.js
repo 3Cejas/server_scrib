@@ -149,7 +149,7 @@ function crearCicloPartida({
         partidaSync.resetConteoSync();
         if (resetearStats) {
             if (typeof statsLive.reset === "function") {
-                statsLive.reset();
+                statsLive.reset({ conservarNombres: true });
             } else {
                 statsLive.actualizar({ modo_actual: "" });
             }
@@ -236,7 +236,8 @@ function crearCicloPartida({
         detenerCalentamientoPrevio();
         const parametros = (datos && datos.parametros) || {};
         limpiarTimersRonda();
-        resetearEstadoAuxiliarParaTests();
+        // La identidad pertenece al reparto, no a los datos de una partida.
+        resetearEstadoAuxiliarParaTests({ conservarNombres: true });
         aplicarEscalasEspectador(parametros);
         asegurarVistaPartidaEspectador();
         resetearPuntuacionFinal();
@@ -268,7 +269,7 @@ function crearCicloPartida({
         state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
         if (typeof statsLive.reset === "function") {
-            statsLive.reset();
+            statsLive.reset({ conservarNombres: true });
         } else {
             statsLive.actualizar({ modo_actual: "" });
         }
@@ -306,7 +307,7 @@ function crearCicloPartida({
         limpiarTimersPalabras();
         limpiarTimersRonda();
         finalizarRegistroIteraciones("limpiar_partida");
-        resetearEstadoAuxiliarParaTests();
+        resetearEstadoAuxiliarParaTests({ conservarNombres: true });
         resetearPuntuacionFinal();
         limpiarDesventajasActivas();
         resetearCompeticion();
@@ -325,7 +326,7 @@ function crearCicloPartida({
         state.modoPendienteVentaja = "";
         partidaSync.siguienteModoSeq();
         if (typeof statsLive.reset === "function") {
-            statsLive.reset();
+            statsLive.reset({ conservarNombres: true });
         } else {
             statsLive.actualizar({ modo_actual: "" });
         }

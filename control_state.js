@@ -151,8 +151,10 @@ function crearGestorEstadoControl({ io } = {}) {
         return snapshot();
     };
 
-    const reset = () => {
+    const reset = ({ conservarNombres = false } = {}) => {
+        const nombres = { ...estado.nombres };
         estado = crearEstadoControlBase();
+        if (conservarNombres) estado.nombres = nombres;
         return snapshot();
     };
 

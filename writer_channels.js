@@ -59,8 +59,10 @@ function crearCanalesEscritor({
         2: { ...(estado.atributos[2] || {}) }
     });
 
-    const reset = () => {
+    const reset = ({ conservarNombres = false } = {}) => {
+        const nombres = { ...estado.nombres };
         estado = crearEstadoTextos();
+        if (conservarNombres) estado.nombres = nombres;
         onStateChanged(snapshotEstado());
     };
 

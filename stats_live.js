@@ -161,7 +161,11 @@ function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel
         return actualizar({ ...entrada, players: combinados });
     };
 
-    const reset = () => {
+    const reset = ({ conservarNombres = false } = {}) => {
+        const players = conservarNombres ? {
+            1: { nombre: estado.players[1].nombre },
+            2: { nombre: estado.players[2].nombre }
+        } : {};
         datosRecibidos = { 1: false, 2: false };
         datosServidorTexto = { 1: false, 2: false };
         datosServidorPulsacion = { 1: false, 2: false };
@@ -171,7 +175,7 @@ function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel
         heatmaps[2].clear();
         if (timerEmit) clearTimeout(timerEmit);
         timerEmit = null;
-        return actualizar({ modo_actual: "" });
+        return actualizar({ modo_actual: "", players });
     };
 
     const payloadDatosRecibidos = () => ({ ...datosRecibidos });

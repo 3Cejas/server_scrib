@@ -545,10 +545,10 @@ function crearRuntimeScrib({
         );
     }
 
-    const resetearEstadoAuxiliarParaTests = () => {
+    const resetearEstadoAuxiliarParaTests = ({ conservarNombres = false } = {}) => {
         limpiarTimersRonda();
         limpiarTimersPalabras();
-        writerChannels.reset();
+        writerChannels.reset({ conservarNombres });
         partidaSync.resetConteoSync();
         partidaSync.resetTiempoSeq();
         teleprompter.reset();
@@ -559,7 +559,7 @@ function crearRuntimeScrib({
         desventajasActivas.reset();
         competicionRondas.reset();
         relojPartida.detener();
-        controlState.reset();
+        controlState.reset({ conservarNombres });
         estadoCicloPartida.transicionModoEnCurso = false;
         votacionVentaja.reset();
         votacionRepentizado.reset();
