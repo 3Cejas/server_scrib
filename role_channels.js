@@ -443,6 +443,37 @@ function registrarCanalesRoles({
         emitirEstadoVideoTutorial();
     });
 
+    socket.on("cambiar_nombre_musa", (payload = {}, callback = null) => {
+        payload = payload && typeof payload === "object" ? payload : {};
+        const responder = (respuesta) => {
+            if (typeof callback === "function") callback(respuesta);
+        };
+        const musa = rolesConectados.obtenerMusaActiva(socket);
+        if (!musa || !musa.clientId || normalizarMusaClientId(payload.client_id) !== musa.clientId) {
+            responder({ ok: false, code: "MUSE_NOT_REGISTERED" });
+            return;
+        }
+        if (obtenerSesionMusaActual() && payload.session_id !== obtenerSesionMusaActual()) {
+            responder({ ok: false, code: "MUSE_SESSION_EXPIRED" });
+            return;
+        }
+        const solicitado = typeof payload.nombre === "string" ? payload.nombre.trim() : "";
+        const nombre = normalizarNombreMusa(solicitado);
+        if (!nombre || solicitado.length > 10) {
+            responder({ ok: false, code: "INVALID_MUSE_NAME" });
+            return;
+        }
+        const actualizado = rolesConectados.cambiarNombreMusa(socket, nombre);
+        musasAuxiliares.actualizarNombreMusa?.(actualizado.clientId, nombre);
+        calentamientoGestor.registrarMusa(socket, actualizado.player, nombre);
+        const respuesta = {
+            ok: true, nombre, player: actualizado.player,
+            client_id: actualizado.clientId, session_id: obtenerSesionMusaActual()
+        };
+        socket.emit("musa_nombre_actualizado", respuesta);
+        responder(respuesta);
+    });
+
     socket.on("pedir_opciones_equipo_musa", (callback = null) => {
         const payload = emitirOpcionesEquipoMusa(socket);
         if (typeof callback === "function") callback(payload);

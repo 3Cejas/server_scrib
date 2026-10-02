@@ -71,6 +71,7 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
     let estadoRegaloBandera = crearEstadoRegaloBandera();
     let historialInspiracionMusas = crearEstadoHistorialInspiracionMusas();
     let secuenciaInspiracionMusa = 0;
+    const nombresActualizadosMusas = new Map();
 
     const normalizarEquipo = (valor) => {
         const equipo = validarEquipo(valor);
@@ -102,10 +103,23 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
         }
         const registro = equipoHistorial.get(key);
         const clientIdNormalizado = normalizarClientId(clientId);
-        const nombreNormalizado = normalizarNombreMusa(nombre);
+        // Una inspiración enviada antes del cambio no debe recuperar el nombre antiguo.
+        const nombreNormalizado = nombresActualizadosMusas.get(clientIdNormalizado) || normalizarNombreMusa(nombre);
         if (clientIdNormalizado) registro.client_id = clientIdNormalizado;
         if (nombreNormalizado) registro.nombre = nombreNormalizado;
         return registro;
+    };
+
+    const actualizarNombreMusa = (clientId, nombre) => {
+        const id = normalizarClientId(clientId);
+        if (!id) return false;
+        const nombreNormalizado = normalizarNombreMusa(nombre);
+        nombresActualizadosMusas.set(id, nombreNormalizado);
+        [1, 2].forEach((equipo) => {
+            const registro = historialInspiracionMusas[equipo].get(`client:${id}`);
+            if (registro) registro.nombre = nombreNormalizado;
+        });
+        return true;
     };
 
     const buscarEntradaIntroducible = (registro, { palabra, modo, targetPlayer }) => {
@@ -529,6 +543,7 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
     };
 
     const resetEstado = () => {
+        nombresActualizadosMusas.clear();
         estadoBanderas = crearEstadoBanderas();
         estadoFeedback = crearEstadoFeedback();
         estadoCorazones = crearEstadoCorazones();
@@ -545,6 +560,7 @@ function crearGestorMusasAuxiliares({ io, validarEquipo = (valor) => {
     });
 
     return {
+        actualizarNombreMusa,
         actualizarBanderas,
         emitirBanderas,
         emitirBanderasCompat,

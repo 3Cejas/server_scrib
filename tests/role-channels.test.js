@@ -8,6 +8,32 @@ const {
 const { crearRegistroRoles } = require("../role_connections.js");
 const { crearRegistroSesionesEscritor } = require("../writer_sessions.js");
 
+test("muse rename keeps the registered identity, team, rooms, credits and count", () => {
+  const rolesConectados = crearRegistroRoles();
+  const musa = crearSocket("rename");
+  registrar(musa, { rolesConectados, getSesionMusas: () => ({ session_id: "partida_1_1" }) });
+  musa.trigger("registrar_musa", { nombre: "LUNA", client_id: "musa_1_abcdef" });
+  const original = rolesConectados.obtenerMusaActiva(musa);
+  rolesConectados.registrarMusaEnCreditosPartida(original);
+  const salas = Array.from(musa.salas);
+  let ack;
+  musa.trigger("cambiar_nombre_musa", { nombre: "SOL", client_id: original.clientId, session_id: "partida_1_1" }, value => { ack = value; });
+  assert.equal(ack.ok, true);
+  assert.deepEqual(rolesConectados.obtenerMusaActiva(musa), { ...original, nombre: "SOL" });
+  assert.deepEqual(Array.from(musa.salas), salas);
+  assert.equal(rolesConectados.payloadConexiones().musas[original.player].count, 1);
+  assert.deepEqual(rolesConectados.obtenerMusasCreditosPartida()[original.player === 1 ? "azules" : "rojas"], ["SOL"]);
+  for (const payload of [null, { nombre: "SOL", client_id: "otra" }, { nombre: "SOL", client_id: original.clientId, session_id: "partida_0_1" }, { nombre: "demasiado largo", client_id: original.clientId, session_id: "partida_1_1" }]) {
+    musa.trigger("cambiar_nombre_musa", payload, value => { ack = value; });
+    assert.equal(ack.ok, false);
+    assert.equal(musa.nombre_musa, "SOL");
+  }
+  const intruso = crearSocket("not-registered");
+  registrar(intruso, { rolesConectados });
+  intruso.trigger("cambiar_nombre_musa", { nombre: "SOL", client_id: original.clientId }, value => { ack = value; });
+  assert.equal(ack.code, "MUSE_NOT_REGISTERED");
+});
+
 function crearSocket(id) {
   const handlers = {};
   const salas = new Set();

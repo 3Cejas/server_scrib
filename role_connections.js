@@ -687,6 +687,19 @@ function crearRegistroRoles({
         socketId: registro.socketId
     }));
 
+    // Cambia sólo la etiqueta; nunca vuelve a asignar un equipo o identidad.
+    const cambiarNombreMusa = (socket, nombre) => {
+        if (!obtenerMusaActiva(socket)) return null;
+        const registro = musasActivas.get(socket.id);
+        registro.nombre = nombre;
+        socket.nombre_musa = nombre;
+        const clave = claveCreditoMusa(registro);
+        [1, 2].forEach((id) => {
+            if (musasPartida[id].has(clave)) musasPartida[id].set(clave, nombre);
+        });
+        return obtenerMusaActiva(socket);
+    };
+
     const desregistrarSocket = (socket) => {
         const registroMusa = musasActivas.get(socket.id) || null;
         const musaId = validarJugador(registroMusa && registroMusa.player);
@@ -735,6 +748,7 @@ function crearRegistroRoles({
     };
 
     return {
+        cambiarNombreMusa,
         desregistrarSocket,
         desregistrarControl,
         estadoEscritores,

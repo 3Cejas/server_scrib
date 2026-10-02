@@ -7,6 +7,23 @@ const {
   crearGestorMusasAuxiliares
 } = require("../musas_auxiliares.js");
 
+test("changing a muse name preserves contributions even when an older delivery is scored later", () => {
+  const gestor = crearGestorMusasAuxiliares({ io: crearIoFake() });
+  const payload = { equipo: 1, client_id: "musa_1_abcdef", musa: "LUNA", palabra: "mar", modo: "palabras bonus" };
+  gestor.registrarInspiracionEnviada(payload);
+  const original = gestor.payloadResumenPdf().equipos[1].musas[0];
+  gestor.actualizarNombreMusa(payload.client_id, "SOL");
+  gestor.registrarInspiracionIntroducida({ ...payload, player: 1, musa_nombre: "LUNA" });
+  const actual = gestor.payloadResumenPdf().equipos[1].musas;
+  assert.equal(actual.length, 1);
+  assert.equal(actual[0].nombre, "SOL");
+  assert.equal(actual[0].palabras[0].id, original.palabras[0].id);
+  assert.equal(actual[0].palabras[0].introducida, true);
+  gestor.resetEstado();
+  gestor.registrarInspiracionEnviada(payload);
+  assert.equal(gestor.payloadResumenPdf().equipos[1].musas[0].nombre, "LUNA");
+});
+
 function crearIoFake() {
   const events = [];
   return {
