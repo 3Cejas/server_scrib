@@ -3,7 +3,7 @@ const {
     normalizarPayloadStatsLive
 } = require('./server_state_utils');
 
-function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel = () => 0 } = {}) {
+function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel = () => 0, getModoVista = () => "" } = {}) {
     const normalizar = (payload = {}) => normalizarPayloadStatsLive(payload, {
         modoActual: getModoActual(),
         now: Date.now()
@@ -18,6 +18,8 @@ function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel
     let ultimoEmitTs = 0;
     let timerEmit = null;
     const heatmaps = { 1: new Map(), 2: new Map() };
+    let historialInspiracion = { 1: [{ t: 0, valor: 0 }], 2: [{ t: 0, valor: 0 }] };
+    let ultimoEmitMusasTs = null;
     const obtenerIntervaloMinimoEmision = () => {
         const nivel = Math.max(0, Math.min(2, Number(getProtectionLevel()) || 0));
         if (nivel >= 2) return 3000;
@@ -86,6 +88,7 @@ function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel
 
     const esConsumidorStats = (socket) => {
         if (!socket) return false;
+        if (socket.musa && getModoVista() === "stats") return true;
         if (
             socket.espectador
             || socket.jurado
@@ -173,6 +176,8 @@ function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel
         inicioTs = 0;
         heatmaps[1].clear();
         heatmaps[2].clear();
+        historialInspiracion = { 1: [{ t: 0, valor: 0 }], 2: [{ t: 0, valor: 0 }] };
+        ultimoEmitMusasTs = null;
         if (timerEmit) clearTimeout(timerEmit);
         timerEmit = null;
         return actualizar({ modo_actual: "", players });
@@ -182,13 +187,42 @@ function crearGestorStatsLive({ io, getModoActual = () => "", getProtectionLevel
 
     const emitir = (socketDestino = null) => {
         const salida = payload();
+        [1, 2].forEach((id) => {
+            const serie = historialInspiracion[id];
+            const ultimo = serie[serie.length - 1];
+            const valor = Math.max(0, Number(salida.players[id].valorInspiracion) || 0);
+            if (ultimo.valor === valor) return;
+            const t = Math.max(ultimo.t, Number(salida.players[id].tiempoTotalMs) || 0);
+            if (t === ultimo.t) ultimo.valor = valor;
+            else serie.push({ t, valor });
+            if (serie.length > 360) serie.splice(1, serie.length - 360);
+        });
+        const paraMusas = {
+            ...salida,
+            historial_inspiracion: {
+                1: historialInspiracion[1].map(punto => ({ ...punto })),
+                2: historialInspiracion[2].map(punto => ({ ...punto }))
+            }
+        };
         if (socketDestino && typeof socketDestino.emit === "function") {
-            socketDestino.emit("stats_live_estado", salida);
+            socketDestino.emit("stats_live_estado", socketDestino.musa ? paraMusas : salida);
             return salida;
         }
         const destinos = socketsConectados();
         if (destinos.length) {
-            destinos.filter(esConsumidorStats).forEach((destino) => destino.emit("stats_live_estado", salida));
+            // Las musas sólo consumen estadísticas en esa vista y como máximo
+            // una vez por segundo. No cargamos sus móviles durante la escritura.
+            const ahora = Date.now();
+            const emitirMusas = ultimoEmitMusasTs === null || ahora - ultimoEmitMusasTs >= 1000;
+            let musasEmitidas = false;
+            destinos.filter(esConsumidorStats).forEach((destino) => {
+                if (destino.musa) {
+                    if (!emitirMusas) return;
+                    destino.emit("stats_live_estado", paraMusas);
+                    musasEmitidas = true;
+                } else destino.emit("stats_live_estado", salida);
+            });
+            if (musasEmitidas) ultimoEmitMusasTs = ahora;
         } else if (io && typeof io.emit === "function") {
             io.emit("stats_live_estado", salida);
         }

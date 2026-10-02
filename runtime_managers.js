@@ -141,6 +141,7 @@ function crearGestoresVistaEstado({
     const statsLive = crearGestorStatsLive({
         io,
         getModoActual,
+        getModoVista: espectador.resolverModo,
         getProtectionLevel
     });
     const puntuacionFinal = crearGestorPuntuacionFinal({

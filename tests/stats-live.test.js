@@ -3,6 +3,63 @@ const assert = require("node:assert/strict");
 
 const { crearGestorStatsLive } = require("../stats_live.js");
 
+test("muses receive live stats only in the shared stats view and at most once per second", () => {
+  const realNow = Date.now;
+  let now = 10000;
+  let view = "partida";
+  Date.now = () => now;
+  const socket = flags => ({ ...flags, received: [], emit(event, data) { this.received.push({ event, data }); } });
+  const muse1 = socket({ musa: { player: 1 } });
+  const muse2 = socket({ musa: { player: 2 } });
+  const spectator = socket({ espectador: true });
+  const writer = socket({ escritxr: 1 });
+  const io = { sockets: { sockets: new Map([[1, muse1], [2, muse2], [3, spectator], [4, writer]]) } };
+  try {
+    const gestor = crearGestorStatsLive({ io, getModoVista: () => view });
+    gestor.actualizar({ players: { 1: { palabrasBenditas: ["LUZ", "SOL", "MAR"], valorInspiracion: 3, tiempoTotalMs: 5000 } } });
+    gestor.emitir();
+    assert.equal(muse1.received.length, 0);
+    assert.equal(spectator.received.length, 1);
+    view = "stats";
+    gestor.emitir();
+    assert.equal(muse1.received.length, 1);
+    assert.equal(muse2.received.length, 1);
+    assert.equal(writer.received.length, 0);
+    assert.deepEqual(muse1.received[0].data.historial_inspiracion[1], [{ t: 0, valor: 0 }, { t: 5000, valor: 3 }]);
+    assert.equal(spectator.received[1].data.historial_inspiracion, undefined);
+    now += 250;
+    gestor.emitir();
+    assert.equal(muse1.received.length, 1);
+    now += 750;
+    gestor.emitir();
+    assert.equal(muse1.received.length, 2);
+    view = "partida";
+    now += 1000;
+    gestor.emitir();
+    assert.equal(muse1.received.length, 2);
+    // A newly connected muse can explicitly fetch its current snapshot.
+    gestor.emitir(muse2);
+    assert.equal(muse2.received.length, 3);
+    muse2.received[2].data.historial_inspiracion[1][0].valor = 999;
+    gestor.reset();
+    gestor.emitir(muse1);
+    assert.deepEqual(muse1.received.at(-1).data.historial_inspiracion[1], [{ t: 0, valor: 0 }]);
+  } finally { Date.now = realNow; }
+});
+
+test("muse inspiration history stays bounded over long performances", () => {
+  const gestor = crearGestorStatsLive();
+  for (let i = 1; i <= 500; i++) {
+    gestor.actualizar({ players: { 1: { palabrasBenditas: ["LUZ"], valorInspiracion: i % 2, tiempoTotalMs: i * 1000 } } });
+    gestor.emitir();
+  }
+  let snapshot;
+  gestor.emitir({ musa: true, emit(event, data) { snapshot = data; } });
+  assert.equal(snapshot.historial_inspiracion[1].length, 360);
+  assert.deepEqual(snapshot.historial_inspiracion[1][0], { t: 0, valor: 0 });
+  assert.deepEqual(snapshot.historial_inspiracion[1].at(-1), { t: 500000, valor: 0 });
+});
+
 test("stats manager only marks explicit control telemetry and reset clears its provenance", () => {
   const gestor = crearGestorStatsLive({ getModoActual: () => "letra bendita" });
 
