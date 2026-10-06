@@ -17,6 +17,7 @@ const PARAMETROS_CONTROL_DEFECTO = Object.freeze({
     limite_tiempo_inspiracion: 10,
     porcentaje_tiempo_desventaja: 20,
     reduccion_tertulia_porcentaje: 50,
+    pausa_explicacion_niveles: 0,
     escala_espectador: 100,
     escala_texto_espectador: 100,
     escala_detonadores_espectador: 100
@@ -32,6 +33,7 @@ const LIMITES_PARAMETROS_CONTROL = Object.freeze({
     limite_tiempo_inspiracion: [5, 120],
     porcentaje_tiempo_desventaja: [1, 90],
     reduccion_tertulia_porcentaje: [0, 95],
+    pausa_explicacion_niveles: [0, 1],
     escala_espectador: [82, 128],
     escala_texto_espectador: [90, 170],
     escala_detonadores_espectador: [70, 200]

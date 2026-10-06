@@ -58,6 +58,25 @@ test("mode runtime restores current letter, remaining pools and elapsed level ti
   assert.deepEqual(restored.estadoCicloPartida.modosPendientes, ["letra prohibida"]);
 });
 
+test('la explicación pendiente y su letra sobreviven a la recuperación del servidor', () => {
+  const crear = () => crearRuntimeModos({ io: crearIo(), partidaSync: crearGestorSincronizacionPartida({ validarJugador }), validarJugador });
+  const original = crear();
+  original.prepararParametrosInicio({ PAUSA_EXPLICACION_NIVELES: true, DURACION_PARTIDA: 300 });
+  original.estadoMotorModos.modoActual = 'letra bendita';
+  original.estadoMotorModos.letraBendita = 'R';
+  original.estadoMotorModos.presentacionNivelPendiente = true;
+  const restored = crear();
+  restored.restaurarEstado(original.snapshotEstado());
+  assert.equal(restored.estadoMotorModos.pausaExplicacionNiveles, true);
+  assert.equal(restored.estadoMotorModos.presentacionNivelPendiente, true);
+  assert.equal(restored.construirPayloadInspiracionMusaActual().presentacion_nivel_pendiente, true);
+  assert.equal(restored.construirPayloadInspiracionMusaActual().letra_bendita, 'R');
+  restored.estadoMotorModos.presentacionNivelPendiente = false;
+  restored.configurarPausaExplicacion(0);
+  assert.equal(restored.estadoMotorModos.pausaExplicacionNiveles, false);
+  assert.equal(restored.construirPayloadInspiracionMusaActual().presentacion_nivel_pendiente, false);
+});
+
 test("Muse queues restore without arming timers", () => {
   const original = new Musas(crearIo(), 30000);
   original.addMusa(1, { palabra: "cometa", musa: "Luna", client_id: "luna" });

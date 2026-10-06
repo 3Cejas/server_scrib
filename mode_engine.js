@@ -36,6 +36,9 @@ function crearMotorModos({
     prepararNuevaRondaCompeticion = () => {},
     pausarParaTertulia = () => {},
     reanudarTrasTertulia = () => {},
+    pausarParaPresentacion = () => {},
+    reanudarTrasPresentacion = () => {},
+    emitirEstadoPresentacion = () => {},
     getModoBonus,
     getModoMalditas,
     getModoMusas,
@@ -72,12 +75,12 @@ function crearMotorModos({
         state.letrasBenditasPendientes = seleccion.pendientes;
         registrarLetraStats("bendita", state.letraBendita);
         emitirPedirInspiracionMusa({ modo_actual: state.modoActual, letra_bendita: state.letraBendita });
-        programarLetraBendita();
+        if (!state.presentacionNivelPendiente) programarLetraBendita();
         Object.values(estadoJugadores).forEach((jugador) => {
             jugador.inserts = -1;
             jugador.finished = false;
         });
-        reiniciarMusas();
+        if (!state.presentacionNivelPendiente) reiniciarMusas();
         registrar(state.letraBendita);
         emitirActivarModo({ modo_actual: state.modoActual, letra_bendita: state.letraBendita });
     };
@@ -92,8 +95,10 @@ function crearMotorModos({
         state.letrasProhibidasPendientes = seleccion.pendientes;
         registrarLetraStats("prohibida", state.letraProhibida);
         emitirPedirInspiracionMusa({ modo_actual: state.modoActual, letra_prohibida: state.letraProhibida });
-        programarLetraProhibida();
-        reiniciarMusas();
+        if (!state.presentacionNivelPendiente) {
+            programarLetraProhibida();
+            reiniciarMusas();
+        }
         emitirActivarModo({ modo_actual: state.modoActual, letra_prohibida: state.letraProhibida });
     };
 
@@ -103,8 +108,10 @@ function crearMotorModos({
             registrar("activado palabras bonus");
             emitirPedirInspiracionMusa({ modo_actual: state.modoActual });
             modoBonus().clearAll();
-            modoBonus().start(1);
-            modoBonus().start(2);
+            if (!state.presentacionNivelPendiente) {
+                modoBonus().start(1);
+                modoBonus().start(2);
+            }
         },
 
         'letra prohibida': function () {
@@ -135,6 +142,7 @@ function crearMotorModos({
             emitirPedirInspiracionMusa({ modo_actual: state.modoActual });
             emitirActivarModo({ modo_actual: state.modoActual });
             pausarParaTertulia({ motivo: "tertulia" });
+            if (state.presentacionNivelPendiente) return;
             io.emit('tiempo_muerto_control', {
                 modo_actual: state.modoActual,
                 segundos_transcurridos: 0,
@@ -148,8 +156,10 @@ function crearMotorModos({
             registrar("activado palabras prohibidas");
             emitirPedirInspiracionMusa({ modo_actual: state.modoActual });
             modoMalditas().clearAll();
-            modoMalditas().start(1);
-            modoMalditas().start(2);
+            if (!state.presentacionNivelPendiente) {
+                modoMalditas().start(1);
+                modoMalditas().start(2);
+            }
         },
 
         'frase final': function () {
@@ -175,7 +185,49 @@ function crearMotorModos({
         return true;
     };
 
+    // Presentar y comenzar son dos pasos distintos: la letra elegida y la
+    // ronda no deben regenerarse al pulsar Reanudar ni al reconectar un rol.
+    const presentarModo = (modo, socket) => {
+        state.presentacionNivelPendiente = Boolean(state.pausaExplicacionNiveles && tieneModo(modo) && modo);
+        if (state.presentacionNivelPendiente) pausarParaPresentacion();
+        const activado = activarModo(modo, socket);
+        if (state.presentacionNivelPendiente) {
+            emitirTempModos();
+            emitirEstadoPresentacion();
+        }
+        return activado;
+    };
+
+    const reanudarPresentacion = (socket) => {
+        if (!state.presentacionNivelPendiente || !state.modoActual) return false;
+        state.presentacionNivelPendiente = false;
+        emitirEstadoPresentacion();
+        if (state.modoActual === 'tertulia') {
+            // La tertulia conserva su pausa de escritura/reloj global, pero
+            // su cuenta atrás propia empieza solamente ahora.
+            pausarParaTertulia({ motivo: 'tertulia' });
+            io.emit('tiempo_muerto_control', {
+                modo_actual: state.modoActual,
+                segundos_transcurridos: 0,
+                duracion_modo_segundos: state.tiempoCambioModos,
+                tiempo_restante_modo_segundos: state.tiempoCambioModos
+            });
+        } else {
+            if (state.modoActual === 'letra bendita') programarLetraBendita();
+            if (state.modoActual === 'letra prohibida') programarLetraProhibida();
+            const motor = state.modoActual === 'palabras bonus' ? modoBonus()
+                : state.modoActual === 'palabras prohibidas' ? modoMalditas()
+                    : state.modoActual.startsWith('letra ') ? modoMusas() : null;
+            if (motor) { motor.start(1); motor.start(2); }
+            reanudarTrasPresentacion();
+        }
+        temp_modos(socket, { continuar: true });
+        emitirTempModos();
+        return true;
+    };
+
     function temp_modos(socket, opciones = {}) {
+        if (state.presentacionNivelPendiente) return false;
         if (!opciones.continuar) {
             state.segundosTranscurridos = 0;
         }
@@ -184,7 +236,7 @@ function crearMotorModos({
         let intervaloCerrado = false;
         let batallaCerrada = false;
         timersPartida.programarIntervaloModos(() => {
-            if (intervaloCerrado || state.modoActual !== modoEsperado) {
+            if (intervaloCerrado || state.presentacionNivelPendiente || state.modoActual !== modoEsperado) {
                 return;
             }
             state.segundosTranscurridos += 1;
@@ -258,7 +310,7 @@ function crearMotorModos({
         // La ronda anterior y su desventaja deben desaparecer antes de que las
         // pantallas pinten el nivel siguiente, especialmente Frase final.
         iniciarRondaCompeticion(curr);
-        activarModo(curr, socket);
+        presentarModo(curr, socket);
         emitirNubeInspiracionEstado(null, true);
         statsLive.actualizar({
             ...payloadStatsLive(),
@@ -279,6 +331,7 @@ function crearMotorModos({
     }
 
     function nueva_letra_bendita() {
+        if (state.presentacionNivelPendiente) return;
         partidaSync.siguienteModoSeq();
         const seleccion = elegirLetraPendiente({
             pendientes: state.letrasBenditasPendientes,
@@ -301,6 +354,7 @@ function crearMotorModos({
     }
 
     function nueva_letra_prohibida() {
+        if (state.presentacionNivelPendiente) return;
         partidaSync.siguienteModoSeq();
         const seleccion = elegirLetraPendiente({
             pendientes: state.letrasProhibidasPendientes,
@@ -337,6 +391,8 @@ function crearMotorModos({
     return {
         MODOS,
         activarModo,
+        presentarModo,
+        reanudarPresentacion,
         modos_de_juego,
         nueva_letra_bendita,
         nueva_letra_prohibida,

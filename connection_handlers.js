@@ -198,6 +198,7 @@ function registrarConexionScrib(socket, deps) {
         construirPayloadCount,
         sesionesEscritor,
         controlState,
+        configurarPausaExplicacion: deps.configurarPausaExplicacion,
         emitirEstadoPalabrasMusasControl,
         payloadEstadoPalabrasMusasControl,
         temporizadorShow,

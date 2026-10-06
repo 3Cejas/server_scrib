@@ -137,6 +137,7 @@ function crearCicloPartida({
     };
 
     const resetearCursoPartida = ({ reiniciarIndice = true, resetearStats = false } = {}) => {
+        state.presentacionNivelPendiente = false;
         state.modosPendientes = [...state.listaModos];
         if (reiniciarIndice) {
             state.indiceModo = 0;
@@ -295,13 +296,15 @@ function crearCicloPartida({
                 : Number(state.duracionTiempoModos) * Math.max(1, state.listaModos.length);
             iniciarRelojPartida(Math.max(1, Math.trunc(duracionTotal || 0)));
             iniciarCompeticionRonda(state.modoActual);
-            motorModos.activarModo(state.modoActual, socket);
+            if (typeof motorModos.presentarModo === 'function') motorModos.presentarModo(state.modoActual, socket);
+            else motorModos.activarModo(state.modoActual, socket);
             emitirNubeInspiracionEstado(null, true);
             motorModos.temp_modos(socket);
         }, DURACION_CUENTA_ATRAS_INICIO_MS);
     };
 
     const limpiarPartida = (socket, evento) => {
+        state.presentacionNivelPendiente = false;
         detenerCalentamientoPrevio();
         activarSocketsExtratextuales(socket);
         limpiarTimersPalabras();

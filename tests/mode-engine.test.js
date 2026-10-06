@@ -536,6 +536,94 @@ function crearModoFake() {
   };
 }
 
+for (const modo of ['palabras bonus', 'letra bendita', 'tertulia', 'letra prohibida', 'palabras prohibidas', 'frase final']) {
+  test(`la explicación de ${modo} espera sin consumir tiempo, letras ni entregas`, () => {
+    const state = crearEstadoMotorFake({ modoActual: modo, pausaExplicacionNiveles: true });
+    const timers = crearTimersFake();
+    const cola = crearModoFake();
+    const eventos = [];
+    let pausas = 0;
+    let reanudaciones = 0;
+    const motor = crearMotorModos({
+      state, timersPartida: timers, partidaSync: crearPartidaSyncFake(),
+      io: { emit: (event) => eventos.push(event) },
+      getModoBonus: () => cola, getModoMalditas: () => cola, getModoMusas: () => cola,
+      letrasBenditas: ['z'], letrasProhibidas: ['e'],
+      estadoJugadores: { 1: {}, 2: {} },
+      pausarParaPresentacion: () => { pausas++; },
+      reanudarTrasPresentacion: () => { reanudaciones++; }
+    });
+    motor.presentarModo(modo);
+    const letra = state.letraBendita || state.letraProhibida;
+    assert.equal(state.presentacionNivelPendiente, true);
+    assert.equal(pausas, 1);
+    assert.equal(motor.temp_modos(), false);
+    assert.equal(timers.intervalos.length, 0);
+    assert.equal(timers.cambiosLetra.length, 0);
+    assert.deepEqual(cola.startPlayers, []);
+    motor.nueva_letra_bendita();
+    motor.nueva_letra_prohibida();
+    assert.equal(state.letraBendita || state.letraProhibida, letra);
+    assert.equal(state.segundosTranscurridos, 0);
+    assert.equal(motor.reanudarPresentacion(), true);
+    assert.equal(state.presentacionNivelPendiente, false);
+    assert.equal(state.letraBendita || state.letraProhibida, letra);
+    assert.equal(timers.intervalos.length, 1);
+    assert.equal(reanudaciones, modo === 'tertulia' ? 0 : 1);
+    assert.deepEqual(cola.startPlayers, ['tertulia', 'frase final'].includes(modo) ? [] : [1, 2]);
+    assert.equal(motor.reanudarPresentacion(), false);
+    assert.equal(timers.intervalos.length, 1);
+    if (modo === 'tertulia') assert.deepEqual(eventos, ['tiempo_muerto_control']);
+  });
+}
+
+test('el cambio automático de nivel abre la explicación y no arma otro reloj hasta Reanudar', () => {
+  const state = crearEstadoMotorFake({
+    modoActual: 'palabras bonus', modosPendientes: ['letra bendita'],
+    pausaExplicacionNiveles: true, tiempoCambioModos: 1
+  });
+  const timers = crearTimersFake();
+  const cola = crearModoFake();
+  let pausas = 0;
+  const motor = crearMotorModos({
+    state, timersPartida: timers, partidaSync: crearPartidaSyncFake(),
+    io: { emit() {} }, statsLive: { actualizar() {} },
+    getModoBonus: () => cola, getModoMalditas: () => cola, getModoMusas: () => cola,
+    letrasBenditas: ['z'], letrasProhibidas: ['e'], estadoJugadores: { 1: {}, 2: {} },
+    pausarParaPresentacion: () => { pausas++; },
+    avanzarModoSeguro: (_socket, avanzar) => { avanzar(); return true; }
+  });
+  motor.temp_modos();
+  const tickAnterior = timers.intervalos[0].callback;
+  tickAnterior();
+  assert.equal(state.modoActual, 'letra bendita');
+  assert.equal(state.presentacionNivelPendiente, true);
+  assert.equal(pausas, 1);
+  assert.equal(timers.intervalos.length, 1);
+  assert.equal(timers.cambiosLetra.length, 0);
+  tickAnterior();
+  assert.equal(state.segundosTranscurridos, 0, 'a queued old tick cannot start the new level');
+  assert.equal(motor.reanudarPresentacion(), true);
+  assert.equal(timers.intervalos.length, 2);
+  assert.equal(timers.cambiosLetra.length, 1);
+});
+
+test('con la opción desactivada el nivel empieza como antes', () => {
+  const state = crearEstadoMotorFake({ modoActual: 'palabras bonus', pausaExplicacionNiveles: false });
+  const cola = crearModoFake();
+  let pausas = 0;
+  const motor = crearMotorModos({
+    state, timersPartida: crearTimersFake(), partidaSync: crearPartidaSyncFake(),
+    io: { emit() {} }, getModoBonus: () => cola,
+    pausarParaPresentacion: () => { pausas++; }
+  });
+  motor.presentarModo('palabras bonus');
+  assert.equal(state.presentacionNivelPendiente, false);
+  assert.deepEqual(cola.startPlayers, [1, 2]);
+  assert.equal(pausas, 0);
+  assert.equal(motor.temp_modos(), true);
+});
+
 function crearTimersFake() {
   return {
     cambiosLetra: [],

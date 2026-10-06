@@ -60,6 +60,7 @@
     }
   },
   "partida": {
+    "presentacion_nivel_pendiente": false,
     "modo_actual": "",
     "modo_anterior": "",
     "modos_pendientes": [

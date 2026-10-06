@@ -193,6 +193,15 @@ function crearHarness() {
   };
 }
 
+for (const accion of ["limpiarPartida", "prepararNuevaPartida", "finalizarPartida"]) {
+  test(`${accion} cancels a level explanation waiting for Control`, () => {
+    const ctx = crearHarness();
+    ctx.state.presentacionNivelPendiente = true;
+    ctx.ciclo[accion](ctx.socket);
+    assert.equal(ctx.state.presentacionNivelPendiente, false);
+  });
+}
+
 for (const accion of ["iniciarPartida", "limpiarPartida", "prepararNuevaPartida"]) {
   test(`${accion} preserves both writer names while resetting match data`, () => {
     const ctx = crearHarness();

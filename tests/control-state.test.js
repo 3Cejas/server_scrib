@@ -12,6 +12,16 @@ test("control uses the requested match duration and muse cooldown defaults", () 
   assert.equal(PARAMETROS_CONTROL_DEFECTO.duracion_minutos, 35);
   assert.equal(PARAMETROS_CONTROL_DEFECTO.duracion_segundos, 0);
   assert.equal(PARAMETROS_CONTROL_DEFECTO.limite_tiempo_inspiracion, 10);
+  assert.equal(PARAMETROS_CONTROL_DEFECTO.pausa_explicacion_niveles, 0);
+});
+
+test('the manual level explanation option is persisted as a bounded toggle', () => {
+  const gestor = crearGestorEstadoControl();
+  assert.equal(gestor.actualizar({ parametros: { pausa_explicacion_niveles: 1 } }).parametros.pausa_explicacion_niveles, 1);
+  assert.equal(gestor.actualizar({ parametros: { duracion_minutos: 25 } }).parametros.pausa_explicacion_niveles, 1);
+  const restored = crearGestorEstadoControl();
+  assert.equal(restored.restaurar(gestor.snapshot()).parametros.pausa_explicacion_niveles, 1);
+  assert.equal(gestor.actualizar({ parametros: { pausa_explicacion_niveles: 0 } }).parametros.pausa_explicacion_niveles, 0);
 });
 
 test("control state persists panel parameters and clamps invalid values", () => {

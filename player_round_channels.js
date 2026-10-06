@@ -66,6 +66,11 @@ function registrarCanalesRonda({
     const continuarDesdeTertulia = (evento = {}, callback = null, origen = 'reanudar_modo') => {
         const responder = resolverCallback(evento, callback);
         const payloadEvento = evento && typeof evento === 'object' ? evento : {};
+        if (state.presentacionNivelPendiente) {
+            const ok = socket.control === true && motorModos.reanudarPresentacion(socket);
+            if (typeof responder === 'function') responder({ ok, code: ok ? 'LEVEL_STARTED' : 'NOT_AUTHORIZED', modo_actual: state.modoActual });
+            return ok;
+        }
         if (esEventoEscritorInactivo()) {
             if (typeof responder === 'function') {
                 responder({ ok: false, code: 'INACTIVE_WRITER', modo_actual: state.modoActual || '' });
@@ -120,7 +125,7 @@ function registrarCanalesRonda({
             modo_actual: state.modoActual || '',
             partida_finalizada: !state.modoActual
         };
-        emitirReanudacionATodos({
+        if (!state.presentacionNivelPendiente) emitirReanudacionATodos({
             ...payloadEvento,
             motivo: origen,
             modo_actual: respuesta.modo_actual
@@ -132,6 +137,7 @@ function registrarCanalesRonda({
     };
 
     socket.on('count', (datos = {}) => {
+        if (state.presentacionNivelPendiente) return;
         const idJugador = obtenerIdJugadorValido(datos.player);
         if (!idJugador) {
             return;
@@ -230,6 +236,15 @@ function registrarCanalesRonda({
         if (!state.modoActual) {
             return;
         }
+        if (state.presentacionNivelPendiente) {
+            const seq = Number(evento && evento.modo_seq);
+            if (Number.isFinite(seq) && seq !== partidaSync.obtenerModoSeq()) return;
+            if (socket.control === true) motorModos.reanudarPresentacion(socket);
+            return;
+        }
+        // Un segundo clic/paquete de la misma explicación ya liberada no debe
+        // reiniciar la ronda ni volver a sortear la letra.
+        if (evento && evento.motivo === 'presentacion_nivel') return;
         if (typeof reanudarDesventajasActivas === 'function') {
             reanudarDesventajasActivas();
         }
@@ -323,7 +338,7 @@ function registrarCanalesRonda({
         if (!state.finDelJuego && state.modoActual) {
             motorModos.temp_modos(socket);
             emitirTempModos();
-            socket.broadcast.emit('reanudar_js', { motivo: 'debug_siguiente_nivel' });
+            if (!state.presentacionNivelPendiente) socket.broadcast.emit('reanudar_js', { motivo: 'debug_siguiente_nivel' });
         }
         if (typeof responder === "function") {
             responder({
@@ -387,6 +402,7 @@ function registrarCanalesRonda({
     });
 
     socket.on('tecla_jugador', (evento) => {
+        if (state.presentacionNivelPendiente) return;
         if (!evento || typeof evento.code !== 'string') {
             return;
         }

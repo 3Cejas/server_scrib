@@ -59,6 +59,10 @@ function crearCanalesRondaFake(overrides = {}) {
   };
 
   const motorModos = {
+    reanudarPresentacion() {
+      state.presentacionNivelPendiente = false;
+      return true;
+    },
     activarModo() {},
     modos_de_juego() {
       state.modoAnterior = state.modoActual;
@@ -172,6 +176,24 @@ function crearCanalesRondaFake(overrides = {}) {
     tempModosCalls
   };
 }
+
+test('solo Control puede liberar la explicación; duplicados y paquetes viejos no reinician el nivel', () => {
+  const escritor = crearCanalesRondaFake({ escritxr: 1, state: { presentacionNivelPendiente: true } });
+  escritor.handlers.reanudar({ motivo: 'presentacion_nivel', modo_seq: 1 });
+  assert.equal(escritor.state.presentacionNivelPendiente, true);
+  const control = crearCanalesRondaFake({ control: true, state: { presentacionNivelPendiente: true } });
+  control.handlers.reanudar({ motivo: 'presentacion_nivel', modo_seq: 0 });
+  assert.equal(control.state.presentacionNivelPendiente, true);
+  control.handlers.reanudar({ motivo: 'presentacion_nivel', modo_seq: 1 });
+  assert.equal(control.state.presentacionNivelPendiente, false);
+  control.handlers.reanudar({ motivo: 'presentacion_nivel', modo_seq: 1 });
+  assert.deepEqual(control.tempModosCalls, []);
+  const tertulia = crearCanalesRondaFake({ control: true, state: { presentacionNivelPendiente: true } });
+  tertulia.handlers.reanudar_modo();
+  assert.equal(tertulia.state.modoActual, 'tertulia');
+  assert.equal(tertulia.state.presentacionNivelPendiente, false);
+  assert.deepEqual(tertulia.labelsAvance, []);
+});
 
 test("pausar marks the match as paused and freezes active disadvantages", () => {
   const ctx = crearCanalesRondaFake({

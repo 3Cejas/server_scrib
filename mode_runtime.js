@@ -101,12 +101,14 @@ function crearRuntimeModos({
     let REDUCCION_TERTULIA_PORCENTAJE = 50;
     let repentizado_enviado = false;
     let transicion_modo_en_curso = false;
+    let pausa_explicacion_niveles = false;
+    let presentacion_nivel_pendiente = false;
     let frases_finales = { 1: "", 2: "" };
 
     const timersPartida = crearGestorTimersPartida({ getModoActual: () => modo_actual });
 
     const decorarPayloadModoMotor = (payload = {}) => {
-        const salida = (payload && typeof payload === "object") ? payload : {};
+        const salida = { ...((payload && typeof payload === "object") ? payload : {}), presentacion_nivel_pendiente };
         return partidaSync ? partidaSync.withModoSeq(salida) : { ...salida, modo_seq: 0 };
     };
 
@@ -256,20 +258,20 @@ function crearRuntimeModos({
 
     function construirPayloadInspiracionMusaActual() {
         if (modo_actual === "letra prohibida") {
-            return partidaSync.withModoSeq({ modo_actual, letra_prohibida });
+            return decorarPayloadModoMotor({ modo_actual, letra_prohibida });
         }
         if (modo_actual === "letra bendita") {
-            return partidaSync.withModoSeq({ modo_actual, letra_bendita });
+            return decorarPayloadModoMotor({ modo_actual, letra_bendita });
         }
         if (
             modo_actual === "palabras bonus" ||
             modo_actual === "palabras prohibidas" ||
             modo_actual === "tertulia"
         ) {
-            return partidaSync.withModoSeq({ modo_actual });
+            return decorarPayloadModoMotor({ modo_actual });
         }
         if (modo_actual === "frase final") {
-            return partidaSync.withModoSeq({
+            return decorarPayloadModoMotor({
                 modo_actual,
                 FRASE_FINAL_J1: frases_finales[1],
                 FRASE_FINAL_J2: frases_finales[2],
@@ -280,7 +282,7 @@ function crearRuntimeModos({
     }
 
     function emitirEventoModo(nombreEvento, payload = {}, socketDestino = null) {
-        const salida = partidaSync.withModoSeq(payload);
+        const salida = decorarPayloadModoMotor(payload);
         const destino = socketDestino && typeof socketDestino.emit === "function"
             ? socketDestino
             : io;
@@ -324,7 +326,7 @@ function crearRuntimeModos({
     }
 
     function emitirModoActual(socketDestino = null) {
-        const payload = construirPayloadInspiracionMusaActual() || partidaSync.withModoSeq({ modo_actual: "" });
+        const payload = construirPayloadInspiracionMusaActual() || decorarPayloadModoMotor({ modo_actual: "" });
         const destino = socketDestino && typeof socketDestino.emit === "function"
             ? socketDestino
             : io;
@@ -365,6 +367,9 @@ function crearRuntimeModos({
     };
 
     const estadoMotorModos = {
+        get pausaExplicacionNiveles() { return pausa_explicacion_niveles; },
+        get presentacionNivelPendiente() { return presentacion_nivel_pendiente; },
+        set presentacionNivelPendiente(valor) { presentacion_nivel_pendiente = Boolean(valor); },
         get segundosTranscurridos() { return segundos_transcurridos; },
         set segundosTranscurridos(valor) { segundos_transcurridos = Number(valor) || 0; },
         get modoActual() { return modo_actual; },
@@ -400,6 +405,8 @@ function crearRuntimeModos({
     };
 
     const prepararParametrosInicio = (parametros = {}) => {
+        pausa_explicacion_niveles = parametros.PAUSA_EXPLICACION_NIVELES === true || Number(parametros.PAUSA_EXPLICACION_NIVELES) === 1;
+        presentacion_nivel_pendiente = false;
         TIEMPO_CAMBIO_PALABRAS = parametros.TIEMPO_CAMBIO_PALABRAS;
         TIEMPO_BORROSO = parametros.TIEMPO_BORROSO;
         TIEMPO_MODIFICADOR = parametros.TIEMPO_MODIFICADOR;
@@ -446,6 +453,8 @@ function crearRuntimeModos({
     };
 
     const estadoCicloPartida = {
+        get presentacionNivelPendiente() { return presentacion_nivel_pendiente; },
+        set presentacionNivelPendiente(valor) { presentacion_nivel_pendiente = Boolean(valor); },
         estadoJugadores: estado_jugadores,
         get finJ1() { return fin_j1; },
         set finJ1(valor) { fin_j1 = Boolean(valor); },
@@ -498,6 +507,7 @@ function crearRuntimeModos({
     };
 
     const snapshotPartidaTest = (timeline = []) => ({
+        presentacion_nivel_pendiente,
         modo_actual,
         modo_anterior,
         modos_pendientes: Array.isArray(modos_pendientes) ? [...modos_pendientes] : [],
@@ -529,7 +539,8 @@ function crearRuntimeModos({
             TIEMPO_VOTACION,
             TIEMPO_CAMBIO_LETRA,
             PORCENTAJE_TIEMPO_DESVENTAJA,
-            REDUCCION_TERTULIA_PORCENTAJE
+            REDUCCION_TERTULIA_PORCENTAJE,
+            PAUSA_EXPLICACION_NIVELES: pausa_explicacion_niveles
         },
         frases_finales: { ...frases_finales },
         estado_jugadores: {
@@ -546,6 +557,8 @@ function crearRuntimeModos({
         const params = data.parametros && typeof data.parametros === "object" ? data.parametros : {};
         segundos_transcurridos = Math.max(0, Number(data.segundos_transcurridos) || 0);
         modo_actual = typeof data.modo_actual === "string" ? data.modo_actual : "";
+        presentacion_nivel_pendiente = data.presentacion_nivel_pendiente === true && Boolean(modo_actual) && !data.fin_del_juego;
+        pausa_explicacion_niveles = params.PAUSA_EXPLICACION_NIVELES === true || Number(params.PAUSA_EXPLICACION_NIVELES) === 1;
         modo_anterior = typeof data.modo_anterior === "string" ? data.modo_anterior : "";
         modo_pendiente_ventaja = typeof data.modo_pendiente_ventaja === "string" ? data.modo_pendiente_ventaja : "";
         indice_modo = Math.max(0, Math.trunc(Number(data.indice_modo) || 0));
@@ -615,6 +628,7 @@ function crearRuntimeModos({
         emitirEntregaInspiracionActiva,
         construirPayloadCount,
         prepararParametrosInicio,
+        configurarPausaExplicacion: (valor) => { pausa_explicacion_niveles = valor === true || Number(valor) === 1; },
         limpiarTodosLosModos,
         limpiarTimersPalabras,
         cancelarCambioPalabra,

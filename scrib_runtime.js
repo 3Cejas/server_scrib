@@ -337,7 +337,7 @@ function crearRuntimeScrib({
         validarJugador: obtenerIdJugadorValido,
         sesionesEscritor,
         extraerTextoPlano,
-        puedeActualizarTexto: () => !estadoCicloPartida.finDelJuego,
+        puedeActualizarTexto: () => !estadoCicloPartida.finDelJuego && !estadoMotorModos.presentacionNivelPendiente,
         actualizarTextoJugador: (player, texto) => getModoMalditas().actualizarTextoJugador(player, texto),
         onTextoActualizado: (player, anterior, actual, evento = {}) => {
             competicionRondas.registrarCambioTexto(player, anterior, actual);
@@ -660,6 +660,29 @@ function crearRuntimeScrib({
             votacionVentaja.reanudar();
             io.emit("reanudar_js", evento);
         },
+        pausarParaPresentacion: () => {
+            partidaPausada = true;
+            timersPartida.cancelarIntervaloModos();
+            limpiarTimersPalabras();
+            relojPartida.pausar();
+            desventajasActivas.pausar();
+            votacionVentaja.pausar();
+        },
+        emitirEstadoPresentacion: () => {
+            const payload = construirPayloadInspiracionMusaActual();
+            if (!payload) return;
+            io.emit('presentacion_nivel_estado', payload);
+            if (estadoMotorModos.presentacionNivelPendiente) {
+                io.emit('pausar_js', { ...payload, motivo: 'presentacion_nivel' });
+            }
+        },
+        reanudarTrasPresentacion: () => {
+            partidaPausada = false;
+            relojPartida.reanudar();
+            desventajasActivas.reanudar();
+            votacionVentaja.reanudar();
+            io.emit('reanudar_js', { motivo: 'presentacion_nivel' });
+        },
         getModoBonus,
         getModoMalditas,
         getModoMusas,
@@ -679,7 +702,14 @@ function crearRuntimeScrib({
         activarSocketsExtratextuales: activarSocketsExtratextualesConIo,
         resetearEstadoAuxiliarParaTests,
         musasAuxiliares,
-        prepararParametrosInicio,
+        prepararParametrosInicio: (parametros = {}) => {
+            prepararParametrosInicio(parametros);
+            // La limpieza de la partida anterior no debe devolver este
+            // interruptor a OFF al recargar Control durante una explicación.
+            controlState.actualizar({ parametros: {
+                pausa_explicacion_niveles: estadoMotorModos.pausaExplicacionNiveles ? 1 : 0
+            } });
+        },
         getRanges,
         statsLive,
         emitirStatsLive,
@@ -812,6 +842,7 @@ function crearRuntimeScrib({
         accesoRoles,
         testHooksEnabled,
         controlState,
+        configurarPausaExplicacion: runtimeModos.configurarPausaExplicacion,
         modoDebug,
         obtenerEstadoEscritores,
         obtenerIdJugadorValido,

@@ -105,6 +105,7 @@ test("retains both final phrases in reconnect snapshots", () => {
     FRASE_FINAL_J1: "Final azul",
     FRASE_FINAL_J2: "Final rojo",
     frases_finales: { 1: "Final azul", 2: "Final rojo" },
+    presentacion_nivel_pendiente: false,
     modo_seq: 8
   });
 });

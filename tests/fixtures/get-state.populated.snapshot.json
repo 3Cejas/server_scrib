@@ -60,6 +60,7 @@
     }
   },
   "partida": {
+    "presentacion_nivel_pendiente": false,
     "modo_actual": "letra bendita",
     "modo_anterior": "",
     "modos_pendientes": [
@@ -115,6 +116,7 @@
     "preview": {
       "modo_actual": "letra bendita",
       "letra_bendita": "K",
+      "presentacion_nivel_pendiente": false,
       "modo_seq": "__SEQ__"
     },
     "nube": {

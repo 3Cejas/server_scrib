@@ -36,6 +36,7 @@ function registrarCanalesGenerales({
     construirPayloadCount,
     sesionesEscritor = null,
     controlState = null,
+    configurarPausaExplicacion = () => {},
     emitirEstadoPalabrasMusasControl = null,
     payloadEstadoPalabrasMusasControl = null,
     temporizadorShow = null,
@@ -129,7 +130,8 @@ function registrarCanalesGenerales({
         if (!socket.control || !controlState || typeof controlState.actualizar !== "function") {
             return;
         }
-        controlState.actualizar(payload);
+        const estado = controlState.actualizar(payload);
+        if (estado && estado.parametros) configurarPausaExplicacion(estado.parametros.pausa_explicacion_niveles);
         if (typeof controlState.emitir === "function") {
             controlState.emitir();
         }
