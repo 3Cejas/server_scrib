@@ -5,6 +5,7 @@
         "start": "node server.js",
         "test": "node --test",
         "test:unit": "node --test",
+        "test:world": "python3 -m unittest discover -s tools/scrib-world -p 'test_world.py' -v",
         "test:soak": "node --test tests/server-load.soak.js",
         "test:soak:progressive": "node tests/server-progressive.soak.js",
         "test:soak:update-baseline": "node scripts/update-soak-baseline.js"
