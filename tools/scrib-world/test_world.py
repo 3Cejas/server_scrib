@@ -266,9 +266,18 @@ class HTTPTests(unittest.TestCase):
         return {"X-CSRF-Token":body["csrf"],"Cookie":headers["Set-Cookie"].split(";")[0],"Origin":"https://sutura.ddns.net"}
 
     def test_every_asset_and_api_requires_bridge_identity(self):
-        for path in ["","app.js","app.css","api/state","api/calendar.ics","api/export.zip","images/fake.png"]:
+        for path in ["","app.js","activity.js","app.css","api/state","api/calendar.ics","api/export.zip","images/fake.png"]:
             status,_,_=self.req(path,headers={"X-Scrib-Bridge":""})
             self.assertEqual(status,401)
+
+    def test_world_activity_asset_is_authenticated_and_loaded_before_app(self):
+        status, body, headers = self.req("activity.js", raw=True)
+        self.assertEqual(status, 200)
+        self.assertIn("application/javascript", headers["Content-Type"])
+        self.assertIn(b"visibilityState", body)
+        status, body, _ = self.req("", raw=True)
+        self.assertEqual(status, 200)
+        self.assertLess(body.index(b"activity.js"), body.index(b"app.js"))
 
     def test_csrf_required_and_cross_origin_blocked(self):
         payload={"kind":"person","data":{"name":"Persona"},"requestId":str(uuid.uuid4())}
@@ -477,7 +486,7 @@ class IntegrationTests(unittest.TestCase):
         old='    .world--wit {\n      <a class="world world--wit" href="/wit/">'
         new=integrate.entry_html(old)
         self.assertEqual(new,integrate.entry_html(new))
-        self.assertIn('href="/mundo-scrib/"',new)
+        self.assertIn('href="https://sutura-gateway.ddns.net/mundo-scrib/"',new)
         self.assertIn('href="/wit/"',new)
         self.assertIn('src="/favicons/scrib-world-logo.png?v=1"',new)
         self.assertNotIn('world-scrib-copy',new)
@@ -502,6 +511,12 @@ class IntegrationTests(unittest.TestCase):
         self.assertNotIn('<span',integrate.CARD)
         self.assertIn('object-fit: contain',integrate.CSS)
         self.assertIn('clamp(',integrate.CSS)
+
+    def test_existing_logo_card_uses_gateway_even_when_primary_server_sleeps(self):
+        source = integrate.CSS + integrate.RELATIVE_CARD + integrate.BRIDGE + "other worlds preserved"
+        changed = integrate.update_selector(source)
+        self.assertEqual(changed, integrate.CSS + integrate.CARD + integrate.BRIDGE + "other worlds preserved")
+        self.assertEqual(changed, integrate.update_selector(changed))
 
     def test_drift_fails_closed(self):
         with self.assertRaises(ValueError):integrate.entry_html("changed portal")

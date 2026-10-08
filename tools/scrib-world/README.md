@@ -80,6 +80,36 @@ afectados. Los datos de encuestas reales no se crean durante el despliegue.
 
 ## Autenticación y límites
 
+### Encendido y actividad del mundo privado
+
+La entrada canónica es `https://sutura-gateway.ddns.net/mundo-scrib/`, disponible
+aunque el servidor principal esté apagado. El gateway reutiliza su confirmación
+de encendido y espera al arranque antes de continuar con Authentik. SCRIB comparte
+el contexto de acceso de Sutura, sin crear una cuenta ni una política nueva.
+Los enlaces antiguos en el servidor principal redirigen al gateway cuando está
+encendido; la web del servidor apagado no puede responder por sí sola.
+La tarjeta del selector usa directamente el gateway, también desde Sutura.
+
+`public/activity.js` emite actividad al entrar y cada 45 segundos, únicamente con
+la pestaña visible. Al ocultarla/dejar el mundo cesan los avisos; se conserva el
+apagado automático global (actualmente cinco minutos sin actividad). Comparte el
+guard del script global del gateway para no duplicar intervalos y no manda query,
+fragmentos ni datos del tablero. La demo local no genera actividad en producción.
+
+Aplicar `integrate.py world-power-gateway` al servicio de encendido,
+`world-power-gateway-nginx` a las rutas del gateway y `world-power-nginx` al include
+privado de DASHBOARD_AUTH. Los cambios son idempotentes y abortan ante rutas
+modificadas. El indicador de entrada del gateway solo evita un bucle de redirección:
+Nginx mantiene forward-auth y el puente sigue requiriendo la sesión autorizada.
+Aplicar también `selector` a ambas páginas de selección (gateway y DASHBOARD_AUTH).
+Respaldar ambos archivos, validar Python/Nginx, reiniciar solo el servicio de
+encendido, SCRIB_WORLD y DASHBOARD_AUTH y recargar Nginx; no reiniciar el videojuego ni cambiar datos.
+
+Pruebas: `python3 -m unittest test_world test_availability test_power` y
+`node test_activity.cjs`. Opcionalmente `SCRIB_GATEWAY_SOURCE=/ruta/wake_gateway.py`
+ejercita las funciones reales en aislamiento: sin importar el módulo completo,
+sin llamadas de red y sin ejecutar órdenes de encendido/apagado.
+
 Se conserva exactamente la entrada Sutura/Authentik existente: Nginx hace
 forward-auth y `DASHBOARD_AUTH` valida la identidad con su directorio autorizado.
 `world_proxy.js` recibe esa sesión, sobrescribe las cabeceras de identidad y usa

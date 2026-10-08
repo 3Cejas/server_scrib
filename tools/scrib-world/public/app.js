@@ -1,5 +1,10 @@
 "use strict";
 (() => {
+  // Keep legacy links on the gateway too, including their selected board/event.
+  if (location.hostname === "sutura.ddns.net") {
+    location.replace("https://sutura-gateway.ddns.net" + location.pathname + location.search + location.hash);
+    return;
+  }
   const BASE = "/mundo-scrib/";
   const STATUS = {todo: "TO DO", progress: "EN PROGRESO", blocked: "BLOQUEADA", done: "COMPLETADAS"};
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};

@@ -788,7 +788,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)
