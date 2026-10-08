@@ -11,7 +11,7 @@
   let health = {server: null, web: null};
   let filters = {search: "", mine: "", label: "", priority: "", due: ""};
   let dragId = "", pointerDrag = null;
-  let renderedRoute = "";
+  let renderedRoute = "", whatsappStatus = null, messageHistory = [];
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
   const initials = name => String(name || "?").split(/[\s_.-]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join("").toUpperCase();
   const member = username => state.members.find(x => x.username === username)?.name || username;
@@ -82,17 +82,23 @@
     const [page = "home", id] = route();
     const nav = page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = "MUNDO SCRIB / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO", boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = "MUNDO SCRIB / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO", boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "boards") content = renderBoards();
     else if (page === "board") content = renderBoard(id);
     else if (page === "event") content = renderEvent(id);
     else if (page === "people") content = renderPeople();
+    else if (page === "messages") content = renderMessages();
     else if (page === "templates") content = renderTemplates();
     else if (page === "archive") content = renderArchive();
     else content = renderHome();
     main.innerHTML = (state.demo ? `<div class="notice demo-notice">ENSAYO LOCAL · Datos ficticios, sin conexión con una partida ni con datos de producción.</div>` : "") + content;
+    if(page === "people")main.querySelectorAll('[data-person]').forEach(card=>{
+      const p=item(card.dataset.person);
+      card.querySelector('.actions').insertAdjacentHTML('beforeend',btn("compose-person","◌ WhatsApp",p.id,"small"));
+      card.querySelector('.bio').insertAdjacentHTML('afterend',`<p class="tiny">${p.phone ? esc(p.phone) + (p.phoneConfirmed?" · Verificado":" · Revisar identidad") : "Sin teléfono"}${p.history?.length?`<br>${p.history.length} participaciones publicadas`:""}</p>`);
+    });
     if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;main.querySelectorAll(".column").forEach(c=>{c.querySelector(".ticket-list").scrollTop=keepScroll.columns[c.dataset.status] || 0;});}
     renderedRoute=location.hash;
     if (page === "board") applyFilters();
@@ -163,7 +169,7 @@
     const p = progress(event.boardId), tasks = tasksFor(event.boardId), blocks = tasks.filter(x=>x.status === "blocked");
     const casts = event.cast.map(c=>{const person=item(c.personId);return `<button type="button" class="cast-chip ${c.team}" data-action="edit-person" data-id="${c.personId}">${esc(person?.name || "Ficha no disponible")}<small>${esc(c.role)}${c.team === "general"?"":" · Equipo " + (c.team === "blue"?"azul":"rojo")}</small></button>`;}).join("");
     return pageHead("HOJA DE RUTA",event.title,`${niceDate(event.start)} · ${hour(event.start)} · ${EVENT_STATUS[event.status]}`,
-      btn("edit-event","Editar bolo",event.id) + btn("print","↓ Hoja de llamada",event.id) + `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) +
+      btn("edit-event","Editar bolo",event.id) + btn("compose-event","◌ WhatsApp al elenco",event.id) + btn("print","↓ Hoja de llamada",event.id) + `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) +
       `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       <section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>
       <section class="panel"><div class="panel-head"><h2>Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="team-row">${casts || `<p class="muted">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</div></section>
@@ -176,6 +182,55 @@
   function renderTemplates() {
     return pageHead("NO VOLVER A EMPEZAR DE CERO","Plantillas de tareas","Al crear un bolo, se copian sus tareas en TO DO. Editar una plantilla no modifica funciones ya creadas.",btn("new-template","＋ Nueva plantilla","","primary")) +
       `<div class="grid cols3">${active("template").map(t=>`<article class="panel template-card"><p class="eyebrow">${t.id === "default-template" ? "TU LISTA ORIGINAL" : "LISTA PERSONALIZADA"}</p><h2>${esc(t.title)}</h2><p class="muted">${t.tasks.length} tareas · ${[...new Set(t.tasks.flatMap(x=>x.labels))].map(x=>esc(x)).join(" / ")}</p><div class="actions">${btn("edit-template","Ver / editar tareas",t.id)}${btn("duplicate-template","Duplicar",t.id,"small")}</div></article>`).join("")}</div><div class="notice section">La lista incluye preparar el acceso a los ordenadores. No guardes contraseñas reales en tickets ni comentarios.</div>`;
+  }
+  function personHistory(p) {
+    return (p.history || []).length ? `<details class="section"><summary>En las fechas de SCRIB · ${p.history.length} participaciones</summary><div class="history-list">${p.history.map(h=>`<article class="history-entry"><strong>${esc(niceDate(h.date))}</strong><span>${esc(h.venue)} · ${esc(h.title)}</span><small>${esc(h.role)}${h.team&&h.team!=="general"?" · Equipo " + (h.team === "red"?"rojo":"azul"):""}</small></article>`).join("")}</div><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer">Fuente: fechas publicadas ↗</a></details>` : "";
+  }
+  const deliveryLabel = status => ({pending:"Sin enviar",sent:"Envío confirmado por WhatsApp",sending:"Envío en curso / por confirmar",unknown:"No confirmado: revisar WhatsApp antes de repetir"}[status] || status);
+  async function loadMessages() {
+    const [status,history] = await Promise.all([request("whatsapp/status"),request("whatsapp/messages")]);
+    whatsappStatus=status;messageHistory=history.messages;
+  }
+  function renderMessages() {
+    return pageHead("COORDINAR SIN PERDER EL TOQUE PERSONAL","WhatsApp al elenco","Un mensaje individual por persona, con su nombre y los datos del bolo. Nunca se envía automáticamente.",btn("compose-message","＋ Preparar mensaje","","primary")) +
+      `<div class="panel service-top"><div>${badge(whatsappStatus?.ready?"CONECTADO":"COMPROBAR CONEXIÓN",whatsappStatus?.ready?"green":"gold")}<p class="muted">${esc(whatsappStatus?.message || "Comprueba la conexión del WhatsApp de Impropios antes de enviar.")}</p></div>${btn("message-history","↻ Actualizar","","small")}</div><div class="notice section">Primero confirma el teléfono en cada ficha. Después elige destinatarios y revisa el texto exacto. Cada envío necesita tu confirmación. Los números y mensajes quedan dentro de Sutura.</div><section class="section grid cols2">${messageHistory.map(d=>`<article class="panel"><p class="eyebrow">${d.expired?"VISTA PREVIA CADUCADA":"VISTA PREVIA"} · ${esc(dateTime(d.created))}</p><h3>${d.people.length} destinatarios${d.eventId?" · " + esc(titleOf(item(d.eventId))):""}</h3><p class="muted">${d.people.filter(p=>p.delivery.status === "sent").length} envíos confirmados</p>${btn("message-draft","Revisar mensajes",d.id)}</article>`).join("") || empty("El siguiente mensaje empieza aquí","Prepararlo no envía nada. Puedes elegir un bolo o escribir a personas concretas.")}</section>`;
+  }
+  function messageRecipients(eventId, personId="") {
+    const event=eventId?item(eventId):null;
+    const people=active("person").filter(p=>!event || event.cast.some(c=>c.personId === p.id)).sort((a,b)=>a.name.localeCompare(b.name,"es"));
+    const target=dialog.querySelector('#message-recipients');
+    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone||!p.phoneConfirmed?"disabled":""} ${p.id===personId&&p.phoneConfirmed?"checked":""}><span><strong>${esc(p.name)}</strong><small>${p.phone?esc(p.phone):"Sin teléfono"} · ${p.phoneConfirmed?"Identidad y teléfono comprobados":"Revisar y confirmar en la ficha"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
+  }
+  function openMessage(eventId="",personId="") {
+    openDialog("message","Un mensaje para cada persona",`<form id="message-form"><div class="notice">No se envía nada hasta revisar y confirmar cada mensaje.</div>${field("Contexto del mensaje",select("eventId",{"":"Sin bolo · mensaje libre",...Object.fromEntries(active("event").map(e=>[e.id,niceDate(e.start,false)+" · "+e.title]))},eventId,'id="message-event"'))}<fieldset class="recipient-list"><legend>Destinatarios · selección explícita</legend><div id="message-recipients"></div></fieldset>${field("Mensaje personalizado",area("text",eventId?"Hola {nombre},\n\nTe escribimos por {bolo}, el {fecha} a las {hora} en {lugar}. Tu papel: {papel}.\n\n¡Nos vemos en el escenario!":"Hola {nombre},\n\n",'required maxlength="4000" rows="8"'),"Variables: {nombre}, {nombre_completo}, {bolo}, {fecha}, {hora}, {lugar}, {convocatoria}, {papel}.")}<p class="form-error" role="alert"></p><div class="form-footer"><span>Hasta 50 destinatarios. Sin envíos en grupo.</span><button class="button primary" type="submit">Revisar vista previa →</button></div></form>`);
+    messageRecipients(eventId,personId);
+  }
+  async function previewMessage(form) {
+    if(saving)return;saving=true;
+    const button=form.querySelector('[type=submit]');button.disabled=true;
+    try {
+      const data={eventId:form.querySelector('[name=eventId]').value,text:form.querySelector('[name=text]').value,people:[...form.querySelectorAll('[name=people]:checked')].map(x=>x.value)};
+      const result=await request("whatsapp/preview",data);
+      showMessagePreview(result.item);
+    } catch(error){form.querySelector('.form-error').textContent=error.message;}
+    finally{saving=false;button.disabled=false;}
+  }
+  function showMessagePreview(draft) {
+    openDialog("message","Revisa antes de enviar",`<div class="notice">Esta vista previa caduca a los 15 minutos. El botón envía solo el mensaje de esa tarjeta. No reenviamos mensajes dudosos automáticamente.</div><div class="message-preview-list">${draft.people.map((p,i)=>{
+      const status=p.delivery?.status || "pending",available=status==="pending" && !draft.expired && !state.demo;
+      return `<article class="panel message-preview"><div class="service-top"><div><h3>${esc(p.name)}</h3><small>${esc(p.phone)}</small></div>${badge(deliveryLabel(status),status==="sent"?"green":"gold")}</div><div class="message-bubble">${esc(p.text)}</div>${available?`<label class="check-option"><input type="checkbox" class="message-confirm">Confirmo este teléfono y este texto</label><button type="button" class="button primary" data-action="send-message" data-id="${draft.id}" data-recipient="${i}">Enviar a ${esc(p.name.split(' ')[0])}</button>`:`<p class="hint">${state.demo?"Ensayo local: envío real bloqueado.":draft.expired&&status==="pending"?"Genera una nueva vista previa para enviar.":status==="unknown"||status==="sending"?"No repitas el envío sin comprobarlo antes en WhatsApp.":"Este mensaje ya no se enviará de nuevo."}</p>`}</article>`;
+    }).join("")}</div><div class="actions section">${btn("close-dialog","Cerrar")}</div>`);
+  }
+  async function sendMessage(node) {
+    if(saving)return;
+    const card=node.closest('.message-preview');
+    if(!card.querySelector('.message-confirm').checked){toast("Confirma el destinatario y el texto de esta tarjeta antes de enviar.");return;}
+    saving=true;node.disabled=true;
+    try {
+      const result=await request("whatsapp/send",{draftId:node.dataset.id,recipient:Number(node.dataset.recipient),confirmed:true});
+      await loadMessages();const draft=messageHistory.find(d=>d.id===node.dataset.id);if(draft)showMessagePreview(draft);
+      toast(result.item.status === "sent"?"WhatsApp ha confirmado el envío.":"Envío no confirmado. Revísalo en WhatsApp antes de volver a enviar.");
+    }catch(error){toast(error.message);}finally{saving=false;node.disabled=false;}
   }
   function renderArchive() {
     const archived = state.items.filter(x=>x.archived && !(x.kind === "board" && x.eventId) && !(x.kind === "ticket" && item(x.boardId)?.archived)).sort((a,b)=>b.updated.localeCompare(a.updated));
@@ -234,6 +289,10 @@
     if(p.archived){openDialog("person",p.name,`<div class="notice">Esta ficha está archivada. Se conserva en el reparto de sus funciones.</div><p class="notes">${esc(p.bio)}</p><div class="actions section">${btn("restore","Recuperar ficha",p.id,"primary")}${btn("close-dialog","Cerrar")}</div>`);return;}
     openDialog("person",id ? p.name : "Una persona del equipo",formShell("person",p,
       field("Nombre completo",input("name",p.name,"text",'required maxlength="160"')) + field("Especialidades / roles",input("roles",p.roles.join(", "),"text",'maxlength="800"'),"Por ejemplo: Escritura, Interpretación, Técnica. Separados por comas.") +
+      field("Teléfono privado · WhatsApp",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="off"'),"Solo se guarda dentro del mundo autenticado. No se publica en scribshow.es.") +
+      `<label class="check-option"><input type="checkbox" name="phoneConfirmed" ${p.phoneConfirmed?"checked":""}>He comprobado que este teléfono corresponde a esta persona</label>` +
+      (p.sourceGroup ? `<div class="notice section">Importado de ${esc(p.sourceGroup)}. ${p.publicName?`Coincidencia pública: ${esc(p.publicName)}.`:"Nombre pendiente de contrastar con el elenco público."}</div>` : "") +
+      personHistory(p) +
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
       `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"url",'placeholder="https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
@@ -255,6 +314,7 @@
       data.assignees = [...form.querySelectorAll('[name=assignees]:checked')].map(x=>x.value);
       data.checklist = [...form.querySelectorAll(".checklist-row")].map(row=>({text:row.querySelector(".check-text").value,done:row.querySelector(".check-done").checked}));
     } else if (form.dataset.kind === "person") {
+      data.phoneConfirmed = form.querySelector('[name=phoneConfirmed]').checked;
       data.roles = splitValues(data.roles); const file = data.photo; delete data.photo;
       if (file?.size) {
         if (file.size > 4 * 1024 * 1024) throw new Error("La imagen debe pesar menos de 4 MB.");
@@ -322,6 +382,12 @@
     else if(a === "edit-ticket")await openTicket(id);
     else if(a === "new-person")openPerson();
     else if(a === "edit-person")openPerson(id);
+    else if(a === "compose-message")openMessage();
+    else if(a === "compose-event")openMessage(id);
+    else if(a === "compose-person")openMessage("",id);
+    else if(a === "message-history") {await loadMessages();renderPage();}
+    else if(a === "message-draft") {await loadMessages();const draft=messageHistory.find(x=>x.id===id);if(draft)showMessagePreview(draft);}
+    else if(a === "send-message")await sendMessage(node);
     else if(a === "new-template")openTemplate();
     else if(a === "edit-template")openTemplate(id);
     else if(a === "duplicate-template")openTemplate(id,true);
@@ -338,7 +404,7 @@
     else if(a === "month-today") {month=new Date();renderPage();}
   }
   document.addEventListener("click",event=>{const node=event.target.closest("[data-action]");if(node)action(node).catch(error=>toast(error.message));});
-  document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}});
+  document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
     if(node.matches("[data-ticket-status]")) moveTicket(node.dataset.ticketStatus,node.value);
@@ -346,13 +412,16 @@
     if(node.id === "board-label")filters.label=node.value;
     if(node.id === "board-due")filters.due=node.value;
     if(node.id.startsWith("board-"))applyFilters();
+    if(node.name === "phone" && dialog.querySelector('[name=phoneConfirmed]')) dialog.querySelector('[name=phoneConfirmed]').checked=false;
+    if(node.id === "message-event")messageRecipients(node.value);
   });
   document.addEventListener("input",event=>{
+    if(event.target.name === "phone" && dialog.querySelector('[name=phoneConfirmed]'))dialog.querySelector('[name=phoneConfirmed]').checked=false;
     if(event.target.id === "board-search"){filters.search=event.target.value;applyFilters();}
     if(event.target.id === "people-search")main.querySelectorAll("[data-person]").forEach(node=>{const p=item(node.dataset.person);node.hidden=![p.name,...p.roles].join(" ").toLowerCase().includes(event.target.value.toLowerCase());});
   });
   dialog.addEventListener("cancel",event=>{if(saving)event.preventDefault();});
-  window.addEventListener("hashchange",()=>{filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();});
+  window.addEventListener("hashchange",()=>{filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
 
   function clearDrop() {document.querySelectorAll(".drop-active,.drop-before").forEach(n=>n.classList.remove("drop-active","drop-before"));}
   function targetAt(target, y) {
@@ -427,7 +496,7 @@
     }
   }
   async function boot() {
-    try {await refresh(false);renderPage();checkHealth().catch(()=>{});}
+    try {await refresh(false);renderPage();checkHealth().catch(()=>{});if(route()[0]==="messages")loadMessages().then(()=>{if(!dialog.open)renderPage();}).catch(error=>toast(error.message));}
     catch(error){main.innerHTML=empty("No se pudo abrir el backstage",error.message,`<a class="button" href="/sutura/">Entrar con Sutura / Authentik</a>`);document.querySelector("#connection").textContent="○ Sin conexión";}
   }
   setInterval(async()=>{

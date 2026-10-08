@@ -9,7 +9,11 @@ import unittest
 import uuid
 import zipfile
 import io
+import time
+from unittest.mock import Mock
 from pathlib import Path
+from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
+from import_cast import schedule_literal, public_history, import_roster
 
 ROOT = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("world", ROOT / "server.py")
@@ -280,6 +284,29 @@ class HTTPTests(unittest.TestCase):
         headers=self.csrf();headers["Content-Length"]=str(world.MAX_BODY+1)
         status,_,_=self.req("api/create",{},headers);self.assertEqual(status,413)
 
+    def test_whatsapp_routes_auth_csrf_and_owner_isolation(self):
+        self.app.whatsapp=Mock()
+        self.app.whatsapp.status.return_value={'configured':True,'ready':True,'message':'Conectado'}
+        for path in ['api/whatsapp/status','api/whatsapp/messages']:
+            self.assertEqual(self.req(path,headers={'X-Scrib-Bridge':''})[0],401)
+        person=self.app.store.create('person',{'name':'Persona ficticia','phone':'+34900000001','phoneConfirmed':True},'angela',str(uuid.uuid4()))
+        payload={'people':[person['id']],'text':'Hola {nombre}'}
+        self.assertEqual(self.req('api/whatsapp/preview',payload)[0],403)
+        h=self.csrf();status,body,_=self.req('api/whatsapp/preview',payload,h)
+        self.assertEqual(status,200);self.app.whatsapp.send.assert_not_called()
+        message={'draftId':body['item']['id'],'recipient':0,'confirmed':True}
+        self.assertEqual(self.req('api/whatsapp/send',message)[0],403)
+        h2=self.csrf();h2['X-Scrib-User']='pablo'
+        self.assertEqual(self.req('api/whatsapp/send',message,h2)[0],403)
+        self.assertEqual(self.req('api/whatsapp/send',message,h)[0],200)
+        self.assertEqual(self.req('api/whatsapp/send',message,h)[0],200)
+        self.app.whatsapp.send.assert_called_once()
+
+    def test_demo_http_cannot_send_even_with_injected_bridge(self):
+        self.app.demo=True;self.app.whatsapp=Mock()
+        status,_,_=self.req('api/whatsapp/send',{'draftId':'fake','recipient':0,'confirmed':True},self.csrf())
+        self.assertEqual(status,403);self.app.whatsapp.send.assert_not_called()
+
 
 class IntegrationTests(unittest.TestCase):
     def test_gateway_entry_insertion_is_idempotent(self):
@@ -291,6 +318,136 @@ class IntegrationTests(unittest.TestCase):
 
     def test_drift_fails_closed(self):
         with self.assertRaises(ValueError):integrate.entry_html("changed portal")
+
+
+class MessageTests(StoreTests):
+    # Inherit the existing persistence tests as well as message-specific checks.
+    def person(self, name="Elenco ficticio", phone="+34900000001", confirmed=True):
+        return self.create("person",{"name":name,"phone":phone,"phoneConfirmed":confirmed})
+
+    def preview(self, people=None, **changes):
+        p = self.person() if people is None else None
+        return self.store.message_preview({"people":people or [p['id']],"text":"Hola {nombre_completo}",**changes},"angela")
+
+    def send(self, draft, bridge=None, **changes):
+        bridge=bridge or Mock()
+        return self.store.message_send({"draftId":draft['id'],"recipient":0,"confirmed":True,**changes},"angela",bridge)
+
+    def test_phone_normalization_and_validation(self):
+        self.assertEqual(phone_number('900 000 001'),'+34900000001')
+        self.assertEqual(phone_number('0034 900 000 001'),'+34900000001')
+        for invalid in ['+0123456789','+123','javascript:1','+12345678901234567','123ext45']:
+            with self.assertRaises(WhatsappProblem):phone_number(invalid)
+
+    def test_phone_confirmation_explicit_and_preserved_on_old_form(self):
+        p=self.person();changed=self.store.update(p['id'],dict(p,bio='Nota'),'angela',p['version'])
+        self.assertTrue(changed['phoneConfirmed'])
+        with self.assertRaises(ProblemException):self.person(confirmed='true')
+        legacy={k:v for k,v in changed.items() if k!='phoneConfirmed'}
+        legacy['phone']='+34900000002'
+        updated=self.store.update(p['id'],legacy,'angela',changed['version'])
+        self.assertFalse(updated['phoneConfirmed'])
+
+    def test_preview_does_not_send_and_keeps_linebreaks(self):
+        d=self.preview(text='Hola {nombre},\n\n¿Ensayamos?')
+        self.assertIn('\n\n',d['people'][0]['text'])
+        self.assertEqual(self.store.messages('angela')[0]['people'][0]['delivery']['status'],'pending')
+        self.assertEqual(self.store.messages('pablo'),[])
+
+    def test_unconfirmed_or_absent_phone_blocked(self):
+        for phone in ['','+34900000001']:
+            p=self.person(phone=phone,confirmed=False)
+            with self.assertRaises(world.Problem):self.preview([p['id']])
+
+    def test_duplicate_phone_and_bad_variables_rejected(self):
+        p,q=self.person(),self.person('Otro')
+        with self.assertRaises(world.Problem):self.preview([p['id'],q['id']])
+        for template in ['Hola {unknown}','Hola {{nombre}}','Hola {nombre','{hora}']:
+            with self.assertRaises(WhatsappProblem):self.preview([p['id']],text=template)
+
+    def test_event_personalization_and_non_cast_recipient_blocked(self):
+        p=self.person();e=self.event(venue='Sala ficticia',cast=[{'personId':p['id'],'role':'Escritura','team':'blue'}])
+        d=self.preview([p['id']],eventId=e['id'],text='{nombre} · {bolo} · {fecha} · {hora} · {lugar} · {papel}')
+        self.assertIn('20/10/2026 · 19:00 · Sala ficticia · Escritura',d['people'][0]['text'])
+        q=self.person('Otra persona','+34900000002')
+        with self.assertRaises(world.Problem):self.preview([q['id']],eventId=e['id'])
+
+    def test_idempotent_send_including_concurrent_double_click(self):
+        d=self.preview();bridge=Mock()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            results=list(pool.map(lambda _:self.send(d,bridge),range(4)))
+        self.assertEqual(bridge.send.call_count,1)
+        self.assertEqual(sum(not r['duplicate'] for r in results),1)
+        self.assertEqual(self.store.messages('angela')[0]['people'][0]['delivery']['status'],'sent')
+
+    def test_network_failure_never_auto_retries(self):
+        d=self.preview();bridge=Mock();bridge.send.side_effect=TimeoutError()
+        self.assertEqual(self.send(d,bridge)['status'],'unknown')
+        self.assertTrue(self.send(d,bridge)['duplicate'])
+        self.assertEqual(bridge.send.call_count,1)
+
+    def test_crash_in_flight_remains_uncertain_and_not_retryable(self):
+        d=self.preview();bridge=Mock()
+        with self.store.connect() as db:db.execute('INSERT INTO message_deliveries VALUES(?,?,?,?)',(d['id'],0,'sending',world.now()))
+        self.assertEqual(self.send(d,bridge)['status'],'unknown')
+        bridge.send.assert_not_called()
+
+    def test_expired_and_changed_profile_or_event_previews_blocked(self):
+        p=self.person();d=self.preview([p['id']]);bridge=Mock()
+        self.store.update(p['id'],dict(p,name='Otro nombre'),'angela',p['version'])
+        with self.assertRaises(world.Problem):self.send(d,bridge)
+        d=self.preview([p['id']])
+        with self.store.connect() as db:db.execute('UPDATE message_drafts SET expires=? WHERE id=?',(time.time()-1,d['id']))
+        with self.assertRaises(world.Problem):self.send(d,bridge)
+        e=self.event(cast=[{'personId':p['id'],'role':'Escritura'}]);d=self.preview([p['id']],eventId=e['id'])
+        self.store.update(e['id'],dict(e,venue='Otra sala'),'angela',e['version'])
+        with self.assertRaises(world.Problem):self.send(d,bridge)
+        bridge.send.assert_not_called()
+
+    def test_wrong_actor_or_no_confirmation_cannot_send(self):
+        d=self.preview();bridge=Mock()
+        with self.assertRaises(world.Problem):self.send(d,bridge,confirmed=False)
+        with self.assertRaises(world.Problem):self.store.message_send({'draftId':d['id'],'recipient':0,'confirmed':True},'pablo',bridge)
+        bridge.send.assert_not_called()
+
+    def test_demo_bridge_disabled_and_non_loopback_config_rejected(self):
+        self.assertFalse(Bridge(disabled=True).status()['configured'])
+        config=Path(self.tmp.name)/'config.json'
+        config.write_text(json.dumps({'host':'example.org','port':5118,'token':'fake'}))
+        with self.assertRaises(WhatsappProblem):Bridge(config).config()
+
+    def test_export_contains_message_history_without_bridge_secrets(self):
+        self.preview()
+        with zipfile.ZipFile(io.BytesIO(self.store.export())) as z:
+            data=json.loads(z.read('mundo-scrib.json'))
+        self.assertEqual(len(data['messageDrafts']),1)
+        self.assertNotIn('token',data)
+
+    def test_public_schedule_parser_never_executes_javascript(self):
+        public='var scheduleSections = [{year:2026,events:[{date:"24 de septiembre de 2026",venue:"Sala",teams:[{color:"red",writer:"Persona Ficticia",performers:"Otra Persona"}]}]}]; other();'
+        history=public_history(schedule_literal(public))
+        self.assertEqual(history['Persona Ficticia'][0]['team'],'red')
+        for malicious in ['var scheduleSections = [alert(1)];','var scheduleSections = [{get events(){return []}}];','var scheduleSections = [] + malicious();']:
+            with self.assertRaises(ValueError):schedule_literal(malicious)
+
+    def test_group_import_scoped_idempotent_and_keeps_manual_edits(self):
+        history={'Persona Ficticia':[{'date':'2026-09-24','venue':'Sala','title':'SCRIB','role':'Escritura','team':'general','source':'https://scribshow.es/'}]}
+        roster={'group':{'id':'fake@g.us','name':'<SCRI> B en la Universidad de León [7 de noviembre]'},'participants':[{'id':'34900000001@c.us','name':'Persona','pushname':'Persona Ficticia','phone':'34900000001'},{'id':'999999999999@lid','name':'Otra','phone':'999999999999'}]}
+        report=import_roster(self.store,roster,history,apply=False)
+        self.assertTrue(report[0]['matched']);self.assertFalse(report[1]['phoneAvailable'])
+        self.assertFalse(any(x['kind']=='person' for x in self.store.snapshot()['items']))
+        import_roster(self.store,roster,history,apply=True);import_roster(self.store,roster,history,apply=True)
+        people=[p for p in self.store.snapshot()['items'] if p['kind']=='person']
+        self.assertEqual(len(people),2)
+        person=next(p for p in people if p.get('publicName')=='Persona Ficticia')
+        self.assertFalse(person['phoneConfirmed'])
+        updated=self.store.update(person['id'],dict(person,bio='Manual'),'angela',person['version'])
+        self.assertEqual(updated['history'][0]['venue'],'Sala')
+        roster['group']['name']='Otro grupo'
+        with self.assertRaises(ValueError):import_roster(self.store,roster,history,apply=True)
+
+
+ProblemException = (world.Problem, WhatsappProblem)
 
 
 if __name__ == "__main__":

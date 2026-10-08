@@ -22,6 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
+from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
 
 ROOT = Path(__file__).resolve().parent
 PREFIX = "/mundo-scrib/"
@@ -128,6 +129,12 @@ class Store:
               CREATE TABLE IF NOT EXISTS requests (
                 token TEXT PRIMARY KEY, actor TEXT NOT NULL, payload_hash TEXT NOT NULL,
                 response TEXT NOT NULL, created TEXT NOT NULL);
+              CREATE TABLE IF NOT EXISTS message_drafts (
+                id TEXT PRIMARY KEY, actor TEXT NOT NULL, body TEXT NOT NULL,
+                created TEXT NOT NULL, expires REAL NOT NULL);
+              CREATE TABLE IF NOT EXISTS message_deliveries (
+                draft TEXT NOT NULL, recipient INTEGER NOT NULL, status TEXT NOT NULL,
+                updated TEXT NOT NULL, PRIMARY KEY(draft,recipient));
             """)
             if not db.execute("SELECT 1 FROM items WHERE kind='template'").fetchone():
                 tasks = json.loads((ROOT / "default_tasks.json").read_text())
@@ -220,6 +227,16 @@ class Store:
                     "roles": values(data.get("roles", []), 12), "instagram": link(data.get("instagram", "")),
                     "website": link(data.get("website", "")), "otherSocial": link(data.get("otherSocial", "")),
                     "image": text(data.get("image", ""), 200)}
+            body["phone"] = phone_number(data.get("phone", (existing or {}).get("phone", "")))
+            preserved = (existing or {}).get("phoneConfirmed", False) and body["phone"] == (existing or {}).get("phone", "")
+            confirmed = data.get("phoneConfirmed", preserved)
+            if type(confirmed) is not bool:
+                raise Problem("Confirmación de teléfono no válida.")
+            body["phoneConfirmed"] = bool(body["phone"] and confirmed)
+            # Import provenance is preserved, not overwritten by a profile form.
+            for key in ("sourceGroup", "sourceKey", "nameMatch", "history", "publicName"):
+                if existing and key in existing:
+                    body[key] = existing[key]
             if body["image"] and not re.fullmatch(r"[a-f0-9]{64}\.(png|jpg|webp)", body["image"]):
                 raise Problem("Imagen no válida. Utiliza el botón de subir foto.")
             if body["image"] and not (self.directory / "images" / body["image"]).is_file():
@@ -427,7 +444,8 @@ class Store:
         with self.connect() as db:
             db.execute("BEGIN")
             payload = {"format": "scrib-world-v1", "exported": now(), "timezone": "Europe/Madrid", "items": self.all(db),
-                       "comments": [dict(r) for r in db.execute("SELECT * FROM comments")], "activity": [dict(r) for r in db.execute("SELECT * FROM activity")], "members": self.members(db)}
+                       "comments": [dict(r) for r in db.execute("SELECT * FROM comments")], "activity": [dict(r) for r in db.execute("SELECT * FROM activity")], "members": self.members(db),
+                       "messageDrafts": [dict(r) for r in db.execute("SELECT * FROM message_drafts")], "messageDeliveries": [dict(r) for r in db.execute("SELECT * FROM message_deliveries")]}
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("mundo-scrib.json", json.dumps(payload, ensure_ascii=False, indent=2))
@@ -437,6 +455,79 @@ class Store:
                     if re.fullmatch(r"[a-f0-9]{64}\.(png|jpg|webp)", file.name):
                         z.write(file, "images/" + file.name)
         return buffer.getvalue()
+
+    def message_preview(self, data, actor):
+        ids = values(data.get("people", []), 50, 100)
+        if not ids:
+            raise Problem("Selecciona al menos un destinatario.")
+        template = text(data.get("text", ""), 4000, True)
+        with self.transaction() as db:
+            event = self.item(db, data["eventId"], "event", True) if data.get("eventId") else None
+            context = {"bolo": event["title"] if event else "", "fecha": datetime.fromisoformat(event["start"]).strftime("%d/%m/%Y") if event else "",
+                       "hora": datetime.fromisoformat(event["start"]).strftime("%H:%M") if event else "", "lugar": " · ".join(filter(None, [event["venue"], event["city"]])) if event else "",
+                       "convocatoria": datetime.fromisoformat(event["arrival"]).strftime("%d/%m/%Y %H:%M") if event and event["arrival"] else ""}
+            people, phones = [], set()
+            for ident in ids:
+                person = self.item(db, ident, "person", True)
+                phone = person.get("phone", "")
+                if not phone or not person.get("phoneConfirmed"):
+                    raise Problem("Revisa y confirma el teléfono de " + person["name"] + " en su ficha antes de enviar.")
+                if phone in phones:
+                    raise Problem("Hay dos fichas con el mismo teléfono. Revisa los destinatarios.")
+                phones.add(phone)
+                role = " / ".join(dict.fromkeys(c["role"] for c in event["cast"] if c["personId"] == ident)) if event else ""
+                if event and not role:
+                    raise Problem(person["name"] + " no forma parte del elenco de este bolo.")
+                message = personalize(template, dict(context, nombre=person["name"].split()[0], nombre_completo=person["name"], papel=role))
+                people.append({"id": ident, "name": person["name"], "phone": phone, "version": person["version"], "text": message})
+            ident = str(uuid.uuid4())
+            draft = {"id": ident, "people": people, "eventId": event["id"] if event else "", "eventVersion": event["version"] if event else 0, "template": template}
+            db.execute("INSERT INTO message_drafts VALUES(?,?,?,?,?)", (ident, actor, json.dumps(draft, ensure_ascii=False), now(), time.time() + 900))
+            self.activity(db, ident, actor, "vista previa de WhatsApp creada (sin envío)")
+            return draft
+
+    def messages(self, actor):
+        with self.connect() as db:
+            result = []
+            for row in db.execute("SELECT * FROM message_drafts WHERE actor=? ORDER BY created DESC LIMIT 20", (actor,)):
+                draft = json.loads(row["body"])
+                deliveries = {r["recipient"]: dict(r) for r in db.execute("SELECT * FROM message_deliveries WHERE draft=?", (row["id"],))}
+                result.append(dict(draft, created=row["created"], expired=time.time() > row["expires"], people=[dict(p, delivery=deliveries.get(i, {"status": "pending"})) for i,p in enumerate(draft["people"])]))
+            return result
+
+    def message_send(self, data, actor, bridge):
+        if data.get("confirmed") is not True or type(data.get("recipient")) is not int:
+            raise Problem("Confirma expresamente el destinatario y el mensaje de la vista previa.")
+        ident, index = data.get("draftId"), data["recipient"]
+        with self.transaction() as db:
+            row = db.execute("SELECT * FROM message_drafts WHERE id=? AND actor=?", (ident, actor)).fetchone()
+            if not row:
+                raise Problem("Vista previa no encontrada.", 404)
+            draft = json.loads(row["body"])
+            if not 0 <= index < len(draft["people"]):
+                raise Problem("Destinatario no válido.")
+            prior = db.execute("SELECT status FROM message_deliveries WHERE draft=? AND recipient=?", (ident, index)).fetchone()
+            if prior:
+                return {"status": "unknown" if prior["status"] == "sending" else prior["status"], "duplicate": True}
+            if row["expires"] < time.time():
+                raise Problem("La vista previa ha caducado. Genera otra antes de enviar.", 409)
+            person = draft["people"][index]
+            current = self.item(db, person["id"], "person", True)
+            if current["version"] != person["version"] or not current.get("phoneConfirmed") or current.get("phone") != person["phone"]:
+                raise Problem("La ficha o el teléfono han cambiado. Genera una nueva vista previa.", 409)
+            if draft["eventId"] and self.item(db, draft["eventId"], "event", True)["version"] != draft["eventVersion"]:
+                raise Problem("El bolo ha cambiado. Genera una nueva vista previa.", 409)
+            # Reserve durably BEFORE contacting WhatsApp. Never retry uncertain sends.
+            db.execute("INSERT INTO message_deliveries VALUES(?,?,?,?)", (ident, index, "sending", now()))
+        status = "sent"
+        try:
+            bridge.send(person["phone"], person["text"])
+        except Exception:
+            status = "unknown"
+        with self.transaction() as db:
+            db.execute("UPDATE message_deliveries SET status=?,updated=? WHERE draft=? AND recipient=?", (status, now(), ident, index))
+            self.activity(db, person["id"], actor, "WhatsApp: " + ("envío confirmado" if status == "sent" else "envío sin confirmar; revisar en WhatsApp antes de reintentar"))
+        return {"status": status, "duplicate": False}
 
 
 def ics(snapshot):
@@ -468,8 +559,9 @@ def ics(snapshot):
 
 class App(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, port, store, demo=False, secret=None):
+    def __init__(self, port, store, demo=False, secret=None, bridge=None):
         self.store, self.demo = store, demo
+        self.whatsapp = bridge or Bridge(disabled=demo)
         self.secret_path = store.directory / "bridge-secret"
         if secret is None:
             try:
@@ -600,6 +692,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo), extra={"Set-Cookie": cookie})
                 if route.startswith("api/items/"):
                     return self.reply(200, store.details(route.split("/")[-1]))
+                if route == "api/whatsapp/status":
+                    return self.reply(200, self.server.whatsapp.status())
+                if route == "api/whatsapp/messages":
+                    return self.reply(200, {"messages": store.messages(actor)})
                 if route == "api/calendar.ics":
                     return self.reply(200, ics(store.snapshot()), "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="bolos-scrib.ics"'})
                 if route == "api/export.zip":
@@ -635,10 +731,16 @@ class Handler(BaseHTTPRequestHandler):
                 result = store.comment(data.get("id"), data.get("body"), actor, data.get("requestId"))
             elif route == "api/upload":
                 result = {"image": store.upload(data.get("base64"))}
+            elif route == "api/whatsapp/preview":
+                result = store.message_preview(data, actor)
+            elif route == "api/whatsapp/send":
+                if self.server.demo:
+                    raise Problem("El ensayo local nunca envía mensajes reales.", 403)
+                result = store.message_send(data, actor, self.server.whatsapp)
             else:
                 raise Problem("No encontrado.", 404)
             return self.reply(200, {"ok": True, "item": result})
-        except Problem as error:
+        except (Problem, WhatsappProblem) as error:
             self.reply(error.status, {"ok": False, "error": str(error)})
         except (BrokenPipeError, ConnectionResetError):
             pass

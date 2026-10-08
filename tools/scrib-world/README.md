@@ -44,9 +44,60 @@ guardadas fuera del árbol público y servidas tras autenticación. Sin SVG ni H
 Todo texto aportado se escapa en el cliente; CSP no permite scripts inline,
 iframes externos ni objetos. Enlaces exclusivamente HTTPS, sin credenciales.
 
-No se sincroniza automáticamente con la web pública, Instagram, correo o WhatsApp:
+No se sincroniza automáticamente con la web pública, Instagram o correo:
 crear/editar un bolo aquí no publica su información ni envía mensajes.
 La herramienta anterior `/scrib-produccion/` y sus datos se conservan intactos.
+
+## WhatsApp y fichas privadas del elenco
+
+- Teléfono con prefijo internacional en cada ficha. Los números y la procedencia
+  del grupo solo se sirven tras autenticación; no aparecen en la web pública o Git.
+- Confirmar explícitamente que el número corresponde a esa persona antes de enviar.
+  Cambiar el teléfono en la interfaz desmarca su confirmación.
+- Sección **WhatsApp**, botón en cada persona y botón **WhatsApp al elenco** en el bolo.
+  Selección explícita de hasta 50 destinatarios, sin seleccionar a todos por defecto.
+- Variables permitidas: `{nombre}`, `{nombre_completo}`, `{bolo}`, `{fecha}`, `{hora}`,
+  `{lugar}`, `{convocatoria}`, `{papel}`. Datos ausentes o variables desconocidas bloquean
+  la vista previa. Los destinatarios de un bolo deben formar parte de su elenco.
+- La vista previa guarda el texto y teléfono exactos, pertenece al usuario que la creó
+  y caduca en 15 minutos. Cada tarjeta requiere confirmación y un clic de envío.
+- Se reserva el envío en SQLite ANTES de contactar con WhatsApp. Dobles clics, peticiones
+  concurrentes y reintentos no duplican un envío. Un fallo o reinicio durante el envío
+  queda **sin confirmar**: revisar WhatsApp, nunca reintentar automáticamente.
+- Cambios de persona/teléfono/bolo después de la vista previa obligan a regenerarla.
+- Historial de los últimos 20 borradores del usuario. La copia ZIP de administración
+  incluye borradores y estados de envío, pero nunca el token del puente.
+- `sent` significa confirmación del puente, no confirmación de entrega/lectura del móvil.
+- Ensayo local bloquea los envíos reales aunque exista el puente en ese equipo.
+
+`whatsapp.py` reutiliza el puente existente de Impropios (loopback 5118).
+Lee su `config.json` y `config.local.json` en el servidor, nunca desde el navegador;
+no permite hosts externos, proxies heredados ni redirecciones. Se puede cambiar el
+archivo mediante `SCRIB_WORLD_WHATSAPP_CONFIG`. El estado público solo devuelve
+configurado/conectado y un texto seguro, no cuenta, QR, teléfono ni otros chats.
+
+El 8 de octubre de 2026 se detectó el error minificado `r` de `getChats()` en la
+dependencia instalada: renombrado de `_serialized` a `$1` en MsgKey. El parche mínimo
+revisado de `patch_whatsapp_compat.py` restaura solo el accessor del prototipo (referencia:
+https://github.com/wwebjs/whatsapp-web.js/pull/201871). No modifica IDs cifrados ni la
+sesión. Copia anterior en el puente: `Utils.js.before-scrib-20261008`.
+Tras reinstalar dependencias, comprobar si sigue siendo necesario antes de reaplicarlo.
+
+`import_cast.py` importa SOLO el grupo de León solicitado a partir de una copia privada,
+con ID del grupo verificado. Nunca envía mensajes. Lee `scheduleSections` como datos
+con un parser restrictivo: no ejecuta el JavaScript descargado de scribshow.es.
+Coincidencias exactas de nombre completo (incluyendo pushname), sin asignar identidades
+por un primer nombre/apodo. Otras correspondencias requieren un mapping privado revisado.
+Cada ficha enlaza sus participaciones públicas con fecha, sala, papel y equipo solo si
+se publicó. No se inventan horarios ni equipos; no crea tareas de preparación de bolos
+pasados. Importación idempotente por hash de grupo+integrante; conserva notas/foto/redes.
+
+```bash
+python3 import_cast.py --data /RUTA/PRIVADA --roster /RUTA/PRIVADA/leon.json \
+  --schedule /RUTA/main.js
+# Primero revisar el informe. Añadir --apply para crear/actualizar las fichas.
+# --mapping /RUTA/PRIVADA/nombres.json solo para identidades confirmadas por el equipo.
+```
 
 ## Pruebas locales
 
