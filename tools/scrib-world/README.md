@@ -130,6 +130,13 @@ archivo transformado. `integrate.py gateway ORIGINAL DESTINO` añade también la
 tarjeta al portal estático de la Raspberry (`/srv/sutura-front/index.html`).
 Ambos transformadores fallan si el HTML/rutas han cambiado inesperadamente.
 
+La tarjeta del selector utiliza el logo original de los signos y la pluma, sin
+subtítulo. Copiar `assets/scrib-world-logo.png` a `/srv/sutura-front/favicons/` en
+el gateway y `/var/www/dashboard/favicons/` en el backend. Es el PNG original
+de `players_scrib/img/logo.png`, sin modificar. Para actualizar un selector ya
+instalado, `integrate.py selector ORIGINAL DESTINO` sustituye únicamente la
+tarjeta y su CSS conocidos, preservando el puente de autenticación y otros mundos.
+
 Nginx ya protege `/mundo-scrib/` a través de su `location /` con el snippet de
 Authentik. No necesita cambios de Nginx ni nuevas políticas. El gateway lo
 proxya por su ruta general y conserva su pantalla de encendido del servidor.

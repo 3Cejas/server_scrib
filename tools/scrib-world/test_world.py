@@ -340,6 +340,29 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(new,integrate.entry_html(new))
         self.assertIn('href="/mundo-scrib/"',new)
         self.assertIn('href="/wit/"',new)
+        self.assertIn('src="/favicons/scrib-world-logo.png?v=1"',new)
+        self.assertNotIn('world-scrib-copy',new)
+
+    def test_selector_upgrade_preserves_other_worlds_and_auth_bridge(self):
+        surrounding='    .world--wit {\n      <a class="world world--wit" href="/wit/">'
+        old=integrate.LEGACY_CSS+integrate.LEGACY_CARD+surrounding+integrate.BRIDGE
+        new=integrate.update_selector(old)
+        self.assertEqual(new,integrate.CSS+integrate.CARD+surrounding+integrate.BRIDGE)
+        self.assertEqual(new,integrate.update_selector(new))
+        self.assertEqual(new,integrate.entry_html(old))
+        self.assertNotIn('bolos',new)
+
+    def test_installed_selector_drift_fails_closed(self):
+        old=integrate.LEGACY_CSS+integrate.LEGACY_CARD
+        for drift in [old.replace('gap: 18px','gap: 20px'),old.replace('bolos','otro texto'),old+integrate.LEGACY_CARD]:
+            with self.assertRaises(ValueError):integrate.update_selector(drift)
+
+    def test_new_selector_keeps_logo_accessible_without_subtitle(self):
+        self.assertIn('alt="&lt;SCRI&gt; B"',integrate.CARD)
+        self.assertIn('aria-label="Entrar en SCRIB"',integrate.CARD)
+        self.assertNotIn('<span',integrate.CARD)
+        self.assertIn('object-fit: contain',integrate.CSS)
+        self.assertIn('clamp(',integrate.CSS)
 
     def test_drift_fails_closed(self):
         with self.assertRaises(ValueError):integrate.entry_html("changed portal")
