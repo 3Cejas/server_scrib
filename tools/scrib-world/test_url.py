@@ -71,6 +71,18 @@ class UrlIntegrationTests(unittest.TestCase):
         for fn in [rename_world.dashboard,rename_world.nginx,rename_world.gateway_nginx,rename_world.gateway]:
             with self.assertRaises(ValueError):fn('modified source')
 
+    def test_visible_brand_is_scrib_without_world_prefix(self):
+        html=(fixtures.ROOT/'public/index.html').read_text()
+        self.assertIn('<title>&lt;SCRI&gt; B · Sutura</title>',html)
+        self.assertIn('aria-label="&lt;SCRI&gt; B, inicio"',html)
+        self.assertIn('id="breadcrumb">&lt;SCRI&gt; B / INICIO',html)
+        self.assertNotIn('Mundo SCRIB',html)
+        js=(fixtures.ROOT/'public/app.js').read_text()
+        self.assertIn('textContent = "<SCRI> B / "',js)
+        self.assertIn('&lt;SCRI&gt; B · ${niceDate(today())}',js)
+        self.assertNotIn('MUNDO SCRIB',js)
+        self.assertNotIn('Mundo SCRIB',js)
+
 
 class UrlHTTPTests(unittest.TestCase):
     setUp=fixtures.HTTPTests.setUp
