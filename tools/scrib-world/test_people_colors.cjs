@@ -28,7 +28,7 @@ function client() {
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
   vm.createContext(context);
-  for(const file of ['people-colors.js','people-profile.js','availability.js','business.js','inventory.js'])vm.runInContext(read(file),context,{filename:file});
+  for(const file of ['people-colors.js','people-profile.js','availability.js','business.js','inventory.js','lighting.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';

@@ -29,6 +29,7 @@ from game_config import normalize as normalize_game_config, profile as game_prof
 from business import Business, SCHEMA as BUSINESS_SCHEMA
 from materials import MaterialLibrary, POLICY as MATERIAL_POLICY
 from inventory_seed import apply_initial_inventory
+from lighting import default_plan as default_lighting, normalize as normalize_lighting
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -538,6 +539,36 @@ class Store:
             db.execute('INSERT INTO requests VALUES(?,?,?,?,?)', (request_id, actor, digest, json.dumps(result), now()))
             return result
 
+    def save_lighting(self, data, actor):
+        event_id = text(data.get('eventId', ''), 100)
+        expected, token = data.get('version'), data.get('requestId')
+        if type(expected) is not int or expected < 0:
+            raise Problem('Versión del plano no válida.')
+        if not re.fullmatch(r'[a-zA-Z0-9_-]{16,100}', token or ''):
+            raise Problem('Falta el identificador de la operación.')
+        plan = normalize_lighting(data.get('plan'), Problem, text)
+        ident = 'lighting-' + (event_id or 'base')
+        digest = hashlib.sha256(json.dumps({'action':'lighting-save', 'eventId':event_id, 'version':expected, 'plan':plan}, sort_keys=True).encode()).hexdigest()
+        with self.transaction() as db:
+            prior = db.execute('SELECT * FROM requests WHERE token=?', (token,)).fetchone()
+            if prior:
+                if prior['actor'] != actor or prior['payload_hash'] != digest:
+                    raise Problem('La operación ya se usó con otros datos.', 409)
+                return json.loads(prior['response'])
+            event = self.item(db, event_id, 'event', True) if event_id else None
+            row = db.execute('SELECT 1 FROM items WHERE id=?', (ident,)).fetchone()
+            body = dict(plan, eventId=event_id, title='Luminotecnia · ' + (event['title'] if event else 'Plano base'))
+            if row:
+                existing = self.item(db, ident, 'lighting', True)
+                self.check_version(existing, expected)
+                result = self.save(db, existing, body, actor, 'plano de luminotecnia actualizado')
+            else:
+                if expected != 0:
+                    raise Problem('El plano ha cambiado. Recarga antes de guardar; tu borrador se conserva.', 409)
+                result = self.insert(db, 'lighting', body, actor, ident)
+            db.execute('INSERT INTO requests VALUES(?,?,?,?,?)', (token, actor, digest, json.dumps(result), now()))
+            return result
+
     def details(self, ident):
         with self.connect() as db:
             item = self.item(db, ident)
@@ -968,7 +999,7 @@ class Handler(BaseHTTPRequestHandler):
                     store.identify(actor, user["name"])
                     token = self.valid_cookie_token(actor) or self.csrf_token(actor)
                     cookie = f"scrib_world_csrf={token}; HttpOnly; SameSite=Strict; Path={cookie_prefix}; Max-Age=43200" + ("" if self.server.demo else "; Secure")
-                    return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo, gameConfigSchema=GAME_CONFIG_SCHEMA, personRoles=PERSON_ROLES), extra={"Set-Cookie": cookie})
+                    return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo, gameConfigSchema=GAME_CONFIG_SCHEMA, personRoles=PERSON_ROLES, lightingDefaults=default_lighting()), extra={"Set-Cookie": cookie})
                 if route.startswith("api/items/"):
                     return self.reply(200, store.details(route.split("/")[-1]))
                 if route.startswith('api/availability/'):
@@ -995,6 +1026,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, (ROOT / 'assets' / 'scrib-world-logo.png').read_bytes(), 'image/png')
                 if route == 'tasks.css':
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
+                if route in ('lighting.js', 'lighting.css'):
+                    mime = 'application/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
+                    return self.reply(200, (ROOT / 'public' / route).read_bytes(), mime)
                 static = {"people-profile.js": ("people-profile.js", "application/javascript; charset=utf-8"), "people.css": ("people.css", "text/css; charset=utf-8"), "people-colors.js": ("people-colors.js", "application/javascript; charset=utf-8"), "inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
@@ -1030,6 +1064,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = store.archive(data.get("id"), data["archived"], actor, data.get("version"))
             elif route == "api/delete-ticket":
                 result = store.delete_ticket(data.get('id'), actor, data.get('version'), data.get('requestId'), data.get('confirmed'))
+            elif route == 'api/lighting/save':
+                result = store.save_lighting(data, actor)
             elif route == "api/comment":
                 result = store.comment(data.get("id"), data.get("body"), actor, data.get("requestId"))
             elif route == "api/upload":

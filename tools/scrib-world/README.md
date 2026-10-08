@@ -58,6 +58,24 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
 - Actualización compartida cada 15 segundos sin regenerar formularios mientras se
   escribe; conflictos de edición devuelven 409, nunca sobrescriben a otra persona.
 
+## Luminotecnia
+
+- Plano interactivo SVG, visto desde el público y orientativo (sin escala): calle
+  azul, calle roja, puntual izquierdo de presentador, dos mesas de escritura,
+  pantalla de proyección al fondo y frontales de proscenio. Las calles/frontales
+  representan grupos, no cantidades confirmadas del inventario de la sala.
+- Selección por clic o teclado, arrastre con ratón/táctil, posiciones numéricas,
+  simulación de encendido/intensidad, circuito/canal y notas. Vistas Todo, Azul,
+  Rojo, Presentador, Proscenio y Negro. No se conecta a DMX, sonido ni al videojuego.
+- Plano base compartido y adaptación independiente por bolo/ensayo. Guardado
+  explícito, versiones y reintentos idempotentes; los conflictos conservan el
+  borrador. Cambiar de bolo o descartar pide confirmación si hay cambios.
+  No se reemplaza la ficha ni el caret mientras se escribe una nota.
+- Guardados como fichas internas `kind=lighting` en `world.sqlite3`, incluidos en
+  SQLite/ZIP. Los planos no duplican tareas ni alteran parámetros del videojuego.
+  Los circuitos empiezan vacíos y las intensidades son de simulación, para adaptar
+  a cada sala. SVG/CSS locales, sin raster, filtros de desenfoque ni animación continua.
+
 ## Inventario y materiales
 
 - **Inventario** registra objetos del equipo azul, rojo o compartidos: cantidad,
@@ -346,6 +364,8 @@ python3 -m unittest discover -s tools/scrib-world -p 'test_world.py' -v
 python3 -m unittest discover -s tools/scrib-world -p 'test_people_colors.py' -v
 python3 -m unittest discover -s tools/scrib-world -p 'test_people_profiles.py' -v
 node tools/scrib-world/test_people_colors.cjs
+python3 -m unittest discover -s tools/scrib-world -p 'test_lighting.py' -v
+node tools/scrib-world/test_lighting.cjs
 node --check tools/scrib-world/public/app.js
 node --check tools/scrib-world/world_proxy.js
 python3 tools/scrib-world/server.py --demo --port 5131 --data /tmp/scrib-world-demo

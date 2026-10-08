@@ -11,7 +11,7 @@
   const STATUS = {todo: "TO DO", progress: "EN PROGRESO", blocked: "BLOQUEADA", done: "COMPLETADAS"};
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};
-  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto"};
+  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto",lighting:"Plano de luminotecnia"};
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   const deleteDialog = document.querySelector("#delete-confirmation");
@@ -74,6 +74,7 @@
   const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
   const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage});
   const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage});
+  const lighting = window.ScribLighting({state:()=>state,esc,btn,pageHead,request,toast,refresh,renderPage});
   dialog.addEventListener('close', () => { if (state) renderPage(); });
 
   function toast(message) {
@@ -122,7 +123,7 @@
     const [page = "home", id] = route();
     const nav = page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = "<SCRI> B / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = "<SCRI> B / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",lighting:"LUMINOTECNIA",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "availability") content = polls.list();
@@ -132,6 +133,7 @@
     else if (page === "event") content = renderEvent(id);
     else if (page === "people") content = renderPeople();
     else if (page === "inventory") content = inventory.list();
+    else if (page === "lighting") content = lighting.render();
     else if (page === "materials") content = library.list();
     else if (page === "material") content = library.detail(id);
     else if (page === 'finance') content = business.overview();
@@ -477,6 +479,7 @@
   deleteDialog.addEventListener("close", () => {pendingDelete = null;});
   async function action(node) {
     const {action:a,id,status} = node.dataset;
+    if(await lighting.action(node))return;
     if(await business.action(node))return;
     if(await polls.action(node))return;
     if(await inventory.action(node))return;
@@ -522,6 +525,8 @@
   document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
+    if(node.id==='lighting-scope'){lighting.changeScope(node).catch(error=>toast(error.message));return;}
+    if(lighting.input(node)){if(['x','y'].includes(node.dataset.lightingField)){const value=Number(node.value);if(Number.isFinite(value) && node.value!=='')node.value=String(Math.max(Number(node.min),Math.min(Number(node.max),value)));}return;}
     if(node.name==='color'&&node.closest('#edit-form')?.dataset.kind==='person'){
       const form=node.closest('form');colors.decorate(dialog,{id:form.dataset.id,name:form.querySelector('[name=name]').value,color:node.value});
     }
@@ -535,11 +540,19 @@
     if(node.id === "message-event")messageRecipients(node.value);
   });
   document.addEventListener("input",event=>{
+    if(lighting.input(event.target))return;
     if(event.target.id==='inventory-search'){inventory.filter(event.target);return;}
     if(event.target.id === "board-search"){filters.search=event.target.value;applyFilters();}
     if(event.target.id === "people-search")main.querySelectorAll("[data-person]").forEach(node=>{const p=item(node.dataset.person);node.hidden=![p.name,...p.roles].join(" ").toLowerCase().includes(event.target.value.toLowerCase());});
   });
   dialog.addEventListener("cancel",event=>{if(saving)event.preventDefault();});
+  document.addEventListener('pointerdown',event=>lighting.pointerDown(event));
+  document.addEventListener('pointermove',event=>lighting.pointerMove(event));
+  document.addEventListener('pointerup',event=>lighting.pointerUp(event));
+  document.addEventListener('pointercancel',event=>lighting.pointerUp(event));
+  document.addEventListener('lostpointercapture',event=>lighting.pointerUp(event));
+  document.addEventListener('keydown',event=>lighting.keydown(event));
+  window.addEventListener('beforeunload',event=>{if(lighting.hasDraft()){event.preventDefault();event.returnValue='';}});
   window.addEventListener("hashchange",()=>{polls.invalidate();filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
 
   function clearDrop() {document.querySelectorAll(".drop-active,.drop-before").forEach(n=>n.classList.remove("drop-active","drop-before"));}
@@ -616,7 +629,7 @@
     catch(error){main.innerHTML=empty("No se pudo abrir el backstage",error.message,`<a class="button" href="/scrib/">Volver a iniciar sesión</a>`);document.querySelector("#connection").textContent="○ Sin conexión";}
   }
   setInterval(async()=>{
-    if(!state || document.hidden || saving || dragId || deleteDialog.open)return;
+    if(!state || document.hidden || saving || dragId || deleteDialog.open || (route()[0]==='lighting' && lighting.hasDraft()))return;
     if(dialog.open){
       const commentForm=dialog.querySelector(".comment-form");
       if(commentForm){

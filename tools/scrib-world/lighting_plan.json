@@ -1,0 +1,12 @@
+{
+  "notes": "Plano orientativo de SCRIB. Izquierda y derecha vistas desde el público. Adaptar posiciones, circuitos e intensidades a cada sala; no está a escala.",
+  "elements": [
+    {"id":"blue-street","type":"street","label":"Calle azul","color":"blue","x":10,"y":52,"enabled":true,"intensity":75,"channel":"","notes":"Baño lateral azul para la zona del equipo azul."},
+    {"id":"red-street","type":"street","label":"Calle roja","color":"red","x":90,"y":52,"enabled":true,"intensity":75,"channel":"","notes":"Baño lateral rojo para la zona del equipo rojo."},
+    {"id":"presenter","type":"spot","label":"Puntual · presentador","color":"warm","x":24,"y":76,"enabled":true,"intensity":80,"channel":"","notes":"Puntual izquierdo para presentar, visto desde el público."},
+    {"id":"frontals","type":"front","label":"Frontales · proscenio","color":"white","x":50,"y":90,"enabled":true,"intensity":65,"channel":"","notes":"Cobertura frontal del proscenio. Los símbolos representan un grupo; ajustar el número de focos y su reparto a la sala."},
+    {"id":"blue-desk","type":"desk","label":"Mesa · escritxr azul","color":"blue","x":32,"y":34,"enabled":true,"intensity":100,"channel":"","notes":"Mesa y portátil de la persona que escribe para el equipo azul."},
+    {"id":"red-desk","type":"desk","label":"Mesa · escritxr rojo","color":"red","x":68,"y":34,"enabled":true,"intensity":100,"channel":"","notes":"Mesa y portátil de la persona que escribe para el equipo rojo."},
+    {"id":"screen","type":"screen","label":"Pantalla de proyección","color":"white","x":50,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Pantalla al fondo. Evitar luz directa sobre la superficie de proyección."}
+  ]
+}
