@@ -4,7 +4,8 @@ window.ScribAvailability = function(h) {
   const choices={yes:"Sí",maybe:"Quizá",no:"No",unknown:"—"};
   let cache=null, pending="", failure="";
   const link=token=>(h.state().demo?location.origin:"https://sutura-gateway.ddns.net")+"/scrib-disponibilidad/"+token;
-  const slotLabel=s=>dateTime(s.start)+" — "+hour(s.end);
+  const slotDay=v=>new Intl.DateTimeFormat("es-ES",{timeZone:"Europe/Madrid",day:"numeric",month:"short",year:"numeric"}).format(new Date(v));
+  const slotLabel=s=>slotDay(s.start)+" · "+hour(s.start)+" — "+(s.start.slice(0,10)!==s.end.slice(0,10)?slotDay(s.end)+" · ":"")+hour(s.end);
   function invalidate(){cache=null;failure="";}
   async function load(id){if(pending)return;pending=id;try{cache=await request("availability/"+id);cache.revision=h.state().revision;failure="";}catch(e){if(location.hash==="#poll/"+id)failure=e.message;}finally{pending="";if(location.hash.startsWith("#poll/")&&!dialog.open)renderPage();}}
   function list(){return pageHead("ENCONTRAR EL MOMENTO PARA CREAR","Disponibilidad","Propón fechas, comparte un enlace y convierte las coincidencias en ensayos del calendario.",btn("new-poll","＋ Nueva encuesta","","primary"))+`<div class="grid cols3">${active("availability").sort((a,b)=>b.created.localeCompare(a.created)).map(p=>`<article class="panel"><p class="eyebrow">${p.status==="closed"?"CERRADA":"ENCUESTA DE FECHAS"}</p><h2>${esc(p.title)}</h2><p class="muted section">${p.slots.length} horarios · ${p.people.length} invitaciones${p.deadline?" · Cierre "+esc(dateTime(p.deadline)):""}</p><a class="button section" href="#poll/${p.id}">Ver respuestas ↗</a></article>`).join("")||empty("¿Cuándo ensayamos?","Crea la primera encuesta para coordinar al elenco.",btn("new-poll","＋ Crear encuesta","","primary"))}</div>`;}
