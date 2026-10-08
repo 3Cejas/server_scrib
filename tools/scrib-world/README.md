@@ -55,6 +55,9 @@ La herramienta anterior `/scrib-produccion/` y sus datos se conservan intactos.
 
 - Teléfono con prefijo internacional en cada ficha. Los números y la procedencia
   del grupo solo se sirven tras autenticación; no aparecen en la web pública o Git.
+- Las fichas no muestran avisos de revisar identidad ni su procedencia de importación.
+  Se conservan el historial de participaciones y los metadatos internos para recuperación
+  e importaciones sin duplicados. La comprobación del teléfono para enviar sigue activa.
 - Confirmar explícitamente que el número corresponde a esa persona antes de enviar.
   Cambiar el teléfono en la interfaz desmarca su confirmación.
 - Sección **WhatsApp**, botón en cada persona y botón **WhatsApp al elenco** en el bolo.

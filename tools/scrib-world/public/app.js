@@ -97,7 +97,7 @@
     if(page === "people")main.querySelectorAll('[data-person]').forEach(card=>{
       const p=item(card.dataset.person);
       card.querySelector('.actions').insertAdjacentHTML('beforeend',btn("compose-person","◌ WhatsApp",p.id,"small"));
-      card.querySelector('.bio').insertAdjacentHTML('afterend',`<p class="tiny">${p.phone ? esc(p.phone) + (p.phoneConfirmed?" · Verificado":" · Revisar identidad") : "Sin teléfono"}${p.history?.length?`<br>${p.history.length} participaciones publicadas`:""}</p>`);
+      card.querySelector('.bio').insertAdjacentHTML('afterend',`<p class="tiny">${esc(p.phone || "Sin teléfono")}${p.history?.length?`<br>${p.history.length} participaciones publicadas`:""}</p>`);
     });
     if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;main.querySelectorAll(".column").forEach(c=>{c.querySelector(".ticket-list").scrollTop=keepScroll.columns[c.dataset.status] || 0;});}
     renderedRoute=location.hash;
@@ -184,7 +184,7 @@
       `<div class="grid cols3">${active("template").map(t=>`<article class="panel template-card"><p class="eyebrow">${t.id === "default-template" ? "TU LISTA ORIGINAL" : "LISTA PERSONALIZADA"}</p><h2>${esc(t.title)}</h2><p class="muted">${t.tasks.length} tareas · ${[...new Set(t.tasks.flatMap(x=>x.labels))].map(x=>esc(x)).join(" / ")}</p><div class="actions">${btn("edit-template","Ver / editar tareas",t.id)}${btn("duplicate-template","Duplicar",t.id,"small")}</div></article>`).join("")}</div><div class="notice section">La lista incluye preparar el acceso a los ordenadores. No guardes contraseñas reales en tickets ni comentarios.</div>`;
   }
   function personHistory(p) {
-    return (p.history || []).length ? `<details class="section"><summary>En las fechas de SCRIB · ${p.history.length} participaciones</summary><div class="history-list">${p.history.map(h=>`<article class="history-entry"><strong>${esc(niceDate(h.date))}</strong><span>${esc(h.venue)} · ${esc(h.title)}</span><small>${esc(h.role)}${h.team&&h.team!=="general"?" · Equipo " + (h.team === "red"?"rojo":"azul"):""}</small></article>`).join("")}</div><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer">Fuente: fechas publicadas ↗</a></details>` : "";
+    return (p.history || []).length ? `<details class="section"><summary>En las fechas de SCRIB · ${p.history.length} participaciones</summary><div class="history-list">${p.history.map(h=>`<article class="history-entry"><strong>${esc(niceDate(h.date))}</strong><span>${esc(h.venue)} · ${esc(h.title)}</span><small>${esc(h.role)}${h.team&&h.team!=="general"?" · Equipo " + (h.team === "red"?"rojo":"azul"):""}</small></article>`).join("")}</div></details>` : "";
   }
   const deliveryLabel = status => ({pending:"Sin enviar",sent:"Envío confirmado por WhatsApp",sending:"Envío en curso / por confirmar",unknown:"No confirmado: revisar WhatsApp antes de repetir"}[status] || status);
   async function loadMessages() {
@@ -199,7 +199,7 @@
     const event=eventId?item(eventId):null;
     const people=active("person").filter(p=>!event || event.cast.some(c=>c.personId === p.id)).sort((a,b)=>a.name.localeCompare(b.name,"es"));
     const target=dialog.querySelector('#message-recipients');
-    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone||!p.phoneConfirmed?"disabled":""} ${p.id===personId&&p.phoneConfirmed?"checked":""}><span><strong>${esc(p.name)}</strong><small>${p.phone?esc(p.phone):"Sin teléfono"} · ${p.phoneConfirmed?"Identidad y teléfono comprobados":"Revisar y confirmar en la ficha"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
+    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone||!p.phoneConfirmed?"disabled":""} ${p.id===personId&&p.phoneConfirmed?"checked":""}><span><strong>${esc(p.name)}</strong><small>${p.phone?esc(p.phone):"Sin teléfono"} · ${p.phoneConfirmed?"Teléfono confirmado":"Confirma el teléfono en la ficha"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
   }
   function openMessage(eventId="",personId="") {
     openDialog("message","Un mensaje para cada persona",`<form id="message-form"><div class="notice">No se envía nada hasta revisar y confirmar cada mensaje.</div>${field("Contexto del mensaje",select("eventId",{"":"Sin bolo · mensaje libre",...Object.fromEntries(active("event").map(e=>[e.id,niceDate(e.start,false)+" · "+e.title]))},eventId,'id="message-event"'))}<fieldset class="recipient-list"><legend>Destinatarios · selección explícita</legend><div id="message-recipients"></div></fieldset>${field("Mensaje personalizado",area("text",eventId?"Hola {nombre},\n\nTe escribimos por {bolo}, el {fecha} a las {hora} en {lugar}. Tu papel: {papel}.\n\n¡Nos vemos en el escenario!":"Hola {nombre},\n\n",'required maxlength="4000" rows="8"'),"Variables: {nombre}, {nombre_completo}, {bolo}, {fecha}, {hora}, {lugar}, {convocatoria}, {papel}.")}<p class="form-error" role="alert"></p><div class="form-footer"><span>Hasta 50 destinatarios. Sin envíos en grupo.</span><button class="button primary" type="submit">Revisar vista previa →</button></div></form>`);
@@ -292,7 +292,6 @@
       field("Nombre completo",input("name",p.name,"text",'required maxlength="160"')) + field("Especialidades / roles",input("roles",p.roles.join(", "),"text",'maxlength="800"'),"Por ejemplo: Escritura, Interpretación, Técnica. Separados por comas.") +
       field("Teléfono privado · WhatsApp",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="off"'),"Solo se guarda dentro del mundo autenticado. No se publica en scribshow.es.") +
       `<label class="check-option"><input type="checkbox" name="phoneConfirmed" ${p.phoneConfirmed?"checked":""}>He comprobado que este teléfono corresponde a esta persona</label>` +
-      (p.sourceGroup ? `<div class="notice section">Importado de ${esc(p.sourceGroup)}. ${p.publicName?`Coincidencia pública: ${esc(p.publicName)}.`:"Nombre pendiente de contrastar con el elenco público."}</div>` : "") +
       personHistory(p) +
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
       `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"url",'placeholder="https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +

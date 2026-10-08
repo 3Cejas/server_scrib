@@ -333,6 +333,17 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(status,403);self.app.whatsapp.send.assert_not_called()
 
 
+class ClientCopyTests(unittest.TestCase):
+    def test_cast_does_not_show_identity_review_or_import_provenance(self):
+        client = (ROOT / "public" / "app.js").read_text()
+        for removed in ("Revisar identidad", "Identidad y teléfono comprobados", "Importado de", "Coincidencia pública", "Nombre pendiente de contrastar", "Fuente: fechas publicadas", "p.sourceGroup", "p.publicName"):
+            self.assertNotIn(removed, client)
+        self.assertIn("personHistory(p)", client)
+        self.assertIn("p.history.map", client)
+        self.assertIn('name="phoneConfirmed"', client)
+        self.assertIn('!p.phone||!p.phoneConfirmed?"disabled"', client)
+
+
 class IntegrationTests(unittest.TestCase):
     def test_gateway_entry_insertion_is_idempotent(self):
         old='    .world--wit {\n      <a class="world world--wit" href="/wit/">'
