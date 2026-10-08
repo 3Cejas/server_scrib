@@ -32,6 +32,27 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
 - Actualización compartida cada 15 segundos sin regenerar formularios mientras se
   escribe; conflictos de edición devuelven 409, nunca sobrescriben a otra persona.
 
+## Inventario y materiales
+
+- **Inventario** registra objetos del equipo azul, rojo o compartidos: cantidad,
+  categoría, estado, ubicación, responsable del elenco, descripción y foto privada.
+  Filtros y búsqueda no duplican existencias; la ficha de cada bolo muestra los
+  objetos asociados. Cantidades enteras 0–9999, referencias validadas, conflictos
+  de versión y archivo recuperable. No se precargan objetos ficticios.
+- Se guardan como `kind=inventory` en `world.sqlite3`, fotos en `images/`, dentro
+  de los backups SQLite y ZIP existentes. La asociación con un bolo no archiva
+  ni elimina el objeto cuando termina o se archiva ese bolo.
+- **Materiales** conserva las dos presentaciones HTML completas antes alojadas en
+  scribshow.es: guía del espectáculo y charla Sutura/SCRIB. Visor con flechas,
+  teclado, deslizado y pantalla completa. Actualizar otras tareas no reinicia las
+  diapositivas. Los medios, tipografías y vídeos son locales.
+- Biblioteca autenticada en `/scrib/backstage/materials/`: lista exacta de archivos
+  empaquetados, sin HTML del usuario ni acceso por rutas arbitrarias. Vídeos con
+  soporte Range/206, también a través del proxy autenticado. CSP de scripts sin
+  `unsafe-inline`; estilos inline solo en estas presentaciones de confianza.
+- El código y los medios se conservan en Git. Publicar Mundo SCRIB antes de retirar
+  las carpetas públicas de players_scrib; sus enlaces antiguos redirigen a Sutura.
+
 ## Configuración del videojuego por bolo
 
 - En **Editar bolo**, activa «Guardar parámetros para esta función»: duración,

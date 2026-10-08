@@ -11,7 +11,7 @@
   const STATUS = {todo: "TO DO", progress: "EN PROGRESO", blocked: "BLOQUEADA", done: "COMPLETADAS"};
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};
-  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta"};
+  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto"};
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   let state = null, calendarMode = "calendar", month = new Date(), saving = false, toastTimer;
@@ -47,6 +47,8 @@
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
   const polls = window.ScribAvailability({state:()=>state, item, active, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
   const business = window.ScribBusiness({state:()=>state,item,active,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
+  const inventory = window.ScribInventory({state:()=>state,item,active,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage});
+  const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage});
   dialog.addEventListener('close', () => { if (state) renderPage(); });
 
   function toast(message) {
@@ -86,14 +88,16 @@
   function route() {return location.hash.slice(1).split("/");}
   function renderPage() {
     if (!state) return;
+    // Background collaboration updates must never reload a playing presentation.
+    if(renderedRoute===location.hash && /^#material\//.test(location.hash) && main.querySelector('.material-viewer iframe'))return;
     const keepScroll = renderedRoute === location.hash ? {
       left:main.querySelector(".kanban")?.scrollLeft || 0,
       columns:Object.fromEntries([...main.querySelectorAll(".column")].map(c=>[c.dataset.status,c.querySelector(".ticket-list").scrollTop]))
     } : null;
     const [page = "home", id] = route();
-    const nav = page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
+    const nav = page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = "MUNDO SCRIB / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = "MUNDO SCRIB / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "availability") content = polls.list();
@@ -102,6 +106,9 @@
     else if (page === "board") content = renderBoard(id);
     else if (page === "event") content = renderEvent(id);
     else if (page === "people") content = renderPeople();
+    else if (page === "inventory") content = inventory.list();
+    else if (page === "materials") content = library.list();
+    else if (page === "material") content = library.detail(id);
     else if (page === 'finance') content = business.overview();
     else if (page === 'production') content = business.production(id);
     else if (page === 'report') content = business.report(id);
@@ -111,6 +118,7 @@
     else if (page === "archive") content = renderArchive();
     else content = renderHome();
     main.innerHTML = (state.demo ? `<div class="notice demo-notice">ENSAYO LOCAL · Datos ficticios, sin conexión con una partida ni con datos de producción.</div>` : "") + content;
+    if(page==='inventory')inventory.applyFilters();
     if(page === "people")main.querySelectorAll('[data-person]').forEach(card=>{
       const p=item(card.dataset.person);
       card.querySelector('.person-body > .actions').insertAdjacentHTML('beforeend',btn("compose-person","◌ WhatsApp",p.id,"small"));
@@ -191,6 +199,7 @@
       `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${event.eventType === "rehearsal" ? `<section class="panel"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
       <section class="panel"><div class="panel-head"><h2>Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="team-row">${casts || `<p class="muted">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</div></section>
+      ${inventory.eventPanel(event)}
       ${event.eventType === 'rehearsal' ? '' : `<section class="panel"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}
       <section class="panel"><h2>Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">Mundo SCRIB · ${niceDate(today())} · Horario Europe/Madrid</p></section></div>`;
@@ -340,13 +349,9 @@
       data.checklist = [...form.querySelectorAll(".checklist-row")].map(row=>({text:row.querySelector(".check-text").value,done:row.querySelector(".check-done").checked}));
     } else if (form.dataset.kind === "person") {
       data.phoneConfirmed = form.querySelector('[name=phoneConfirmed]').checked;
-      data.roles = splitValues(data.roles); const file = data.photo; delete data.photo;
-      if (file?.size) {
-        if (file.size > 4 * 1024 * 1024) throw new Error("La imagen debe pesar menos de 4 MB.");
-        const encoded = await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(new Error("No se pudo leer la foto."));reader.readAsDataURL(file);});
-        const result = await request("upload",{base64:encoded}); data.image = result.item.image;
-        form.querySelector('[name=image]').value = data.image;
-      }
+      data.roles = splitValues(data.roles);
+    } else if (form.dataset.kind === "inventory") {
+      data.quantity = Number(data.quantity);
     } else if (form.dataset.kind === "event") {
       const gameConfig = window.ScribWorldGameConfig.read(form);
       if(gameConfig !== undefined)data.gameConfig = gameConfig;
@@ -356,6 +361,16 @@
       data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:row.querySelector(".cast-team").value}));
     } else if (form.dataset.kind === "template") {
       data.tasks = [...form.querySelectorAll(".template-row")].map(row=>({title:row.querySelector(".template-title").value,labels:splitValues(row.querySelector(".template-labels").value),description:row.querySelector(".template-description").value}));
+    }
+    if(['person','inventory'].includes(form.dataset.kind)){
+      const file=data.photo;delete data.photo;
+      if(file?.size){
+        if(file.size>4*1024*1024)throw new Error('La imagen debe pesar menos de 4 MB.');
+        const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('No se pudo leer la foto.'));reader.readAsDataURL(file);});
+        const result=await request('upload',{base64:encoded});data.image=result.item.image;
+        form.querySelector('[name=image]').value=data.image;
+        form.querySelector('[name=photo]').value='';
+      }
     }
     return data;
   }
@@ -404,6 +419,8 @@
     const {action:a,id,status} = node.dataset;
     if(await business.action(node))return;
     if(await polls.action(node))return;
+    if(await inventory.action(node))return;
+    if(await library.action(node))return;
     if(a === "new-event")openEvent();
     else if(a === "new-event-day")openEvent("",id);
     else if(a === "edit-event")openEvent(id);
@@ -442,6 +459,7 @@
   document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
+    if(inventory.filter(node))return;
     if(node.matches("#calendar-month") && /^\d{4}-\d{2}$/.test(node.value)){month=new Date(Number(node.value.slice(0,4)),Number(node.value.slice(5,7))-1,1);renderPage();return;}
     if(node.matches("[data-ticket-status]")) moveTicket(node.dataset.ticketStatus,node.value);
     if(node.id === "board-mine")filters.mine=node.value;
@@ -452,6 +470,7 @@
     if(node.id === "message-event")messageRecipients(node.value);
   });
   document.addEventListener("input",event=>{
+    if(event.target.id==='inventory-search'){inventory.filter(event.target);return;}
     if(event.target.name === "phone" && dialog.querySelector('[name=phoneConfirmed]'))dialog.querySelector('[name=phoneConfirmed]').checked=false;
     if(event.target.id === "board-search"){filters.search=event.target.value;applyFilters();}
     if(event.target.id === "people-search")main.querySelectorAll("[data-person]").forEach(node=>{const p=item(node.dataset.person);node.hidden=![p.name,...p.roles].join(" ").toLowerCase().includes(event.target.value.toLowerCase());});

@@ -27,6 +27,7 @@ from participations import with_participations
 from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PREFIX, TOKEN_RE
 from game_config import normalize as normalize_game_config, profile as game_profile, SCHEMA as GAME_CONFIG_SCHEMA
 from business import Business, SCHEMA as BUSINESS_SCHEMA
+from materials import MaterialLibrary, POLICY as MATERIAL_POLICY
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -35,7 +36,7 @@ WORLD_ROOT = "/scrib/"
 PREFIX = "/scrib/backstage/"
 LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
-KINDS = ("board", "ticket", "event", "person", "template", "availability")
+KINDS = ("board", "ticket", "event", "person", "template", "availability", "inventory")
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -236,6 +237,24 @@ class Store:
             raise Problem("Ficha no válida.")
         if kind == "availability":
             return self.availability.validate(db, data, existing)
+        if kind == 'inventory':
+            quantity=data.get('quantity',1)
+            if type(quantity) is not int or not 0 <= quantity <= 9999:
+                raise Problem('Cantidad no válida: número entero de 0 a 9999.')
+            body={'title':text(data.get('title',''),240,True),'description':text(data.get('description',''),15000),
+                  'team':choice(data.get('team','general'),('blue','red','general')),'quantity':quantity,
+                  'category':choice(data.get('category','props'),('props','costume','furniture','technical','other')),
+                  'condition':choice(data.get('condition','good'),('good','repair','missing','loaned')),
+                  'location':text(data.get('location',''),1000),'custodianId':text(data.get('custodianId',''),100),
+                  'eventId':text(data.get('eventId',''),100),'image':text(data.get('image',''),200)}
+            for field,reference in [('custodianId','person'),('eventId','event')]:
+                if body[field]:
+                    linked=self.item(db,body[field],reference)
+                    if linked['archived'] and body[field] != (existing or {}).get(field):
+                        raise Problem('Recupera primero la ficha archivada para asociarla.')
+            if body['image'] and (not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|webp)',body['image']) or not (self.directory/'images'/body['image']).is_file()):
+                raise Problem('Imagen no válida. Utiliza el botón de subir foto.')
+            return body
         if kind == "person":
             body = {"name": text(data.get("name", ""), 160, True), "bio": text(data.get("bio", ""), 5000),
                     "roles": values(data.get("roles", []), 12), "instagram": link(data.get("instagram", "")),
@@ -622,6 +641,7 @@ class App(ThreadingHTTPServer):
     daemon_threads = True
     def __init__(self, port, store, demo=False, secret=None, bridge=None):
         self.store, self.demo = store, demo
+        self.materials = MaterialLibrary(ROOT/'materials')
         self.whatsapp = bridge or Bridge(disabled=demo)
         self.secret_path = store.directory / "bridge-secret"
         if secret is None:
@@ -658,12 +678,37 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Robots-Tag", "noindex, nofollow")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'")
+        self.send_header("Content-Security-Policy", (extra or {}).get('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"))
         for key, value in (extra or {}).items():
-            self.send_header(key, value)
+            if key != 'Content-Security-Policy':
+                self.send_header(key, value)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
+
+    def material_file(self, route):
+        found=self.server.materials.file(route)
+        if not found:raise Problem('Material no encontrado.',404)
+        path,mime=found;length=path.stat().st_size
+        try:
+            start,end,partial=self.server.materials.byte_range(self.headers.get('Range',''),length)
+        except ValueError:
+            return self.reply(416,{'error':'Fragmento no válido.'},extra={'Content-Range':f'bytes */{length}'})
+        self.send_response(206 if partial else 200)
+        headers={'Content-Type':mime,'Content-Length':str(end-start+1),'Accept-Ranges':'bytes',
+                 'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
+                 'Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow',
+                 'Content-Security-Policy':MATERIAL_POLICY}
+        if partial:headers['Content-Range']=f'bytes {start}-{end}/{length}'
+        for key,value in headers.items():self.send_header(key,value)
+        self.end_headers()
+        if self.command=='HEAD':return
+        with path.open('rb') as source:
+            source.seek(start);remaining=end-start+1
+            while remaining:
+                chunk=source.read(min(remaining,65536))
+                if not chunk:break
+                self.wfile.write(chunk);remaining-=len(chunk)
 
     def identity(self):
         if self.server.demo:
@@ -816,6 +861,10 @@ class Handler(BaseHTTPRequestHandler):
                     raise Problem('Archivo reservado al servidor del videojuego.',403)
                 return self.reply(200, store.business.archive_report(self.body(4*1024*1024)))
             if self.command in ("GET", "HEAD"):
+                if route == 'api/materials':
+                    return self.reply(200,self.server.materials.list())
+                if route.startswith('materials/'):
+                    return self.material_file(route[len('materials/'):])
                 if route.startswith('api/reports/event/'):
                     return self.reply(200,store.business.reports(route.split('/')[-1]))
                 if route.startswith('api/reports/match/'):
@@ -863,7 +912,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)

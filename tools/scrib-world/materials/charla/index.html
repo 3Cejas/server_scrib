@@ -1,0 +1,325 @@
+<!doctype html>
+<!-- HTML autónomo con vídeos integrados. Base: tutorial de players_scrib, commit a34e419f929113ca9f8fe472972045b12d7a8434. Se conserva el tutorial, se amplía el origen y se adapta el cierre al congreso. -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020812">
+  <title>Sutura y guía del espectáculo · &lt;SCRI&gt; B</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="./assets/16b28f4a21e1d933.png" type="image/png">
+  <link rel="stylesheet" href="./charla.css">
+
+</head>
+<body>
+  <main class="deck" aria-label="Presentación del espectáculo">
+    <div class="deck__ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+    <header class="deck__header">
+      <div class="brand"><img src="./assets/16b28f4a21e1d933.png" alt=""><span>&lt;SCRI&gt; B</span></div>
+      <div class="deck__chapter" id="chapter">BIENVENIDA</div>
+      <button class="fullscreen-button" id="fullscreenToggle" type="button" aria-label="Entrar en pantalla completa" title="Entrar en pantalla completa"><span class="fullscreen-button__icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b id="fullscreenLabel">PANTALLA COMPLETA</b></button>
+    </header>
+
+    <div class="slides" aria-live="polite">
+      <section class="slide is-active sutura-intro" data-chapter="Sutura" aria-label="Quién es Sutura">
+        <div class="sutura-intro__text">
+          <img class="sutura-intro__logo" src="./assets/47bcd8fd4ee1d03d.png" alt="Sutura Teatro">
+          <p class="eyebrow">SUTURA TEATRO</p>
+          <h1>¿Quién es<br><span>Sutura?</span></h1>
+          <p>Sutura Teatro experimenta con la creación escénica, la ciencia y la tecnología.</p>
+          <p class="sutura-intro__statement">El juego es una herramienta de exploración y expresión artística.</p>
+        </div>
+        <figure class="sutura-intro__portrait">
+          <img src="./assets/34b62a4a37871a8a.jpg" alt="David Viñas y Ángela Harris Bueno, de Sutura Teatro">
+          <figcaption>David Viñas y Ángela Harris Bueno</figcaption>
+        </figure>
+        <aside hidden class="speaker-notes">Fotografía: presentación de Canva facilitada por el usuario, página 3. https://www.canva.com/design/DAGW_X1cjGc/DRR4ujN7AEr5ealYFCs6Ow/edit
+Contenido adaptado de los valores de Sutura: https://suturateatro.es/compania/ . Nombres contrastados en https://suturateatro.es/equipo/ . La fotografía muestra a dos integrantes y no pretende enumerar el equipo completo.</aside>
+      </section>
+
+
+      <section class="slide origin-dangerous" data-chapter="Origen" aria-label="The Most Dangerous Writing App">
+        <div class="origin-dangerous__text">
+          <p class="eyebrow">EL PUNTO DE PARTIDA</p>
+          <h2>The Most<br>Dangerous<br><span>Writing App</span></h2>
+          <p class="origin-dangerous__rule">Si te detienes, el texto desaparece.</p>
+        </div>
+        <figure class="origin-dangerous__demo">
+          <video id="dangerous-demo" playsinline muted loop preload="metadata" data-auto poster="./assets/a6433e2338960a2c.jpg" src="./assets/e76579b2604584ca.mp4" aria-label="Demostración de The Most Dangerous Writing App"></video>
+        </figure>
+        <aside hidden class="speaker-notes">Referencia y animación: Canva del usuario, página 5. https://www.canva.com/design/DAGW_X1cjGc/DRR4ujN7AEr5ealYFCs6Ow/edit . Aplicación enlazada en esa presentación: https://www.squibler.io/dangerous-writing-prompt-app/write?limit=3&amp;type=minutes</aside>
+      </section>
+
+      <section class="slide sutura-context" data-chapter="Sutura" aria-label="La escritura en escena">
+        <div class="slide-title"><p class="eyebrow">REFERENTES DEL PROYECTO</p><h2>La escritura en escena</h2></div>
+        <div class="sutura-context__gallery">
+          <figure><img src="./assets/61207a196b0185f6.jpg" alt="Escritura proyectada en directo junto a una actuación musical"><figcaption>Escritura en vivo</figcaption></figure>
+          <figure><img src="./assets/21cafe3fabcf5aa8.jpg" alt="Participante de Lucha Libro escribiendo dentro de un ring"><figcaption>Lucha Libro</figcaption></figure>
+          <figure><img src="./assets/032057d8e1963c53.jpg" alt="Lectura escénica en un torneo de dramaturgia"><figcaption>Torneo de dramaturgia</figcaption></figure>
+        </div>
+        <div class="sutura-context__questions">
+          <p>¿Cómo escenificar la escritura?</p>
+          <p>¿Cómo gamificar la escritura?</p>
+        </div>
+        <aside hidden class="speaker-notes">Contenido e imágenes: presentación de Canva facilitada por el usuario, páginas 6, 7, 8 y 9. https://www.canva.com/design/DAGW_X1cjGc/DRR4ujN7AEr5ealYFCs6Ow/edit . Estas imágenes presentan el panorama de referencias de la escritura escénica y no se atribuyen como producciones de Sutura.</aside>
+      </section>
+
+      <section class="slide origin-bridge" data-chapter="Origen" aria-label="Del reto al videojuego">
+        <div class="slide-title"><p class="eyebrow">EL JUEGO DE LA ESCRITURA</p><h2>Del reto al videojuego</h2></div>
+        <div class="origin-steps">
+          <article><b>01</b><h3>La escritura</h3><p>Crear un texto en directo, sin detenerse.</p></article>
+          <span aria-hidden="true">→</span>
+          <article><b>02</b><h3>El juego</h3><p>Convertir el tiempo y la presión en reglas.</p></article>
+          <span aria-hidden="true">→</span>
+          <article><b>03</b><h3>La escena</h3><p>Compartir el proceso de escritura con el público.</p></article>
+        </div>
+        <p class="center-copy">La pregunta de Sutura: ¿cómo hacer de la escritura una experiencia que se pueda jugar y ver?</p>
+        <aside hidden class="speaker-notes">Síntesis editorial del recorrido de la presentación del usuario: The Most Dangerous Writing App (página 5), objetivo (9), El juego de la escritura (10), vídeos El juego (11, 13, 14) y primera fase Aleatorio Bar 2022 (12).</aside>
+      </section>
+
+      <section class="slide origin-video" data-chapter="Origen" aria-label="El juego: primer prototipo">
+        <div class="slide-title"><p class="eyebrow">EL JUEGO · 1 / 3</p><h2>El primer prototipo</h2><p>Dos escritoras, un tiempo límite y el texto en pantalla.</p></div>
+        <figure class="origin-video__frame">
+          <video id="origin-video-prototipo" class="origin-video__player" data-auto playsinline preload="metadata" poster="./assets/20f334f8a0e1f969.jpg" tabindex="0" role="button" aria-label="Pausar o reanudar el vídeo del primer prototipo" title="Haz clic para pausar o reanudar"><source src="./assets/e8d413720a9e663a.webm" type="video/webm"><source src="./assets/d4ee569f7e5cbbb4.mp4" type="video/mp4"></video>
+          <img class="origin-video__poster" src="./assets/20f334f8a0e1f969.jpg" alt="" aria-hidden="true">
+        </figure>
+        <aside hidden class="speaker-notes">Vídeo completo de la página 11 del Canva del usuario (1.tutorial scrib.mp4). Exportado y recortado al área del vídeo para retirar la composición gráfica de Canva. Se conserva la duración y el sonido.</aside>
+      </section>
+
+      <section class="slide origin-video" data-chapter="Origen" aria-label="Primera fase: Aleatorio Bar, 2022">
+        <div class="slide-title"><p class="eyebrow">EL JUEGO · 2 / 3</p><h2>Aleatorio Bar · 2022</h2><p>La primera fase: llevar la escritura al encuentro en vivo.</p></div>
+        <figure class="origin-video__frame">
+          <video id="origin-video-aleatorio" class="origin-video__player" data-auto playsinline preload="metadata" poster="./assets/565b57bf6d5c1d8a.jpg" tabindex="0" role="button" aria-label="Pausar o reanudar el vídeo de Aleatorio Bar" title="Haz clic para pausar o reanudar"><source src="./assets/0a318f3c12335b3d.webm" type="video/webm"><source src="./assets/b215c94116e3e002.mp4" type="video/mp4"></video>
+          <img class="origin-video__poster" src="./assets/565b57bf6d5c1d8a.jpg" alt="" aria-hidden="true">
+        </figure>
+        <aside hidden class="speaker-notes">Vídeo completo de la página 13 del Canva. El lugar y el año proceden de la página 12: Primera fase: Aleatorio Bar (2022). Exportado y recortado al área del vídeo. Se conserva la duración y el sonido.</aside>
+      </section>
+
+      <section class="slide origin-video origin-video--vertical" data-chapter="Origen" aria-label="El juego: la experiencia del público">
+        <div class="origin-video__text"><p class="eyebrow">EL JUEGO · 3 / 3</p><h2>La escritura<br>se hace escena</h2><p>El texto se proyecta y el público puede seguir su creación en directo.</p><p class="origin-video__statement">Escribir también se convierte en algo que mirar.</p></div>
+        <figure class="origin-video__frame">
+          <video id="origin-video-publico" class="origin-video__player" data-auto playsinline preload="metadata" poster="./assets/6a0c8f9a7f3093e8.jpg" tabindex="0" role="button" aria-label="Pausar o reanudar el vídeo de la proyección y el público" title="Haz clic para pausar o reanudar"><source src="./assets/22d561cc02d45305.webm" type="video/webm"><source src="./assets/3680cb6a344540fc.mp4" type="video/mp4"></video>
+          <img class="origin-video__poster" src="./assets/6a0c8f9a7f3093e8.jpg" alt="" aria-hidden="true">
+        </figure>
+        <aside hidden class="speaker-notes">Vídeo completo de la página 14 del Canva del usuario. Exportado y recortado al área del vídeo. Se conserva la duración y el sonido.</aside>
+      </section>
+
+      <section class="slide evolution-scene" data-chapter="Evolución" aria-label="El videojuego en el espacio escénico">
+        <div class="slide-title"><p class="eyebrow">LA CREACIÓN EN DIRECTO</p><h2>El videojuego en el<br>espacio escénico</h2></div>
+        <div class="evolution-scene__flow">
+          <div><h3>Escribir</h3><p>Las escritoras crean los textos<br>durante la partida.</p></div>
+          <span aria-hidden="true">→</span>
+          <div><h3>Representar</h3><p>Los intérpretes montan<br>y representan esas obras.</p></div>
+        </div>
+        <p class="evolution-scene__public">Las Musas inspiran a las escritoras desde el público.</p>
+        <aside hidden class="speaker-notes">Síntesis de los recorridos de escritoras, intérpretes y público en SCRIB.pdf, página 1. La escritura y el montaje de las obras ocurren en paralelo, antes de la representación.</aside>
+      </section>
+      <section class="slide evolution-before" data-chapter="Evolución" aria-label="Antes: el esquema escénico anterior">
+        <div class="slide-title"><p class="eyebrow">EL ESQUEMA ANTERIOR</p><h2>Antes</h2></div>
+        <div class="evolution-map-wrap"><table class="evolution-map" aria-label="Recorrido por participantes y etapas"><thead><tr><th scope="col" class="evolution-map__axis">PARTICIPANTES</th><th scope="col" data-phase="preshow" class=""><div class="evolution-map__phase">Preshow<span>−15–0 min</span></div></th><th scope="col" data-phase="entrada" class=""><div class="evolution-map__phase">Entrada<span>0–15 min</span></div></th><th scope="col" data-phase="escritura" class=""><div class="evolution-map__phase">Escritura<span>15–45 min</span></div></th><th scope="col" data-phase="interludio" class=""><div class="evolution-map__phase">Interludio<span>45–55 min</span></div></th><th scope="col" data-phase="interpretacion" class=""><div class="evolution-map__phase">Interpretación<span>45–75 min</span></div></th><th scope="col" data-phase="cierre" class=""><div class="evolution-map__phase">Cierre<span>75–85 min</span></div></th></tr></thead><tbody><tr class="evolution-role--violet"><th scope="row">Presentador</th><td data-phase="preshow" class="">Backstage</td><td data-phase="entrada" class="">Presentar SCRIB<br>y elenco</td><td data-phase="escritura" class="">Explicar fases<br>controlar el juego</td><td data-phase="interludio" class="">Backstage</td><td data-phase="interpretacion" class="">Presentaciones<br>y backstage</td><td data-phase="cierre" class="">Veredicto<br>y despedida</td></tr><tr class="evolution-role--gold"><th scope="row">Intérpretes</th><td data-phase="preshow" class="">Recepción<br>y calentamiento</td><td data-phase="entrada" class="">Backstage<br>y acción GIF</td><td data-phase="escritura" class="">Montaje<br>de la obra</td><td data-phase="interludio" class="">Montaje<br>de la obra</td><td data-phase="interpretacion" class="">Obras 1 y 2</td><td data-phase="cierre" class="">Veredicto<br>y despedida</td></tr><tr class="evolution-role--red"><th scope="row">Escritoras</th><td data-phase="preshow" class="">Backstage</td><td data-phase="entrada" class="">Elección<br>de estímulos</td><td data-phase="escritura" class="">2 fases<br>2 tertulias · final</td><td data-phase="interludio" class="">Backstage</td><td data-phase="interpretacion" class="">Ver<br>las obras</td><td data-phase="cierre" class="">Veredicto<br>y despedida</td></tr><tr class="evolution-role--cyan"><th scope="row">Público</th><td data-phase="preshow" class="">Equipo · sitio<br>registro en app</td><td data-phase="entrada" class="">Registro<br>y estímulos</td><td data-phase="escritura" class="">Inspiración<br>historia · coaching</td><td data-phase="interludio" class="">Descanso<br>y lectura</td><td data-phase="interpretacion" class="">Ver<br>las obras</td><td data-phase="cierre" class=""></td></tr><tr class="evolution-role--green"><th scope="row">Técnica</th><td data-phase="preshow" class="">Música<br>y QR</td><td data-phase="entrada" class="">Voz en off<br>apoyo visual</td><td data-phase="escritura" class="">Apoyo al juego<br>notas de escena</td><td data-phase="interludio" class="">Notas<br>de escena</td><td data-phase="interpretacion" class="">Necesidades<br>de interpretación</td><td data-phase="cierre" class="">Música de final<br>y créditos</td></tr></tbody></table></div>
+        <div class="evolution-map-footer"><p>Dos fases, dos tertulias y un final.</p><div><button class="origin-play" type="button" data-open-evolution-source="before">Diagrama completo</button></div></div>
+        <aside hidden class="speaker-notes">Fuente: esquema superior de SCRIB.pdf, página 1, proporcionado por el usuario. Síntesis del formato anterior con cinco participantes. Las dos fases, dos tertulias y el final se suceden dentro de escritura. La cabecera original sitúa interpretación 45–75 e interludio 45–55, aunque los dibuja sucesivos. Se conservan los intervalos de la fuente sin corregirlos ni deducir una cronología nueva. La app aparece dentro del registro del público.</aside>
+      </section>
+
+      <section class="slide evolution-now" data-chapter="Evolución" data-evolution-step="" aria-label="Ahora">
+        <div class="slide-title"><h2>Ahora</h2></div>
+        <div class="evolution-map-wrap"><table class="evolution-map" aria-label="Recorrido por participantes y etapas"><thead><tr><th scope="col" class="evolution-map__axis">PARTICIPANTES</th><th scope="col" data-phase="preshow" class=""><div class="evolution-map__phase">Preshow<span>0–10 min</span></div></th><th scope="col" data-phase="entrada" class=""><div class="evolution-map__phase">Entrada<span>10–25 min</span></div></th><th scope="col" data-phase="escritura" class=""><div class="evolution-map__phase">Escritura<span>25–55 min</span></div></th><th scope="col" data-phase="interludio" class=""><div class="evolution-map__phase">Interludio<span>55–65 min</span></div></th><th scope="col" data-phase="interpretacion" class=""><div class="evolution-map__phase">Interpretación<span>65–90 min</span></div></th><th scope="col" data-phase="cierre" class=""><div class="evolution-map__phase">Cierre<span>90–100 min</span></div></th></tr></thead><tbody><tr class="evolution-role--violet"><th scope="row">Presentador</th><td data-phase="preshow" class="">Backstage</td><td data-phase="entrada" class="">Introducción<br>y elenco</td><td data-phase="escritura" class="">Fases, desventajas<br>y puntuación</td><td data-phase="interludio" class="">Backstage</td><td data-phase="interpretacion" class="">Presentar jurado<br>y equipos</td><td data-phase="cierre" class="">Anunciar<br>resultados</td></tr><tr class="evolution-role--gold"><th scope="row">Intérpretes</th><td data-phase="preshow" class="">Backstage</td><td data-phase="entrada" class="">Saludo<br>escénico</td><td data-phase="escritura" class="">Montaje<br>de la obra</td><td data-phase="interludio" class="">Montaje<br>de la obra</td><td data-phase="interpretacion" class="">Montaje<br>y obras 1 y 2</td><td data-phase="cierre" class="">Presencia<br>escénica</td></tr><tr class="evolution-role--red"><th scope="row">Escritoras</th><td data-phase="preshow" class="">Backstage</td><td data-phase="entrada" class="">Saludo<br>y estímulos</td><td data-phase="escritura" class="">5 niveles<br>+ tertulia</td><td data-phase="interludio" class="">Backstage</td><td data-phase="interpretacion" class="">Grada</td><td data-phase="cierre" class="">Presencia<br>escénica</td></tr><tr class="evolution-role--cyan"><th scope="row">Musas</th><td data-phase="preshow" class="">Registro<br>en la app</td><td data-phase="entrada" class="">Escucha<br>y estímulos</td><td data-phase="escritura" class="">Inspirar<br>votar · leer</td><td data-phase="interludio" class="">Descansar<br>y leer</td><td data-phase="interpretacion" class="">Ver<br>las obras</td><td data-phase="cierre" class="">Escucha<br>activa</td></tr><tr class="evolution-role--green"><th scope="row">Técnica</th><td data-phase="preshow" class="">QR<br>y ambiente</td><td data-phase="entrada" class="">Apoyo<br>visual</td><td data-phase="escritura" class="">Fases<br>y puntuación</td><td data-phase="interludio" class="">Necesidades<br>de la escena</td><td data-phase="interpretacion" class="">Luces · sonido<br>teleprompters</td><td data-phase="cierre" class="">Puntuación<br>y música</td></tr><tr class="evolution-role--silver"><th scope="row">App</th><td data-phase="preshow" class="">Onboarding</td><td data-phase="entrada" class="">Banderas<br>y estímulos</td><td data-phase="escritura" class="">Juego · votación<br>libretos</td><td data-phase="interludio" class="">Libretos<br>y estadísticas</td><td data-phase="interpretacion" class="">Banderas<br>y libretos</td><td data-phase="cierre" class="">Banderas<br>y acceso libre</td></tr></tbody></table></div>
+        <div class="evolution-map-footer"><p aria-hidden="true">&nbsp;</p><div><button class="origin-play" type="button" data-open-evolution-source="now">Diagrama completo</button><span class="evolution-step-status" role="status" aria-live="polite"></span></div></div>
+        <aside hidden class="speaker-notes">Fuente: esquema inferior de SCRIB.pdf, página 1. Intervalos: preshow 0–10, entrada 10–25, escritura 25–55, interludio 55–65, interpretación 65–90 y cierre 90–100 minutos. Matriz de síntesis, no cronograma a escala. Conserva los seis participantes y sus actividades principales.</aside>
+      </section>
+
+      <section class="slide" data-chapter="Bienvenida" aria-label="Portada">
+        <div class="hero-lockup">
+          <img class="hero-lockup__mark" src="./assets/16b28f4a21e1d933.png" alt="Logotipo de SCRI B">
+          <p class="eyebrow">GUÍA DEL ESPECTÁCULO</p>
+          <h1>Dos historias.<br><span>Un escenario.</span></h1>
+          <p class="lead">Todo lo que el equipo necesita saber antes de abrir las puertas.</p>
+        </div>
+        <div class="duel-orbit" aria-hidden="true"><span>ESCRITXR 1</span><i>VS</i><span>ESCRITXR 2</span></div>
+      </section>
+
+      <section class="slide" data-chapter="Mapa" aria-label="Mapa de la experiencia">
+        <div class="slide-title"><p class="eyebrow">LA EXPERIENCIA COMPLETA</p><h2>De la entrada al aplauso</h2></div>
+        <ol class="show-route">
+          <li><b>01</b><span>Conexión del público</span></li>
+          <li><b>02</b><span>Presentación y equipos</span></li>
+          <li><b>03</b><span>Batalla de escritura</span></li>
+          <li><b>04</b><span>Puesta en escena</span></li>
+          <li><b>05</b><span>Deliberación y final</span></li>
+        </ol>
+      </section>
+
+      <section class="slide" data-chapter="Reparto" aria-label="Roles">
+        <div class="slide-title"><p class="eyebrow">TODAS LAS PIEZAS CUENTAN</p><h2>¿Quién hace qué?</h2></div>
+        <div class="role-grid">
+          <article class="role-card role-card--cyan"><i>✒</i><h3>Escritorxs</h3><p>Crean las obras en directo y se enfrentan a los niveles del videojuego.</p></article>
+          <article class="role-card role-card--pink"><i>✦</i><h3>Musas</h3><p>Inspiran a su equipo y deciden desventajas en momentos clave.</p></article>
+          <article class="role-card role-card--gold"><i>◖</i><h3>Intérpretes</h3><p>Preparan, ensayan y llevan los textos recién nacidos al escenario. Se comunican con técnica mediante walkie-talkies.</p></article>
+          <article class="role-card role-card--violet"><i>⌁</i><h3>Técnica</h3><p>Controla el videojuego, coordina el espectáculo y prepara la propuesta luminotécnica y sonora que piden los intérpretes.</p></article>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Previa" aria-label="Videotutorial del público">
+        <div class="slide-title slide-title--left"><p class="eyebrow">ANTES DE EMPEZAR</p><h2>Videotutorial del público</h2><p>El público entra, comprueba su pantalla y llega preparado al juego.</p></div>
+        <div class="tutorial-player" aria-label="Simulación del videotutorial">
+          <div class="tutorial-player__screen">
+            <div class="tutorial-scene tutorial-scene--1"><img src="./assets/fe1777c9968a534b.svg" alt="Código QR de acceso"><strong>www.scribshow.es/musa</strong></div>
+            <div class="tutorial-scene tutorial-scene--2"><div class="phone-pulse">MUSA</div><strong>ELIGE TU ESCRITXR</strong></div>
+            <div class="tutorial-scene tutorial-scene--3"><div class="color-test"><i></i><i></i><i></i><i></i></div><strong>PRUEBA DE COLOR</strong></div>
+            <div class="tutorial-scene tutorial-scene--4"><img src="./assets/16b28f4a21e1d933.png" alt=""><strong>LISTA PARA INSPIRAR</strong></div>
+          </div>
+          <div class="tutorial-player__timeline"><i></i></div>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Previa" aria-label="Narración de apertura">
+        <div class="opening-visual"><span class="opening-visual__zero">0</span><span class="opening-visual__a">A</span><div class="opening-visual__spark"></div></div>
+        <div class="slide-title slide-title--right"><p class="eyebrow">LA SALA SE APAGA</p><h2>Narración de apertura</h2><p>Una voz abre el universo de la obra. Las pantallas de las Musas se convierten en luz.</p></div>
+      </section>
+
+      <section class="slide" data-chapter="Previa" aria-label="Presentación del juego">
+        <div class="slide-title"><p class="eyebrow">EL PRESENTADOR TOMA EL RELEVO</p><h2>Así funciona el juego</h2><p>El presentador explica al público y a los equipos cómo se juega, qué ocurre en cada fase y cómo pueden participar las Musas.</p></div>
+        <div class="process-loop" aria-hidden="true">
+          <div><span>01</span><b>ESCRIBIR</b></div><i>›</i><div><span>02</span><b>INSPIRAR</b></div><i>›</i><div><span>03</span><b>INTERPRETAR</b></div>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Equipos" aria-label="Presentación de equipos">
+        <div class="team-reveal">
+          <article class="team team--blue"><span>EQUIPO</span><h2>AZUL</h2><div class="team__feather">🪶</div><div class="team__roles"><b>ESCRITXR</b><span>INTÉRPRETE 1</span><span>INTÉRPRETE 2</span></div></article>
+          <div class="team-reveal__versus">VS</div>
+          <article class="team team--red"><span>EQUIPO</span><h2>ROJO</h2><div class="team__feather">🪶</div><div class="team__roles"><b>ESCRITXR</b><span>INTÉRPRETE 1</span><span>INTÉRPRETE 2</span></div></article>
+        </div>
+        <p class="cue">Momento para presentar nombres, escuchar las arengas y activar a cada grada.</p>
+      </section>
+
+      <section class="slide" data-chapter="Videojuego" aria-label="Escritura bajo presión">
+        <div class="slide-title slide-title--left"><p class="eyebrow">REGLA ESENCIAL</p><h2>Escribir alimenta la inspiración</h2><p>La barra de inspiración aumenta mientras se escribe. Si se deja de escribir, se resta inspiración y el videojuego comienza a borrar el texto carácter a carácter.</p></div>
+        <div class="writing-demo" aria-hidden="true">
+          <header><span>ESCRITXR</span><span class="writing-demo__status"><b>ESCRIBIENDO</b><b>SE HA DETENIDO</b></span></header>
+          <div class="writing-demo__paper"><span>La ciudad late tras el telón</span><i></i><em>EL VIDEOJUEGO BORRA EL TEXTO</em></div>
+          <div class="inspiration-meter"><span>BARRA DE INSPIRACIÓN</span><div class="inspiration-meter__track"><i></i></div><b class="inspiration-meter__state"><span>AUMENTA</span><span>SE RESTA</span></b></div>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Videojuego" aria-label="Interacción de Musas">
+        <div class="muse-loop">
+          <div class="muse-phone"><span>MUSA</span><strong>VOLCÁN</strong><button>INSPIRAR</button></div>
+          <div class="idea-path" aria-hidden="true"><i></i><span class="idea-flight">VOLCÁN</span></div>
+          <div class="writer-page"><span>La montaña escondía un </span><b>volcán</b><i>|</i></div>
+        </div>
+        <div class="muse-balance" aria-hidden="true"><span>AZUL</span><div class="muse-balance__track"><i></i><b></b></div><span>ROJO</span></div>
+        <div class="slide-title"><p class="eyebrow">LA VICTORIA TAMBIÉN ESTÁ EN EL PÚBLICO</p><h2>Una idea utilizada vale más</h2><p>Las Musas envían palabras. Cuando el equipo escribe una de ellas, la barra de inspiración se inclina a su favor.</p></div>
+      </section>
+
+      <section class="slide" data-chapter="Niveles" aria-label="Recorrido de niveles">
+        <div class="slide-title"><p class="eyebrow">EL RECORRIDO</p><h2>Seis formas de poner a prueba una historia</h2></div>
+        <div class="level-ribbon">
+          <div><i>📖</i><b>PALABRAS<br>BENDITAS</b></div><div><i>🙏</i><b>LETRA<br>BENDITA</b></div><div><i>😈</i><b>LETRA<br>MALDITA</b></div><div><i>💬</i><b>TERTULIA</b></div><div><i>⚔</i><b>PALABRAS<br>MALDITAS</b></div><div><i>🏁</i><b>FRASE<br>FINAL</b></div>
+        </div>
+        <p class="center-copy">En Tertulia el videojuego se para: Musas y escritorxs hablan cara a cara. En Frase final, cada obra busca su último golpe.</p>
+      </section>
+
+      <section class="slide" data-chapter="Desventajas" aria-label="Catálogo de desventajas">
+        <div class="slide-title"><p class="eyebrow">PODERES CONTRA EL EQUIPO RIVAL</p><h2>¿Qué desventajas pueden elegir?</h2><p>Al ganar una batalla, las Musas reciben tres opciones y eligen una para el equipo rival.</p></div>
+        <div class="disadvantage-grid">
+          <article><i>🐢</i><b>TORTUGA</b><p>El teclado responde más despacio.</p></article>
+          <article><i>⚡</i><b>RAYO</b><p>El borrado empieza antes y acelera.</p></article>
+          <article><i>🌫️</i><b>BRUMA</b><p>El texto se vuelve borroso.</p></article>
+          <article><i>🙃</i><b>INVERSO</b><p>La interfaz gira y cambia la orientación.</p></article>
+          <article><i>🖊️</i><b>BLOQUEO</b><p>No permite borrar.</p></article>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Videojuego" aria-label="Niveles y desventajas">
+        <div class="slide-title"><p class="eyebrow">CADA NIVEL CAMBIA LA REGLA</p><h2>Batalla, voto y desventaja</h2></div>
+        <div class="level-flow">
+          <article><b>80%</b><h3>BATALLA</h3><p>Los equipos compiten por inspiración.</p><div class="duel-bar"><i></i></div></article>
+          <span>→</span>
+          <article><b>VOTO</b><h3>MUSAS</h3><p>El equipo ganador elige una de las desventajas anteriores entre las tres opciones que aparecen.</p><div class="vote-picks"><i class="vote-picks__ray"><span>⚡</span><small>RAYO</small></i><i class="vote-picks__mist"><span>🌫️</span><small>BRUMA</small></i><i class="vote-picks__lock"><span>🖊️</span><small>BLOQUEO</small></i></div></article>
+          <span>→</span>
+          <article><b>20%</b><h3>DESVENTAJA</h3><p>Se aplica al equipo rival hasta el siguiente nivel.</p><div class="effect-preview"><div class="effect-scene effect-scene--ray"><strong>RAYO</strong><span>La noche cayó de <em>golpe</em></span><small>BORRADO ACELERADO</small></div><div class="effect-scene effect-scene--mist"><strong>BRUMA</strong><span>La noche cayó de golpe</span><small>TEXTO BORROSO</small></div><div class="effect-scene effect-scene--lock"><strong>BLOQUEO</strong><span>La noche cayó de golpe<i>|</i></span><small>⌫ BORRADO BLOQUEADO</small></div></div></article>
+        </div>
+        <p class="level-flow__exception"><b>EXCEPCIÓN</b> Este reparto 80% / 20% no se aplica en <strong>Tertulia</strong> ni en <strong>Frase final</strong>.</p>
+      </section>
+
+      <section class="slide" data-chapter="Intérpretes" aria-label="Rol de intérpretes durante el juego">
+        <div class="slide-title slide-title--left"><p class="eyebrow">MIENTRAS SE ESCRIBE</p><h2>Los intérpretes observan y preparan</h2><p>Siguen el texto, prueban posibilidades y colocan marcas útiles. Mediante walkie-talkies pueden comunicarse directamente con técnica.</p></div>
+        <div class="actor-console" aria-hidden="true">
+          <header><span>INTÉRPRETES · EQUIPO AZUL</span><i>📻 WALKIE · TÉCNICA</i></header>
+          <div class="actor-console__workspace">
+            <div class="actor-console__text"><span>01</span><p>La puerta nunca estuvo cerrada.<mark>Entonces, ¿quién llamó?</mark></p></div>
+            <aside class="actor-console__margin"><small>ANOTACIONES</small><div class="actor-console__note"><b>1</b><span><em>¿QUIÉN LLAMÓ?</em>ENTRAR DESDE PLATEA</span></div></aside>
+            <div class="actor-console__toolbar"><button>U</button><button class="is-yellow">U</button><button class="is-green">U</button><button class="is-cyan">A</button><button class="is-red">A</button><button>N</button><button class="is-clear">×</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Representación" aria-label="Temporizador gigante">
+        <div class="giant-timer"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52"></circle><circle cx="60" cy="60" r="52"></circle></svg><strong>10:00</strong><span>PREPARAD LA ESCENA</span></div>
+        <div class="slide-title slide-title--right"><p class="eyebrow">CUENTA ATRÁS PARA LA REPRESENTACIÓN</p><h2>Diez minutos que valen oro</h2><ul class="clean-list"><li><strong>Intérpretes</strong><span>Ultimar decisiones y colocar su espacio.</span></li><li><strong>Técnica</strong><span>Revisar marcas, entradas y necesidades.</span></li><li><strong>Escritxres</strong><span>Responder alguna pregunta de última hora de sus intérpretes y sentarse a disfrutar de la representación.</span></li></ul></div>
+      </section>
+
+      <section class="slide" data-chapter="Representación" aria-label="Teleprompter y técnica">
+        <div class="slide-title"><p class="eyebrow">EL TEXTO PASA AL ESCENARIO</p><h2>Representación sincronizada</h2></div>
+        <div class="teleprompter-demo" aria-hidden="true">
+          <div class="teleprompter-demo__screen"><div class="teleprompter-demo__guide"></div><div class="teleprompter-demo__scroll"><p>LA HABITACIÓN ESTÁ VACÍA.</p><p>Una silla mira hacia la puerta.</p><p><mark><b>01</b>¿Estás segura?</mark></p><p>He contado dos respiraciones.</p><p>Entonces alguien llama.</p><p>Y la luz cambia.</p></div></div>
+          <div class="teleprompter-demo__tech"><span>TELEPROMPTER · TÉCNICA</span><div><strong>MARCA 01</strong><small>LUZ FRÍA · ENTRADA DESDE PLATEA</small></div></div>
+        </div>
+        <p class="center-copy">El texto avanza como un teleprompter mientras los intérpretes actúan. La técnica sigue las marcas y coordina luz y sonido.</p>
+      </section>
+
+      <section class="slide" data-chapter="Deliberación" aria-label="Criterios del videojuego">
+        <div class="slide-title"><p class="eyebrow">50% DEL VEREDICTO</p><h2>Lo que mide el videojuego</h2></div>
+        <div class="criteria-grid criteria-grid--six">
+          <div><i>📝</i><b>Producción</b><small>Palabras construidas</small></div><div><i>⚡</i><b>Ritmo</b><small>Pulsaciones por minuto</small></div><div><i>📚</i><b>Riqueza léxica</b><small>Palabras diferentes</small></div><div><i>✨</i><b>Inspiración</b><small>Ideas de Musas aprovechadas</small></div><div><i>🎯</i><b>Precisión</b><small>Menos intentos prohibidos</small></div><div><i>💻</i><b>Pulsaciones</b><small>Total de teclas pulsadas</small></div>
+        </div>
+        <div class="score-duel"><span>44,5 PTS</span><i></i><span>55,5 PTS</span></div>
+      </section>
+
+      <section class="slide" data-chapter="Deliberación" aria-label="Criterios del jurado">
+        <div class="slide-title"><p class="eyebrow">VEREDICTO DEL JURADO</p><h2>Lo que valora el jurado</h2></div>
+        <div class="jury-balance" aria-hidden="true"><div class="jury-balance__halo"></div><div class="jury-balance__beam"><span class="jury-balance__pan jury-balance__pan--blue"><i></i><b>OBRA</b></span><span class="jury-balance__pan jury-balance__pan--red"><i></i><b>MUSAS</b></span></div><div class="jury-balance__core"><i>◆</i></div><div class="jury-balance__stand"></div><div class="jury-balance__base"><span>VEREDICTO</span></div></div>
+        <div class="jury-columns"><article><h3>LA OBRA</h3><p>Idea y mundo · Voz · Estructura · Riesgo · Cierre</p></article><article><h3>LAS MUSAS</h3><p>Inspiración útil · Escucha · Ritmo · Cooperación</p></article></div>
+        <p class="center-copy">Cada criterio se revela en directo. El público ve cómo se construye el resultado final.</p>
+      </section>
+
+      <section class="slide" data-chapter="Final" aria-label="Final del espectáculo">
+        <div class="final-sequence">
+          <div><i>01</i><b>GANADOR</b><span>Celebración en todas las pantallas</span></div>
+          <div><i>02</i><b>FOTO</b><span>Banderas activadas y equipos juntos</span></div>
+          <div><i>03</i><b>CRÉDITOS</b><span>Agradecimientos y redes</span></div>
+        </div>
+        <div class="winner-burst"><img src="./assets/16b28f4a21e1d933.png" alt=""><strong>LA HISTORIA YA ES DE TODXS</strong></div>
+      </section>
+
+
+      <section class="slide game-trial" data-chapter="Prueba en vivo" aria-label="Vamos a probar el juego">
+        <div class="slide-title"><p class="eyebrow">DEL CONGRESO A LA PARTIDA</p><h2>¡Vamos a jugar!</h2></div>
+        <div class="game-trial__content">
+          <div class="game-trial__writers"><span class="game-trial__number">2</span><div><h3>Necesitamos dos escritoras</h3><p>Dos voluntarias para crear un texto en directo y probar el juego.</p></div><div class="game-trial__teams"><span>ESCRITORA 1</span><b>×</b><span>ESCRITORA 2</span></div></div>
+          <div class="game-trial__muses"><h3>El público: las Musas</h3><p>Escanea el QR con tu móvil y participa.</p><img src="./assets/fe1777c9968a534b.svg" alt="Código QR para acceder a las Musas en scribshow.es/musa"><a href="https://scribshow.es/musa" target="_blank" rel="noopener">scribshow.es/musa</a><p class="game-trial__instruction">Elige equipo y envía palabras para inspirar a las escritoras.</p></div>
+        </div>
+      </section>
+
+      <section class="slide" data-chapter="Preguntas" aria-label="Ronda de preguntas">
+        <div class="qa"><div class="qa__marks"><span>?</span><span>?</span><span>?</span></div><p class="eyebrow">RONDA FINAL</p><h2>Preguntas</h2><p>Abrimos el diálogo sobre escritura en vivo, juego y creación escénica.</p><div class="qa__logos"><img src="./assets/16b28f4a21e1d933.png" alt="SCRI B"><b>×</b><img src="./assets/47bcd8fd4ee1d03d.png" alt="Sutura Teatro"></div></div>
+      </section>
+    </div>
+
+    <footer class="deck__footer">
+      <button class="nav-button" id="prev" type="button" aria-label="Diapositiva anterior">←</button>
+      <div class="deck__progress"><i id="progress"></i></div>
+      <button class="nav-button" id="next" type="button" aria-label="Diapositiva siguiente">→</button>
+    </footer>
+  </main>
+
+    <dialog id="evolution-source-dialog" class="evolution-source" aria-labelledby="evolution-source-title">
+      <header><div><h2 id="evolution-source-title">Diagrama original</h2><p>Amplía el detalle para leer las actividades de cada participante.</p></div><button type="button" class="origin-play" data-close-evolution-source aria-label="Cerrar diagrama original">Cerrar ×</button></header>
+      <div class="evolution-source__zoom"><label for="evolution-source-zoom">Zoom</label><input id="evolution-source-zoom" type="range" min="100" max="250" step="10" value="100"><output id="evolution-zoom-value" for="evolution-source-zoom">100 %</output></div>
+      <div class="evolution-source__scroll"><div class="evolution-source__images"><figure data-source-era="before" hidden><figcaption>ANTES</figcaption><img src="./assets/ee93ef6d1dface7c.png" alt="Esquema anterior completo: presentador, intérpretes, escritores, público y técnica a lo largo de la función."></figure><figure data-source-era="now" hidden><figcaption>AHORA</figcaption><img src="./assets/6b5a68d97120cfbf.png" alt="Esquema actual completo: seis participantes, cinco niveles, votaciones, jurado, teleprompters y recorrido de la app."></figure></div></div>
+    </dialog>
+    <script src="./charla.js" defer></script>
+<script src="../shared/standalone.js" defer></script>
+</body>
+</html>

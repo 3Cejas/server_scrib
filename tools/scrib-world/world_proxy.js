@@ -27,7 +27,7 @@ module.exports = function scribWorldProxy(req, res, session) {
     "X-Scrib-Name":Buffer.from(session.username, "utf8").toString("base64"),
     "X-Scrib-Role":session.role === "admin" ? "admin" : "user"
   };
-  for (const key of ["content-type","content-length","origin","x-csrf-token","cookie"]) {
+  for (const key of ["content-type","content-length","origin","x-csrf-token","cookie","range"]) {
     if(req.headers[key])headers[key] = req.headers[key];
   }
   const upstream = http.request({hostname:"127.0.0.1",port:5124,path:req.url,method:req.method,headers,timeout:28000}, response => {
