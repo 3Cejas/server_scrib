@@ -238,8 +238,9 @@ archivo transformado. `integrate.py gateway ORIGINAL DESTINO` añade también la
 tarjeta al portal estático de la Raspberry (`/srv/sutura-front/index.html`).
 Ambos transformadores fallan si el HTML/rutas han cambiado inesperadamente.
 
-La tarjeta del selector utiliza el logo original de los signos y la pluma, sin
-subtítulo. Copiar `assets/scrib-world-logo.png` a `/srv/sutura-front/favicons/` en
+La tarjeta del selector utiliza el logo original de los signos y la pluma, con
+el subtítulo «el primer videojuego- espectáculo de escritura en vivo», adaptable
+al ancho de la tarjeta. Copiar `assets/scrib-world-logo.png` a `/srv/sutura-front/favicons/` en
 el gateway y `/var/www/dashboard/favicons/` en el backend. Es el PNG original
 de `players_scrib/img/logo.png`, sin modificar. Para actualizar un selector ya
 instalado, `integrate.py selector ORIGINAL DESTINO` sustituye únicamente la

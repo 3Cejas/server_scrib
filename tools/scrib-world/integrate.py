@@ -18,10 +18,17 @@ RELATIVE_CARD = '''      <a class="world world--scrib" href="/mundo-scrib/" aria
       </a>
 '''
 PREVIOUS_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/mundo-scrib/"')
-CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/scrib/"')
-CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
+LOGO_ONLY_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/scrib/"')
+SUBTITLE = "el primer videojuego- espectáculo de escritura en vivo"
+CARD = LOGO_ONLY_CARD.replace('      </a>', '        <span class="world-scrib-copy">' + SUBTITLE + '</span>\n      </a>')
+LOGO_ONLY_CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
     .world--scrib { --accent: #64e7e2; background: linear-gradient(120deg, #152f36, #20162b 55%, #40212b); border-color: #71506b; gap: 0; }
     .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; }
+'''
+CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
+    .world--scrib { --accent: #64e7e2; background: linear-gradient(120deg, #152f36, #20162b 55%, #40212b); border-color: #71506b; gap: 12px; }
+    .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; }
+    .world--scrib .world-scrib-copy { color: #e1e9f1; font: 600 clamp(.85rem, 1.5vw, 1rem)/1.5 ui-sans-serif, system-ui, sans-serif; max-width: 32ch; text-align: center; text-wrap: balance; }
 '''
 BRIDGE = '''  // BEGIN SCRIB WORLD BRIDGE (independent from live game)
   if (url.pathname === "/mundo-scrib") {
@@ -231,10 +238,10 @@ def update_selector(source):
         raise ValueError("La tarjeta SCRIB ha cambiado: revisar manualmente.")
     if source.count(CARD) == 1 and source.count(CSS) == 1:
         return source
-    if source.count(RELATIVE_CARD) == 1 and source.count(CSS) == 1:
-        return source.replace(RELATIVE_CARD, CARD, 1)
-    if source.count(PREVIOUS_CARD) == 1 and source.count(CSS) == 1:
-        return source.replace(PREVIOUS_CARD, CARD, 1)
+    for old_card in (LOGO_ONLY_CARD, RELATIVE_CARD, PREVIOUS_CARD):
+        for old_css in (LOGO_ONLY_CSS, CSS):
+            if source.count(old_card) == 1 and source.count(old_css) == 1:
+                return source.replace(old_card, CARD, 1).replace(old_css, CSS, 1)
     if source.count(LEGACY_CARD) != 1 or source.count(LEGACY_CSS) != 1:
         raise ValueError("El selector ha cambiado: revisar manualmente, no sobrescribir.")
     return source.replace(LEGACY_CARD, CARD, 1).replace(LEGACY_CSS, CSS, 1)

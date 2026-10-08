@@ -489,7 +489,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn('href="https://sutura-gateway.ddns.net/scrib/"',new)
         self.assertIn('href="/wit/"',new)
         self.assertIn('src="/favicons/scrib-world-logo.png?v=1"',new)
-        self.assertNotIn('world-scrib-copy',new)
+        self.assertIn(integrate.SUBTITLE,new)
 
     def test_selector_upgrade_preserves_other_worlds_and_auth_bridge(self):
         surrounding='    .world--wit {\n      <a class="world world--wit" href="/wit/">'
@@ -505,12 +505,26 @@ class IntegrationTests(unittest.TestCase):
         for drift in [old.replace('gap: 18px','gap: 20px'),old.replace('bolos','otro texto'),old+integrate.LEGACY_CARD]:
             with self.assertRaises(ValueError):integrate.update_selector(drift)
 
-    def test_new_selector_keeps_logo_accessible_without_subtitle(self):
+    def test_new_selector_keeps_logo_accessible_with_requested_subtitle(self):
         self.assertIn('alt="&lt;SCRI&gt; B"',integrate.CARD)
         self.assertIn('aria-label="Entrar en SCRIB"',integrate.CARD)
-        self.assertNotIn('<span',integrate.CARD)
+        self.assertIn('<span class="world-scrib-copy">' + integrate.SUBTITLE + '</span>',integrate.CARD)
         self.assertIn('object-fit: contain',integrate.CSS)
         self.assertIn('clamp(',integrate.CSS)
+
+    def test_installed_logo_only_card_adds_subtitle_without_changing_other_worlds(self):
+        surrounding = 'other worlds preserved' + integrate.BRIDGE
+        for old_card in (integrate.LOGO_ONLY_CARD, integrate.RELATIVE_CARD, integrate.PREVIOUS_CARD):
+            source = integrate.LOGO_ONLY_CSS + old_card + surrounding
+            changed = integrate.update_selector(source)
+            self.assertEqual(changed, integrate.CSS + integrate.CARD + surrounding)
+            self.assertEqual(changed, integrate.update_selector(changed))
+
+    def test_logo_only_selector_drift_fails_closed(self):
+        source = integrate.LOGO_ONLY_CSS + integrate.LOGO_ONLY_CARD
+        for drift in (source.replace('gap: 0;', 'gap: 1px;'), source.replace('width="500"', 'width="501"'), source + integrate.LOGO_ONLY_CARD):
+            with self.assertRaises(ValueError):
+                integrate.update_selector(drift)
 
     def test_existing_logo_card_uses_gateway_even_when_primary_server_sleeps(self):
         source = integrate.CSS + integrate.RELATIVE_CARD + integrate.BRIDGE + "other worlds preserved"
