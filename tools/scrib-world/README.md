@@ -32,6 +32,52 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
 - Actualización compartida cada 15 segundos sin regenerar formularios mientras se
   escribe; conflictos de edición devuelven 409, nunca sobrescriben a otra persona.
 
+## Disponibilidad y ensayos
+
+- Sección **Disponibilidad** y acceso desde cada bolo: encuestas con 1–30 horarios,
+  lugar, mensaje, fecha de cierre opcional y asociación a una función.
+- Enlace público sin cuenta y enlaces personalizados por ficha del elenco. El
+  formulario solo muestra la encuesta y la respuesta propia, nunca teléfonos,
+  el resto del elenco ni respuestas ajenas. Los enlaces personales son credenciales
+  por posesión: no reenviarlos. Un nombre escrito en el formulario público no
+  vincula automáticamente a una ficha privada ni verifica identidad.
+- Sí / Quizá / No / Sin responder, comentario y edición de la propia respuesta.
+  El navegador conserva una clave privada; el enlace de edición usa un fragmento
+  que no se envía al servidor. Guardarlo permite recuperarlo en otro dispositivo.
+- Matriz privada de respuestas, fechas ordenadas por coincidencias y personas
+  pendientes. Cada confirmación selecciona explícitamente asistentes; «Quizá»
+  no se convoca por defecto. No se manda WhatsApp automáticamente.
+- Confirmar crea un ensayo en el calendario e ICS y un tablero vacío opcional:
+  no duplica el ensayo al reintentar ni genera las 34 tareas de producción.
+  No se cuentan los ensayos como participaciones en bolos. Se pueden confirmar
+  varias fechas, cerrar/reabrir encuestas y editar/cancelar ensayos desde su ficha.
+- Tras recibir respuestas no se pueden alterar/eliminar horarios ya propuestos;
+  sí añadir otros. Archivar una encuesta o desactivar el enlace público corta
+  acceso; retirar un destinatario revoca su enlace personal.
+- Respuestas y hashes de edición están en `world.sqlite3` (tablas
+  `availability_replies` / `availability_links`), incluidos en backups y ZIP de
+  administración. No se exporta `availability-wake-key`, que debe respaldarse
+  de forma privada para conservar la validación de encendido de los enlaces.
+- `/scrib-disponibilidad/` es el único prefijo público nuevo. `public_proxy.js`
+  no reenvía identidad ni secreto de Sutura; limita rutas, métodos y cuerpo a
+  16 KiB. CSRF firmado por enlace + cookie HttpOnly/Secure/Strict + Origin,
+  máximo 500 respuestas y 240 escrituras por enlace / 10 min. No hay listado
+  público de encuestas ni permisos nuevos en los mundos privados.
+- Tokens de 256 bits con firma HMAC permiten al gateway reconocer un enlace
+  válido mientras el servidor está apagado. El encendido conserva su confirmación
+  explícita existente; no basta una URL aleatoria. Solo una página visible manda
+  actividad cada 45 s; no se cambia el apagado automático global. Los enlaces
+  compartidos usan `sutura-gateway.ddns.net` para seguir accesibles en reposo.
+
+Integración: `integrate.py availability-dashboard` añade el puente público antes
+del privado; `availability-gateway` amplía únicamente el reconocimiento del mundo
+SCRIB y formularios firmados. Copiar la clave privada de 32 bytes del servicio a
+`/opt/sutura-gateway/scrib-availability-key` (0600); instalar también
+`gateway_availability.py`. Nginx debe enrutar el prefijo público a DASHBOARD_AUTH
+sin Authentik y sin registrar tokens en access logs. El resto de rutas conserva
+forward-auth. Generar copia previa, validar sintaxis y reiniciar solo los servicios
+afectados. Los datos de encuestas reales no se crean durante el despliegue.
+
 ## Autenticación y límites
 
 Se conserva exactamente la entrada Sutura/Authentik existente: Nginx hace

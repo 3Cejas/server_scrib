@@ -37,6 +37,87 @@ BRIDGE = '''  // BEGIN SCRIB WORLD BRIDGE (independent from live game)
   // END SCRIB WORLD BRIDGE
 
 '''
+PUBLIC_BRIDGE = '''  // BEGIN SCRIB AVAILABILITY PUBLIC BRIDGE (no private identity)
+  if (url.pathname.startsWith("/scrib-disponibilidad/")) {
+    return require("/home/trescejas/dockers/scrib-world/public_proxy.js")(req, res);
+  }
+  // END SCRIB AVAILABILITY PUBLIC BRIDGE
+
+'''
+PUBLIC_NGINX = '''
+# BEGIN SCRIB AVAILABILITY PUBLIC FORMS
+location ^~ /scrib-disponibilidad/ {
+    access_log off;
+    error_log /dev/null crit;
+    client_max_body_size 16k;
+    proxy_pass http://127.0.0.1:5099;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 35s;
+}
+# END SCRIB AVAILABILITY PUBLIC FORMS
+'''
+PUBLIC_GATEWAY_NGINX = '''
+# BEGIN SCRIB AVAILABILITY PUBLIC FORMS
+location ^~ /scrib-disponibilidad/ {
+    access_log off;
+    error_log /dev/null crit;
+    client_max_body_size 16k;
+    auth_request /_wake/check;
+    error_page 401 = @wake_backend;
+    proxy_pass https://sutura_backend_https;
+    include /etc/nginx/snippets/sutura-proxy-common.conf;
+}
+# END SCRIB AVAILABILITY PUBLIC FORMS
+
+'''
+
+
+def availability_nginx(source):
+    if PUBLIC_NGINX in source:
+        return source
+    if source.count('location = /_auth_check {') != 1 or 'SCRIB AVAILABILITY' in source:
+        raise ValueError('Configuración de autenticación modificada; revisar.')
+    return source + PUBLIC_NGINX
+
+
+def availability_gateway_nginx(source):
+    if PUBLIC_GATEWAY_NGINX in source:
+        return source
+    marker = 'location = /sutura {\n'
+    if source.count(marker) != 1 or 'SCRIB AVAILABILITY' in source:
+        raise ValueError('Rutas del gateway modificadas; revisar.')
+    return source.replace(marker, PUBLIC_GATEWAY_NGINX + marker, 1)
+
+
+def availability_dashboard(source):
+    if PUBLIC_BRIDGE in source:
+        return source
+    if source.count(BRIDGE) != 1:
+        raise ValueError('El bridge privado ha cambiado; no sobrescribir.')
+    return source.replace(BRIDGE, PUBLIC_BRIDGE + BRIDGE, 1)
+
+
+def availability_gateway(source):
+    marker = 'def is_world_location(value):\n'
+    if 'from gateway_availability import is_availability_location' in source:
+        return source
+    if source.count(marker) != 1:
+        raise ValueError('Gateway modificado; revisar antes de aplicar.')
+    source = source.replace(marker, 'from gateway_availability import is_availability_location\n\n\n' + marker, 1)
+    old = '    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in WORLD_ACTIVITY_PREFIXES)'
+    if source.count(old) != 1:
+        raise ValueError('Validación de mundos modificada; revisar.')
+    source = source.replace(old, '    return is_availability_location(value) or path == "/mundo-scrib" or path.startswith("/mundo-scrib/") or any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in WORLD_ACTIVITY_PREFIXES)', 1)
+    # Capability paths must not leak into routine diagnostics/activity histories.
+    source = source.replace('next_uri[:300]', "('[encuesta SCRIB]' if is_availability_location(next_uri) else next_uri[:300])")
+    old = '            record_browser_activity(\n                path,\n'
+    if source.count(old) != 1:
+        raise ValueError('Registro de actividad modificado; revisar.')
+    return source.replace(old, '            record_browser_activity(\n                "/scrib-disponibilidad/[encuesta]" if is_availability_location(path) else path,\n', 1)
 
 
 def update_selector(source):
@@ -72,12 +153,12 @@ def dashboard_js(source):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("kind", choices=["dashboard", "gateway", "selector"])
+    p.add_argument("kind", choices=["dashboard", "gateway", "selector", "availability-dashboard", "availability-gateway", "availability-nginx", "availability-gateway-nginx"])
     p.add_argument("source")
     p.add_argument("destination")
     args = p.parse_args()
     source = Path(args.source).read_text(encoding="utf-8-sig")
-    transform = {"dashboard": dashboard_js, "gateway": entry_html, "selector": update_selector}[args.kind]
+    transform = {"dashboard": dashboard_js, "gateway": entry_html, "selector": update_selector, "availability-dashboard": availability_dashboard, "availability-gateway": availability_gateway, "availability-nginx": availability_nginx, "availability-gateway-nginx": availability_gateway_nginx}[args.kind]
     transformed = transform(source)
     Path(args.destination).write_text(transformed)
 

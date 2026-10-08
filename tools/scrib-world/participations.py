@@ -49,7 +49,7 @@ def with_participations(items, today=None):
                 row['roles'].append(role)
         for e in events:
             cast = [c for c in e.get('cast', []) if c['personId'] == item['id']]
-            if not cast or e['archived'] or e['status'] != 'completed' or not past_day(e['start'][:10], today):
+            if not cast or e.get('eventType') == 'rehearsal' or e['archived'] or e['status'] != 'completed' or not past_day(e['start'][:10], today):
                 continue
             roles = [dict(role=c['role'], team=c['team']) for c in cast]
             shows[e['id']] = dict(eventId=e['id'], date=e['start'][:10], start=e['start'], title=e['title'], venue=e['venue'], city=e.get('city', ''), roles=roles)

@@ -24,11 +24,12 @@ from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
 from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
 from participations import with_participations
+from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PREFIX, TOKEN_RE
 
 ROOT = Path(__file__).resolve().parent
 PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
-KINDS = ("board", "ticket", "event", "person", "template")
+KINDS = ("board", "ticket", "event", "person", "template", "availability")
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -111,6 +112,7 @@ class Store:
         self.path = self.directory / "world.sqlite3"
         self.users_path = users_path
         self.backup_lock = threading.Lock()
+        self.availability = Availability(self, Problem, date_value, text, now)
         with self.connect() as db:
             db.executescript("""
               PRAGMA journal_mode=WAL;
@@ -137,6 +139,7 @@ class Store:
                 draft TEXT NOT NULL, recipient INTEGER NOT NULL, status TEXT NOT NULL,
                 updated TEXT NOT NULL, PRIMARY KEY(draft,recipient));
             """)
+            db.executescript(AVAILABILITY_SCHEMA)
             if not db.execute("SELECT 1 FROM items WHERE kind='template'").fetchone():
                 tasks = json.loads((ROOT / "default_tasks.json").read_text())
                 self.insert(db, "template", {"title": "Preparación de un bolo", "tasks": tasks}, "sistema", "default-template")
@@ -223,6 +226,8 @@ class Store:
     def validate(self, db, kind, data, existing=None):
         if kind not in KINDS or not isinstance(data, dict):
             raise Problem("Ficha no válida.")
+        if kind == "availability":
+            return self.availability.validate(db, data, existing)
         if kind == "person":
             body = {"name": text(data.get("name", ""), 160, True), "bio": text(data.get("bio", ""), 5000),
                     "roles": values(data.get("roles", []), 12), "instagram": link(data.get("instagram", "")),
@@ -281,6 +286,7 @@ class Store:
             start_input = data.get("start", "")
             date_only = isinstance(start_input, str) and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", start_input))
             body.update(start=date_value(start_input, not date_only), end=date_value(data.get("end", ""), True),
+                        eventType=choice(data.get("eventType", (existing or {}).get("eventType", "show")), ("show", "rehearsal")),
                         venue=text(data.get("venue", ""), 200), city=text(data.get("city", ""), 120),
                         address=text(data.get("address", ""), 1000), arrival=date_value(data.get("arrival", ""), True),
                         status=choice(data.get("status", "pending"), ("pending", "confirmed", "completed", "cancelled")),
@@ -306,7 +312,7 @@ class Store:
                 raise Problem("Hay una entrada del elenco duplicada.")
             if existing:
                 body["boardId"] = existing["boardId"]
-                for key in ("historical", "historyKey"):
+                for key in ("historical", "historyKey", "sourcePollId", "sourceSlotId", "parentEventId"):
                     if key in existing:
                         body[key] = existing[key]
         return body
@@ -333,7 +339,7 @@ class Store:
                 return json.loads(prior["response"])
             body = self.validate(db, kind, data)
             if kind == "event":
-                template = self.item(db, data.get("templateId", "default-template"), "template", True)
+                template = self.item(db, data.get("templateId", "default-template"), "template", True) if body["eventType"] != "rehearsal" else {"tasks": []}
                 event_id, board_id = str(uuid.uuid4()), str(uuid.uuid4())
                 body["boardId"] = board_id
                 result = self.insert(db, kind, body, actor, event_id)
@@ -343,6 +349,8 @@ class Store:
                     self.insert(db, "ticket", ticket, actor)
             else:
                 result = self.insert(db, kind, body, actor)
+                if kind == "availability":
+                    self.availability.sync_links(db, result)
             db.execute("INSERT INTO requests VALUES(?,?,?,?,?)", (request_id, actor, digest, json.dumps(result), now()))
             return result
 
@@ -350,7 +358,10 @@ class Store:
         with self.transaction() as db:
             item = self.item(db, ident, active=True)
             self.check_version(item, expected)
-            return self.save(db, item, self.validate(db, item["kind"], data, item), actor)
+            result = self.save(db, item, self.validate(db, item["kind"], data, item), actor)
+            if item["kind"] == "availability":
+                self.availability.sync_links(db, result)
+            return result
 
     def move(self, ident, status, before, actor, expected):
         choice(status, STATUSES)
@@ -453,7 +464,8 @@ class Store:
             db.execute("BEGIN")
             payload = {"format": "scrib-world-v1", "exported": now(), "timezone": "Europe/Madrid", "items": self.all(db),
                        "comments": [dict(r) for r in db.execute("SELECT * FROM comments")], "activity": [dict(r) for r in db.execute("SELECT * FROM activity")], "members": self.members(db),
-                       "messageDrafts": [dict(r) for r in db.execute("SELECT * FROM message_drafts")], "messageDeliveries": [dict(r) for r in db.execute("SELECT * FROM message_deliveries")]}
+                       "messageDrafts": [dict(r) for r in db.execute("SELECT * FROM message_drafts")], "messageDeliveries": [dict(r) for r in db.execute("SELECT * FROM message_deliveries")],
+                       "availabilityLinks": [dict(r) for r in db.execute("SELECT * FROM availability_links")], "availabilityReplies": [dict(r) for r in db.execute("SELECT * FROM availability_replies")]}
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("mundo-scrib.json", json.dumps(payload, ensure_ascii=False, indent=2))
@@ -593,7 +605,8 @@ class App(ThreadingHTTPServer):
 class Handler(BaseHTTPRequestHandler):
     server_version = "SCRIBWorld/1"
     def log_message(self, fmt, *args):
-        LOG.info("%s %s", self.command, urlsplit(self.path).path)  # No cookie or query logging.
+        path = urlsplit(self.path).path
+        LOG.info("%s %s", self.command, PUBLIC_PREFIX + "[enlace privado]" if path.startswith(PUBLIC_PREFIX) else path)
 
     def reply(self, status, body, content_type="application/json; charset=utf-8", extra=None):
         if isinstance(body, (dict, list)):
@@ -605,7 +618,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Robots-Tag", "noindex, nofollow")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'")
         for key, value in (extra or {}).items():
             self.send_header(key, value)
@@ -659,14 +673,14 @@ class Handler(BaseHTTPRequestHandler):
         if not candidate or not hmac.compare_digest(candidate.encode(), self.headers.get("X-CSRF-Token", "").encode()):
             raise Problem("La sesión de edición ha caducado. Recarga; no se ha guardado ningún cambio.", 403)
 
-    def body(self):
+    def body(self, limit=MAX_BODY):
         if self.headers.get("Transfer-Encoding") or not self.headers.get("Content-Type", "").startswith("application/json"):
             raise Problem("Se requiere JSON con longitud conocida.", 415)
         try:
             size = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             raise Problem("Tamaño no válido.") from None
-        if not 0 < size <= MAX_BODY:
+        if not 0 < size <= limit:
             raise Problem("Datos demasiado grandes.", 413)
         self.connection.settimeout(20)
         try:
@@ -676,6 +690,54 @@ class Handler(BaseHTTPRequestHandler):
             return data
         except (ValueError, UnicodeDecodeError):
             raise Problem("JSON no válido.") from None
+
+    def availability_csrf(self, token, supplied=None):
+        scope = hashlib.sha256(token.encode()).hexdigest()
+        name = 'scrib_availability_' + scope[:12]
+        candidate = ''
+        try:
+            cookie = SimpleCookie()
+            cookie.load(self.headers.get('Cookie', ''))
+            candidate = cookie[name].value
+            if len(candidate) > 1000 or not candidate.isascii():
+                raise ValueError()
+            body, signature = candidate.split('.')
+            expected = hmac.new(self.server.secret.encode(), ('availability|' + body).encode(), hashlib.sha256).hexdigest()
+            bound, expiry, _ = base64.urlsafe_b64decode(body).decode().split('|')
+            if not hmac.compare_digest(signature, expected) or bound != scope or int(expiry) < time.time():
+                raise ValueError()
+        except (ValueError, KeyError, CookieError, UnicodeDecodeError):
+            candidate = ''
+        if supplied is not None:
+            if not candidate or not hmac.compare_digest(candidate.encode(), supplied.encode()):
+                raise Problem('El formulario ha caducado. Recarga antes de guardar.', 403)
+        elif not candidate:
+            body = base64.urlsafe_b64encode(f'{scope}|{int(time.time())+43200}|{secrets.token_hex(16)}'.encode()).decode()
+            candidate = body + '.' + hmac.new(self.server.secret.encode(), ('availability|' + body).encode(), hashlib.sha256).hexdigest()
+        return name, candidate
+
+    def public_availability(self, route):
+        tail = route[len(PUBLIC_PREFIX):]
+        if self.command in ('GET', 'HEAD') and tail in ('form.js', 'form.css'):
+            return self.reply(200, (ROOT / 'public' / tail).read_bytes(), 'application/javascript; charset=utf-8' if tail.endswith('.js') else 'text/css; charset=utf-8')
+        match = re.fullmatch('(api/)?(' + TOKEN_RE + ')/?', tail)
+        if not match:
+            raise Problem('Este enlace ya no está disponible.', 404)
+        api, token = match.groups()
+        polls = self.server.store.availability
+        if self.command in ('GET', 'HEAD'):
+            result = polls.public(token, self.headers.get('X-Availability-Edit', ''))
+            if not api:
+                return self.reply(200, (ROOT / 'public' / 'availability.html').read_bytes(), 'text/html; charset=utf-8')
+            name, csrf = self.availability_csrf(token)
+            cookie = f'{name}={csrf}; HttpOnly; SameSite=Strict; Path={PUBLIC_PREFIX}; Max-Age=43200' + ('' if self.server.demo else '; Secure')
+            return self.reply(200, dict(result, csrf=csrf), extra={'Set-Cookie': cookie})
+        if not api or self.headers.get('Origin') not in self.server.origins:
+            raise Problem('Origen no permitido.', 403)
+        self.availability_csrf(token, self.headers.get('X-CSRF-Token', ''))
+        mine = polls.submit(token, self.body(16384))
+        mine.pop('personId', None)
+        return self.reply(200, {'ok': True, 'mine': mine})
 
     def do_GET(self):
         self.dispatch()
@@ -688,6 +750,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def dispatch(self):
         try:
+            route = unquote(urlsplit(self.path).path)
+            if route.startswith(PUBLIC_PREFIX):
+                return self.public_availability(route)
             user = self.identity()
             actor = user["username"]
             route = unquote(urlsplit(self.path).path)
@@ -703,6 +768,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo), extra={"Set-Cookie": cookie})
                 if route.startswith("api/items/"):
                     return self.reply(200, store.details(route.split("/")[-1]))
+                if route.startswith('api/availability/'):
+                    return self.reply(200, store.availability.details(route.split('/')[-1]))
                 if route == "api/whatsapp/status":
                     return self.reply(200, self.server.whatsapp.status())
                 if route == "api/whatsapp/messages":
@@ -721,7 +788,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)
@@ -732,6 +799,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = store.create(data.get("kind"), data.get("data"), actor, data.get("requestId"))
             elif route == "api/update":
                 result = store.update(data.get("id"), data.get("data"), actor, data.get("version"))
+            elif route == 'api/availability/confirm':
+                result = store.availability.confirm(data, actor)
             elif route == "api/move":
                 result = store.move(data.get("id"), data.get("status"), data.get("beforeId", ""), actor, data.get("version"))
             elif route == "api/archive":

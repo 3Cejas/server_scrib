@@ -4,7 +4,7 @@
   const STATUS = {todo: "TO DO", progress: "EN PROGRESO", blocked: "BLOQUEADA", done: "COMPLETADAS"};
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};
-  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla"};
+  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta"};
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   let state = null, calendarMode = "calendar", month = new Date(), saving = false, toastTimer;
@@ -38,6 +38,7 @@
   };
   const progressHtml = (p, css = "") => `<progress class="${css}" max="100" value="${p.percent}" aria-label="${p.done} de ${p.total} tareas completadas"></progress>`;
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
+  const polls = window.ScribAvailability({state:()=>state, item, active, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
 
   function toast(message) {
     const node = document.querySelector("#toast");
@@ -80,11 +81,13 @@
       columns:Object.fromEntries([...main.querySelectorAll(".column")].map(c=>[c.dataset.status,c.querySelector(".ticket-list").scrollTop]))
     } : null;
     const [page = "home", id] = route();
-    const nav = page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
+    const nav = page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = "MUNDO SCRIB / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO", boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = "MUNDO SCRIB / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
+    else if (page === "availability") content = polls.list();
+    else if (page === "poll") content = polls.detail(id);
     else if (page === "boards") content = renderBoards();
     else if (page === "board") content = renderBoard(id);
     else if (page === "event") content = renderEvent(id);
@@ -106,6 +109,7 @@
   }
   function eventCard(event) {
     const p = progress(event.boardId);
+    if(event.eventType === "rehearsal") return `<article class="panel event-card"><p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p class="section">${esc(dateTime(event.start))} — ${hour(event.end)}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${EVENT_STATUS[event.status]}</p><a class="button section" href="#event/${event.id}">Ver ensayo ↗</a></article>`;
     return `<article class="panel event-card"><div class="service-top"><span class="event-date">${esc(niceDate(event.start,false))} · ${hour(event.start)}</span>${badge(EVENT_STATUS[event.status],event.status === "confirmed" ? "green" : "gold")}</div><h3>${esc(event.title)}</h3><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<div class="actions"><a class="button small" href="#event/${event.id}">Ver bolo</a><a class="button small" href="#board/${event.boardId}">Abrir tareas ↗</a></div></article>`;
   }
   function renderHome() {
@@ -125,7 +129,7 @@
     return `<div class="activity-row"><span class="activity-dot">•</span><div>${esc(member(log.actor))} · ${esc(log.action)}<small>${esc(titleOf(target))} · ${esc(dateTime(log.created))}</small></div></div>`;
   }
   function renderEvents() {
-    return pageHead("LA GIRA, BIEN ATADA", "Bolos y calendario", "Cada función tiene su elenco, su hoja de ruta y su propio tablero de preparación. Horarios de Madrid.",btn("new-event","＋ Crear bolo","","primary")) +
+    return pageHead("LA GIRA, BIEN ATADA", "Bolos y calendario", "Funciones y ensayos del elenco, juntos en el calendario. Los ensayos se pueden confirmar desde Disponibilidad. Horarios de Madrid.",btn("new-event","＋ Crear bolo","","primary")) +
       `<div class="toolbar"><div class="segmented" aria-label="Vista de los bolos"><button type="button" data-action="events-calendar" class="${calendarMode === "calendar"?"active":""}">Calendario</button><button type="button" data-action="events-agenda" class="${calendarMode === "agenda"?"active":""}">Agenda</button></div><a class="button small" href="${BASE}api/calendar.ics">↓ Exportar calendario</a></div>` +
       (calendarMode === "agenda" ? `<div class="grid cols3">${active("event").sort((a,b)=>a.start.localeCompare(b.start)).map(eventCard).join("") || empty("Todavía no hay bolos","Crea tu primera función y prepara el equipo.")}</div>` : renderCalendar());
   }
@@ -169,9 +173,9 @@
     const p = progress(event.boardId), tasks = tasksFor(event.boardId), blocks = tasks.filter(x=>x.status === "blocked");
     const casts = event.cast.map(c=>{const person=item(c.personId);return `<button type="button" class="cast-chip ${c.team}" data-action="edit-person" data-id="${c.personId}">${esc(person?.name || "Ficha no disponible")}<small>${esc(c.role)}${c.team === "general"?"":" · Equipo " + (c.team === "blue"?"azul":"rojo")}</small></button>`;}).join("");
     return pageHead("HOJA DE RUTA",event.title,`${niceDate(event.start)} · ${hour(event.start)} · ${EVENT_STATUS[event.status]}`,
-      btn("edit-event","Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ WhatsApp al elenco",event.id) + btn("print","↓ Hoja de llamada",event.id) + (event.historical ? "" : `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`)) +
+      btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ WhatsApp al elenco",event.id) + btn("print","↓ Hoja de llamada",event.id) + (event.historical ? "" : `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) + (event.eventType === "rehearsal" ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
       `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
-      ${event.historical ? `<section class="panel"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
+      ${event.eventType === "rehearsal" ? `<section class="panel"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
       <section class="panel"><div class="panel-head"><h2>Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="team-row">${casts || `<p class="muted">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</div></section>
       <section class="panel"><h2>Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">Mundo SCRIB · ${niceDate(today())} · Horario Europe/Madrid</p></section></div>`;
   }
@@ -311,6 +315,7 @@
   const splitValues = s => String(s || "").split(",").map(x=>x.trim()).filter(Boolean);
   async function formData(form) {
     const data = Object.fromEntries(new FormData(form));
+    if (form.dataset.kind === "availability") return polls.formData(form, data);
     if (form.dataset.kind === "ticket") {
       data.labels = splitValues(data.labels);
       data.assignees = [...form.querySelectorAll('[name=assignees]:checked')].map(x=>x.value);
@@ -352,6 +357,7 @@
         try {await refresh(false);} catch (_) {refreshed=false;}
         dialog.close();
         if (form.dataset.kind === "event") location.hash = "event/" + result.item.id;
+        else if (form.dataset.kind === "availability") {polls.invalidate();location.hash = "poll/" + result.item.id;renderPage();}
         else if (form.dataset.kind === "board") location.hash = "board/" + result.item.id;
         else renderPage();
         toast(!refreshed ? "Guardado en el servidor. Recarga para ver todos los cambios cuando vuelva la conexión." : form.dataset.kind === "event" && !id ? "Bolo creado: tareas iniciales listas en TO DO." : "Guardado en el backstage.");
@@ -375,6 +381,7 @@
   }
   async function action(node) {
     const {action:a,id,status} = node.dataset;
+    if(await polls.action(node))return;
     if(a === "new-event")openEvent();
     else if(a === "new-event-day")openEvent("",id);
     else if(a === "edit-event")openEvent(id);
@@ -428,7 +435,7 @@
     if(event.target.id === "people-search")main.querySelectorAll("[data-person]").forEach(node=>{const p=item(node.dataset.person);node.hidden=![p.name,...p.roles].join(" ").toLowerCase().includes(event.target.value.toLowerCase());});
   });
   dialog.addEventListener("cancel",event=>{if(saving)event.preventDefault();});
-  window.addEventListener("hashchange",()=>{filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
+  window.addEventListener("hashchange",()=>{polls.invalidate();filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
 
   function clearDrop() {document.querySelectorAll(".drop-active,.drop-before").forEach(n=>n.classList.remove("drop-active","drop-before"));}
   function targetAt(target, y) {
