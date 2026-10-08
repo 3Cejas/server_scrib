@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlparse
 import integrate
+import rename_world
 
 
 GATEWAY = '''from gateway_availability import is_availability_location
@@ -97,7 +98,7 @@ class PowerIntegrationTests(unittest.TestCase):
 class InstalledGatewayTests(unittest.TestCase):
     def setUp(self):
         source = Path(os.environ["SCRIB_GATEWAY_SOURCE"]).read_text()
-        self.source = integrate.world_power_gateway(source)
+        self.source = source if rename_world.NEW_CONDITION in source else integrate.world_power_gateway(source)
         self.ns = isolated_functions(self.source, ["is_world_location", "world_service_key", "wake_target_is_supported", "wake_request_is_allowed"], {
             "urlparse":urlparse, "WORLD_ACTIVITY_PREFIXES":["/sutura/","/wit/","/impropios/","/trescejas/"],
             "WAKE_SUPPORT_PREFIXES":["/outpost.goauthentik.io/"], "is_availability_location":lambda _:False,

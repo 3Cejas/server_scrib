@@ -17,7 +17,8 @@ RELATIVE_CARD = '''      <a class="world world--scrib" href="/mundo-scrib/" aria
         <img class="world-logo world-scrib-logo" src="/favicons/scrib-world-logo.png?v=1" width="500" height="500" alt="&lt;SCRI&gt; B">
       </a>
 '''
-CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/mundo-scrib/"')
+PREVIOUS_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/mundo-scrib/"')
+CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/scrib/"')
 CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
     .world--scrib { --accent: #64e7e2; background: linear-gradient(120deg, #152f36, #20162b 55%, #40212b); border-color: #71506b; gap: 0; }
     .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; }
@@ -232,6 +233,8 @@ def update_selector(source):
         return source
     if source.count(RELATIVE_CARD) == 1 and source.count(CSS) == 1:
         return source.replace(RELATIVE_CARD, CARD, 1)
+    if source.count(PREVIOUS_CARD) == 1 and source.count(CSS) == 1:
+        return source.replace(PREVIOUS_CARD, CARD, 1)
     if source.count(LEGACY_CARD) != 1 or source.count(LEGACY_CSS) != 1:
         raise ValueError("El selector ha cambiado: revisar manualmente, no sobrescribir.")
     return source.replace(LEGACY_CARD, CARD, 1).replace(LEGACY_CSS, CSS, 1)

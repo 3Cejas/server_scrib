@@ -256,7 +256,7 @@ class HTTPTests(unittest.TestCase):
         conn=http.client.HTTPConnection("127.0.0.1",self.port,timeout=5)
         merged=dict(self.headers);merged.update(headers or {})
         if data is not None:merged["Content-Type"]="application/json"
-        conn.request("POST" if data is not None else "GET",world.PREFIX+path,body=json.dumps(data) if data is not None else None,headers=merged)
+        conn.request("POST" if data is not None else "GET",world.WORLD_ROOT if path=="" else world.PREFIX+path,body=json.dumps(data) if data is not None else None,headers=merged)
         resp=conn.getresponse();body=resp.read();status=resp.status;out=dict(resp.getheaders());conn.close()
         return status,body if raw else json.loads(body),out
 
@@ -486,7 +486,7 @@ class IntegrationTests(unittest.TestCase):
         old='    .world--wit {\n      <a class="world world--wit" href="/wit/">'
         new=integrate.entry_html(old)
         self.assertEqual(new,integrate.entry_html(new))
-        self.assertIn('href="https://sutura-gateway.ddns.net/mundo-scrib/"',new)
+        self.assertIn('href="https://sutura-gateway.ddns.net/scrib/"',new)
         self.assertIn('href="/wit/"',new)
         self.assertIn('src="/favicons/scrib-world-logo.png?v=1"',new)
         self.assertNotIn('world-scrib-copy',new)

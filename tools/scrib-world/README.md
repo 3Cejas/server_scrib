@@ -1,6 +1,6 @@
 # Mundo <SCRI> B
 
-Aplicación independiente de producción y dramaturgia en `/mundo-scrib/`.
+Aplicación independiente de producción y dramaturgia en `/scrib/`.
 No modifica el servidor del videojuego ni sus partidas. Python 3.10+, SQLite y
 JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones continuas.
 
@@ -82,13 +82,18 @@ afectados. Los datos de encuestas reales no se crean durante el despliegue.
 
 ### Encendido y actividad del mundo privado
 
-La entrada canónica es `https://sutura-gateway.ddns.net/mundo-scrib/`, disponible
+La entrada canónica es `https://sutura-gateway.ddns.net/scrib/`, disponible
 aunque el servidor principal esté apagado. El gateway reutiliza su confirmación
 de encendido y espera al arranque antes de continuar con Authentik. SCRIB comparte
 el contexto de acceso de Sutura, sin crear una cuenta ni una política nueva.
 Los enlaces antiguos en el servidor principal redirigen al gateway cuando está
 encendido; la web del servidor apagado no puede responder por sí sola.
 La tarjeta del selector usa directamente el gateway, también desde Sutura.
+Los enlaces `/mundo-scrib/` conservan sus fragmentos de tablero/bolo al redirigir
+a `/scrib/`. La API y los recursos privados usan `/scrib/backstage/` para no
+interceptar `/scrib/game/`, los roles antiguos ni sus JS/CSS. Las API antiguas
+siguen funcionando para no perder ediciones en pestañas previamente abiertas;
+su cookie CSRF conserva su ámbito y la nueva usa el namespace de backstage.
 
 `public/activity.js` emite actividad al entrar y cada 45 segundos, únicamente con
 la pestaña visible. Al ocultarla/dejar el mundo cesan los avisos; se conserva el
@@ -105,7 +110,12 @@ Aplicar también `selector` a ambas páginas de selección (gateway y DASHBOARD_
 Respaldar ambos archivos, validar Python/Nginx, reiniciar solo el servicio de
 encendido, SCRIB_WORLD y DASHBOARD_AUTH y recargar Nginx; no reiniciar el videojuego ni cambiar datos.
 
-Pruebas: `python3 -m unittest test_world test_availability test_power` y
+Después de las integraciones iniciales, `rename_world.py` migra `dashboard`,
+`nginx`, `gateway-nginx` y `gateway` a la URL canónica. Respalda cada archivo y
+valida Nginx/Python/Node antes de reiniciar solo los servicios afectados.
+No sustituir el alias general `/scrib/` ni la ruta del videojuego en el Nginx principal.
+
+Pruebas: `python3 -m unittest test_world test_availability test_power test_url` y
 `node test_activity.cjs`. Opcionalmente `SCRIB_GATEWAY_SOURCE=/ruta/wake_gateway.py`
 ejercita las funciones reales en aislamiento: sin importar el módulo completo,
 sin llamadas de red y sin ejecutar órdenes de encendido/apagado.
@@ -209,7 +219,7 @@ node --check tools/scrib-world/world_proxy.js
 python3 tools/scrib-world/server.py --demo --port 5131 --data /tmp/scrib-world-demo
 ```
 
-Abrir `http://127.0.0.1:5131/mundo-scrib/`. El modo demo solo escucha en localhost,
+Abrir `http://127.0.0.1:5131/scrib/`. El modo demo solo escucha en localhost,
 avisa claramente, crea datos ficticios y no consulta el videojuego. Nunca usar
 `--demo` en producción. Las pruebas HTTP utilizan secretos y usuarios ficticios
 en directorios temporales, no credenciales del servidor.
@@ -235,14 +245,14 @@ de `players_scrib/img/logo.png`, sin modificar. Para actualizar un selector ya
 instalado, `integrate.py selector ORIGINAL DESTINO` sustituye únicamente la
 tarjeta y su CSS conocidos, preservando el puente de autenticación y otros mundos.
 
-Nginx ya protege `/mundo-scrib/` a través de su `location /` con el snippet de
+La integración inicial protegía `/mundo-scrib/` a través de su `location /` con el snippet de
 Authentik. No necesita cambios de Nginx ni nuevas políticas. El gateway lo
 proxya por su ruta general y conserva su pantalla de encendido del servidor.
 
 1. Copiar código al backend, sin cachés, bases de datos ni secretos de desarrollo.
 2. Ejecutar pruebas en Python 3.10 del backend y comprobar puerto 5124 libre.
 3. `pm2 start /home/trescejas/dockers/scrib-world/ecosystem.config.js` (sin demo).
-4. Comprobar 401 sin puente en `http://127.0.0.1:5124/mundo-scrib/api/state`.
+4. Comprobar 401 sin puente en `http://127.0.0.1:5124/scrib/backstage/api/state`.
 5. Aplicar puente con copia previa y comprobación de hash; reiniciar únicamente
    `DASHBOARD_AUTH`, NO `SCRIB` ni los otros mundos.
 6. Comprobar acceso anónimo redirige a Authentik incluso enviando cabeceras falsas;

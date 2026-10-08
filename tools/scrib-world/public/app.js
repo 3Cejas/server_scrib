@@ -1,11 +1,13 @@
 "use strict";
 (() => {
   // Keep legacy links on the gateway too, including their selected board/event.
-  if (location.hostname === "sutura.ddns.net") {
-    location.replace("https://sutura-gateway.ddns.net" + location.pathname + location.search + location.hash);
+  if (location.hostname === "sutura.ddns.net" || location.pathname === "/mundo-scrib/" || location.pathname === "/mundo-scrib") {
+    const pathname = /^\/mundo-scrib\/?$/.test(location.pathname) ? "/scrib/" : location.pathname;
+    const origin = location.hostname === "sutura.ddns.net" ? "https://sutura-gateway.ddns.net" : location.origin;
+    location.replace(origin + pathname + location.search + location.hash);
     return;
   }
-  const BASE = "/mundo-scrib/";
+  const BASE = "/scrib/backstage/";
   const STATUS = {todo: "TO DO", progress: "EN PROGRESO", blocked: "BLOQUEADA", done: "COMPLETADAS"};
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};

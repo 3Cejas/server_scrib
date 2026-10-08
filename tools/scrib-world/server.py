@@ -27,7 +27,11 @@ from participations import with_participations
 from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PREFIX, TOKEN_RE
 
 ROOT = Path(__file__).resolve().parent
-PREFIX = "/mundo-scrib/"
+WORLD_ROOT = "/scrib/"
+# The live game keeps /scrib/game/ and its older role/asset routes. Only the
+# backstage root and this dedicated namespace go to this independent service.
+PREFIX = "/scrib/backstage/"
+LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
 KINDS = ("board", "ticket", "event", "person", "template", "availability")
 MAX_BODY = 6 * 1024 * 1024
@@ -756,15 +760,22 @@ class Handler(BaseHTTPRequestHandler):
             user = self.identity()
             actor = user["username"]
             route = unquote(urlsplit(self.path).path)
-            if not route.startswith(PREFIX):
+            if route == WORLD_ROOT:
+                if self.command not in ("GET", "HEAD"):
+                    raise Problem("No encontrado.", 404)
+                route = ""
+                cookie_prefix = PREFIX
+            elif route.startswith(PREFIX) or route.startswith(LEGACY_PREFIX):
+                cookie_prefix = PREFIX if route.startswith(PREFIX) else LEGACY_PREFIX
+                route = route[len(cookie_prefix):]
+            else:
                 raise Problem("No encontrado.", 404)
-            route = route[len(PREFIX):]
             store = self.server.store
             if self.command in ("GET", "HEAD"):
                 if route == "api/state":
                     store.identify(actor, user["name"])
                     token = self.valid_cookie_token(actor) or self.csrf_token(actor)
-                    cookie = f"scrib_world_csrf={token}; HttpOnly; SameSite=Strict; Path={PREFIX}; Max-Age=43200" + ("" if self.server.demo else "; Secure")
+                    cookie = f"scrib_world_csrf={token}; HttpOnly; SameSite=Strict; Path={cookie_prefix}; Max-Age=43200" + ("" if self.server.demo else "; Secure")
                     return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo), extra={"Set-Cookie": cookie})
                 if route.startswith("api/items/"):
                     return self.reply(200, store.details(route.split("/")[-1]))

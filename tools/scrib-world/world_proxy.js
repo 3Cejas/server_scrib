@@ -4,7 +4,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const PREFIX = "/mundo-scrib/";
+const PREFIX = "/scrib/backstage/";
 module.exports = function scribWorldProxy(req, res, session) {
   if (!session) {
     res.writeHead(401, {"Content-Type":"application/json; charset=utf-8", "Cache-Control":"no-store"});
