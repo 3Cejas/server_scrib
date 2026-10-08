@@ -33,9 +33,10 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(len([o for o in self.store.snapshot()['items'] if o['kind']=='inventory']),3)
 
     def test_quantity_is_bounded_integer_not_bool_float_or_string(self):
-        for quantity in [-1,10000,True,1.5,'2',None]:
+        for quantity in [-1,10000,True,1.5,'2']:
             with self.subTest(quantity=quantity),self.assertRaises(world.Problem):self.create(title='Maleta',quantity=quantity)
         for quantity in [0,9999]:self.assertEqual(self.create(title='Maleta',quantity=quantity)['quantity'],quantity)
+        self.assertIsNone(self.create(title='Sin contar',quantity=None)['quantity'])
 
     def test_invalid_options_and_empty_title(self):
         for patch in [{'title':''},{'team':'purple'},{'condition':'lost'},{'category':'invalid'}]:

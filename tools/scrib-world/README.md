@@ -19,6 +19,10 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   completarla. Añadir la hora después no duplica ni reinicia las tareas del tablero.
 - Fichas reutilizables de personas: nombre completo, especialidades, biografía,
   redes y foto privada. Un papel y equipo diferentes en cada función.
+- Fichas visuales con tarjetas de teléfono y `@usuario` de Instagram, enlaces
+  directos y roles con iconos y etiquetas seleccionables (varios por persona).
+  El campo Instagram admite un arroba o una URL. Los roles nuevos se validan
+  contra el catálogo; los antiguos fuera del catálogo se conservan al editar.
 - Color de identidad estable por UUID, independiente del equipo azul/rojo y del
   nombre. Elenco, reparto, inventario, disponibilidad y gestión utilizan la misma
   paleta de 24 tonos; puede elegirse desde la ficha y queda incluido en las copias
@@ -45,8 +49,16 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
 - **Inventario** registra objetos del equipo azul, rojo o compartidos: cantidad,
   categoría, estado, ubicación, responsable del elenco, descripción y foto privada.
   Filtros y búsqueda no duplican existencias; la ficha de cada bolo muestra los
-  objetos asociados. Cantidades enteras 0–9999, referencias validadas, conflictos
+  objetos asociados. Cantidades enteras 0–9999 o «Sin especificar», referencias validadas, conflictos
   de versión y archivo recuperable. No se precargan objetos ficticios.
+- La lista de 11 objetos solicitada el 8/10/2026 está en `initial_inventory.json`.
+  Se añade atómicamente una sola vez al iniciar el servidor en producción, como
+  compartidos y por revisar. Conserva las cantidades indicadas; cinta, pinturas,
+  mochilas y sobres quedan sin cantidad, no en cero. Los totales lo explicitan.
+  Reinicios no duplican objetos ni restablecen sus cantidades, equipos o archivo.
+  Si ya existe un objeto con ese nombre, se conserva, sin sustituir sus datos.
+  La importación manual puede revisarse con `python3 tools/scrib-world/inventory_seed.py
+  --data /RUTA/PRIVADA`; añadir `--apply` la ejecuta. El modo demo no importa esta lista.
 - Se guardan como `kind=inventory` en `world.sqlite3`, fotos en `images/`, dentro
   de los backups SQLite y ZIP existentes. La asociación con un bolo no archiva
   ni elimina el objeto cuando termina o se archiva ese bolo.
@@ -250,9 +262,10 @@ La herramienta anterior `/scrib-produccion/` y sus datos se conservan intactos.
   del grupo solo se sirven tras autenticación; no aparecen en la web pública o Git.
 - Las fichas no muestran avisos de revisar identidad ni su procedencia de importación.
   Se conservan el historial de participaciones y los metadatos internos para recuperación
-  e importaciones sin duplicados. La comprobación del teléfono para enviar sigue activa.
-- Confirmar explícitamente que el número corresponde a esa persona antes de enviar.
-  Cambiar el teléfono en la interfaz desmarca su confirmación.
+  e importaciones sin duplicados. El campo se llama «Teléfono», sin casilla de
+  comprobación de identidad. Los metadatos de confirmación antiguos no bloquean
+  envíos ni se fabrican nuevas verificaciones. Se sigue validando el número y
+  se mantienen la vista previa, la confirmación del mensaje y los controles anti-duplicado.
 - Sección **WhatsApp**, botón en cada persona y botón **WhatsApp al elenco** en el bolo.
   Selección explícita de hasta 50 destinatarios, sin seleccionar a todos por defecto.
 - Variables permitidas: `{nombre}`, `{nombre_completo}`, `{bolo}`, `{fecha}`, `{hora}`,
@@ -317,6 +330,7 @@ python3 import_history.py --data /RUTA/PRIVADA --schedule /RUTA/main.js \
 ```bash
 python3 -m unittest discover -s tools/scrib-world -p 'test_world.py' -v
 python3 -m unittest discover -s tools/scrib-world -p 'test_people_colors.py' -v
+python3 -m unittest discover -s tools/scrib-world -p 'test_people_profiles.py' -v
 node tools/scrib-world/test_people_colors.cjs
 node --check tools/scrib-world/public/app.js
 node --check tools/scrib-world/world_proxy.js

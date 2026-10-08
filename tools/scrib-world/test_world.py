@@ -355,8 +355,9 @@ class ClientCopyTests(unittest.TestCase):
         self.assertIn('"open-participation"', client)
         self.assertIn('"show-calendar"', client)
         self.assertIn('id="calendar-month"', client)
-        self.assertIn('name="phoneConfirmed"', client)
-        self.assertIn('!p.phone||!p.phoneConfirmed?"disabled"', client)
+        self.assertNotIn('phoneConfirmed', client)
+        self.assertIn('!p.phone?"disabled"', client)
+        self.assertIn('profile.roleEditor(p.roles)', client)
 
 
 class ParticipationTests(unittest.TestCase):
@@ -468,7 +469,7 @@ class HistoryImportTests(unittest.TestCase):
         p = self.store.details(self.person["id"])["item"]
         self.assertEqual(p["instagram"], ig["Ana Sempere"]["url"])
         self.assertEqual(p["phone"], self.person["phone"])
-        self.assertFalse(p["phoneConfirmed"])
+        self.assertFalse(p.get("phoneConfirmed", False))
         ig["Ana Sempere"]["url"] = "https://instagram.com/another/"
         self.assertTrue(self.run_import(instagram=ig)["instagram"][0]["keptExisting"])
         self.assertEqual(self.store.details(p["id"])["item"]["instagram"], p["instagram"])
@@ -555,14 +556,18 @@ class MessageTests(StoreTests):
         for invalid in ['+0123456789','+123','javascript:1','+12345678901234567','123ext45']:
             with self.assertRaises(WhatsappProblem):phone_number(invalid)
 
-    def test_phone_confirmation_explicit_and_preserved_on_old_form(self):
-        p=self.person();changed=self.store.update(p['id'],dict(p,bio='Nota'),'angela',p['version'])
-        self.assertTrue(changed['phoneConfirmed'])
-        with self.assertRaises(ProblemException):self.person(confirmed='true')
-        legacy={k:v for k,v in changed.items() if k!='phoneConfirmed'}
-        legacy['phone']='+34900000002'
-        updated=self.store.update(p['id'],legacy,'angela',changed['version'])
+    def test_phone_confirmation_no_longer_requested_and_legacy_flag_is_not_asserted(self):
+        p=self.person(confirmed=False)
+        self.assertNotIn('phoneConfirmed',p)
+        changed=self.store.update(p['id'],dict(p,bio='Nota'),'angela',p['version'])
+        self.assertNotIn('phoneConfirmed',changed)
+        # Preserve old metadata without pretending it was checked or using it to gate.
+        with self.store.connect() as db:
+            old=dict(changed,phoneConfirmed=False)
+            db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(old),p['id']))
+        updated=self.store.update(p['id'],dict(changed,phone='+34900000002'),'angela',changed['version'])
         self.assertFalse(updated['phoneConfirmed'])
+        self.assertEqual(self.preview([p['id']])['people'][0]['phone'],'+34900000002')
 
     def test_preview_does_not_send_and_keeps_linebreaks(self):
         d=self.preview(text='Hola {nombre},\n\n¿Ensayamos?')
@@ -570,10 +575,13 @@ class MessageTests(StoreTests):
         self.assertEqual(self.store.messages('angela')[0]['people'][0]['delivery']['status'],'pending')
         self.assertEqual(self.store.messages('pablo'),[])
 
-    def test_unconfirmed_or_absent_phone_blocked(self):
-        for phone in ['','+34900000001']:
-            p=self.person(phone=phone,confirmed=False)
-            with self.assertRaises(world.Problem):self.preview([p['id']])
+    def test_valid_phone_needs_no_profile_confirmation_but_absent_phone_blocks(self):
+        p=self.person(confirmed=False)
+        draft=self.preview([p['id']]);bridge=Mock()
+        self.assertEqual(self.send(draft,bridge)['status'],'sent')
+        bridge.send.assert_called_once_with(p['phone'],draft['people'][0]['text'])
+        p=self.person(phone='',confirmed=False)
+        with self.assertRaises(world.Problem):self.preview([p['id']])
 
     def test_duplicate_phone_and_bad_variables_rejected(self):
         p,q=self.person(),self.person('Otro')
@@ -662,7 +670,7 @@ class MessageTests(StoreTests):
         people=[p for p in self.store.snapshot()['items'] if p['kind']=='person']
         self.assertEqual(len(people),2)
         person=next(p for p in people if p.get('publicName')=='Persona Ficticia')
-        self.assertFalse(person['phoneConfirmed'])
+        self.assertFalse(person.get('phoneConfirmed',False))
         updated=self.store.update(person['id'],dict(person,bio='Manual'),'angela',person['version'])
         self.assertEqual(updated['history'][0]['venue'],'Sala')
         roster['group']['name']='Otro grupo'

@@ -28,6 +28,7 @@ from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PRE
 from game_config import normalize as normalize_game_config, profile as game_profile, SCHEMA as GAME_CONFIG_SCHEMA
 from business import Business, SCHEMA as BUSINESS_SCHEMA
 from materials import MaterialLibrary, POLICY as MATERIAL_POLICY
+from inventory_seed import apply_initial_inventory
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -38,6 +39,7 @@ LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
 KINDS = ("board", "ticket", "event", "person", "template", "availability", "inventory")
 PERSON_COLORS = ('auto','rose','peach','amber','gold','citron','pistachio','mint','jade','turquoise','cyan','sky','azure','periwinkle','violet','lilac','orchid','fuchsia','pink','salmon','lavender','ice','seafoam','sand','clay')
+PERSON_ROLES = ('Escritura','Interpretación','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación')
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -103,6 +105,22 @@ def link(value):
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise Problem("Los enlaces deben empezar por https:// y no contener contraseñas.")
     return value
+
+
+def instagram_link(value):
+    value = text(value, 2000)
+    if re.fullmatch(r'@?[A-Za-z0-9_.]{1,30}', value):
+        return 'https://www.instagram.com/' + value.lstrip('@') + '/'
+    return link(value)
+
+
+def person_roles(value, existing=None):
+    roles = values(value, 24)
+    canonical = {role.casefold(): role for role in PERSON_ROLES}
+    legacy = set((existing or {}).get('roles', []))
+    if any(role.casefold() not in canonical and role not in legacy for role in roles):
+        raise Problem('Selecciona los roles de la lista de etiquetas.')
+    return list(dict.fromkeys(canonical.get(role.casefold(), role) for role in roles))
 
 
 class ClosingConnection(sqlite3.Connection):
@@ -240,12 +258,12 @@ class Store:
             return self.availability.validate(db, data, existing)
         if kind == 'inventory':
             quantity=data.get('quantity',1)
-            if type(quantity) is not int or not 0 <= quantity <= 9999:
-                raise Problem('Cantidad no válida: número entero de 0 a 9999.')
+            if quantity is not None and (type(quantity) is not int or not 0 <= quantity <= 9999):
+                raise Problem('Cantidad no válida: número entero de 0 a 9999 o sin especificar.')
             body={'title':text(data.get('title',''),240,True),'description':text(data.get('description',''),15000),
                   'team':choice(data.get('team','general'),('blue','red','general')),'quantity':quantity,
                   'category':choice(data.get('category','props'),('props','costume','furniture','technical','other')),
-                  'condition':choice(data.get('condition','good'),('good','repair','missing','loaned')),
+                  'condition':choice(data.get('condition','good'),('good','repair','missing','loaned','unchecked')),
                   'location':text(data.get('location',''),1000),'custodianId':text(data.get('custodianId',''),100),
                   'eventId':text(data.get('eventId',''),100),'image':text(data.get('image',''),200)}
             for field,reference in [('custodianId','person'),('eventId','event')]:
@@ -258,16 +276,15 @@ class Store:
             return body
         if kind == "person":
             body = {"name": text(data.get("name", ""), 160, True), "bio": text(data.get("bio", ""), 5000),
-                    "roles": values(data.get("roles", []), 12), "instagram": link(data.get("instagram", "")),
+                    "roles": person_roles(data.get("roles", []), existing), "instagram": instagram_link(data.get("instagram", "")),
                     "website": link(data.get("website", "")), "otherSocial": link(data.get("otherSocial", "")),
                     "image": text(data.get("image", ""), 200)}
             body['color'] = choice(data.get('color',(existing or {}).get('color','auto')),PERSON_COLORS)
             body["phone"] = phone_number(data.get("phone", (existing or {}).get("phone", "")))
-            preserved = (existing or {}).get("phoneConfirmed", False) and body["phone"] == (existing or {}).get("phone", "")
-            confirmed = data.get("phoneConfirmed", preserved)
-            if type(confirmed) is not bool:
-                raise Problem("Confirmación de teléfono no válida.")
-            body["phoneConfirmed"] = bool(body["phone"] and confirmed)
+            # Old backups may still contain this flag. Preserve it for compatibility,
+            # but it is no longer requested, set by the form, or used to gate sending.
+            if existing and 'phoneConfirmed' in existing:
+                body['phoneConfirmed'] = existing['phoneConfirmed']
             # Import provenance is preserved, not overwritten by a profile form.
             for key in ("sourceGroup", "sourceKey", "nameMatch", "history", "publicName"):
                 if existing and key in existing:
@@ -534,8 +551,9 @@ class Store:
             for ident in ids:
                 person = self.item(db, ident, "person", True)
                 phone = person.get("phone", "")
-                if not phone or not person.get("phoneConfirmed"):
-                    raise Problem("Revisa y confirma el teléfono de " + person["name"] + " en su ficha antes de enviar.")
+                if not phone:
+                    raise Problem("Añade un teléfono a la ficha de " + person["name"] + " antes de enviar.")
+                phone = phone_number(phone)
                 if phone in phones:
                     raise Problem("Hay dos fichas con el mismo teléfono. Revisa los destinatarios.")
                 phones.add(phone)
@@ -590,7 +608,7 @@ class Store:
                 if not agreement or agreement['status']=='revoked' or agreement['expires'] < time.time():
                     raise Problem('El acuerdo ha caducado o fue revocado. Genera una nueva vista previa.',409)
             current = self.item(db, person["id"], "person", True)
-            if current["version"] != person["version"] or not current.get("phoneConfirmed") or current.get("phone") != person["phone"]:
+            if current["version"] != person["version"] or current.get("phone") != person["phone"]:
                 raise Problem("La ficha o el teléfono han cambiado. Genera una nueva vista previa.", 409)
             if draft["eventId"] and self.item(db, draft["eventId"], "event", True)["version"] != draft["eventVersion"]:
                 raise Problem("El bolo ha cambiado. Genera una nueva vista previa.", 409)
@@ -891,7 +909,7 @@ class Handler(BaseHTTPRequestHandler):
                     store.identify(actor, user["name"])
                     token = self.valid_cookie_token(actor) or self.csrf_token(actor)
                     cookie = f"scrib_world_csrf={token}; HttpOnly; SameSite=Strict; Path={cookie_prefix}; Max-Age=43200" + ("" if self.server.demo else "; Secure")
-                    return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo, gameConfigSchema=GAME_CONFIG_SCHEMA), extra={"Set-Cookie": cookie})
+                    return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo, gameConfigSchema=GAME_CONFIG_SCHEMA, personRoles=PERSON_ROLES), extra={"Set-Cookie": cookie})
                 if route.startswith("api/items/"):
                     return self.reply(200, store.details(route.split("/")[-1]))
                 if route.startswith('api/availability/'):
@@ -914,7 +932,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"people.css": ("people.css", "text/css; charset=utf-8"), "people-colors.js": ("people-colors.js", "application/javascript; charset=utf-8"), "inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"people-profile.js": ("people-profile.js", "application/javascript; charset=utf-8"), "people.css": ("people.css", "text/css; charset=utf-8"), "people-colors.js": ("people-colors.js", "application/javascript; charset=utf-8"), "inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)
@@ -996,6 +1014,10 @@ def main():
     store = Store(args.data, args.users)
     if args.demo:
         demo_data(store)
+    else:
+        seeded = apply_initial_inventory(store)
+        if seeded['added']:
+            LOG.info('Inventario solicitado: %s fichas añadidas', seeded['added'])
     app = App(args.port, store, args.demo)
     LOG.info("Mundo SCRIB en localhost:%s (demo=%s)", args.port, args.demo)
     app.serve_forever()

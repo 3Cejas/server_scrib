@@ -22,16 +22,17 @@ function client() {
     location:{hostname:'localhost',origin:'http://localhost',pathname:'/scrib/',hash:'#home'},
     document:{querySelector:q=>nodes[q.slice(1)]||null,querySelectorAll:()=>[],getElementById:id=>nodes[id],
       addEventListener:(k,f)=>{listeners[k]=f;}},crypto:{randomUUID:()=> 'test-request'},
-    setInterval(){},setTimeout:()=>1,clearTimeout(){},AbortController,
+    setInterval(){},setTimeout:()=>1,clearTimeout(){},AbortController,URL,
+    FormData:class{constructor(form){return form.entries;}},
     fetch:async(url,options)=>{calls.push({url,options});return {ok:true,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>responses[url]||{reports:[]}};}};
   vm.createContext(context);
-  for(const file of ['people-colors.js','availability.js','business.js','inventory.js'])vm.runInContext(read(file),context,{filename:file});
+  for(const file of ['people-colors.js','people-profile.js','availability.js','business.js','inventory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,renderHome,renderEvent,renderPeople,renderArchive,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,renderHome,renderEvent,renderPeople,renderArchive,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -147,4 +148,51 @@ test('palette has readable contrast on dark backgrounds and no continuous animat
   assert.doesNotMatch(styles,/animation:|filter:|backdrop-filter:|url\(/);
   assert.match(styles,/@media\(max-width:700px\)/);assert.match(styles,/overflow-wrap:anywhere/);assert.match(styles,/@media print/);
   assert.doesNotMatch(read('people-colors.js'),/\.style\b|style=/);
+});
+test('visual profile shows the Instagram handle and formatted phone instead of generic links',()=>{
+  const {app,people}=client();people[0].instagram='https://www.instagram.com/_anasempere/?igsh=test';
+  const html=app.renderPeople();balanced(html);
+  assert.match(html,/@_anasempere ↗/);assert.match(html,/\+34 600 000 000/);
+  assert.match(html,/href="tel:\+34600000000"/);assert.match(html,/person-contact instagram/);
+  assert.match(html,/person-role role-cyan/);assert.doesNotMatch(html,/>Instagram ↗<|Teléfono privado/);
+  app.openPerson('p1');
+});
+test('Instagram handles update from URLs or at-signs and invalid legacy links never crash or execute',()=>{
+  const {app}=client(),p=app.profile;
+  for(const value of ['@_anasempere','_anasempere','https://www.instagram.com/_anasempere/','https://instagram.com/_anasempere/?igsh=abc'])assert.equal(p.instagramHandle(value),'@_anasempere');
+  for(const value of ['https://instagram.com/p/ABC/','https://example.com/anasempere','javascript:alert(1)',''])assert.equal(p.instagramHandle(value),'');
+  const html=p.contacts({instagram:'javascript:alert(1)',website:'broken',otherSocial:'https://user:pass@example.com/'});
+  balanced(html);assert.doesNotMatch(html,/href="javascript|href="https:\/\/user:pass/);
+  assert.doesNotThrow(()=>p.contacts({}));
+});
+test('roles are checkbox tags, not a free text field, including cast selectors',()=>{
+  const {app,nodes}=client();app.openPerson('p1');const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.match(html,/<fieldset class="person-role-picker">/);
+  assert.match(html,/<input type="checkbox" name="roles" value="Interpretación" checked>/);
+  assert.doesNotMatch(html,/<input name="roles"|name="phoneConfirmed"|He comprobado que este teléfono/);
+  const legacy=app.profile.roleEditor(['Rol histórico']);assert.match(legacy,/value="Rol histórico" checked/);
+  const cast=app.castRow({personId:'p1',role:'Escritura',team:'blue'});balanced(cast);
+  assert.match(cast,/<select class="cast-role"/);assert.doesNotMatch(cast,/input class="cast-role"|datalist/);
+});
+test('form serializes multiple role tags and blank inventory quantity without turning it into zero',async()=>{
+  const {app}=client();
+  const person=await app.formData({dataset:{kind:'person'},entries:[['name','Ana'],['roles','Escritura'],['roles','Interpretación']],querySelectorAll:()=>[{value:'Escritura'},{value:'Interpretación'}]});
+  assert.deepEqual(Array.from(person.roles),['Escritura','Interpretación']);assert.ok(!('phoneConfirmed' in person));
+  const object=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','']]});
+  assert.equal(object.quantity,null);
+  const zero=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','0']]});assert.equal(zero.quantity,0);
+});
+test('a phone is usable without identity checkbox, while missing phone remains disabled',()=>{
+  const {app,people,nodes}=client();people[0].phoneConfirmed=false;people[1].phone='';
+  app.messageRecipients('e1','p1');const html=nodes['message-recipients'].innerHTML;
+  assert.match(html,/<input type="checkbox" name="people" value="p1"\s+checked>/);
+  assert.match(html,/<input type="checkbox" name="people" value="p2" disabled/);
+  assert.doesNotMatch(html,/Confirma el teléfono|Teléfono confirmado/);
+});
+test('unquantified inventory cards and event entries stay explicit without NaN or null',()=>{
+  const {app,state,event}=client();state.items.push({id:'obj',kind:'inventory',title:'Mochilas',team:'general',quantity:null,category:'props',condition:'unchecked',eventId:'e1'});
+  for(const html of [app.inventory.list(),app.inventory.eventPanel(event)]){
+    balanced(html);assert.match(html,/Cantidad sin especificar/);assert.match(html,/Por revisar/);assert.doesNotMatch(html,/× null|NaN/);
+  }
+  assert.match(app.inventory.list(),/1 sin cantidad/);
 });

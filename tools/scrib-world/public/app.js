@@ -47,6 +47,7 @@
   };
   const progressHtml = (p, css = "") => `<progress class="${css}" max="100" value="${p.percent}" aria-label="${p.done} de ${p.total} tareas completadas"></progress>`;
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
+  const profile = window.ScribPersonProfile({esc,roles:()=>state?.personRoles});
   const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
   const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
   const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage});
@@ -124,7 +125,6 @@
     if(page === "people")main.querySelectorAll('[data-person]').forEach(card=>{
       const p=item(card.dataset.person);
       card.querySelector('.person-body > .actions').insertAdjacentHTML('beforeend',btn("compose-person","◌ WhatsApp",p.id,"small"));
-      card.querySelector('.bio').insertAdjacentHTML('afterend',`<p class="tiny">${esc(p.phone || "Sin teléfono")}</p>`);
     });
     if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;main.querySelectorAll(".column").forEach(c=>{c.querySelector(".ticket-list").scrollTop=keepScroll.columns[c.dataset.status] || 0;});}
     renderedRoute=location.hash;
@@ -211,7 +211,7 @@
   }
   function renderPeople() {
     return pageHead("LAS PERSONAS QUE LO HACEN POSIBLE", "Elenco", "Una ficha por persona. Reutiliza sus datos y asigna un papel diferente en cada función.",btn("new-person","＋ Nueva persona","","primary")) +
-      `<div class="toolbar"><input type="search" id="people-search" aria-label="Buscar en el elenco" placeholder="Buscar nombre o especialidad…"></div><div class="grid cols3">${active("person").sort((a,b)=>a.name.localeCompare(b.name,"es")).map(p=>`<article class="panel person-card ${colors.className(p)}" data-person="${p.id}">${p.image?`<img class="person-photo" src="${BASE}images/${p.image}" alt="${esc(p.name)}" loading="lazy">`:`<div class="person-placeholder" aria-hidden="true">${esc(initials(p.name))}</div>`}<div class="person-body"><h3>${personLabel(p.id)}</h3>${badge(`${p.participationCount || 0} ${(p.participationCount || 0) === 1 ? "bolo realizado" : "bolos realizados"}`,"gold")}<div class="label-group">${p.roles.map(x=>badge(x,"violet")).join("")}</div><p class="bio">${esc(p.bio)}</p>${personHistory(p,true)}<div class="socials">${[[p.instagram,"Instagram ↗"],[p.website,"Web ↗"],[p.otherSocial,"Otra red ↗"]].filter(([l])=>l).map(([l,n])=>`<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")}</div><div class="actions">${btn("edit-person","Ver / editar ficha",p.id,"small")}</div></div></article>`).join("") || empty("Todo empieza por el equipo","Añade a las personas del elenco; podrás elegirlas al crear cada bolo.",btn("new-person","＋ Añadir persona","","primary"))}</div>`;
+      `<div class="toolbar"><input type="search" id="people-search" aria-label="Buscar en el elenco" placeholder="Buscar nombre o especialidad…"></div><div class="grid cols3">${active("person").sort((a,b)=>a.name.localeCompare(b.name,"es")).map(p=>`<article class="panel person-card ${colors.className(p)}" data-person="${p.id}">${p.image?`<img class="person-photo" src="${BASE}images/${p.image}" alt="${esc(p.name)}" loading="lazy">`:`<div class="person-placeholder" aria-hidden="true">${esc(initials(p.name))}</div>`}<div class="person-body"><h3>${personLabel(p.id)}</h3>${badge(`${p.participationCount || 0} ${(p.participationCount || 0) === 1 ? "bolo realizado" : "bolos realizados"}`,"gold")}<div class="label-group">${profile.roleTags(p.roles)}</div><p class="bio">${esc(p.bio)}</p>${personHistory(p,true)}${profile.contacts(p)}<div class="actions">${btn("edit-person","Ver / editar ficha",p.id,"small")}</div></div></article>`).join("") || empty("Todo empieza por el equipo","Añade a las personas del elenco; podrás elegirlas al crear cada bolo.",btn("new-person","＋ Añadir persona","","primary"))}</div>`;
   }
   function renderTemplates() {
     return pageHead("NO VOLVER A EMPEZAR DE CERO","Plantillas de tareas","Al crear un bolo, se copian sus tareas en TO DO. Editar una plantilla no modifica funciones ya creadas.",btn("new-template","＋ Nueva plantilla","","primary")) +
@@ -235,7 +235,7 @@
     const event=eventId?item(eventId):null;
     const people=active("person").filter(p=>!event || event.cast.some(c=>c.personId === p.id)).sort((a,b)=>a.name.localeCompare(b.name,"es"));
     const target=dialog.querySelector('#message-recipients');
-    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone||!p.phoneConfirmed?"disabled":""} ${p.id===personId&&p.phoneConfirmed?"checked":""}><span><strong>${personLabel(p.id)}</strong><small>${p.phone?esc(p.phone):"Sin teléfono"} · ${p.phoneConfirmed?"Teléfono confirmado":"Confirma el teléfono en la ficha"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
+    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone?"disabled":""} ${p.id===personId&&p.phone?"checked":""}><span><strong>${personLabel(p.id)}</strong><small>${p.phone?esc(profile.displayPhone(p.phone)):"Sin teléfono"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
   }
   function openMessage(eventId="",personId="") {
     openDialog("message","Un mensaje para cada persona",`<form id="message-form"><div class="notice">No se envía nada hasta revisar y confirmar cada mensaje.</div>${field("Contexto del mensaje",select("eventId",{"":"Sin bolo · mensaje libre",...Object.fromEntries(active("event").map(e=>[e.id,niceDate(e.start,false)+" · "+e.title]))},eventId,'id="message-event"'))}<fieldset class="recipient-list"><legend>Destinatarios · selección explícita</legend><div id="message-recipients"></div></fieldset>${field("Mensaje personalizado",area("text",eventId?"Hola {nombre},\n\nTe escribimos por {bolo}, el {fecha} a las {hora} en {lugar}. Tu papel: {papel}.\n\n¡Nos vemos en el escenario!":"Hola {nombre},\n\n",'required maxlength="4000" rows="8"'),"Variables: {nombre}, {nombre_completo}, {bolo}, {fecha}, {hora}, {lugar}, {convocatoria}, {papel}.")}<p class="form-error" role="alert"></p><div class="form-footer"><span>Hasta 50 destinatarios. Sin envíos en grupo.</span><button class="button primary" type="submit">Revisar vista previa →</button></div></form>`);
@@ -309,7 +309,7 @@
   function commentsHtml(comments) {return comments.map(c=>`<div class="comment"><small><strong>${esc(member(c.author))}</strong> · ${dateTime(c.created)}</small>${esc(c.body)}</div>`).join("") || `<p class="muted">Aquí empieza la conversación.</p>`;}
   function castRow(c = {}) {
     const choices=state.items.filter(p=>p.kind === "person" && (!p.archived || p.id === c.personId));
-    return `<div class="cast-editor-row"><select class="cast-person" aria-label="Persona del elenco" required>${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><input class="cast-role" aria-label="Papel en el bolo" list="cast-roles" placeholder="Escritura, técnica…" value="${esc(c.role || "")}" required maxlength="100"><select class="cast-team" aria-label="Equipo">${option("general","General",c.team || "general")}${option("blue","Azul",c.team)}${option("red","Rojo",c.team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
+    return `<div class="cast-editor-row"><select class="cast-person" aria-label="Persona del elenco" required>${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><select class="cast-role" aria-label="Papel en el bolo" required>${option("","Selecciona rol",c.role)}${profile.roleOptions(c.role)}</select><select class="cast-team" aria-label="Equipo">${option("general","General",c.team || "general")}${option("blue","Azul",c.team)}${option("red","Rojo",c.team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
   }
   function openEvent(id, day) {
     const e = id ? item(id) : {title:"",start:day || today(),end:"",arrival:"",status:"pending",venue:"",city:"",address:"",description:"",ticketUrl:"",cast:[]};
@@ -322,20 +322,20 @@
       field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"')) + field("Notas de producción",area("description",e.description,'maxlength="15000" placeholder="Acceso, necesidades de sala, contactos profesionales, ensayo…"')) +
       window.ScribWorldGameConfig.editor(e,state.gameConfigSchema) +
       (id ? `<div class="notice">El tablero ya existe. Editar el bolo no reinicia ni duplica sus tareas.</div>` : field("Plantilla de tareas iniciales",select("templateId",Object.fromEntries(active("template").map(t=>[t.id,`${t.title} · ${t.tasks.length} tareas`])),"default-template"),"Se copiarán automáticamente en TO DO al guardar.")) +
-      `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Persona","","small")}</div>${!active("person").length?`<p class="muted">Primero crea las fichas en Elenco. Puedes guardar el bolo y añadir su reparto después.</p>`:""}<div class="cast-editor">${e.cast.map(castRow).join("")}</div><datalist id="cast-roles">${["Escritura","Interpretación","Dramaturgia","Técnica","Producción","Dirección"].map(x=>`<option value="${x}">`).join("")}</datalist></div>`));
+      `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Persona","","small")}</div>${!active("person").length?`<p class="muted">Primero crea las fichas en Elenco. Puedes guardar el bolo y añadir su reparto después.</p>`:""}<div class="cast-editor">${e.cast.map(castRow).join("")}</div></div>`));
   }
   function openPerson(id) {
     const p = id ? item(id) : {name:"",roles:[],bio:"",instagram:"",website:"",otherSocial:"",image:""};
     if(p.archived){openDialog("person",p.name,`<div class="notice">Esta ficha está archivada. Se conserva en el reparto de sus funciones.</div><p class="notes">${esc(p.bio)}</p><div class="actions section">${btn("restore","Recuperar ficha",p.id,"primary")}${btn("close-dialog","Cerrar")}</div>` );colors.decorate(dialog,p);return;}
     openDialog("person",id ? p.name : "Una persona del equipo",formShell("person",p,
-      field("Nombre completo",input("name",p.name,"text",'required maxlength="160"')) + field("Especialidades / roles",input("roles",p.roles.join(", "),"text",'maxlength="800"'),"Por ejemplo: Escritura, Interpretación, Técnica. Separados por comas.") +
+      `<div class="person-summary">${profile.roleTags(p.roles)}${profile.contacts(p)}</div>` +
+      field("Nombre completo",input("name",p.name,"text",'required maxlength="160"')) + profile.roleEditor(p.roles) +
       field('Color de la persona',select('color',colors.options,p.color||'auto'),'El mismo color en elenco, bolos, inventario, disponibilidad y gestión. No modifica su equipo azul o rojo.') +
-      field("Teléfono privado · WhatsApp",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="off"'),"Solo se guarda dentro del mundo autenticado. No se publica en scribshow.es.") +
-      `<label class="check-option"><input type="checkbox" name="phoneConfirmed" ${p.phoneConfirmed?"checked":""}>He comprobado que este teléfono corresponde a esta persona</label>` +
+      field("Teléfono",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="tel"')) +
       personHistory(p) +
       business.personLink(p.id) +
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
-      `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"url",'placeholder="https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +
+      `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"text",'placeholder="@tu_usuario o https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
     colors.decorate(dialog,p);
   }
@@ -357,10 +357,9 @@
       data.assignees = [...form.querySelectorAll('[name=assignees]:checked')].map(x=>x.value);
       data.checklist = [...form.querySelectorAll(".checklist-row")].map(row=>({text:row.querySelector(".check-text").value,done:row.querySelector(".check-done").checked}));
     } else if (form.dataset.kind === "person") {
-      data.phoneConfirmed = form.querySelector('[name=phoneConfirmed]').checked;
-      data.roles = splitValues(data.roles);
+      data.roles = [...form.querySelectorAll('[name=roles]:checked')].map(x=>x.value);
     } else if (form.dataset.kind === "inventory") {
-      data.quantity = Number(data.quantity);
+      data.quantity = data.quantity === '' ? null : Number(data.quantity);
     } else if (form.dataset.kind === "event") {
       const gameConfig = window.ScribWorldGameConfig.read(form);
       if(gameConfig !== undefined)data.gameConfig = gameConfig;
@@ -478,12 +477,10 @@
     if(node.id === "board-label")filters.label=node.value;
     if(node.id === "board-due")filters.due=node.value;
     if(node.id.startsWith("board-"))applyFilters();
-    if(node.name === "phone" && dialog.querySelector('[name=phoneConfirmed]')) dialog.querySelector('[name=phoneConfirmed]').checked=false;
     if(node.id === "message-event")messageRecipients(node.value);
   });
   document.addEventListener("input",event=>{
     if(event.target.id==='inventory-search'){inventory.filter(event.target);return;}
-    if(event.target.name === "phone" && dialog.querySelector('[name=phoneConfirmed]'))dialog.querySelector('[name=phoneConfirmed]').checked=false;
     if(event.target.id === "board-search"){filters.search=event.target.value;applyFilters();}
     if(event.target.id === "people-search")main.querySelectorAll("[data-person]").forEach(node=>{const p=item(node.dataset.person);node.hidden=![p.name,...p.roles].join(" ").toLowerCase().includes(event.target.value.toLowerCase());});
   });

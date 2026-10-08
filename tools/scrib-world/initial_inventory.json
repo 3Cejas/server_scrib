@@ -1,0 +1,13 @@
+[
+  {"key":"gorra","title":"Gorra","quantity":1,"category":"costume"},
+  {"key":"balon-playa","title":"Balón de playa","quantity":1,"category":"props"},
+  {"key":"chaquetas","title":"Chaquetas","quantity":3,"category":"costume"},
+  {"key":"taza","title":"Taza","quantity":1,"category":"props"},
+  {"key":"cinta-color","title":"Cinta adhesiva de color","quantity":null,"category":"other"},
+  {"key":"pinturas-cara","title":"Pinturas de cara","quantity":null,"category":"costume"},
+  {"key":"mochilas","title":"Mochilas","quantity":null,"category":"props"},
+  {"key":"panuelo","title":"Pañuelo","quantity":1,"category":"costume"},
+  {"key":"linternas","title":"Linternas","quantity":2,"category":"technical"},
+  {"key":"sobres-color","title":"Sobres de color","quantity":null,"category":"props"},
+  {"key":"gafas-color","title":"Gafas de color","quantity":2,"category":"costume"}
+]
