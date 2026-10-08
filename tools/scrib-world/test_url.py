@@ -73,7 +73,7 @@ class UrlIntegrationTests(unittest.TestCase):
 
     def test_visible_brand_is_scrib_without_world_prefix(self):
         html=(fixtures.ROOT/'public/index.html').read_text()
-        self.assertIn('<title>&lt;SCRI&gt; B · Sutura</title>',html)
+        self.assertIn('<title>&lt;SCRI&gt; B</title>',html)
         self.assertIn('aria-label="&lt;SCRI&gt; B, inicio"',html)
         self.assertIn('id="breadcrumb">&lt;SCRI&gt; B / INICIO',html)
         self.assertNotIn('Mundo SCRIB',html)

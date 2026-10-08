@@ -1,0 +1,30 @@
+.sidebar .brand{display:flex;align-items:center;gap:8px;padding:0;margin-bottom:30px}
+.brand-logo{display:block;width:60px;height:60px;object-fit:contain;flex-shrink:0}
+.sidebar .brand-word{font-size:1.35rem}
+.button .action-icon{width:19px;height:19px;flex-shrink:0;pointer-events:none}
+.button.icon-only{width:44px;height:44px;min-width:44px;min-height:44px;padding:10px;flex-shrink:0}
+.board-card{position:relative;min-width:0;transition:border-color .15s,background-color .15s}
+.board-card:hover{background:#202435;border-color:var(--violet)}
+.board-card.cyan:hover{border-color:var(--cyan)}
+.board-card.coral:hover{border-color:var(--coral)}
+.board-card.gold:hover{border-color:var(--gold)}
+.board-card-link{display:grid;gap:13px;color:inherit;min-width:0}
+.board-card-link::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.board-card-link:focus-visible{outline:0}
+.board-card-link:focus-visible::after{outline:2px solid var(--cyan);outline-offset:4px}
+.board-card-link .board-title,.board-card-link .muted{overflow-wrap:anywhere}
+.board-card-link .board-title{padding-right:46px}
+.board-card .board-edit{position:absolute;top:12px;right:12px;z-index:1}
+.board-card .board-enter{font-size:.78rem;color:var(--muted)}
+.ticket-top .ticket-title{flex:1;min-width:0;overflow-wrap:anywhere}
+.ticket-top .ticket-delete{margin-left:auto;background:transparent;border-color:transparent}
+.ticket-top .ticket-delete:hover{background:#ff647b15;border-color:#ff647b66}
+.form-footer>.actions{flex-wrap:wrap}
+#delete-confirmation{width:min(540px,calc(100vw - 24px))}
+.delete-content{padding:24px;display:grid;gap:20px}
+.delete-content strong{overflow-wrap:anywhere}
+.delete-content .actions{justify-content:flex-end;flex-wrap:wrap}
+.button.destructive{background:#ff7287;border-color:#ff7287;color:#210c13}
+.button.destructive:hover{background:#ff96a6}
+@media(max-width:700px){.brand-logo{width:54px;height:54px}.sidebar .brand{margin-bottom:16px}.delete-content{padding:18px}}
+@media(prefers-reduced-motion:reduce){.board-card{transition:none}}

@@ -6,9 +6,13 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
 
 ## Qué incluye
 
-- Inicio: acceso al videojuego y web existentes, salud del servidor, próximos bolos,
+- Inicio: acceso a la web pública, salud del servidor, próximos bolos,
   mis tareas, bloqueos, vencimientos y actividad del equipo.
-- Kanban de dramaturgia y un tablero por bolo. Arrastre y reordenación de tarjetas
+- **Tareas** reúne los tableros de dramaturgia, programación y producción, con
+  tarjetas clicables y lápiz de edición independiente. Logo original de SCRIB
+  en cabecera y favicon; sin los accesos a Mundo Sutura, cambiar mundo o videojuego.
+  La autenticación sigue siendo la misma, aunque se retira su texto de la interfaz.
+- Kanban de tareas y un tablero por bolo. Arrastre y reordenación de tarjetas
   con ratón o asa táctil; selector de estado para teclado/móvil.
 - TO DO, EN PROGRESO, BLOQUEADA, COMPLETADAS; responsables, etiquetas, prioridad,
   fecha límite, motivo del bloqueo, checklist, comentarios e historial.
@@ -41,6 +45,16 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   bolos anteriores ni reinician su progreso.
 - Archivo recuperable. Archivar/recuperar un bolo opera también sobre su tablero y
   sus tareas, sin recuperar tareas que ya estaban archivadas por separado.
+- Papelera en cada ticket y en su ficha: eliminación definitiva con confirmación,
+  versión y token idempotente. Borra comentarios/checklist y limpia el contenido
+  de los recibos de operaciones; los reintentos no resucitan la tarea.
+  Cancelar conserva el borrador. Se mantiene Archivar como alternativa recuperable.
+  No se puede eliminar un tablero/bolo/persona mediante esta operación.
+  Una tarea eliminada no aparece en Archivo; solo podría recuperarse de una copia
+  de seguridad anterior que la contenga. Las copias previas no se reescriben.
+- Los nombres de tableros existentes se simplifican al arrancar, retirando
+  «Laboratorio», sin cambiar sus IDs, tareas, estado o reparto. La operación es
+  idempotente y también cubre tableros archivados. Nuevos nombres se normalizan.
 - Actualización compartida cada 15 segundos sin regenerar formularios mientras se
   escribe; conflictos de edición devuelven 409, nunca sobrescriben a otra persona.
 

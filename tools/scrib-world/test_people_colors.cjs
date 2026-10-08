@@ -15,7 +15,8 @@ function element() {
     showModal(){this.open=true;},close(){this.open=false;},listeners};
 }
 function client() {
-  const nodes = Object.fromEntries(['main','editor','dialog-title','dialog-kicker','dialog-content','message-recipients','server-health'].map(k=>[k,element()]));
+  const nodes = Object.fromEntries(['main','editor','dialog-title','dialog-kicker','dialog-content','message-recipients','server-health','delete-confirmation','delete-ticket-name','delete-error','breadcrumb','toast','user-name','user-avatar','connection'].map(k=>[k,element()]));
+  nodes['delete-confirmation'].open=false;
   nodes.editor.querySelector=q=>nodes[q.slice(1)]||null;
   const listeners={},calls=[],responses={};
   const context={window:{addEventListener(){}},
@@ -24,15 +25,15 @@ function client() {
       addEventListener:(k,f)=>{listeners[k]=f;}},crypto:{randomUUID:()=> 'test-request'},
     setInterval(){},setTimeout:()=>1,clearTimeout(){},AbortController,URL,
     FormData:class{constructor(form){return form.entries;}},
-    fetch:async(url,options)=>{calls.push({url,options});return {ok:true,redirected:false,
-      headers:{get:()=> 'application/json'},json:async()=>responses[url]||{reports:[]}};}};
+    fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
+      headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
   vm.createContext(context);
   for(const file of ['people-colors.js','people-profile.js','availability.js','business.js','inventory.js'])vm.runInContext(read(file),context,{filename:file});
-  context.window.ScribMaterials=()=>({});
+  context.window.ScribMaterials=()=>({action:async()=>false});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,renderHome,renderEvent,renderPeople,renderArchive,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -43,7 +44,7 @@ function balanced(html) {
   const stack=[],voids=new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
   for(const tag of html.matchAll(/<(\/?)([a-z][a-z0-9-]*)\b[^>]*>/gi)) {
     const name=tag[2].toLowerCase();
-    if(voids.has(name))continue;
+    if(voids.has(name) || (stack.includes('svg') && /\/>$/.test(tag[0])))continue;
     if(tag[1])assert.equal(stack.pop(),name,'Unexpected closing '+tag[0]);else stack.push(name);
   }
   assert.deepEqual(stack,[]);
@@ -59,10 +60,10 @@ test('automatic colors stay stable on rename/team changes and unsafe color value
   const n=element();n.classList.add('keep','person-tone-mint');colors.decorate(n,{color:'orchid'});colors.decorate(n,{color:'cyan'});
   assert.deepEqual([...n.classList].sort(),['keep','person-colored','person-tone-cyan']);
 });
-test('public website link is correct, duplicates removed, game shortcut intact',()=>{
+test('public website link and health remain without the removed game shortcut',()=>{
   const html=client().app.renderHome();balanced(html);
   assert.match(html,/<a href="https:\/\/scribshow\.es\/"[^>]*rel="noopener noreferrer"[^>]*>Abrir web ↗<\/a>/);
-  assert.match(html,/<a href="\/scrib\/game\/"[^>]*>Abrir videojuego ↗<\/a>/);
+  assert.doesNotMatch(html,/Abrir videojuego|href="\/scrib\/game\/"/);
   assert.doesNotMatch(html,/Producción anterior|Producción antes|scribshow\.es ↗|El escaparate|web-health/);
   assert.equal((html.match(/>Abrir web ↗</g)||[]).length,1);
 });
@@ -195,4 +196,103 @@ test('unquantified inventory cards and event entries stay explicit without NaN o
     balanced(html);assert.match(html,/Cantidad sin especificar/);assert.match(html,/Por revisar/);assert.doesNotMatch(html,/× null|NaN/);
   }
   assert.match(app.inventory.list(),/1 sin cantidad/);
+});
+
+function taskFixture() {
+  const result=client();
+  const board={id:'board-1',kind:'board',title:'Dramaturgia · laboratorio',description:'Ideas <b>en equipo</b>',color:'violet',eventId:'',version:2};
+  const ticket={id:'ticket-1',kind:'ticket',title:'Ensayar <final>',boardId:board.id,status:'todo',version:3,priority:'normal',labels:[],assignees:[],checklist:[],due:'',created:'2026-10-08'};
+  result.state.items.push(board,ticket);
+  return {...result,board,ticket};
+}
+test('Tareas cards have full-card native links and separate accessible edit icons',()=>{
+  const {app,board}=taskFixture();const html=app.renderBoards();balanced(html);
+  assert.match(html,/<h1>Tareas<\/h1>/);assert.doesNotMatch(html,/laboratorio/i);
+  assert.match(html,/<a class="board-card-link" href="#board\/board-1" aria-label="Abrir tablero Dramaturgia">/);
+  assert.match(html,/<\/a><button[^>]*data-action="edit-board"[^>]*aria-label="Editar tablero Dramaturgia"[^>]*><svg/);
+  assert.match(html,/Ideas &lt;b&gt;en equipo&lt;\/b&gt;/);
+  assert.match(read('tasks.css'),/\.board-card-link::after\{[^}]*inset:0/);
+  assert.match(read('tasks.css'),/\.board-card \.board-edit\{[^}]*z-index:1/);
+  const detail=app.renderBoard(board.id);balanced(detail);assert.doesNotMatch(detail,/laboratorio/i);
+  assert.match(detail,/data-action="delete-ticket"[^>]*aria-label="Eliminar tarea Ensayar &lt;final&gt;"/);
+});
+test('board editor cleans legacy labels and symbols retain tooltip/accessibility names',()=>{
+  const {app,board,nodes,ticket}=taskFixture();app.openBoard(board.id);
+  assert.match(nodes['dialog-content'].innerHTML,/name="title"[^>]*value="Dramaturgia"/);
+  for(const [action,label] of [['edit-board','Editar tablero'],['edit-person','Ver / editar'],['delete-ticket','Eliminar tarea'],['print','Imprimir']]){
+    const html=app.btn(action,label,ticket.id);balanced(html);
+    assert.match(html,/class="button  icon-only"/);assert.ok(html.includes(`aria-label="${label}" title="${label}"`));
+    assert.match(html,/aria-hidden="true" focusable="false"/);
+  }
+  const form=app.formShell('ticket',ticket,'');balanced(form);
+  assert.match(form,/data-action="archive"/);assert.match(form,/data-action="delete-ticket"/);
+  assert.doesNotMatch(app.formShell('ticket',{},''),/data-action="delete-ticket"/);
+  assert.doesNotMatch(app.formShell('board',board,''),/data-action="delete-ticket"/);
+});
+test('delete prompt does not write or replace drafts and cancel preserves them',async()=>{
+  const {app,nodes,calls,ticket}=taskFixture();nodes['dialog-content'].innerHTML='UNSAVED DRAFT';
+  await app.action({dataset:{action:'delete-ticket',id:ticket.id}});
+  assert.ok(nodes['delete-confirmation'].open);assert.equal(nodes['delete-ticket-name'].textContent,ticket.title);
+  assert.equal(calls.length,0);assert.equal(nodes['dialog-content'].innerHTML,'UNSAVED DRAFT');
+  await app.action({dataset:{action:'cancel-delete'}});
+  assert.ok(!nodes['delete-confirmation'].open);assert.equal(calls.length,0);
+  assert.ok(nodes.editor.open);assert.equal(nodes['dialog-content'].innerHTML,'UNSAVED DRAFT');
+  app.askDelete('p1');assert.ok(!nodes['delete-confirmation'].open);
+});
+test('confirmed delete sends exact version and CSRF and removes only the target',async()=>{
+  const {app,nodes,calls,state,responses,ticket}=taskFixture();
+  nodes.editor.querySelector=q=>q==='#edit-form'?{dataset:{id:ticket.id}}:null;
+  responses['/scrib/backstage/api/delete-ticket']={ok:true,item:{id:ticket.id,deleted:true}};
+  responses['/scrib/backstage/api/state']=()=>state;
+  app.askDelete(ticket.id);await app.confirmDelete();
+  const writes=calls.filter(c=>c.options.method==='POST');assert.equal(writes.length,1);
+  assert.equal(writes[0].url,'/scrib/backstage/api/delete-ticket');
+  const payload=JSON.parse(writes[0].options.body);
+  assert.equal(payload.id,ticket.id);assert.equal(payload.version,3);assert.equal(payload.confirmed,true);assert.ok(payload.requestId);
+  assert.equal(writes[0].options.headers['X-CSRF-Token'],'test-token');
+  assert.ok(!state.items.some(t=>t.id===ticket.id));assert.ok(state.items.some(t=>t.id==='p1'));
+  assert.ok(!nodes['delete-confirmation'].open);assert.ok(!nodes.editor.open);
+});
+test('stale deletion keeps ticket and draft and displays conflict rather than pretending success',async()=>{
+  const {app,nodes,state,responses,ticket}=taskFixture();nodes['dialog-content'].innerHTML='UNSAVED DRAFT';
+  responses['/scrib/backstage/api/delete-ticket']={__status:409,__body:{error:'Otra persona ha actualizado esta tarea'}};
+  app.askDelete(ticket.id);await app.confirmDelete();
+  assert.equal(nodes['delete-error'].textContent,'Otra persona ha actualizado esta tarea');
+  assert.ok(nodes['delete-confirmation'].open);assert.ok(nodes.editor.open);
+  assert.equal(nodes['dialog-content'].innerHTML,'UNSAVED DRAFT');assert.ok(state.items.some(t=>t.id===ticket.id));
+});
+test('double-click while deleting performs one operation and disables cancellation until done',async()=>{
+  const {app,nodes,calls,responses,state,ticket}=taskFixture();let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const controls=[{disabled:false},{disabled:false}];nodes['delete-confirmation'].querySelectorAll=()=>controls;
+  responses['/scrib/backstage/api/delete-ticket']=async()=>{await gate;return {ok:true,item:{id:ticket.id,deleted:true}};};
+  responses['/scrib/backstage/api/state']=()=>state;
+  app.askDelete(ticket.id);const first=app.confirmDelete();await app.confirmDelete();
+  assert.equal(calls.filter(c=>c.options.method==='POST').length,1);assert.ok(controls.every(b=>b.disabled));
+  await app.action({dataset:{action:'cancel-delete'}});assert.ok(nodes['delete-confirmation'].open);
+  release();await first;assert.ok(controls.every(b=>!b.disabled));
+});
+test('a lost reply can retry the same deletion token without losing another open editor',async()=>{
+  const {app,nodes,calls,state,responses,ticket}=taskFixture();nodes.editor.querySelector=q=>q==='#edit-form'?{dataset:{id:'p1'}}:null;
+  nodes['dialog-content'].innerHTML='ANOTHER DRAFT';
+  responses['/scrib/backstage/api/delete-ticket']=new Error('Connection interrupted');
+  app.askDelete(ticket.id);await app.confirmDelete();
+  assert.equal(nodes['delete-error'].textContent,'Connection interrupted');assert.ok(nodes['delete-confirmation'].open);
+  responses['/scrib/backstage/api/delete-ticket']={ok:true,item:{id:ticket.id,deleted:true}};responses['/scrib/backstage/api/state']=()=>state;
+  await app.confirmDelete();
+  const writes=calls.filter(c=>c.options.method==='POST');assert.equal(writes.length,2);
+  assert.equal(writes[0].options.body,writes[1].options.body);
+  assert.ok(nodes.editor.open);assert.equal(nodes['dialog-content'].innerHTML,'ANOTHER DRAFT');
+});
+test('delete button drag cannot accidentally move a ticket',()=>{
+  const {listeners}=taskFixture();let prevented=false;
+  listeners.dragstart({target:{closest:selector=>selector==='.ticket'?{dataset:{ticket:'ticket-1'}}:{}},preventDefault:()=>{prevented=true;}});
+  assert.ok(prevented);
+});
+test('an unexpected successful HTTP response cannot falsely confirm a deletion',async()=>{
+  const {app,nodes,state,responses,ticket}=taskFixture();
+  responses['/scrib/backstage/api/delete-ticket']={ok:true,item:{id:'another-task',deleted:true}};
+  app.askDelete(ticket.id);await app.confirmDelete();
+  assert.match(nodes['delete-error'].textContent,/No se ha podido confirmar/);
+  assert.ok(nodes['delete-confirmation'].open);assert.ok(state.items.some(x=>x.id===ticket.id));
 });

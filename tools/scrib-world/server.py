@@ -171,7 +171,7 @@ class Store:
             if not db.execute("SELECT 1 FROM items WHERE kind='template'").fetchone():
                 tasks = json.loads((ROOT / "default_tasks.json").read_text())
                 self.insert(db, "template", {"title": "Preparación de un bolo", "tasks": tasks}, "sistema", "default-template")
-                self.insert(db, "board", {"title": "Dramaturgia · laboratorio", "description": "Ideas, escritura, ensayos y decisiones creativas.", "eventId": "", "color": "violet"}, "sistema", "dramaturgia")
+                self.insert(db, "board", {"title": "Dramaturgia", "description": "Ideas, escritura, ensayos y decisiones creativas.", "eventId": "", "color": "violet"}, "sistema", "dramaturgia")
         os.chmod(self.path, 0o600)
 
     def connect(self):
@@ -234,6 +234,30 @@ class Store:
         self.activity(db, item["id"], actor, action)
         return self.item(db, item["id"])
 
+    @staticmethod
+    def board_title(value):
+        if not re.search(r"\blaboratorios?\b", value, flags=re.IGNORECASE):
+            return value
+        value = re.sub(r"\blaboratorios?\b(?:\s+de\b)?", "", value, flags=re.IGNORECASE)
+        value = re.sub(r"\s+", " ", value)
+        value = re.sub(r"\s*([·|:–—-])(?:\s*[·|:–—-])+\s*", r" \1 ", value)
+        return value.strip(" ·|:–—-") or "Tareas"
+
+    def tidy_board_titles(self):
+        # Only labels change: IDs, tasks, progress and links remain intact.
+        with self.connect() as db:
+            needed = any(self.board_title(x['title']) != x['title'] for x in self.all(db, 'board'))
+        if not needed:
+            return 0
+        changed = 0
+        with self.transaction() as db:
+            for board in self.all(db, 'board'):
+                title = self.board_title(board['title'])
+                if title != board['title']:
+                    self.save(db, board, {'title': title}, 'sistema', 'nombre del tablero simplificado')
+                    changed += 1
+        return changed
+
     def members(self, db):
         result = {r["username"]: dict(r) for r in db.execute("SELECT * FROM members")}
         # Same authorised directory as Sutura; never return password hashes or roles.
@@ -295,6 +319,8 @@ class Store:
                 raise Problem("La imagen no está disponible.")
             return body
         body = {"title": text(data.get("title", ""), 240, True)}
+        if kind == "board":
+            body["title"] = self.board_title(body["title"])
         if kind == "template":
             tasks = data.get("tasks", [])
             if not isinstance(tasks, list) or not 1 <= len(tasks) <= 200:
@@ -390,14 +416,17 @@ class Store:
             if prior:
                 if prior["actor"] != actor or prior["payload_hash"] != digest:
                     raise Problem("La operación ya se usó con otros datos.", 409)
-                return json.loads(prior["response"])
+                result = json.loads(prior["response"])
+                if result.get('deleted'):
+                    raise Problem("Esta tarea fue eliminada definitivamente.", 410)
+                return result
             body = self.validate(db, kind, data)
             if kind == "event":
                 template = self.item(db, data.get("templateId", "default-template"), "template", True) if body["eventType"] != "rehearsal" else {"tasks": []}
                 event_id, board_id = str(uuid.uuid4()), str(uuid.uuid4())
                 body["boardId"] = board_id
                 result = self.insert(db, kind, body, actor, event_id)
-                self.insert(db, "board", {"title": body["title"], "description": f"Preparación · {body['venue']}", "color": "gold", "eventId": event_id}, actor, board_id)
+                self.insert(db, "board", {"title": self.board_title(body["title"]), "description": f"Preparación · {body['venue']}", "color": "gold", "eventId": event_id}, actor, board_id)
                 for pos, task in enumerate(template["tasks"]):
                     ticket = dict(task, boardId=board_id, status="todo", priority="normal", due="", assignees=[], checklist=[], blockedReason="", position=pos)
                     self.insert(db, "ticket", ticket, actor)
@@ -470,13 +499,43 @@ class Store:
             if prior:
                 if prior["actor"] != actor or prior["payload_hash"] != digest:
                     raise Problem("Operación duplicada con otros datos.", 409)
-                return json.loads(prior["response"])
+                result = json.loads(prior["response"])
+                if result.get('deleted'):
+                    raise Problem("Esta tarea fue eliminada definitivamente.", 410)
+                return result
             ticket = self.item(db, ident, "ticket", True)
             self.item(db, ticket["boardId"], "board", True)
             result = {"id": str(uuid.uuid4()), "ticket": ident, "author": actor, "body": message, "created": now()}
             db.execute("INSERT INTO comments VALUES(:id,:ticket,:author,:body,:created)", result)
             self.activity(db, ident, actor, "comentario añadido")
             db.execute("INSERT INTO requests VALUES(?,?,?,?,?)", (request_id, actor, digest, json.dumps(result), now()))
+            return result
+
+    def delete_ticket(self, ident, actor, expected, request_id, confirmed=False):
+        if confirmed is not True:
+            raise Problem("Confirma la eliminación definitiva de esta tarea.")
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{16,100}", request_id or ""):
+            raise Problem("Falta el identificador de la operación.")
+        digest = hashlib.sha256(json.dumps({'action': 'delete-ticket', 'id': ident, 'version': expected}, sort_keys=True).encode()).hexdigest()
+        with self.transaction() as db:
+            prior = db.execute("SELECT * FROM requests WHERE token=?", (request_id,)).fetchone()
+            if prior:
+                if prior['actor'] != actor or prior['payload_hash'] != digest:
+                    raise Problem("La operación ya se usó con otros datos.", 409)
+                return json.loads(prior['response'])
+            ticket = self.item(db, ident, 'ticket')
+            self.check_version(ticket, expected)
+            db.execute('DELETE FROM comments WHERE ticket=?', (ident,))
+            db.execute('DELETE FROM items WHERE id=? AND kind=\'ticket\'', (ident,))
+            result = {'id': ident, 'kind': 'ticket', 'deleted': True}
+            # Erase content from cached creation/comment receipts too, retaining
+            # tombstones so retries cannot recreate or return a deleted task.
+            for receipt in db.execute('SELECT token,response FROM requests').fetchall():
+                body = json.loads(receipt['response'])
+                if isinstance(body, dict) and (body.get('id') == ident or body.get('ticket') == ident):
+                    db.execute('UPDATE requests SET response=? WHERE token=?', (json.dumps(result), receipt['token']))
+            self.activity(db, ident, actor, 'tarea eliminada definitivamente')
+            db.execute('INSERT INTO requests VALUES(?,?,?,?,?)', (request_id, actor, digest, json.dumps(result), now()))
             return result
 
     def details(self, ident):
@@ -932,6 +991,10 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
+                if route == 'logo.png':
+                    return self.reply(200, (ROOT / 'assets' / 'scrib-world-logo.png').read_bytes(), 'image/png')
+                if route == 'tasks.css':
+                    return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
                 static = {"people-profile.js": ("people-profile.js", "application/javascript; charset=utf-8"), "people.css": ("people.css", "text/css; charset=utf-8"), "people-colors.js": ("people-colors.js", "application/javascript; charset=utf-8"), "inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
@@ -965,6 +1028,8 @@ class Handler(BaseHTTPRequestHandler):
                 if type(data.get("archived")) is not bool:
                     raise Problem("Archivo no válido.")
                 result = store.archive(data.get("id"), data["archived"], actor, data.get("version"))
+            elif route == "api/delete-ticket":
+                result = store.delete_ticket(data.get('id'), actor, data.get('version'), data.get('requestId'), data.get('confirmed'))
             elif route == "api/comment":
                 result = store.comment(data.get("id"), data.get("body"), actor, data.get("requestId"))
             elif route == "api/upload":
@@ -1012,6 +1077,9 @@ def main():
     os.umask(0o077)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     store = Store(args.data, args.users)
+    renamed = store.tidy_board_titles()
+    if renamed:
+        LOG.info('Tableros: %s nombres simplificados sin modificar sus tareas', renamed)
     if args.demo:
         demo_data(store)
     else:

@@ -14,6 +14,8 @@
   const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto"};
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
+  const deleteDialog = document.querySelector("#delete-confirmation");
+  let pendingDelete = null;
   let state = null, calendarMode = "calendar", month = new Date(), saving = false, toastTimer;
   let health = {server: null};
   let filters = {search: "", mine: "", label: "", priority: "", due: ""};
@@ -34,12 +36,32 @@
   const badge = (label, color = "") => `<span class="badge ${esc(color)}">${esc(label)}</span>`;
   const labelColor = value => /TÉCN|TECN/.test(value.toUpperCase()) ? "coral" : /PREVIO|SHOW/.test(value.toUpperCase()) ? "cyan" : /ESCR|DRAM/.test(value.toUpperCase()) ? "violet" : "gold";
   const option = (value, label, selected) => `<option value="${esc(value)}"${String(selected) === String(value) ? " selected" : ""}>${esc(label)}</option>`;
-  const btn = (action, label, id = "", css = "") => `<button type="button" class="button ${css}" data-action="${action}" data-id="${esc(id)}">${label}</button>`;
+  const ICONS = {
+    edit:'<path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"/><path d="m14 5 5 5"/>',
+    trash:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
+    archive:'<path d="M4 8v13h16V8M9 12h6"/><rect x="3" y="3" width="18" height="5" rx="1"/>',
+    restore:'<path d="M3 10a9 9 0 1 1 2 9M3 4v6h6M12 7v5l3 2"/>',
+    copy:'<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>',
+    print:'<path d="M6 8V3h12v5M6 17H3V8h18v9h-3M6 14h12v7H6Z"/>',
+    prev:'<path d="m15 5-7 7 7 7"/>', next:'<path d="m9 5 7 7-7 7"/>'
+  };
+  const icon = name => `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
+  const btn = (action, label, id = "", css = "") => {
+    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next"})[action];
+    const only = symbol && !["archive","restore"].includes(action);
+    const name = action === "month-prev" ? "Mes anterior" : action === "month-next" ? "Mes siguiente" : label;
+    return `<button type="button" class="button ${css}${only ? " icon-only" : ""}" data-action="${esc(action)}" data-id="${esc(id)}"${symbol ? ` aria-label="${esc(name)}" title="${esc(name)}"` : ""}>${symbol ? icon(symbol) : ""}${only ? "" : label}</button>`;
+  };
   const field = (label, content, hint = "") => `<label class="field">${label}${content}${hint ? `<small class="hint">${hint}</small>` : ""}</label>`;
   const input = (name, value = "", type = "text", attrs = "") => `<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${attrs}>`;
   const area = (name, value = "", attrs = "") => `<textarea name="${esc(name)}" ${attrs}>${esc(value)}</textarea>`;
   const select = (name, options, selected, attrs = "") => `<select name="${esc(name)}" ${attrs}>${Object.entries(options).map(([v,l]) => option(v,l,selected)).join("")}</select>`;
-  const titleOf = object => object?.title || object?.name || "Ficha";
+  const boardTitle = value => {
+    const title = String(value || "");
+    if (!/\blaboratorios?\b/i.test(title)) return title || "Tareas";
+    return title.replace(/\blaboratorios?\b(?:\s+de\b)?/gi, "").replace(/\s+/g, " ").replace(/\s*([·|:–—-])(?:\s*[·|:–—-])+\s*/g, " $1 ").replace(/^[ ·|:–—-]+|[ ·|:–—-]+$/g, "") || "Tareas";
+  };
+  const titleOf = object => object?.kind === "board" ? boardTitle(object.title) : object?.title || object?.name || "Ficha";
   const tasksFor = board => active("ticket").filter(x => x.boardId === board);
   const progress = board => {
     const tasks = tasksFor(board), done = tasks.filter(x => x.status === "done").length;
@@ -100,7 +122,7 @@
     const [page = "home", id] = route();
     const nav = page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = "<SCRI> B / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"DRAMATURGIA", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = "<SCRI> B / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "availability") content = polls.list();
@@ -142,7 +164,7 @@
     const blocked = tasks.filter(x=>x.status === "blocked"), late = tasks.filter(x=>x.status !== "done" && x.due && x.due < today());
     return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",btn("new-event","＋ Crear bolo","","primary")) +
       `<section class="hero"><div><p class="eyebrow">DEL LABORATORIO AL ESCENARIO</p><h2>Escribir es un juego.<br>Prepararlo, un trabajo en equipo.</h2><p>Bolos, ideas, elenco y tareas en un mismo backstage. Sin perder lo que importa entre mensajes.</p></div><div class="hero-orbit" aria-hidden="true">✳</div></section>
-      <article class="panel service home-game-service"><div class="service-top"><span class="service-icon" aria-hidden="true">▸</span><span id="server-health" class="badge">Comprobando servidor</span></div><div><h2>El videojuego y la web</h2><p class="muted">Accede a los roles de &lt;SCRI&gt; B o visita la web pública del espectáculo.</p></div><div class="actions"><a href="/scrib/game/" target="_blank" rel="noopener" class="button cyan">Abrir videojuego ↗</a><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer" class="button">Abrir web ↗</a></div></article>
+      <article class="panel service home-game-service"><div class="service-top"><span class="service-icon" aria-hidden="true">▸</span><span id="server-health" class="badge">Comprobando servidor</span></div><div><h2>La web de &lt;SCRI&gt; B</h2><p class="muted">Visita la web pública del espectáculo y consulta el estado del servidor.</p></div><div class="actions"><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer" class="button">Abrir web ↗</a></div></article>
       <section class="grid cols4 section">${[[upcoming.length,"Bolos por venir","El siguiente acto", "gold"],[mine.length,"Mis tareas abiertas","Asignadas a ti", "violet"],[blocked.length,"Tareas bloqueadas","Lo que necesita ayuda", "coral"],[late.length,"Fuera de plazo","Para poner al día", "cyan"]].map(([n,l,d,c])=>`<div class="panel kpi"><small>${l}</small><span class="number ${c}">${n}</span><p class="tiny">${d}</p></div>`).join("")}</section>
       <section class="section"><div class="panel-head"><h2>Próximos bolos</h2><a class="button small" href="#events">Ver calendario ↗</a></div><div class="grid cols3">${upcoming.slice(0,3).map(eventCard).join("") || empty("El siguiente escenario está por venir","Crea un bolo: su tablero aparecerá con todas las tareas de preparación.",btn("new-event","＋ Primer bolo","","primary"))}</div></section>
       <section class="grid cols2 section"><div class="panel"><div class="panel-head"><h2>Tu siguiente paso</h2>${badge(mine.length + " pendientes","violet")}</div>${mine.slice(0,5).map(x=>`<div class="activity-row"><span class="activity-dot">✦</span><div><button class="ticket-title" data-action="edit-ticket" data-id="${x.id}">${esc(x.title)}</button><small>${esc(titleOf(item(x.boardId)))} · ${STATUS[x.status]}</small></div></div>`).join("") || `<p class="muted">No tienes tareas asignadas pendientes. Abre un tablero y elige tu próximo reto.</p>`}</div><div class="panel"><div class="panel-head"><h2>El pulso del equipo</h2>${badge("ACTIVIDAD","cyan")}</div>${state.activity.slice(0,5).map(activityRow).join("")}</div></section>`;
@@ -167,21 +189,21 @@
     return `<div class="calendar"><div class="calendar-controls"><h2>${esc(new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(month))}</h2><div class="actions"><label class="calendar-jump">Ir a mes <input type="month" id="calendar-month" value="${year}-${String(m+1).padStart(2,"0")}" aria-label="Elegir mes y año del calendario"></label>${btn("month-prev","←","","small")}${btn("month-today","Hoy","","small")}${btn("month-next","→","","small")}</div></div><div class="calendar-week">${["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></div>`;
   }
   function renderBoards() {
-    return pageHead("IDEAS QUE SE CONVIERTEN EN ESCENAS", "Dramaturgia", "Tableros para escribir, investigar, ensayar y desbloquear decisiones. Los tableros de cada bolo están en su ficha.",btn("new-board","＋ Nuevo tablero","","primary")) +
-      `<div class="grid cols3">${active("board").filter(x=>!x.eventId).map(x=>{const p=progress(x.id);return `<article class="panel board-card ${x.color}"><span class="eyebrow">LABORATORIO</span><h2 class="board-title">${esc(x.title)}</h2><p class="muted">${esc(x.description)}</p><div class="summary">${p.done} de ${p.total} tareas · ${p.percent}% completado</div>${progressHtml(p)}<div class="actions"><a class="button" href="#board/${x.id}">Abrir tablero ↗</a>${btn("edit-board","Editar",x.id,"small")}</div></article>`;}).join("")}</div>`;
+    return pageHead("TODO EL EQUIPO, EN MARCHA", "Tareas", "Tableros para organizar ideas, desarrollo, ensayos y producción. Los tableros de cada bolo están en su ficha.",btn("new-board","＋ Nuevo tablero","","primary")) +
+      `<div class="grid cols3">${active("board").filter(x=>!x.eventId).map(x=>{const p=progress(x.id), title=boardTitle(x.title);return `<article class="panel board-card ${esc(x.color)}"><a class="board-card-link" href="#board/${esc(x.id)}" aria-label="Abrir tablero ${esc(title)}"><h2 class="board-title">${esc(title)}</h2><p class="muted">${esc(x.description)}</p><div class="summary">${p.done} de ${p.total} tareas · ${p.percent}% completado</div>${progressHtml(p)}<span class="board-enter" aria-hidden="true">Entrar al tablero ↗</span></a>${btn("edit-board","Editar tablero " + title,x.id,"board-edit")}</article>`;}).join("") || empty("Tu primer tablero","Crea un tablero y organiza las tareas del equipo.")}</div>`;
   }
   function renderBoard(id) {
     const board = item(id);
     if (!board || board.archived) return empty("Este tablero no está disponible","Puedes buscarlo en el archivo recuperable.",`<a class="button" href="#archive">Ir al archivo</a>`);
     const p = progress(id), tasks = tasksFor(id), labels = [...new Set(tasks.flatMap(x=>x.labels))].sort();
-    return pageHead(board.eventId ? "PREPARACIÓN DEL BOLO" : "LABORATORIO DE DRAMATURGIA",board.title,`${p.done}/${p.total} tareas completadas · ${p.percent}% listo${board.description ? " · " + board.description : ""}`,
+    return pageHead(board.eventId ? "PREPARACIÓN DEL BOLO" : "TABLERO DE TAREAS",boardTitle(board.title),`${p.done}/${p.total} tareas completadas · ${p.percent}% listo${board.description ? " · " + board.description : ""}`,
       (board.eventId ? `<a class="button" href="#event/${board.eventId}">Ficha del bolo</a>` : btn("edit-board","Editar tablero",id)) + btn("new-ticket","＋ Añadir tarea",id,"primary")) +
       `<div class="toolbar"><input type="search" id="board-search" aria-label="Buscar tareas" placeholder="Buscar título, descripción o etiqueta…" value="${esc(filters.search)}"><select id="board-mine" aria-label="Filtrar responsables">${option("","Todo el equipo",filters.mine)}${option("mine","Mis tareas",filters.mine)}${option("unassigned","Sin responsable",filters.mine)}</select><select id="board-label" aria-label="Filtrar etiquetas">${option("","Todas las etiquetas",filters.label)}${labels.map(x=>option(x,x,filters.label)).join("")}</select><select id="board-due" aria-label="Filtrar vencimiento">${option("","Todos los plazos",filters.due)}${option("late","Fuera de plazo",filters.due)}${option("urgent","Alta / urgente",filters.due)}</select></div>
       <div class="kanban" aria-label="Tablero de tareas: arrastra desde el asa o utiliza el selector de estado">${Object.entries(STATUS).map(([s,l])=>`<section class="column" data-status="${s}" aria-label="${l}"><div class="column-head"><span><i class="status-dot" aria-hidden="true"></i>${l}<span class="count">${tasks.filter(x=>x.status === s).length}</span></span><button type="button" class="icon-button" data-action="new-ticket-status" data-id="${id}" data-status="${s}" aria-label="Añadir tarea a ${l}">＋</button></div><div class="ticket-list">${tasks.filter(x=>x.status === s).sort((a,b)=>(a.position-b.position)||a.created.localeCompare(b.created)).map(ticketCard).join("")}</div><button type="button" class="add-ticket" data-action="new-ticket-status" data-id="${id}" data-status="${s}">＋ Añadir tarea</button></section>`).join("")}</div>`;
   }
   function ticketCard(ticket) {
     const checks = ticket.checklist?.length || 0;
-    return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-ticket="${ticket.id}" draggable="true"><div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${ticket.id}">${esc(ticket.title)}</button></div><div class="ticket-tags">${ticket.labels.map(x=>badge(x,labelColor(x))).join("")}${["high","urgent"].includes(ticket.priority)?badge(PRIORITY[ticket.priority],"coral"):""}</div>${ticket.status === "blocked" && ticket.blockedReason?`<p class="muted">⚑ ${esc(ticket.blockedReason.slice(0,120))}</p>`:""}<div class="ticket-footer"><span class="avatars">${ticket.assignees.map(x=>`<span class="avatar" title="${esc(member(x))}">${esc(initials(member(x)))}</span>`).join("")}</span><span class="due ${ticket.due && ticket.due < today() && ticket.status !== "done" ? "overdue" : ""}">${ticket.due?"◷ " + esc(niceDate(ticket.due,false)):""}${checks ? ` · ☑ ${ticket.checklist.filter(x=>x.done).length}/${checks}` : ""}</span></div><div class="ticket-footer"><small>${ticket.assignees.length?ticket.assignees.length + " responsable(s)":"Sin responsable"}</small><select class="quick-status" data-ticket-status="${ticket.id}" aria-label="Cambiar estado de ${esc(ticket.title)}">${Object.entries(STATUS).map(([s,l])=>option(s,l,ticket.status)).join("")}</select></div></article>`;
+    return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-ticket="${ticket.id}" draggable="true"><div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${ticket.id}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div><div class="ticket-tags">${ticket.labels.map(x=>badge(x,labelColor(x))).join("")}${["high","urgent"].includes(ticket.priority)?badge(PRIORITY[ticket.priority],"coral"):""}</div>${ticket.status === "blocked" && ticket.blockedReason?`<p class="muted">⚑ ${esc(ticket.blockedReason.slice(0,120))}</p>`:""}<div class="ticket-footer"><span class="avatars">${ticket.assignees.map(x=>`<span class="avatar" title="${esc(member(x))}">${esc(initials(member(x)))}</span>`).join("")}</span><span class="due ${ticket.due && ticket.due < today() && ticket.status !== "done" ? "overdue" : ""}">${ticket.due?"◷ " + esc(niceDate(ticket.due,false)):""}${checks ? ` · ☑ ${ticket.checklist.filter(x=>x.done).length}/${checks}` : ""}</span></div><div class="ticket-footer"><small>${ticket.assignees.length?ticket.assignees.length + " responsable(s)":"Sin responsable"}</small><select class="quick-status" data-ticket-status="${ticket.id}" aria-label="Cambiar estado de ${esc(ticket.title)}">${Object.entries(STATUS).map(([s,l])=>option(s,l,ticket.status)).join("")}</select></div></article>`;
   }
   function applyFilters() {
     main.querySelectorAll("[data-ticket]").forEach(node=>{
@@ -271,7 +293,7 @@
   function renderArchive() {
     const archived = state.items.filter(x=>x.archived && !(x.kind === "board" && x.eventId) && !(x.kind === "ticket" && item(x.boardId)?.archived)).sort((a,b)=>b.updated.localeCompare(a.updated));
     return pageHead("NADA SE PIERDE POR ACCIDENTE", "Archivo recuperable", "Archivar un bolo también archiva su tablero y tareas. Recuperarlo los devuelve juntos.",state.user.role === "admin"?`<a class="button" href="${BASE}api/export.zip">↓ Copia completa ZIP</a>`:"") +
-      `<section class="panel">${archived.map(x=>`<div class="archived-row"><div><strong>${x.kind==='person'?personLabel(x.id):esc(titleOf(x))}</strong><small>${KIND[x.kind]} · ${dateTime(x.updated)}</small></div>${btn("restore","Recuperar",x.id,"small")}</div>`).join("") || empty("El archivo está vacío","Las fichas archivadas aparecerán aquí y se podrán recuperar.")}</section>`;
+      `<section class="panel">${archived.map(x=>`<div class="archived-row"><div><strong>${x.kind==='person'?personLabel(x.id):esc(titleOf(x))}</strong><small>${KIND[x.kind]} · ${dateTime(x.updated)}</small></div><div class="actions">${btn("restore","Recuperar",x.id,"small")}${x.kind === "ticket" ? btn("delete-ticket","Eliminar tarea " + x.title,x.id,"danger") : ""}</div></div>`).join("") || empty("El archivo está vacío","Las fichas archivadas aparecerán aquí y se podrán recuperar.")}</section>`;
   }
 
   function openDialog(kind, title, html) {
@@ -283,12 +305,12 @@
     if (!dialog.open) dialog.showModal();
   }
   function formShell(kind, object, body, extra = "") {
-    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div>${object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"danger small"):""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
+    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
   }
   function openBoard(id) {
     const b = id ? item(id) : {title:"", description:"", color:"violet"};
     openDialog("board", id ? "Editar tablero" : "Nuevo tablero",formShell("board",b,
-      field("Nombre del tablero",input("title",b.title,"text",'required maxlength="240"')) + field("Para qué lo vamos a usar",area("description",b.description,'maxlength="15000"')) + field("Color",select("color",{violet:"Violeta · dramaturgia",cyan:"Turquesa",coral:"Coral",gold:"Dorado"},b.color))));
+      field("Nombre del tablero",input("title",id ? boardTitle(b.title) : "","text",'required maxlength="240"')) + field("Para qué lo vamos a usar",area("description",b.description,'maxlength="15000"')) + field("Color",select("color",{violet:"Violeta",cyan:"Turquesa",coral:"Coral",gold:"Dorado"},b.color))));
   }
   function checkRow(check = {}) {
     return `<div class="checklist-row"><input type="checkbox" class="check-done" aria-label="Paso completado" ${check.done?"checked":""}><input type="text" class="check-text" aria-label="Texto del paso" value="${esc(check.text || "")}" maxlength="240" placeholder="Un paso concreto" required><button type="button" class="icon-button" data-action="remove-row" aria-label="Quitar paso">×</button></div>`;
@@ -423,6 +445,36 @@
     catch(error) {toast(error.message);}
     finally {saving=false;}
   }
+  function askDelete(id) {
+    const ticket = item(id);
+    if (saving || !ticket || ticket.kind !== "ticket" || deleteDialog.open) return;
+    pendingDelete = {id, version:ticket.version, requestId:crypto.randomUUID(), confirmed:true};
+    document.querySelector("#delete-ticket-name").textContent = ticket.title;
+    document.querySelector("#delete-error").textContent = "";
+    deleteDialog.showModal();
+  }
+  async function confirmDelete() {
+    if (saving || !pendingDelete || !deleteDialog.open) return;
+    const operation = pendingDelete;
+    saving = true;
+    const buttons = [...deleteDialog.querySelectorAll("button")];
+    buttons.forEach(b => {b.disabled = true;});
+    try {
+      const result = await request("delete-ticket", operation);
+      if (result.item?.id !== operation.id || result.item?.deleted !== true) throw new Error("No se ha podido confirmar la eliminación. Comprueba el tablero antes de reintentar.");
+      state.items = state.items.filter(x => x.id !== operation.id);
+      deleteDialog.close();
+      if (dialog.querySelector("#edit-form")?.dataset.id === operation.id) dialog.close();
+      renderPage();
+      toast("Tarea eliminada definitivamente, junto con sus comentarios.");
+      try {await refresh(false); renderPage();}
+      catch (_) {toast("Tarea eliminada. No se pudo actualizar el resto del tablero; recarga cuando vuelva la conexión.");}
+    } catch (error) {
+      document.querySelector("#delete-error").textContent = error.message;
+    } finally {saving = false; buttons.forEach(b => {b.disabled = false;});}
+  }
+  deleteDialog.addEventListener("cancel", event => {if (saving) event.preventDefault();});
+  deleteDialog.addEventListener("close", () => {pendingDelete = null;});
   async function action(node) {
     const {action:a,id,status} = node.dataset;
     if(await business.action(node))return;
@@ -458,6 +510,9 @@
     else if(a === "remove-row")node.parentElement.remove();
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
+    else if(a === "delete-ticket")askDelete(id);
+    else if(a === "confirm-delete")await confirmDelete();
+    else if(a === "cancel-delete") {if(!saving)deleteDialog.close();}
     else if(a === "print")window.print();
     else if(a === "events-calendar" || a === "events-agenda") {calendarMode=a === "events-calendar"?"calendar":"agenda";renderPage();}
     else if(a === "month-next" || a === "month-prev") {month=new Date(month.getFullYear(),month.getMonth()+(a === "month-next"?1:-1),1);renderPage();}
@@ -500,7 +555,7 @@
   function showDrop(drop) {clearDrop();if(drop){drop.column.classList.add("drop-active");drop.before?.classList.add("drop-before");}}
   document.addEventListener("dragstart",event=>{
     const ticket=event.target.closest(".ticket");if(!ticket)return;
-    if(event.target.closest("select,input")){event.preventDefault();return;}
+    if(event.target.closest("select,input,[data-action]")){event.preventDefault();return;}
     dragId=ticket.dataset.ticket;ticket.classList.add("dragging");event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/plain",dragId);
   });
   document.addEventListener("dragover",event=>{if(!dragId)return;const drop=targetAt(event.target,event.clientY);if(drop){event.preventDefault();event.dataTransfer.dropEffect="move";showDrop(drop);}});
@@ -558,10 +613,10 @@
   }
   async function boot() {
     try {await refresh(false);renderPage();checkHealth().catch(()=>{});if(route()[0]==="messages")loadMessages().then(()=>{if(!dialog.open)renderPage();}).catch(error=>toast(error.message));}
-    catch(error){main.innerHTML=empty("No se pudo abrir el backstage",error.message,`<a class="button" href="/sutura/">Entrar con Sutura / Authentik</a>`);document.querySelector("#connection").textContent="○ Sin conexión";}
+    catch(error){main.innerHTML=empty("No se pudo abrir el backstage",error.message,`<a class="button" href="/scrib/">Volver a iniciar sesión</a>`);document.querySelector("#connection").textContent="○ Sin conexión";}
   }
   setInterval(async()=>{
-    if(!state || document.hidden || saving || dragId)return;
+    if(!state || document.hidden || saving || dragId || deleteDialog.open)return;
     if(dialog.open){
       const commentForm=dialog.querySelector(".comment-form");
       if(commentForm){

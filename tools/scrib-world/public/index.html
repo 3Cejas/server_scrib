@@ -6,12 +6,13 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#10121b">
   <meta name="robots" content="noindex,nofollow">
-  <title>&lt;SCRI&gt; B · Sutura</title>
-  <link rel="icon" href="/favicons/panel-32.png">
+  <title>&lt;SCRI&gt; B</title>
+  <link rel="icon" type="image/png" href="/scrib/backstage/logo.png">
   <link rel="stylesheet" href="/scrib/backstage/app.css?v=5">
   <link rel="stylesheet" href="/scrib/backstage/business.css?v=1">
   <link rel="stylesheet" href="/scrib/backstage/resources.css?v=2">
   <link rel="stylesheet" href="/scrib/backstage/people.css?v=2">
+  <link rel="stylesheet" href="/scrib/backstage/tasks.css?v=1">
   <script src="/scrib/backstage/activity.js?v=1" defer></script>
   <script src="/scrib/backstage/people-colors.js?v=1" defer></script>
   <script src="/scrib/backstage/people-profile.js?v=1" defer></script>
@@ -20,19 +21,19 @@
   <script src="/scrib/backstage/business.js?v=2" defer></script>
   <script src="/scrib/backstage/inventory.js?v=3" defer></script>
   <script src="/scrib/backstage/library.js?v=1" defer></script>
-  <script src="/scrib/backstage/app.js?v=14" defer></script>
+  <script src="/scrib/backstage/app.js?v=15" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Ir al contenido</a>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="#home" aria-label="&lt;SCRI&gt; B, inicio"><span class="brand-word">&lt;SCRI&gt; B<span class="brand-dot">▮</span></span><span class="brand-sub">EL BACKSTAGE DE SUTURA</span></a>
+      <a class="brand" href="#home" aria-label="&lt;SCRI&gt; B, inicio"><img class="brand-logo" src="/scrib/backstage/logo.png" alt="" width="72" height="72"><span class="brand-word">&lt;SCRI&gt; B</span></a>
       <div class="workspace-caption">ESPACIO COMPARTIDO</div>
       <nav aria-label="Secciones">
         <a href="#home" data-nav="home"><span aria-hidden="true">◈</span> Inicio</a>
         <a href="#events" data-nav="events"><span aria-hidden="true">▦</span> Bolos y calendario</a>
         <a href="#availability" data-nav="availability"><span aria-hidden="true">◷</span> Disponibilidad</a>
-        <a href="#boards" data-nav="boards"><span aria-hidden="true">▤</span> Dramaturgia</a>
+        <a href="#boards" data-nav="boards"><span aria-hidden="true">▤</span> Tareas</a>
         <a href="#people" data-nav="people"><span aria-hidden="true">✳</span> Elenco</a>
         <a href="#inventory" data-nav="inventory"><span aria-hidden="true">🎭</span> Inventario</a>
         <a href="#materials" data-nav="materials"><span aria-hidden="true">▶</span> Materiales</a>
@@ -42,10 +43,7 @@
         <a href="#archive" data-nav="archive"><span aria-hidden="true">↺</span> Archivo recuperable</a>
       </nav>
       <div class="sidebar-bottom">
-        <a href="/scrib/game/" class="game-shortcut" target="_blank" rel="noopener">↗ Abrir videojuego</a>
-        <a href="/sutura/" class="sutura-link">← Mundo Sutura</a>
-        <a href="/" class="sutura-link">Cambiar de mundo</a>
-        <div class="identity"><span class="avatar" id="user-avatar">S</span><div><strong id="user-name">Conectando…</strong><small>Acceso Sutura · Authentik</small></div><a href="/logout" aria-label="Cerrar sesión">↗</a></div>
+        <div class="identity"><span class="avatar" id="user-avatar">S</span><div><strong id="user-name">Conectando…</strong></div><a href="/logout" aria-label="Cerrar sesión" title="Cerrar sesión">↗</a></div>
       </div>
     </aside>
     <div class="stage">
@@ -55,6 +53,7 @@
     </div>
   </div>
   <dialog id="editor" aria-labelledby="dialog-title"><div class="dialog-head"><div><p class="eyebrow" id="dialog-kicker">BACKSTAGE</p><h2 id="dialog-title">Ficha</h2></div><button type="button" data-action="close-dialog" class="icon-button" aria-label="Cerrar ficha">×</button></div><div id="dialog-content"></div></dialog>
+  <dialog id="delete-confirmation" aria-labelledby="delete-title" aria-describedby="delete-description"><div class="dialog-head"><h2 id="delete-title">Eliminar tarea</h2><button type="button" data-action="cancel-delete" class="icon-button" aria-label="Cancelar eliminación">×</button></div><div class="delete-content"><p>Vas a eliminar <strong id="delete-ticket-name"></strong>.</p><p id="delete-description" class="muted">Se borrarán la tarea, sus comentarios y su checklist. No se podrá recuperar desde Archivo. Si quieres conservarla, cancela y utiliza Archivar.</p><p id="delete-error" class="form-error" role="alert"></p><div class="actions"><button type="button" data-action="cancel-delete" class="button" autofocus>Cancelar</button><button type="button" data-action="confirm-delete" class="button destructive">Eliminar definitivamente</button></div></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
