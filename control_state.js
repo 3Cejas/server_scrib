@@ -48,6 +48,7 @@ const crearEstadoControlBase = () => ({
         1: "ESCRITXR 1",
         2: "ESCRITXR 2"
     },
+    bolo: null,
     revision: 0,
     ts: 0
 });
@@ -106,6 +107,11 @@ const normalizarNombresControl = (entrada = {}, previos = {}) => {
     };
 };
 
+const normalizarBoloControl = (value) => {
+    if (!value || typeof value !== 'object') return null;
+    return Object.fromEntries(['id', 'title', 'start', 'venue', 'city', 'revision'].map(key => [key, normalizarTextoControl(value[key], key === 'title' ? 240 : 200)]));
+};
+
 function crearGestorEstadoControl({ io } = {}) {
     let estado = crearEstadoControlBase();
 
@@ -115,6 +121,7 @@ function crearGestorEstadoControl({ io } = {}) {
         parametros: { ...estado.parametros },
         modos: [...estado.modos],
         nombres: { ...estado.nombres },
+        bolo: estado.bolo ? { ...estado.bolo } : null,
         revision: Number(estado.revision) || 0,
         ts: Number(estado.ts) || 0
     });
@@ -148,15 +155,23 @@ function crearGestorEstadoControl({ io } = {}) {
         if (Object.prototype.hasOwnProperty.call(data, "nombres")) {
             estado.nombres = normalizarNombresControl(data.nombres, estado.nombres);
         }
+        if (Object.prototype.hasOwnProperty.call(data, "bolo")) estado.bolo = normalizarBoloControl(data.bolo);
         estado.revision += 1;
         estado.ts = Date.now();
         return snapshot();
     };
 
     const reset = ({ conservarNombres = false } = {}) => {
+        const configuracionBolo = conservarNombres && estado.bolo ? snapshot() : null;
         const nombres = { ...estado.nombres };
         estado = crearEstadoControlBase();
         if (conservarNombres) estado.nombres = nombres;
+        if (configuracionBolo) {
+            estado.parametros = configuracionBolo.parametros;
+            estado.modos = configuracionBolo.modos;
+            estado.frases_finales = configuracionBolo.frases_finales;
+            estado.bolo = configuracionBolo.bolo;
+        }
         return snapshot();
     };
 
@@ -168,6 +183,7 @@ function crearGestorEstadoControl({ io } = {}) {
             parametros: normalizarParametrosControl(data.parametros, PARAMETROS_CONTROL_DEFECTO),
             modos: normalizarModosControl(data.modos, MODOS_CONTROL_DISPONIBLES),
             nombres: normalizarNombresControl(data.nombres, {}),
+            bolo: normalizarBoloControl(data.bolo),
             revision: Math.max(0, Math.trunc(Number(data.revision) || 0)),
             ts: Math.max(0, Math.trunc(Number(data.ts) || 0))
         };

@@ -372,6 +372,7 @@ function crearCanalesEscritor({
     };
 
     return {
+        establecerNombre: (player, nombre) => actualizarNombre({ broadcast: io }, player, nombre),
         emitirNombres,
         emitirTextos,
         getNombre,

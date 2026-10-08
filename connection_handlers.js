@@ -161,6 +161,7 @@ function registrarConexionScrib(socket, deps) {
         && String(query.dramaturgia_monitor || "") === "1"
     );
     instalarGuardiaMonitor(socket);
+    if (deps.boloConfigurations) deps.boloConfigurations.register(socket);
     if (preShowMusas && typeof preShowMusas.registrarHandlers === "function") {
         preShowMusas.registrarHandlers(socket);
     }

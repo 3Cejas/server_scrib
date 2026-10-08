@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
 from participations import with_participations
 from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PREFIX, TOKEN_RE
+from game_config import normalize as normalize_game_config, profile as game_profile, SCHEMA as GAME_CONFIG_SCHEMA
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -287,6 +288,7 @@ class Store:
             else:
                 body["position"] = 1 + max((x.get("position", 0) for x in self.all(db, "ticket") if x["boardId"] == board["id"]), default=0)
         elif kind == "event":
+            body['gameConfig'] = normalize_game_config(data.get('gameConfig', (existing or {}).get('gameConfig')), Problem)
             start_input = data.get("start", "")
             date_only = isinstance(start_input, str) and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", start_input))
             body.update(start=date_value(start_input, not date_only), end=date_value(data.get("end", ""), True),
@@ -324,6 +326,13 @@ class Store:
     def all(self, db, kind=None):
         rows = db.execute("SELECT id FROM items" + (" WHERE kind=?" if kind else ""), (kind,) if kind else ())
         return [self.item(db, r["id"]) for r in rows]
+
+    def game_configurations(self):
+        with self.connect() as db:
+            people = {p['id']: {'name': p['name']} for p in self.all(db, 'person')}
+            events = [e for e in self.all(db, 'event') if not e['archived'] and e.get('eventType', 'show') == 'show' and e['status'] != 'cancelled']
+            events.sort(key=lambda e: e['start'], reverse=True)
+            return {'bolos': [game_profile(e, people) for e in events[:300]]}
 
     def snapshot(self):
         with self.connect() as db:
@@ -772,11 +781,15 @@ class Handler(BaseHTTPRequestHandler):
                 raise Problem("No encontrado.", 404)
             store = self.server.store
             if self.command in ("GET", "HEAD"):
+                if route == 'api/game-configurations':
+                    return self.reply(200, store.game_configurations())
+                if route == 'api/game-config-schema':
+                    return self.reply(200, GAME_CONFIG_SCHEMA)
                 if route == "api/state":
                     store.identify(actor, user["name"])
                     token = self.valid_cookie_token(actor) or self.csrf_token(actor)
                     cookie = f"scrib_world_csrf={token}; HttpOnly; SameSite=Strict; Path={cookie_prefix}; Max-Age=43200" + ("" if self.server.demo else "; Secure")
-                    return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo), extra={"Set-Cookie": cookie})
+                    return self.reply(200, dict(store.snapshot(), user=user, csrf=token, demo=self.server.demo, gameConfigSchema=GAME_CONFIG_SCHEMA), extra={"Set-Cookie": cookie})
                 if route.startswith("api/items/"):
                     return self.reply(200, store.details(route.split("/")[-1]))
                 if route.startswith('api/availability/'):
@@ -799,7 +812,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)

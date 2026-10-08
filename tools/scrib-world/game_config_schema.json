@@ -1,0 +1,24 @@
+{
+  "parameters": {
+    "duracion_minutos": {"label": "Duración de partida · minutos", "default": 35, "min": 0, "max": 360},
+    "duracion_segundos": {"label": "Duración · segundos adicionales", "default": 0, "min": 0, "max": 59},
+    "tiempo_votacion": {"label": "Votación · segundos", "default": 30, "min": 1, "max": 360},
+    "tiempo_cambio_letra": {"label": "Cambio de letra · segundos", "default": 60, "min": 1, "max": 360},
+    "tiempo_cambio_palabras": {"label": "Cambio de palabras · segundos", "default": 20, "min": 1, "max": 360},
+    "limite_tiempo_inspiracion": {"label": "Cooldown de musas · segundos", "default": 10, "min": 5, "max": 120},
+    "porcentaje_tiempo_desventaja": {"label": "Tramo de desventaja · %", "default": 20, "min": 1, "max": 90},
+    "reduccion_tertulia_porcentaje": {"label": "Reducción de tertulia · %", "default": 50, "min": 0, "max": 95},
+    "pausa_explicacion_niveles": {"label": "Mantener explicación hasta reanudar desde Control", "default": 0, "min": 0, "max": 1},
+    "escala_espectador": {"label": "Tamaño interfaz espectador · %", "default": 100, "min": 82, "max": 128},
+    "escala_texto_espectador": {"label": "Tamaño texto espectador · %", "default": 100, "min": 90, "max": 170},
+    "escala_detonadores_espectador": {"label": "Tamaño detonadores espectador · %", "default": 100, "min": 70, "max": 200}
+  },
+  "modes": {
+    "palabras bonus": "Palabras benditas",
+    "letra bendita": "Letra bendita",
+    "tertulia": "Tertulia",
+    "letra prohibida": "Letra maldita",
+    "palabras prohibidas": "Palabras malditas",
+    "frase final": "Frase final"
+  }
+}

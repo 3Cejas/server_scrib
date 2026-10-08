@@ -1,7 +1,7 @@
 # Mundo <SCRI> B
 
 Aplicación independiente de producción y dramaturgia en `/scrib/`.
-No modifica el servidor del videojuego ni sus partidas. Python 3.10+, SQLite y
+Guardar datos aquí no modifica las partidas del videojuego. Python 3.10+, SQLite y
 JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones continuas.
 
 ## Qué incluye
@@ -31,6 +31,27 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   sus tareas, sin recuperar tareas que ya estaban archivadas por separado.
 - Actualización compartida cada 15 segundos sin regenerar formularios mientras se
   escribe; conflictos de edición devuelven 409, nunca sobrescriben a otra persona.
+
+## Configuración del videojuego por bolo
+
+- En **Editar bolo**, activa «Guardar parámetros para esta función»: duración,
+  cooldown de musas, votaciones, cambios de palabras/letras, desventajas,
+  explicación manual/automática, tamaños de espectador, niveles, idioma y frases
+  finales opcionales. El elenco debe tener una persona de Escritura en cada equipo.
+- En el videojuego, **Control → Juego → Cargar configuración de un bolo** muestra
+  una vista previa y, al confirmar, sincroniza nombres, créditos del elenco y
+  parámetros. No inicia/limpia la partida ni cambia la escena del espectador.
+- Solo Control autorizado puede consultar/importar. Partidas en marcha, pausadas
+  o en cuenta atrás bloquean la importación. Cambios simultáneos en el bolo, sus
+  personas o Control obligan a actualizar la vista previa antes de confirmar.
+- Los bolos antiguos sin configuración no reciben parámetros inventados. Editarlos
+  guarda la configuración en el JSON del evento de `world.sqlite3`, incluido en los
+  backups habituales. Ensayos, bolos archivados o cancelados no se ofrecen.
+- El servidor del videojuego consulta el servicio privado en loopback, puerto 5124,
+  mediante `~/dockers/scrib-world-data/bridge-secret`. `SCRIB_WORLD_PORT` y
+  `SCRIB_WORLD_SECRET` permiten configurar una instalación distinta. No se exportan
+  teléfonos, imágenes, redes ni notas privadas al videojuego. No hace falta una
+  migración de la base de datos ni añadir credenciales al navegador.
 
 ## Disponibilidad y ensayos
 

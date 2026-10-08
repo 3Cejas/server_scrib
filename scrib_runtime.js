@@ -40,6 +40,7 @@ const { crearGestorMarcasTecnico } = require('./technician_marks.js');
 const { crearRegistroIteracionesPartida } = require('./match_iterations.js');
 const { crearPersistenciaRuntime } = require('./runtime_persistence.js');
 const { crearGestorProteccionRendimiento } = require('./performance_protection.js');
+const { createBoloConfigurationManager } = require('./bolo_configuration.js');
 
 function crearRuntimeScrib({
     io,
@@ -192,7 +193,7 @@ function crearRuntimeScrib({
         getTiempoVotacion
     } = runtimeModos;
 
-    const { emitirIdiomaJuego, setIdiomaJuego } = crearGestorIdioma({ io });
+    const { emitirIdiomaJuego, setIdiomaJuego, getIdiomaJuego } = crearGestorIdioma({ io });
     const desventajasActivas = crearGestorDesventajasActivas({
         validarJugador: obtenerIdJugadorValido,
         getDuracionMs: () => getTiempoModificador()
@@ -485,6 +486,8 @@ function crearRuntimeScrib({
         writer: writerChannels.snapshotEstado(),
         stats: statsLive.payload(),
         control: controlState.snapshot(),
+        creditos: creditosShow.payload().creditos,
+        idioma: getIdiomaJuego(),
         reloj: relojPartida.snapshot(),
         partida: snapshotEstadoModos(),
         partida_sync: partidaSync.snapshot(),
@@ -502,6 +505,8 @@ function crearRuntimeScrib({
     });
 
     if (estadoPersistidoInicial && typeof estadoPersistidoInicial === "object") {
+        if (estadoPersistidoInicial.creditos) creditosShow.actualizar(estadoPersistidoInicial.creditos);
+        if (estadoPersistidoInicial.idioma) setIdiomaJuego(estadoPersistidoInicial.idioma);
         if (estadoPersistidoInicial.writer) writerChannels.restaurar(estadoPersistidoInicial.writer);
         if (estadoPersistidoInicial.stats && typeof statsLive.restaurar === "function") {
             statsLive.restaurar(estadoPersistidoInicial.stats);
@@ -564,7 +569,7 @@ function crearRuntimeScrib({
         votacionVentaja.reset();
         votacionRepentizado.reset();
         espectador.reset();
-        creditosShow.reset();
+        if (!(conservarNombres && controlState.snapshot().bolo)) creditosShow.reset();
         resultadoJurado.reset();
         cantoShow.reset();
         temporizadorShow.reset();
@@ -836,7 +841,35 @@ function crearRuntimeScrib({
         emitirEstadoAyudaControl: (socketDestino) => ayudaMusas.emitirEstadoControl(socketDestino)
     });
 
+    const boloConfigurations = createBoloConfigurationManager({
+        io,
+        isMatchActive: () => !estadoCicloPartida.finDelJuego && Boolean(estadoCicloPartida.modoActual || Number(estadoCicloPartida.duracionPartida) > 0 || relojPartida.snapshot().activo),
+        getControlRevision: () => controlState.snapshot().revision,
+        apply: (bolo) => {
+            const {parametros, modos, frases_finales, idioma} = bolo.config;
+            const metadata = Object.fromEntries(['id', 'title', 'start', 'venue', 'city', 'revision'].map(key => [key, bolo[key]]));
+            const control = controlState.actualizar({parametros, modos, frases_finales, nombres: bolo.nombres, bolo: metadata});
+            creditosShow.actualizar({...creditosShow.payload().creditos, ...bolo.creditos});
+            [1, 2].forEach(player => writerChannels.establecerNombre(player, control.nombres[player]));
+            configurarPausaExplicacionBolo(control.parametros);
+            espectador.ajustarEscala({valor: parametros.escala_espectador / 100});
+            espectador.ajustarEscalaTexto({valor: parametros.escala_texto_espectador / 100});
+            espectador.ajustarEscalaDetonadores({valor: parametros.escala_detonadores_espectador / 100});
+            emitirVistaEspectadorModo();
+            setIdiomaJuego(idioma);
+            emitirIdiomaJuego();
+            controlState.emitir();
+            creditosShow.emitir();
+            programarCheckpointPersistencia();
+            return {control, creditos: creditosShow.payload().creditos};
+        }
+    });
+    function configurarPausaExplicacionBolo(parametros) {
+        runtimeModos.configurarPausaExplicacion(parametros.pausa_explicacion_niveles);
+    }
+
     deps = {
+        boloConfigurations,
         io,
         passwordRoles,
         accesoRoles,

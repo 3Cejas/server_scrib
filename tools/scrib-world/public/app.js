@@ -184,6 +184,7 @@
       `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${event.eventType === "rehearsal" ? `<section class="panel"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
       <section class="panel"><div class="panel-head"><h2>Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="team-row">${casts || `<p class="muted">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</div></section>
+      ${event.eventType === 'rehearsal' ? '' : `<section class="panel"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       <section class="panel"><h2>Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">Mundo SCRIB · ${niceDate(today())} · Horario Europe/Madrid</p></section></div>`;
   }
   function renderPeople() {
@@ -295,6 +296,7 @@
       `<div class="form-row">${field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local"))}${field("Estado del bolo",select("status",EVENT_STATUS,e.status))}</div>` +
       `<div class="form-row">${field("Espacio / sala",input("venue",e.venue,"text",'maxlength="200"'))}${field("Ciudad",input("city",e.city,"text",'maxlength="120"'))}</div>` + field("Dirección / instrucciones de llegada",input("address",e.address,"text",'maxlength="1000"')) +
       field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"')) + field("Notas de producción",area("description",e.description,'maxlength="15000" placeholder="Acceso, necesidades de sala, contactos profesionales, ensayo…"')) +
+      window.ScribWorldGameConfig.editor(e,state.gameConfigSchema) +
       (id ? `<div class="notice">El tablero ya existe. Editar el bolo no reinicia ni duplica sus tareas.</div>` : field("Plantilla de tareas iniciales",select("templateId",Object.fromEntries(active("template").map(t=>[t.id,`${t.title} · ${t.tasks.length} tareas`])),"default-template"),"Se copiarán automáticamente en TO DO al guardar.")) +
       `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Persona","","small")}</div>${!active("person").length?`<p class="muted">Primero crea las fichas en Elenco. Puedes guardar el bolo y añadir su reparto después.</p>`:""}<div class="cast-editor">${e.cast.map(castRow).join("")}</div><datalist id="cast-roles">${["Escritura","Interpretación","Dramaturgia","Técnica","Producción","Dirección"].map(x=>`<option value="${x}">`).join("")}</datalist></div>`));
   }
@@ -337,6 +339,9 @@
         form.querySelector('[name=image]').value = data.image;
       }
     } else if (form.dataset.kind === "event") {
+      const gameConfig = window.ScribWorldGameConfig.read(form);
+      if(gameConfig !== undefined)data.gameConfig = gameConfig;
+      delete data.gameConfigEnabled;
       if(data.startTime)data.start += "T" + data.startTime;
       delete data.startTime;
       data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:row.querySelector(".cast-team").value}));
