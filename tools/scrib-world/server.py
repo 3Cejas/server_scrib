@@ -277,13 +277,17 @@ class Store:
             else:
                 body["position"] = 1 + max((x.get("position", 0) for x in self.all(db, "ticket") if x["boardId"] == board["id"]), default=0)
         elif kind == "event":
-            body.update(start=date_value(data.get("start", ""), True), end=date_value(data.get("end", ""), True),
+            start_input = data.get("start", "")
+            date_only = isinstance(start_input, str) and bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", start_input))
+            body.update(start=date_value(start_input, not date_only), end=date_value(data.get("end", ""), True),
                         venue=text(data.get("venue", ""), 200), city=text(data.get("city", ""), 120),
                         address=text(data.get("address", ""), 1000), arrival=date_value(data.get("arrival", ""), True),
                         status=choice(data.get("status", "pending"), ("pending", "confirmed", "completed", "cancelled")),
                         ticketUrl=link(data.get("ticketUrl", "")), cast=[])
             if not body["start"]:
-                raise Problem("Indica la fecha y hora del bolo.")
+                raise Problem("Indica la fecha del bolo; la hora puede quedar pendiente.")
+            if date_only and body["end"]:
+                raise Problem("Indica la hora de inicio antes de añadir una hora de fin.")
             if body["end"] and datetime.fromisoformat(body["end"]) < datetime.fromisoformat(body["start"]):
                 raise Problem("La hora de fin no puede ser anterior a la función.")
             cast = data.get("cast", [])
@@ -464,7 +468,7 @@ class Store:
         with self.transaction() as db:
             event = self.item(db, data["eventId"], "event", True) if data.get("eventId") else None
             context = {"bolo": event["title"] if event else "", "fecha": datetime.fromisoformat(event["start"]).strftime("%d/%m/%Y") if event else "",
-                       "hora": datetime.fromisoformat(event["start"]).strftime("%H:%M") if event else "", "lugar": " · ".join(filter(None, [event["venue"], event["city"]])) if event else "",
+                       "hora": datetime.fromisoformat(event["start"]).strftime("%H:%M") if event and len(event["start"]) > 10 else "", "lugar": " · ".join(filter(None, [event["venue"], event["city"]])) if event else "",
                        "convocatoria": datetime.fromisoformat(event["arrival"]).strftime("%d/%m/%Y %H:%M") if event and event["arrival"] else ""}
             people, phones = [], set()
             for ident in ids:
@@ -540,9 +544,12 @@ def ics(snapshot):
         start = datetime.fromisoformat(event["start"])
         end = datetime.fromisoformat(event["end"]) if event["end"] else start + timedelta(hours=1)
         utc = lambda d: d.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        lines += ["BEGIN:VEVENT", "UID:" + event["id"] + "@sutura.ddns.net", "DTSTAMP:" + utc(datetime.now(timezone.utc)), "DTSTART:" + utc(start), "DTEND:" + utc(end),
+        date_only = len(event["start"]) == 10
+        timing = ["DTSTART;VALUE=DATE:" + start.strftime("%Y%m%d"), "DTEND;VALUE=DATE:" + (start + timedelta(days=1)).strftime("%Y%m%d"), "TRANSP:TRANSPARENT"] if date_only else ["DTSTART:" + utc(start), "DTEND:" + utc(end)]
+        description = event["description"] + ("\nHorario pendiente de confirmar." if date_only else "")
+        lines += ["BEGIN:VEVENT", "UID:" + event["id"] + "@sutura.ddns.net", "DTSTAMP:" + utc(datetime.now(timezone.utc)), *timing,
                   "SUMMARY:" + esc(event["title"]), "LOCATION:" + esc(", ".join(filter(None, [event["venue"], event["city"], event["address"]]))),
-                  "DESCRIPTION:" + esc(event["description"]), "STATUS:" + ("CANCELLED" if event["status"] == "cancelled" else "CONFIRMED" if event["status"] == "confirmed" else "TENTATIVE"), "END:VEVENT"]
+                  "DESCRIPTION:" + esc(description), "STATUS:" + ("CANCELLED" if event["status"] == "cancelled" else "CONFIRMED" if event["status"] == "confirmed" else "TENTATIVE"), "END:VEVENT"]
     lines += ["END:VCALENDAR"]
     # RFC5545 folding, UTF-8-safe, 75 octets including continuation space.
     folded = []

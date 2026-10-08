@@ -14,6 +14,9 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   fecha límite, motivo del bloqueo, checklist, comentarios e historial.
 - Calendario mensual, agenda, exportación ICS (horario Europe/Madrid), ficha de bolo,
   convocatoria del elenco, lugar, horario, información y hoja de llamada imprimible.
+- Se pueden crear bolos con fecha y hora pendiente: se muestran como «Hora pendiente»,
+  se exportan como fecha (sin inventar las 00:00) y bloquean `{hora}` en WhatsApp hasta
+  completarla. Añadir la hora después no duplica ni reinicia las tareas del tablero.
 - Fichas reutilizables de personas: nombre completo, especialidades, biografía,
   redes y foto privada. Un papel y equipo diferentes en cada función.
 - Plantilla inicial de 34 tareas transcritas de las tres capturas del usuario.

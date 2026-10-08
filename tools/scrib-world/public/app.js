@@ -19,7 +19,7 @@
   const active = kind => state.items.filter(x => x.kind === kind && !x.archived);
   const today = () => new Intl.DateTimeFormat("en-CA", {timeZone: "Europe/Madrid", year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   const niceDate = (value, full = true) => value ? new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", day:"numeric", month:full?"long":"short", ...(full ? {year:"numeric"} : {})}).format(new Date(value.length === 10 ? value + "T12:00:00" : value)) : "Sin fecha";
-  const hour = value => value ? new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", hour:"2-digit",minute:"2-digit"}).format(new Date(value)) : "";
+  const hour = value => value ? value.length === 10 ? "Hora pendiente" : new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", hour:"2-digit",minute:"2-digit"}).format(new Date(value)) : "";
   const dateTime = value => value ? niceDate(value, false) + " · " + hour(value) : "Sin indicar";
   const localInput = value => (value || "").slice(0, 16);
   const badge = (label, color = "") => `<span class="badge ${esc(color)}">${esc(label)}</span>`;
@@ -274,10 +274,11 @@
     return `<div class="cast-editor-row"><select class="cast-person" aria-label="Persona del elenco" required>${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><input class="cast-role" aria-label="Papel en el bolo" list="cast-roles" placeholder="Escritura, técnica…" value="${esc(c.role || "")}" required maxlength="100"><select class="cast-team" aria-label="Equipo">${option("general","General",c.team || "general")}${option("blue","Azul",c.team)}${option("red","Rojo",c.team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
   }
   function openEvent(id, day) {
-    const e = id ? item(id) : {title:"",start:(day || today()) + "T19:00",end:"",arrival:"",status:"pending",venue:"",city:"",address:"",description:"",ticketUrl:"",cast:[]};
+    const e = id ? item(id) : {title:"",start:day || today(),end:"",arrival:"",status:"pending",venue:"",city:"",address:"",description:"",ticketUrl:"",cast:[]};
     openDialog("event",id ? "Editar bolo" : "Un nuevo escenario",formShell("event",e,
       field("Nombre del bolo",input("title",e.title,"text",'required maxlength="240" placeholder="SCRIB · sala / festival"')) +
-      `<div class="form-row">${field("Inicio · horario Madrid",input("start",localInput(e.start),"datetime-local", "required"))}${field("Fin (opcional)",input("end",localInput(e.end),"datetime-local"))}</div>` +
+      `<div class="form-row">${field("Fecha del bolo",input("start",e.start.slice(0,10),"date", "required"))}${field("Hora · horario Madrid",input("startTime",e.start.length > 10 ? e.start.slice(11,16) : "","time"),"Déjala vacía si todavía está pendiente.")}</div>` +
+      field("Fin (opcional; requiere hora de inicio)",input("end",localInput(e.end),"datetime-local")) +
       `<div class="form-row">${field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local"))}${field("Estado del bolo",select("status",EVENT_STATUS,e.status))}</div>` +
       `<div class="form-row">${field("Espacio / sala",input("venue",e.venue,"text",'maxlength="200"'))}${field("Ciudad",input("city",e.city,"text",'maxlength="120"'))}</div>` + field("Dirección / instrucciones de llegada",input("address",e.address,"text",'maxlength="1000"')) +
       field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"')) + field("Notas de producción",area("description",e.description,'maxlength="15000" placeholder="Acceso, necesidades de sala, contactos profesionales, ensayo…"')) +
@@ -323,6 +324,8 @@
         form.querySelector('[name=image]').value = data.image;
       }
     } else if (form.dataset.kind === "event") {
+      if(data.startTime)data.start += "T" + data.startTime;
+      delete data.startTime;
       data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:row.querySelector(".cast-team").value}));
     } else if (form.dataset.kind === "template") {
       data.tasks = [...form.querySelectorAll(".template-row")].map(row=>({title:row.querySelector(".template-title").value,labels:splitValues(row.querySelector(".template-labels").value),description:row.querySelector(".template-description").value}));

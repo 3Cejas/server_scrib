@@ -208,6 +208,31 @@ class StoreTests(unittest.TestCase):
             with self.assertRaises(world.Problem):self.event(start=date)
         with self.assertRaises(world.Problem):self.event(end="2026-10-20T18:00")
 
+    def test_date_only_bolo_has_pending_hour_and_all_tasks(self):
+        event = self.event(start="2026-11-07")
+        self.assertEqual(event['start'], '2026-11-07')
+        tasks=[x for x in self.store.snapshot()['items'] if x['kind']=='ticket' and x['boardId']==event['boardId']]
+        self.assertEqual(len(tasks),34)
+        self.assertTrue(all(t['status']=='todo' for t in tasks))
+        data=world.ics(self.store.snapshot()).decode()
+        self.assertIn('DTSTART;VALUE=DATE:20261107',data)
+        self.assertIn('DTEND;VALUE=DATE:20261108',data)
+        self.assertIn('TRANSP:TRANSPARENT',data)
+        self.assertIn('Horario pendiente',data)
+        self.assertNotIn('DTSTART:20261107T',data)
+        for start in ['2026-02-30','2026-13-07']:
+            with self.assertRaises(world.Problem):self.event(start=start)
+        with self.assertRaises(world.Problem):self.event(start='2026-11-07',end='2026-11-07T21:00')
+
+    def test_add_or_remove_bolo_hour_keeps_its_board_and_tasks(self):
+        e=self.event(start='2026-11-07')
+        with_hour=self.store.update(e['id'],dict(e,start='2026-11-07T20:00'),'angela',e['version'])
+        self.assertEqual(with_hour['start'],'2026-11-07T20:00+01:00')
+        no_hour=self.store.update(e['id'],dict(with_hour,start='2026-11-07'),'angela',with_hour['version'])
+        self.assertEqual(no_hour['start'],'2026-11-07')
+        self.assertEqual(no_hour['boardId'],e['boardId'])
+        self.assertEqual(len([x for x in self.store.snapshot()['items'] if x['kind']=='ticket']),34)
+
     def test_max_lengths_and_invalid_kind(self):
         with self.assertRaises(world.Problem):self.task(title="x"*241)
         with self.assertRaises(world.Problem):self.create("system",{"title":"No"})
@@ -371,6 +396,12 @@ class MessageTests(StoreTests):
         self.assertIn('20/10/2026 · 19:00 · Sala ficticia · Escritura',d['people'][0]['text'])
         q=self.person('Otra persona','+34900000002')
         with self.assertRaises(world.Problem):self.preview([q['id']],eventId=e['id'])
+
+    def test_pending_hour_is_never_invented_in_whatsapp(self):
+        p=self.person();e=self.event(start='2026-11-07',cast=[{'personId':p['id'],'role':'Participación'}])
+        with self.assertRaises(WhatsappProblem):self.preview([p['id']],eventId=e['id'],text='Nos vemos a las {hora}')
+        d=self.preview([p['id']],eventId=e['id'],text='Nos vemos el {fecha}')
+        self.assertEqual(d['people'][0]['text'],'Nos vemos el 07/11/2026')
 
     def test_idempotent_send_including_concurrent_double_click(self):
         d=self.preview();bridge=Mock()
