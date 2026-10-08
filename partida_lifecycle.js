@@ -43,6 +43,7 @@ function crearCicloPartida({
     iniciarNuevaSesionMusas = () => ({ ok: true }),
     iniciarRegistroIteraciones = () => {},
     finalizarRegistroIteraciones = () => {},
+    archivarInformeBolo = () => {},
     preShowMusas = null,
     videoTutorialPreShow = null,
     registrar = () => {}
@@ -198,6 +199,7 @@ function crearCicloPartida({
         prepararCapturaPuntuacionFinal();
         capturarPuntuacionFinalAlFinalizar();
         finalizarRegistroIteraciones("fin_partida");
+        archivarInformeBolo();
         state.finJ1 = true;
         state.finJ2 = true;
         state.transicionModoEnCurso = false;

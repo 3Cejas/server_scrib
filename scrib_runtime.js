@@ -41,6 +41,7 @@ const { crearRegistroIteracionesPartida } = require('./match_iterations.js');
 const { crearPersistenciaRuntime } = require('./runtime_persistence.js');
 const { crearGestorProteccionRendimiento } = require('./performance_protection.js');
 const { createBoloConfigurationManager } = require('./bolo_configuration.js');
+const { createBoloReportArchive } = require('./bolo_reports.js');
 
 function crearRuntimeScrib({
     io,
@@ -72,6 +73,9 @@ function crearRuntimeScrib({
 
     const accesoRoles = crearGestorAccesoRoles({ passwordRoles });
     const controlState = crearGestorEstadoControl({ io });
+    let contextoInformeBolo = estadoPersistidoInicial?.contextoInformeBolo || null;
+    const archivoBolos = createBoloReportArchive({logger: registrar,
+        notify: payload => io.to('role_control').emit('bolo_informe_archivo', payload)});
     const modoDebug = crearGestorModoDebug({
         io,
         getCalentamientoGestor: () => calentamientoGestor,
@@ -483,6 +487,7 @@ function crearRuntimeScrib({
     });
 
     construirCheckpointPersistencia = () => ({
+        contextoInformeBolo,
         writer: writerChannels.snapshotEstado(),
         stats: statsLive.payload(),
         control: controlState.snapshot(),
@@ -772,7 +777,30 @@ function crearRuntimeScrib({
         reiniciarMusasCreditosPartida: () => rolesConectados.reiniciarMusasCreditosPartidaDesdeActivas(),
         limpiarMusasCreditosPartida: () => rolesConectados.limpiarMusasCreditosPartida(),
         iniciarNuevaSesionMusas,
-        iniciarRegistroIteraciones: (datos) => registroIteracionesPartida.iniciar(datos),
+        iniciarRegistroIteraciones: (datos) => {
+            contextoInformeBolo = JSON.parse(JSON.stringify(controlState.snapshot()));
+            contextoInformeBolo.parametros = JSON.parse(JSON.stringify(datos.parametros || {}));
+            const result = registroIteracionesPartida.iniciar(datos);
+            contextoInformeBolo.match = {id: registroIteracionesPartida.snapshot().id, startedAt: Date.now()};
+            return result;
+        },
+        archivarInformeBolo: () => {
+            try {
+                let diary = registroIteracionesPartida.construirExportacion();
+                if (!diary && contextoInformeBolo?.match) {
+                    const textos = writerChannels.snapshotTextos();
+                    diary = {partida: {id: contextoInformeBolo.match.id, inicio_ts: contextoInformeBolo.match.startedAt, fin_ts: Date.now()},
+                        escritores: Object.fromEntries([1,2].map(p => [p, {nombre: writerChannels.getNombre(p), texto_final: textos[p].plano}])),
+                        resumen: {stats: payloadStatsLive(), puntuacion_final: payloadPuntuacionFinal()}};
+                }
+                const muses = musasAuxiliares.payloadResumenPdf();
+                const credits = creditosShow.payload().creditos;
+                archivoBolos.enqueue(contextoInformeBolo, diary, muses, credits);
+            } catch (_) {
+                registrar('[bolos] no se pudo archivar el informe; revisar el almacenamiento del servidor');
+                io.to('role_control').emit('bolo_informe_archivo', {status:'error'});
+            }
+        },
         finalizarRegistroIteraciones: (motivo) => {
             const estadoPartida = construirEstadoDramaturgiaActual();
             delete estadoPartida.textos;

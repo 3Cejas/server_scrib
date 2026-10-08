@@ -1,0 +1,58 @@
+ACUERDO DE COLABORACIÓN ARTÍSTICA PUNTUAL
+<SCRI>B — {bolo}
+
+De una parte, {entidad}, con CIF {cif} y domicilio social en {domicilio}, en adelante LA COMPAÑÍA, representada para la firma del presente acuerdo por {representante}.
+Y de otra, {persona}, con DNI/NIE/Pasaporte {documento}, en adelante LA PERSONA COLABORADORA.
+
+CLÁUSULAS
+PRIMERA. OBJETO
+El presente acuerdo regula la participación artística puntual de LA PERSONA COLABORADORA en <SCRI>B, proyecto escénico organizado por {entidad}, con motivo de su participación en {bolo}.
+LA PERSONA COLABORADORA participará en calidad de {papel}, desarrollando las funciones propias de dicho rol dentro del formato.
+
+SEGUNDA. FECHAS, LUGAR Y HORARIO
+Las representaciones objeto de este acuerdo se celebrarán en {lugar}, en las siguientes fechas: {fecha}.
+Los horarios de convocatoria previa, preparación, ensayo, montaje, calentamiento o coordinación serán comunicados por LA COMPAÑÍA atendiendo a la programación y disponibilidad del espacio.
+
+TERCERA. CARÁCTER PUNTUAL DE LA COLABORACIÓN
+La participación queda limitada a las funciones y tareas de preparación inmediata vinculadas a los días indicados. El presente acuerdo no supone compromiso de participación en futuras funciones, temporadas o actividades de <SCRI>B o de {entidad}.
+
+CUARTA. FUNCIONAMIENTO ARTÍSTICO DE <SCRI>B
+LA PERSONA COLABORADORA declara conocer el carácter participativo, de creación en directo e interacción con el público de <SCRI>B. En función del rol desarrollado, su participación podrá incluir improvisación, interpretación de materiales generados durante la función, interacción con propuestas del público y colaboración en la preparación y desarrollo escénico del espectáculo.
+
+QUINTA. SISTEMA ECONÓMICO Y LIQUIDACIÓN
+Las representaciones se realizan mediante un sistema de participación en la recaudación. La base económica para el reparto interno será la cantidad neta efectivamente liquidada y abonada a {entidad} por el espacio correspondiente a estas representaciones.
+El reparto interno será el siguiente: creación del proyecto, 10 %; música, 2 %; y fondo de reparto, 88 % del importe neto. Dentro de dicho fondo: dirección, 5 %; dramaturgia activa, 5 %; y elenco + técnica, 90 %. Cada porcentaje se repartirá entre las personas que ejerzan efectivamente el rol correspondiente en cada función.
+Asimismo, se contemplan 15 € por función para publicidad y difusión y 15 € por función para montaje y desmontaje técnico, repartidos entre quienes ejerzan efectivamente dichos roles.
+LA PERSONA COLABORADORA participará únicamente en el reparto correspondiente a las funciones en las que haya intervenido efectivamente. La cantidad definitiva se calculará una vez conocida la liquidación del espacio.
+El pago se efectuará una vez recibida dicha liquidación y cumplidos, cuando proceda, los requisitos fiscales, laborales y/o administrativos necesarios para tramitarlo correctamente.
+
+SEXTA. COMPATIBILIDAD DE ROLES
+Debido a la naturaleza de <SCRI>B, una misma persona podrá desarrollar distintos roles artísticos durante las representaciones, siempre que exista acuerdo con LA COMPAÑÍA. A efectos económicos se tendrán en cuenta los roles efectivamente desarrollados en la función correspondiente conforme al sistema de reparto aplicable.
+
+SÉPTIMA. PROPIEDAD INTELECTUAL DE LOS TEXTOS
+Los textos originales creados por las personas participantes en dramaturgia serán propiedad intelectual de sus respectivos autores y autoras. Su participación autoriza su representación e interpretación dentro de las funciones objeto de este acuerdo, sin que ello implique una cesión general de la propiedad intelectual a {entidad}.
+
+OCTAVA. GRABACIÓN, FOTOGRAFÍA Y DIFUSIÓN
+Las funciones podrán ser fotografiadas o grabadas total o parcialmente con fines de documentación y difusión cultural. LA PERSONA COLABORADORA autoriza el uso de su imagen, voz y nombre por {entidad} en relación con <SCRI>B, {bolo}, el espacio, redes sociales, web, dossier, archivo y comunicación a medios. Esta autorización no comprende campañas comerciales ajenas al proyecto sin consentimiento adicional.
+
+NOVENA. USO DEL ESPACIO Y DEL MATERIAL
+LA PERSONA COLABORADORA se compromete a utilizar correctamente las instalaciones, equipos técnicos, escenografía, atrezzo y demás materiales del espacio, {entidad} o terceros, y a respetar las indicaciones organizativas, técnicas y de seguridad comunicadas para el desarrollo de las funciones.
+
+DÉCIMA. CANCELACIÓN O MODIFICACIÓN
+En caso de cancelación, aplazamiento o modificación de alguna función por fuerza mayor, decisión de la organización, el espacio o cualquier circunstancia no imputable a LA PERSONA COLABORADORA, LA COMPAÑÍA lo comunicará tan pronto como resulte posible. Las funciones no celebradas no generarán participación en taquilla, sin perjuicio de las cantidades ya devengadas por funciones efectivamente realizadas.
+
+UNDÉCIMA. CONDUCTA Y RESPETO
+Las personas participantes deberán mantener un comportamiento respetuoso con el equipo artístico y técnico, el personal del espacio, la organización y el público. No se admitirán conductas discriminatorias, violentas, intimidatorias, acosadoras o que pongan en riesgo la integridad o seguridad de otras personas.
+
+DUODÉCIMA. NATURALEZA DE LA RELACIÓN
+El presente documento regula una participación artística puntual limitada a las fechas y actividades aquí indicadas. La denominación utilizada en este acuerdo no excluirá la aplicación de las disposiciones laborales, fiscales, de Seguridad Social o de cualquier otra naturaleza que resulten legalmente imperativas atendiendo a las circunstancias reales en las que se desarrolle la actividad.
+
+DECIMOTERCERA. PROTECCIÓN DE DATOS
+Los datos facilitados por LA PERSONA COLABORADORA serán tratados por {entidad} para gestionar su participación, comunicaciones, pagos y obligaciones administrativas o legales vinculadas a <SCRI>B, y no se utilizarán para finalidades incompatibles con las anteriores.
+
+DECIMOCUARTA. ACEPTACIÓN
+Ambas partes manifiestan haber leído y aceptado el contenido del presente acuerdo y lo firman a {fecha_firma}.
+
+Fdo. LA COMPAÑÍA                         Fdo. LA PERSONA COLABORADORA
+________________________               __________________________
+{representante}                         {persona}

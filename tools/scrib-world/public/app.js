@@ -46,6 +46,8 @@
   const progressHtml = (p, css = "") => `<progress class="${css}" max="100" value="${p.percent}" aria-label="${p.done} de ${p.total} tareas completadas"></progress>`;
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
   const polls = window.ScribAvailability({state:()=>state, item, active, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
+  const business = window.ScribBusiness({state:()=>state,item,active,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
+  dialog.addEventListener('close', () => { if (state) renderPage(); });
 
   function toast(message) {
     const node = document.querySelector("#toast");
@@ -70,6 +72,7 @@
     const next = await request("state");
     const changed = !state || next.revision !== state.revision;
     state = next;
+    document.querySelectorAll('[data-admin]').forEach(n=>n.hidden=state.user.role!=='admin');
     document.querySelector("#user-name").textContent = state.user.name;
     document.querySelector("#user-avatar").textContent = initials(state.user.name);
     document.querySelector("#connection").textContent = state.demo ? "● Ensayo local" : "● Conectado";
@@ -99,6 +102,10 @@
     else if (page === "board") content = renderBoard(id);
     else if (page === "event") content = renderEvent(id);
     else if (page === "people") content = renderPeople();
+    else if (page === 'finance') content = business.overview();
+    else if (page === 'production') content = business.production(id);
+    else if (page === 'report') content = business.report(id);
+    else if (page === 'invoice') content = business.invoice(id);
     else if (page === "messages") content = renderMessages();
     else if (page === "templates") content = renderTemplates();
     else if (page === "archive") content = renderArchive();
@@ -185,6 +192,7 @@
       ${event.eventType === "rehearsal" ? `<section class="panel"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
       <section class="panel"><div class="panel-head"><h2>Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="team-row">${casts || `<p class="muted">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</div></section>
       ${event.eventType === 'rehearsal' ? '' : `<section class="panel"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
+      ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}
       <section class="panel"><h2>Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">Mundo SCRIB · ${niceDate(today())} · Horario Europe/Madrid</p></section></div>`;
   }
   function renderPeople() {
@@ -308,6 +316,7 @@
       field("Teléfono privado · WhatsApp",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="off"'),"Solo se guarda dentro del mundo autenticado. No se publica en scribshow.es.") +
       `<label class="check-option"><input type="checkbox" name="phoneConfirmed" ${p.phoneConfirmed?"checked":""}>He comprobado que este teléfono corresponde a esta persona</label>` +
       personHistory(p) +
+      business.personLink(p.id) +
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
       `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"url",'placeholder="https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
@@ -393,6 +402,7 @@
   }
   async function action(node) {
     const {action:a,id,status} = node.dataset;
+    if(await business.action(node))return;
     if(await polls.action(node))return;
     if(a === "new-event")openEvent();
     else if(a === "new-event-day")openEvent("",id);

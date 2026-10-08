@@ -58,7 +58,7 @@ PUBLIC_NGINX = '''
 location ^~ /scrib-disponibilidad/ {
     access_log off;
     error_log /dev/null crit;
-    client_max_body_size 16k;
+    client_max_body_size 5m;
     proxy_pass http://127.0.0.1:5099;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
@@ -74,7 +74,7 @@ PUBLIC_GATEWAY_NGINX = '''
 location ^~ /scrib-disponibilidad/ {
     access_log off;
     error_log /dev/null crit;
-    client_max_body_size 16k;
+    client_max_body_size 5m;
     auth_request /_wake/check;
     error_page 401 = @wake_backend;
     proxy_pass https://sutura_backend_https;
@@ -189,6 +189,7 @@ def world_power_gateway(source):
 
 
 def availability_nginx(source):
+    source = source.replace(PUBLIC_NGINX.replace('client_max_body_size 5m;', 'client_max_body_size 16k;'), PUBLIC_NGINX)
     if PUBLIC_NGINX in source:
         return source
     if source.count('location = /_auth_check {') != 1 or 'SCRIB AVAILABILITY' in source:
@@ -197,6 +198,7 @@ def availability_nginx(source):
 
 
 def availability_gateway_nginx(source):
+    source = source.replace(PUBLIC_GATEWAY_NGINX.replace('client_max_body_size 5m;', 'client_max_body_size 16k;'), PUBLIC_GATEWAY_NGINX)
     if PUBLIC_GATEWAY_NGINX in source:
         return source
     marker = 'location = /sutura {\n'

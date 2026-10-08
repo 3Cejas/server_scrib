@@ -7,7 +7,7 @@ module.exports = function(req,res) {
   const size=Number(req.headers["content-length"]||0);
   function fail(code,msg){res.writeHead(code,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","Referrer-Policy":"no-referrer"});res.end(JSON.stringify({error:msg}));}
   if(!allowed||!["GET","HEAD","POST"].includes(req.method)||(req.method==="POST"&&!path.includes("/api/")))return fail(404,"Enlace no disponible.");
-  if(!Number.isInteger(size)||size<0||size>16384||req.headers["transfer-encoding"])return fail(413,"Respuesta demasiado grande.");
+  if(!Number.isInteger(size)||size<0||size>4*1024*1024+2048||req.headers["transfer-encoding"])return fail(413,"Archivo demasiado grande.");
   const headers={};
   for(const k of ["content-type","content-length","origin","x-csrf-token","x-availability-edit","cookie"])if(req.headers[k])headers[k]=req.headers[k];
   const upstream=http.request({hostname:"127.0.0.1",port:5124,path:path,method:req.method,headers,timeout:28000},r=>{res.writeHead(r.statusCode,r.headers);r.pipe(res);});

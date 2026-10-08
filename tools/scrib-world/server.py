@@ -26,6 +26,7 @@ from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
 from participations import with_participations
 from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PREFIX, TOKEN_RE
 from game_config import normalize as normalize_game_config, profile as game_profile, SCHEMA as GAME_CONFIG_SCHEMA
+from business import Business, SCHEMA as BUSINESS_SCHEMA
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -118,6 +119,7 @@ class Store:
         self.users_path = users_path
         self.backup_lock = threading.Lock()
         self.availability = Availability(self, Problem, date_value, text, now)
+        self.business = Business(self, Problem, text, now, date_value)
         with self.connect() as db:
             db.executescript("""
               PRAGMA journal_mode=WAL;
@@ -145,6 +147,7 @@ class Store:
                 updated TEXT NOT NULL, PRIMARY KEY(draft,recipient));
             """)
             db.executescript(AVAILABILITY_SCHEMA)
+            db.executescript(BUSINESS_SCHEMA)
             if not db.execute("SELECT 1 FROM items WHERE kind='template'").fetchone():
                 tasks = json.loads((ROOT / "default_tasks.json").read_text())
                 self.insert(db, "template", {"title": "Preparación de un bolo", "tasks": tasks}, "sistema", "default-template")
@@ -478,7 +481,9 @@ class Store:
             payload = {"format": "scrib-world-v1", "exported": now(), "timezone": "Europe/Madrid", "items": self.all(db),
                        "comments": [dict(r) for r in db.execute("SELECT * FROM comments")], "activity": [dict(r) for r in db.execute("SELECT * FROM activity")], "members": self.members(db),
                        "messageDrafts": [dict(r) for r in db.execute("SELECT * FROM message_drafts")], "messageDeliveries": [dict(r) for r in db.execute("SELECT * FROM message_deliveries")],
-                       "availabilityLinks": [dict(r) for r in db.execute("SELECT * FROM availability_links")], "availabilityReplies": [dict(r) for r in db.execute("SELECT * FROM availability_replies")]}
+                       "availabilityLinks": [dict(r) for r in db.execute("SELECT * FROM availability_links")], "availabilityReplies": [dict(r) for r in db.execute("SELECT * FROM availability_replies")],
+                       "businessRecords": [dict(r) for r in db.execute("SELECT * FROM business_records")], "matchReports": [dict(r) for r in db.execute("SELECT * FROM match_reports")],
+                       "agreements": [dict(r) for r in db.execute("SELECT * FROM agreements")], "agreementUploads": [dict(r) for r in db.execute("SELECT * FROM agreement_uploads")]}
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("mundo-scrib.json", json.dumps(payload, ensure_ascii=False, indent=2))
@@ -487,6 +492,11 @@ class Store:
                 for file in folder.iterdir():
                     if re.fullmatch(r"[a-f0-9]{64}\.(png|jpg|webp)", file.name):
                         z.write(file, "images/" + file.name)
+            folder = self.directory / 'documents'
+            if folder.exists():
+                for file in folder.iterdir():
+                    if re.fullmatch(r'[a-f0-9]{64}\.pdf',file.name):
+                        z.write(file, 'documents/' + file.name)
         return buffer.getvalue()
 
     def message_preview(self, data, actor):
@@ -511,8 +521,17 @@ class Store:
                 role = " / ".join(dict.fromkeys(c["role"] for c in event["cast"] if c["personId"] == ident)) if event else ""
                 if event and not role:
                     raise Problem(person["name"] + " no forma parte del elenco de este bolo.")
+                agreement = None
+                if data.get('agreements') is True:
+                    if not event:
+                        raise Problem('Selecciona el bolo del acuerdo.')
+                    agreement = db.execute("SELECT * FROM agreements WHERE event=? AND person=? AND status<>'revoked' ORDER BY rowid DESC LIMIT 1",(event['id'],ident)).fetchone()
+                    if not agreement or agreement['expires'] < time.time():
+                        raise Problem('Genera primero un acuerdo vigente para '+person['name']+'.')
                 message = personalize(template, dict(context, nombre=person["name"].split()[0], nombre_completo=person["name"], papel=role))
-                people.append({"id": ident, "name": person["name"], "phone": phone, "version": person["version"], "text": message})
+                if agreement:
+                    message += '\n\nTu acuerdo y enlace personal para subirlo firmado:\nhttps://sutura-gateway.ddns.net/scrib-disponibilidad/' + agreement['token']
+                people.append({"id": ident, "name": person["name"], "phone": phone, "version": person["version"], "text": message, 'agreementId':agreement['id'] if agreement else ''})
             ident = str(uuid.uuid4())
             draft = {"id": ident, "people": people, "eventId": event["id"] if event else "", "eventVersion": event["version"] if event else 0, "template": template}
             db.execute("INSERT INTO message_drafts VALUES(?,?,?,?,?)", (ident, actor, json.dumps(draft, ensure_ascii=False), now(), time.time() + 900))
@@ -545,6 +564,10 @@ class Store:
             if row["expires"] < time.time():
                 raise Problem("La vista previa ha caducado. Genera otra antes de enviar.", 409)
             person = draft["people"][index]
+            if person.get('agreementId'):
+                agreement = db.execute('SELECT status,expires FROM agreements WHERE id=?',(person['agreementId'],)).fetchone()
+                if not agreement or agreement['status']=='revoked' or agreement['expires'] < time.time():
+                    raise Problem('El acuerdo ha caducado o fue revocado. Genera una nueva vista previa.',409)
             current = self.item(db, person["id"], "person", True)
             if current["version"] != person["version"] or not current.get("phoneConfirmed") or current.get("phone") != person["phone"]:
                 raise Problem("La ficha o el teléfono han cambiado. Genera una nueva vista previa.", 409)
@@ -560,6 +583,8 @@ class Store:
         with self.transaction() as db:
             db.execute("UPDATE message_deliveries SET status=?,updated=? WHERE draft=? AND recipient=?", (status, now(), ident, index))
             self.activity(db, person["id"], actor, "WhatsApp: " + ("envío confirmado" if status == "sent" else "envío sin confirmar; revisar en WhatsApp antes de reintentar"))
+            if status=='sent' and person.get('agreementId'):
+                db.execute("UPDATE agreements SET status='sent' WHERE id=? AND status='generated'",(person['agreementId'],))
         return {"status": status, "duplicate": False}
 
 
@@ -738,8 +763,9 @@ class Handler(BaseHTTPRequestHandler):
             raise Problem('Este enlace ya no está disponible.', 404)
         api, token = match.groups()
         polls = self.server.store.availability
+        agreement = self.server.store.business.public(token)
         if self.command in ('GET', 'HEAD'):
-            result = polls.public(token, self.headers.get('X-Availability-Edit', ''))
+            result = agreement or polls.public(token, self.headers.get('X-Availability-Edit', ''))
             if not api:
                 return self.reply(200, (ROOT / 'public' / 'availability.html').read_bytes(), 'text/html; charset=utf-8')
             name, csrf = self.availability_csrf(token)
@@ -748,6 +774,9 @@ class Handler(BaseHTTPRequestHandler):
         if not api or self.headers.get('Origin') not in self.server.origins:
             raise Problem('Origen no permitido.', 403)
         self.availability_csrf(token, self.headers.get('X-CSRF-Token', ''))
+        if agreement:
+            self.server.store.business.upload(token, self.body(4*1024*1024+2048))
+            return self.reply(200, {'ok':True, 'agreement': self.server.store.business.public(token)})
         mine = polls.submit(token, self.body(16384))
         mine.pop('personId', None)
         return self.reply(200, {'ok': True, 'mine': mine})
@@ -780,7 +809,29 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 raise Problem("No encontrado.", 404)
             store = self.server.store
+            if route == 'api/match-reports' and self.command == 'POST':
+                # Only the private loopback game bridge may archive; browser
+                # proxies always overwrite identity and cannot impersonate it.
+                if self.server.demo or actor != 'videojuego-control':
+                    raise Problem('Archivo reservado al servidor del videojuego.',403)
+                return self.reply(200, store.business.archive_report(self.body(4*1024*1024)))
             if self.command in ("GET", "HEAD"):
+                if route.startswith('api/reports/event/'):
+                    return self.reply(200,store.business.reports(route.split('/')[-1]))
+                if route.startswith('api/reports/match/'):
+                    return self.reply(200,store.business.report(route.split('/')[-1]))
+                if route.startswith('api/business/'):
+                    if user['role'] != 'admin':
+                        raise Problem('Los datos económicos, fiscales y acuerdos están reservados a administración.',403)
+                    if route == 'api/business/overview':
+                        return self.reply(200,store.business.overview())
+                    if route == 'api/business/template':
+                        return self.reply(200,{'text':(ROOT/'agreement_template.txt').read_text(),'source':'Modelo SCRIB Imparables 2026 · Drive','url':'https://drive.google.com/file/d/1ciafKCpO6H6jgw6uVvO75C9xb2ZRkaCy/view'})
+                    if route.startswith('api/business/agreements/'):
+                        return self.reply(200,store.business.agreements(route.split('/')[-1]))
+                    if route.startswith('api/business/document/'):
+                        return self.reply(200,store.business.document(route.split('/')[-1]),'application/pdf',{'Content-Disposition':'attachment; filename="acuerdo-firmado.pdf"','Content-Security-Policy':"sandbox; default-src 'none'"})
+                    raise Problem('No encontrado.',404)
                 if route == 'api/game-configurations':
                     return self.reply(200, store.game_configurations())
                 if route == 'api/game-config-schema':
@@ -812,13 +863,27 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"": ("index.html", "text/html; charset=utf-8"), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)
                 raise Problem("No encontrado.", 404)
             self.csrf_check(actor)
             data = self.body()
+            if route.startswith('api/business/'):
+                if user['role'] != 'admin':
+                    raise Problem('Gestión reservada a administración.',403)
+                if route in ('api/business/settings','api/business/billing','api/business/settlement'):
+                    result=store.business.save(route.split('/')[-1],data,actor)
+                elif route == 'api/business/generate':
+                    result=store.business.generate(data,actor)
+                elif route == 'api/business/agreement-state':
+                    result=store.business.agreement_state(data,actor)
+                elif route == 'api/business/invoice':
+                    result=store.business.invoice(data,actor)
+                else:
+                    raise Problem('No encontrado.',404)
+                return self.reply(200,{'ok':True,'item':result})
             if route == "api/create":
                 result = store.create(data.get("kind"), data.get("data"), actor, data.get("requestId"))
             elif route == "api/update":
@@ -836,6 +901,8 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "api/upload":
                 result = {"image": store.upload(data.get("base64"))}
             elif route == "api/whatsapp/preview":
+                if data.get('agreements') is True and user['role'] != 'admin':
+                    raise Problem('Envío de acuerdos reservado a administración.',403)
                 result = store.message_preview(data, actor)
             elif route == "api/whatsapp/send":
                 if self.server.demo:

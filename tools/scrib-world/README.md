@@ -53,6 +53,56 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   teléfonos, imágenes, redes ni notas privadas al videojuego. No hace falta una
   migración de la base de datos ni añadir credenciales al navegador.
 
+## Acuerdos, memoria de partidas y gestión económica
+
+- **Ficha de bolo → Acuerdos y liquidación** permite preparar un acuerdo por
+  persona, con el lugar, fechas (incluido un rango de varios días) y sus papeles.
+  Antes, administración debe revisar **Gestión → Entidad y plantilla**. La
+  plantilla conserva las 14 cláusulas del modelo Imparables 2026 de Drive, con
+  variables; no se confirman automáticamente los datos fiscales ni el reparto.
+- Enlaces personales públicos de 90 días, revocables, con CSRF por capacidad.
+  Descarga/impresión en PDF y subida de PDF firmado de hasta 3 MiB. Estados
+  preparado, enviado, subido y revisado son distintos: subir no verifica firma.
+  Cada revisión conserva el original y su hash. Revisar bloquea nuevas subidas;
+  revocar conserva los archivos y permite generar un nuevo acuerdo.
+- Enviar acuerdos permite seleccionar una persona o todas, revisar los mensajes
+  y confirmar una sola vez los envíos individuales. Usa el puente WhatsApp ya
+  existente y su protección frente a reintentos de resultado incierto. Generar,
+  guardar o abrir un bolo nunca manda mensajes por sí solo.
+- Con la configuración del bolo cargada en Control, finalizar por botón o reloj
+  archiva el informe JSON: textos con saltos de línea, estadísticas, puntuación,
+  musas, créditos y configuración congelada al inicio. Varios informes se
+  conservan por fecha; no se sustituyen. Consulta web adaptable y PDF opcional.
+  Si Mundo SCRIB está desconectado, el videojuego deja una cola durable en
+  `var/bolo-reports/` (0700 / archivos 0600), reintenta cada 30 s y solo elimina
+  cada pendiente después de la confirmación durable de SQLite. Respaldar esa
+  cola junto al checkpoint; limpiar o comenzar otra partida no la elimina.
+- Liquidaciones de varios días con ingresos, gastos y reparto MANUAL en euros.
+  Cálculo exacto en céntimos, límites y conflictos de versiones. Temporada
+  editable; totales generado, pagado y pendiente por persona y en su ficha.
+  «Pagado» registra un pago externo, nunca ejecuta una transferencia. Importes
+  asignados son bases antes de impuestos, no el líquido a transferir.
+- Datos fiscales PRIVADOS y borradores de factura con bases por día, IVA y
+  retención explícitamente configurados. No se emiten facturas ni se aceptan en
+  nombre del integrante. Verificar con cada persona la numeración, datos e
+  impuestos; la emisión por destinatario requiere el acuerdo y aceptación
+  correspondientes. No se aplican tipos fiscales por defecto.
+- `import_billing.py --data /ruta/privada --input /candidatos-0600.json` previsualiza
+  conteos sin revelar datos; `--apply` respalda SQLite e importa solo identidades
+  exactas sin ficha fiscal previa. Los datos quedan sin verificar y sin tasas.
+  Nunca importar fuentes fiscales en Git ni usar facturas antiguas como ingresos
+  de una temporada actual.
+- Tablas privadas `business_records`, `agreements`, `agreement_uploads` y
+  `match_reports` en `world.sqlite3`; PDFs originales en `documents/` por hash,
+  fuera del árbol público. SQLite + documentos están en el ZIP administrativo.
+  Respaldar juntos base, documentos y la clave privada de enlaces. El estado
+  compartido normal no revela datos fiscales, acuerdos, cuentas o importes.
+
+Pruebas: `python3 -m unittest test_business`, además de la suite del mundo;
+`node --test tests/bolo-reports.test.js tests/partida-lifecycle-score.test.js`
+para archivo durable y cierre autoritativo. Los ensayos usan identidades y dinero
+ficticios; no se envían WhatsApps reales.
+
 ## Disponibilidad y ensayos
 
 - Sección **Disponibilidad** y acceso desde cada bolo: encuestas con 1–30 horarios,
@@ -80,8 +130,10 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   administración. No se exporta `availability-wake-key`, que debe respaldarse
   de forma privada para conservar la validación de encendido de los enlaces.
 - `/scrib-disponibilidad/` es el único prefijo público nuevo. `public_proxy.js`
-  no reenvía identidad ni secreto de Sutura; limita rutas, métodos y cuerpo a
-  16 KiB. CSRF firmado por enlace + cookie HttpOnly/Secure/Strict + Origin,
+  no reenvía identidad ni secreto de Sutura; limita rutas y métodos. El cuerpo
+  general del puente está limitado a 4 MiB + 2 KiB para el PDF firmado en base64;
+  las respuestas de disponibilidad conservan su límite de 16 KiB en el servicio.
+  CSRF firmado por enlace + cookie HttpOnly/Secure/Strict + Origin,
   máximo 500 respuestas y 240 escrituras por enlace / 10 min. No hay listado
   público de encuestas ni permisos nuevos en los mundos privados.
 - Tokens de 256 bits con firma HMAC permiten al gateway reconocer un enlace

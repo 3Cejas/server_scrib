@@ -43,6 +43,7 @@ function crearHarness() {
   const registrosIteracionesIniciados = [];
   const registrosIteracionesFinalizados = [];
   const limpiezasAuxiliares = [];
+  const informesArchivados = [];
   let nuevasSesionesMusas = 0;
   let vistasPartidaAseguradas = 0;
   let inicioProgramado = null;
@@ -160,6 +161,11 @@ function crearHarness() {
     }),
     iniciarRegistroIteraciones: (datos) => registrosIteracionesIniciados.push(datos),
     finalizarRegistroIteraciones: (motivo) => registrosIteracionesFinalizados.push(motivo),
+    archivarInformeBolo: () => informesArchivados.push({
+      puntuacion: puntuacionFinal.payload(),
+      motivos: [...registrosIteracionesFinalizados],
+      modo: state.modoActual
+    }),
     preShowMusas: preShow,
     videoTutorialPreShow: videoPreShow
   });
@@ -189,6 +195,7 @@ function crearHarness() {
     escalasAplicadas,
     registrosIteracionesIniciados,
     registrosIteracionesFinalizados,
+    informesArchivados,
     limpiezasAuxiliares
   };
 }
@@ -372,6 +379,25 @@ test("the iteration recorder follows the authoritative match lifecycle", () => {
   ctx.ciclo.finalizarPartida(ctx.socket);
   assert.deepEqual(ctx.registrosIteracionesFinalizados, ["fin_partida"]);
 });
+
+test("a bolo report is archived once after final score and diary, before cleanup", () => {
+  const ctx = crearHarness();
+  ctx.statsLive.actualizarDesdeControl(telemetriaFinal());
+  assert.equal(ctx.ciclo.finalizarPartida(null), true);
+  assert.equal(ctx.ciclo.finalizarPartida(null), false);
+  assert.equal(ctx.informesArchivados.length, 1);
+  assert.equal(ctx.informesArchivados[0].puntuacion.disponible, true);
+  assert.deepEqual(ctx.informesArchivados[0].motivos, ["fin_partida"]);
+  assert.equal(ctx.informesArchivados[0].modo, "frase final");
+});
+
+for (const action of ["limpiarPartida", "prepararNuevaPartida", "reiniciarEstadoPartida"]) {
+  test(`${action} does not archive a match report`, () => {
+    const ctx = crearHarness();
+    ctx.ciclo[action](ctx.socket);
+    assert.deepEqual(ctx.informesArchivados, []);
+  });
+}
 
 test("only control or the internal simulator can open or close pre-show through lifecycle events", () => {
   const ctx = crearHarness();
