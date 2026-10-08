@@ -15,7 +15,7 @@
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   let state = null, calendarMode = "calendar", month = new Date(), saving = false, toastTimer;
-  let health = {server: null, web: null};
+  let health = {server: null};
   let filters = {search: "", mine: "", label: "", priority: "", due: ""};
   let dragId = "", pointerDrag = null;
   let renderedRoute = "", whatsappStatus = null, messageHistory = [];
@@ -24,6 +24,8 @@
   const member = username => state.members.find(x => x.username === username)?.name || username;
   const item = id => state.items.find(x => x.id === id);
   const active = kind => state.items.filter(x => x.kind === kind && !x.archived);
+  const colors = window.ScribPeopleColors;
+  const personLabel = (id,label) => `<span class="person-label ${colors.className(item(id))}">${esc(label ?? item(id)?.name ?? 'Ficha archivada')}</span>`;
   const today = () => new Intl.DateTimeFormat("en-CA", {timeZone: "Europe/Madrid", year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   const niceDate = (value, full = true) => value ? new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", day:"numeric", month:full?"long":"short", ...(full ? {year:"numeric"} : {})}).format(new Date(value.length === 10 ? value + "T12:00:00" : value)) : "Sin fecha";
   const hour = value => value ? value.length === 10 ? "Hora pendiente" : new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", hour:"2-digit",minute:"2-digit"}).format(new Date(value)) : "";
@@ -45,9 +47,9 @@
   };
   const progressHtml = (p, css = "") => `<progress class="${css}" max="100" value="${p.percent}" aria-label="${p.done} de ${p.total} tareas completadas"></progress>`;
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
-  const polls = window.ScribAvailability({state:()=>state, item, active, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
-  const business = window.ScribBusiness({state:()=>state,item,active,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
-  const inventory = window.ScribInventory({state:()=>state,item,active,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage});
+  const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
+  const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
+  const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage});
   const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage});
   dialog.addEventListener('close', () => { if (state) renderPage(); });
 
@@ -140,8 +142,7 @@
     const blocked = tasks.filter(x=>x.status === "blocked"), late = tasks.filter(x=>x.status !== "done" && x.due && x.due < today());
     return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",btn("new-event","＋ Crear bolo","","primary")) +
       `<section class="hero"><div><p class="eyebrow">DEL LABORATORIO AL ESCENARIO</p><h2>Escribir es un juego.<br>Prepararlo, un trabajo en equipo.</h2><p>Bolos, ideas, elenco y tareas en un mismo backstage. Sin perder lo que importa entre mensajes.</p></div><div class="hero-orbit" aria-hidden="true">✳</div></section>
-      <div class="grid cols2"><article class="panel service"><div class="service-top"><span class="service-icon" aria-hidden="true">▸</span><span id="server-health" class="badge">Comprobando servidor</span></div><div><h2>El videojuego</h2><p class="muted">Entra a los roles de &lt;SCRI&gt; B como en el mundo de Sutura.</p></div><div class="actions"><a href="/scrib/game/" target="_blank" rel="noopener" class="button cyan">Abrir videojuego ↗</a><a href="/scrib/" target="_blank" rel="noopener" class="button">Abrir web ↗</a></div></article>
-      <article class="panel service"><div class="service-top"><span class="service-icon coral" aria-hidden="true">↗</span><span id="web-health" class="badge">Comprobando web</span></div><div><h2>El escaparate</h2><p class="muted">Fechas, prensa y la historia del show. Producción anterior permanece disponible.</p></div><div class="actions"><a class="button" target="_blank" rel="noopener" href="https://scribshow.es/">scribshow.es ↗</a><a href="/scrib-produccion/" class="button">Producción anterior</a></div></article></div>
+      <article class="panel service home-game-service"><div class="service-top"><span class="service-icon" aria-hidden="true">▸</span><span id="server-health" class="badge">Comprobando servidor</span></div><div><h2>El videojuego y la web</h2><p class="muted">Accede a los roles de &lt;SCRI&gt; B o visita la web pública del espectáculo.</p></div><div class="actions"><a href="/scrib/game/" target="_blank" rel="noopener" class="button cyan">Abrir videojuego ↗</a><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer" class="button">Abrir web ↗</a></div></article>
       <section class="grid cols4 section">${[[upcoming.length,"Bolos por venir","El siguiente acto", "gold"],[mine.length,"Mis tareas abiertas","Asignadas a ti", "violet"],[blocked.length,"Tareas bloqueadas","Lo que necesita ayuda", "coral"],[late.length,"Fuera de plazo","Para poner al día", "cyan"]].map(([n,l,d,c])=>`<div class="panel kpi"><small>${l}</small><span class="number ${c}">${n}</span><p class="tiny">${d}</p></div>`).join("")}</section>
       <section class="section"><div class="panel-head"><h2>Próximos bolos</h2><a class="button small" href="#events">Ver calendario ↗</a></div><div class="grid cols3">${upcoming.slice(0,3).map(eventCard).join("") || empty("El siguiente escenario está por venir","Crea un bolo: su tablero aparecerá con todas las tareas de preparación.",btn("new-event","＋ Primer bolo","","primary"))}</div></section>
       <section class="grid cols2 section"><div class="panel"><div class="panel-head"><h2>Tu siguiente paso</h2>${badge(mine.length + " pendientes","violet")}</div>${mine.slice(0,5).map(x=>`<div class="activity-row"><span class="activity-dot">✦</span><div><button class="ticket-title" data-action="edit-ticket" data-id="${x.id}">${esc(x.title)}</button><small>${esc(titleOf(item(x.boardId)))} · ${STATUS[x.status]}</small></div></div>`).join("") || `<p class="muted">No tienes tareas asignadas pendientes. Abre un tablero y elige tu próximo reto.</p>`}</div><div class="panel"><div class="panel-head"><h2>El pulso del equipo</h2>${badge("ACTIVIDAD","cyan")}</div>${state.activity.slice(0,5).map(activityRow).join("")}</div></section>`;
@@ -193,20 +194,24 @@
     const event = item(id);
     if (!event || event.archived) return empty("Este bolo está archivado o no existe","Puedes recuperarlo junto con sus tareas desde el archivo.",`<a class="button" href="#archive">Ir al archivo</a>`);
     const p = progress(event.boardId), tasks = tasksFor(event.boardId), blocks = tasks.filter(x=>x.status === "blocked");
-    const casts = event.cast.map(c=>{const person=item(c.personId);return `<button type="button" class="cast-chip ${c.team}" data-action="edit-person" data-id="${c.personId}">${esc(person?.name || "Ficha no disponible")}<small>${esc(c.role)}${c.team === "general"?"":" · Equipo " + (c.team === "blue"?"azul":"rojo")}</small></button>`;}).join("");
-    return pageHead("HOJA DE RUTA",event.title,`${niceDate(event.start)} · ${hour(event.start)} · ${EVENT_STATUS[event.status]}`,
+    const casts = ['blue','red','general'].map(team=>{
+      const rows=event.cast.filter(c=>c.team===team);
+      if(team==='general'&&!rows.length)return '';
+      return `<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="team-row">${rows.map(c=>{const p=item(c.personId);return `<button type="button" class="cast-chip ${team} ${colors.className(p)}" data-action="edit-person" data-id="${esc(c.personId)}"><span class="cast-person-name"><span class="avatar" aria-hidden="true">${esc(initials(p?.name))}</span>${personLabel(c.personId,' '+(p?.name||'Ficha no disponible'))}</span><small>${esc(c.role)}</small></button>`;}).join('')||'<p class="muted">Elenco pendiente de asignar.</p>'}</div></div>`;
+    }).join('');
+    return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",event.title,`${niceDate(event.start)} · ${hour(event.start)} · ${EVENT_STATUS[event.status]}`,
       btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ WhatsApp al elenco",event.id) + btn("print","↓ Hoja de llamada",event.id) + (event.historical ? "" : `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) + (event.eventType === "rehearsal" ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
       `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
-      ${event.eventType === "rehearsal" ? `<section class="panel"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
-      <section class="panel"><div class="panel-head"><h2>Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="team-row">${casts || `<p class="muted">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</div></section>
+      ${event.eventType === "rehearsal" ? `<section class="panel event-prep-section"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel event-prep-section"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel event-prep-section"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
+      <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.cast.length?'':`<p class="muted section">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</section>
       ${inventory.eventPanel(event)}
-      ${event.eventType === 'rehearsal' ? '' : `<section class="panel"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
+      ${event.eventType === 'rehearsal' ? '' : `<section class="panel event-game-section"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}
-      <section class="panel"><h2>Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">&lt;SCRI&gt; B · ${niceDate(today())} · Horario Europe/Madrid</p></section></div>`;
+      <section class="panel event-notes-section"><h2>📌 Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">&lt;SCRI&gt; B · ${niceDate(today())} · Horario Europe/Madrid</p></section></div></div>`;
   }
   function renderPeople() {
     return pageHead("LAS PERSONAS QUE LO HACEN POSIBLE", "Elenco", "Una ficha por persona. Reutiliza sus datos y asigna un papel diferente en cada función.",btn("new-person","＋ Nueva persona","","primary")) +
-      `<div class="toolbar"><input type="search" id="people-search" aria-label="Buscar en el elenco" placeholder="Buscar nombre o especialidad…"></div><div class="grid cols3">${active("person").sort((a,b)=>a.name.localeCompare(b.name,"es")).map(p=>`<article class="panel person-card" data-person="${p.id}">${p.image?`<img class="person-photo" src="${BASE}images/${p.image}" alt="${esc(p.name)}" loading="lazy">`:`<div class="person-placeholder" aria-hidden="true">${esc(initials(p.name))}</div>`}<div class="person-body"><h3>${esc(p.name)}</h3>${badge(`${p.participationCount || 0} ${(p.participationCount || 0) === 1 ? "bolo realizado" : "bolos realizados"}`,"gold")}<div class="label-group">${p.roles.map(x=>badge(x,"violet")).join("")}</div><p class="bio">${esc(p.bio)}</p>${personHistory(p,true)}<div class="socials">${[[p.instagram,"Instagram ↗"],[p.website,"Web ↗"],[p.otherSocial,"Otra red ↗"]].filter(([l])=>l).map(([l,n])=>`<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")}</div><div class="actions">${btn("edit-person","Ver / editar ficha",p.id,"small")}</div></div></article>`).join("") || empty("Todo empieza por el equipo","Añade a las personas del elenco; podrás elegirlas al crear cada bolo.",btn("new-person","＋ Añadir persona","","primary"))}</div>`;
+      `<div class="toolbar"><input type="search" id="people-search" aria-label="Buscar en el elenco" placeholder="Buscar nombre o especialidad…"></div><div class="grid cols3">${active("person").sort((a,b)=>a.name.localeCompare(b.name,"es")).map(p=>`<article class="panel person-card ${colors.className(p)}" data-person="${p.id}">${p.image?`<img class="person-photo" src="${BASE}images/${p.image}" alt="${esc(p.name)}" loading="lazy">`:`<div class="person-placeholder" aria-hidden="true">${esc(initials(p.name))}</div>`}<div class="person-body"><h3>${personLabel(p.id)}</h3>${badge(`${p.participationCount || 0} ${(p.participationCount || 0) === 1 ? "bolo realizado" : "bolos realizados"}`,"gold")}<div class="label-group">${p.roles.map(x=>badge(x,"violet")).join("")}</div><p class="bio">${esc(p.bio)}</p>${personHistory(p,true)}<div class="socials">${[[p.instagram,"Instagram ↗"],[p.website,"Web ↗"],[p.otherSocial,"Otra red ↗"]].filter(([l])=>l).map(([l,n])=>`<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">${n}</a>`).join("")}</div><div class="actions">${btn("edit-person","Ver / editar ficha",p.id,"small")}</div></div></article>`).join("") || empty("Todo empieza por el equipo","Añade a las personas del elenco; podrás elegirlas al crear cada bolo.",btn("new-person","＋ Añadir persona","","primary"))}</div>`;
   }
   function renderTemplates() {
     return pageHead("NO VOLVER A EMPEZAR DE CERO","Plantillas de tareas","Al crear un bolo, se copian sus tareas en TO DO. Editar una plantilla no modifica funciones ya creadas.",btn("new-template","＋ Nueva plantilla","","primary")) +
@@ -230,7 +235,7 @@
     const event=eventId?item(eventId):null;
     const people=active("person").filter(p=>!event || event.cast.some(c=>c.personId === p.id)).sort((a,b)=>a.name.localeCompare(b.name,"es"));
     const target=dialog.querySelector('#message-recipients');
-    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone||!p.phoneConfirmed?"disabled":""} ${p.id===personId&&p.phoneConfirmed?"checked":""}><span><strong>${esc(p.name)}</strong><small>${p.phone?esc(p.phone):"Sin teléfono"} · ${p.phoneConfirmed?"Teléfono confirmado":"Confirma el teléfono en la ficha"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
+    target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone||!p.phoneConfirmed?"disabled":""} ${p.id===personId&&p.phoneConfirmed?"checked":""}><span><strong>${personLabel(p.id)}</strong><small>${p.phone?esc(p.phone):"Sin teléfono"} · ${p.phoneConfirmed?"Teléfono confirmado":"Confirma el teléfono en la ficha"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
   }
   function openMessage(eventId="",personId="") {
     openDialog("message","Un mensaje para cada persona",`<form id="message-form"><div class="notice">No se envía nada hasta revisar y confirmar cada mensaje.</div>${field("Contexto del mensaje",select("eventId",{"":"Sin bolo · mensaje libre",...Object.fromEntries(active("event").map(e=>[e.id,niceDate(e.start,false)+" · "+e.title]))},eventId,'id="message-event"'))}<fieldset class="recipient-list"><legend>Destinatarios · selección explícita</legend><div id="message-recipients"></div></fieldset>${field("Mensaje personalizado",area("text",eventId?"Hola {nombre},\n\nTe escribimos por {bolo}, el {fecha} a las {hora} en {lugar}. Tu papel: {papel}.\n\n¡Nos vemos en el escenario!":"Hola {nombre},\n\n",'required maxlength="4000" rows="8"'),"Variables: {nombre}, {nombre_completo}, {bolo}, {fecha}, {hora}, {lugar}, {convocatoria}, {papel}.")}<p class="form-error" role="alert"></p><div class="form-footer"><span>Hasta 50 destinatarios. Sin envíos en grupo.</span><button class="button primary" type="submit">Revisar vista previa →</button></div></form>`);
@@ -249,7 +254,7 @@
   function showMessagePreview(draft) {
     openDialog("message","Revisa antes de enviar",`<div class="notice">Esta vista previa caduca a los 15 minutos. El botón envía solo el mensaje de esa tarjeta. No reenviamos mensajes dudosos automáticamente.</div><div class="message-preview-list">${draft.people.map((p,i)=>{
       const status=p.delivery?.status || "pending",available=status==="pending" && !draft.expired && !state.demo;
-      return `<article class="panel message-preview"><div class="service-top"><div><h3>${esc(p.name)}</h3><small>${esc(p.phone)}</small></div>${badge(deliveryLabel(status),status==="sent"?"green":"gold")}</div><div class="message-bubble">${esc(p.text)}</div>${available?`<label class="check-option"><input type="checkbox" class="message-confirm">Confirmo este teléfono y este texto</label><button type="button" class="button primary" data-action="send-message" data-id="${draft.id}" data-recipient="${i}">Enviar a ${esc(p.name.split(' ')[0])}</button>`:`<p class="hint">${state.demo?"Ensayo local: envío real bloqueado.":draft.expired&&status==="pending"?"Genera una nueva vista previa para enviar.":status==="unknown"||status==="sending"?"No repitas el envío sin comprobarlo antes en WhatsApp.":"Este mensaje ya no se enviará de nuevo."}</p>`}</article>`;
+      return `<article class="panel message-preview"><div class="service-top"><div><h3>${personLabel(p.id,p.name)}</h3><small>${esc(p.phone)}</small></div>${badge(deliveryLabel(status),status==="sent"?"green":"gold")}</div><div class="message-bubble">${esc(p.text)}</div>${available?`<label class="check-option"><input type="checkbox" class="message-confirm">Confirmo este teléfono y este texto</label><button type="button" class="button primary" data-action="send-message" data-id="${draft.id}" data-recipient="${i}">Enviar a ${esc(p.name.split(' ')[0])}</button>`:`<p class="hint">${state.demo?"Ensayo local: envío real bloqueado.":draft.expired&&status==="pending"?"Genera una nueva vista previa para enviar.":status==="unknown"||status==="sending"?"No repitas el envío sin comprobarlo antes en WhatsApp.":"Este mensaje ya no se enviará de nuevo."}</p>`}</article>`;
     }).join("")}</div><div class="actions section">${btn("close-dialog","Cerrar")}</div>`);
   }
   async function sendMessage(node) {
@@ -266,10 +271,12 @@
   function renderArchive() {
     const archived = state.items.filter(x=>x.archived && !(x.kind === "board" && x.eventId) && !(x.kind === "ticket" && item(x.boardId)?.archived)).sort((a,b)=>b.updated.localeCompare(a.updated));
     return pageHead("NADA SE PIERDE POR ACCIDENTE", "Archivo recuperable", "Archivar un bolo también archiva su tablero y tareas. Recuperarlo los devuelve juntos.",state.user.role === "admin"?`<a class="button" href="${BASE}api/export.zip">↓ Copia completa ZIP</a>`:"") +
-      `<section class="panel">${archived.map(x=>`<div class="archived-row"><div><strong>${esc(titleOf(x))}</strong><small>${KIND[x.kind]} · ${dateTime(x.updated)}</small></div>${btn("restore","Recuperar",x.id,"small")}</div>`).join("") || empty("El archivo está vacío","Las fichas archivadas aparecerán aquí y se podrán recuperar.")}</section>`;
+      `<section class="panel">${archived.map(x=>`<div class="archived-row"><div><strong>${x.kind==='person'?personLabel(x.id):esc(titleOf(x))}</strong><small>${KIND[x.kind]} · ${dateTime(x.updated)}</small></div>${btn("restore","Recuperar",x.id,"small")}</div>`).join("") || empty("El archivo está vacío","Las fichas archivadas aparecerán aquí y se podrán recuperar.")}</section>`;
   }
 
   function openDialog(kind, title, html) {
+    dialog.classList.remove('person-colored');
+    for(const c of [...dialog.classList])if(c.startsWith('person-tone-'))dialog.classList.remove(c);
     document.querySelector("#dialog-title").textContent = title;
     document.querySelector("#dialog-kicker").textContent = KIND[kind]?.toUpperCase() || "BACKSTAGE";
     document.querySelector("#dialog-content").innerHTML = html;
@@ -319,9 +326,10 @@
   }
   function openPerson(id) {
     const p = id ? item(id) : {name:"",roles:[],bio:"",instagram:"",website:"",otherSocial:"",image:""};
-    if(p.archived){openDialog("person",p.name,`<div class="notice">Esta ficha está archivada. Se conserva en el reparto de sus funciones.</div><p class="notes">${esc(p.bio)}</p><div class="actions section">${btn("restore","Recuperar ficha",p.id,"primary")}${btn("close-dialog","Cerrar")}</div>`);return;}
+    if(p.archived){openDialog("person",p.name,`<div class="notice">Esta ficha está archivada. Se conserva en el reparto de sus funciones.</div><p class="notes">${esc(p.bio)}</p><div class="actions section">${btn("restore","Recuperar ficha",p.id,"primary")}${btn("close-dialog","Cerrar")}</div>` );colors.decorate(dialog,p);return;}
     openDialog("person",id ? p.name : "Una persona del equipo",formShell("person",p,
       field("Nombre completo",input("name",p.name,"text",'required maxlength="160"')) + field("Especialidades / roles",input("roles",p.roles.join(", "),"text",'maxlength="800"'),"Por ejemplo: Escritura, Interpretación, Técnica. Separados por comas.") +
+      field('Color de la persona',select('color',colors.options,p.color||'auto'),'El mismo color en elenco, bolos, inventario, disponibilidad y gestión. No modifica su equipo azul o rojo.') +
       field("Teléfono privado · WhatsApp",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="off"'),"Solo se guarda dentro del mundo autenticado. No se publica en scribshow.es.") +
       `<label class="check-option"><input type="checkbox" name="phoneConfirmed" ${p.phoneConfirmed?"checked":""}>He comprobado que este teléfono corresponde a esta persona</label>` +
       personHistory(p) +
@@ -329,6 +337,7 @@
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
       `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"url",'placeholder="https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
+    colors.decorate(dialog,p);
   }
   function templateRow(t = {}) {
     return `<div class="template-row"><input class="template-title" value="${esc(t.title || "")}" placeholder="Título de la tarea" maxlength="240" required><input class="template-labels" value="${esc((t.labels || []).join(", "))}" placeholder="Etiquetas" maxlength="800"><button type="button" class="icon-button remove-template-row" data-action="remove-row" aria-label="Quitar tarea de plantilla">×</button><input class="template-description" type="hidden" value="${esc(t.description || "")}"></div>`;
@@ -459,6 +468,9 @@
   document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
+    if(node.name==='color'&&node.closest('#edit-form')?.dataset.kind==='person'){
+      const form=node.closest('form');colors.decorate(dialog,{id:form.dataset.id,name:form.querySelector('[name=name]').value,color:node.value});
+    }
     if(inventory.filter(node))return;
     if(node.matches("#calendar-month") && /^\d{4}-\d{2}$/.test(node.value)){month=new Date(Number(node.value.slice(0,4)),Number(node.value.slice(5,7))-1,1);renderPage();return;}
     if(node.matches("[data-ticket-status]")) moveTicket(node.dataset.ticketStatus,node.value);
@@ -530,21 +542,18 @@
   document.addEventListener("pointercancel",event=>stopPointer(event,true));
 
   async function checkHealth() {
-    if(state?.demo){health={server:null,web:null};updateHealthUI();return;}
-    const probe = async (url,options={}) => {
+    if(state?.demo){health={server:null};updateHealthUI();return;}
+    const probe = async url => {
       const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
-      try {const r=await fetch(url,{...options,cache:"no-store",signal:controller.signal});return options.method === "HEAD" ? r.ok && !r.redirected : r.ok && !r.redirected ? await r.json() : null;}
+      try {const r=await fetch(url,{cache:"no-store",signal:controller.signal});return r.ok && !r.redirected ? await r.json() : null;}
       finally {clearTimeout(timer);}
     };
-    const probes=[probe("/api/scrib-health"),probe("/scrib/game/",{method:"HEAD"})];
-    const results=await Promise.allSettled(probes);
-    const data=results[0].status === "fulfilled"?results[0].value:null;
+    const data=await probe("/api/scrib-health").catch(()=>null);
     health.server=data ? Boolean(data.ok ?? data.online ?? data.connected ?? data.status === "online") : false;
-    health.web=results[1].status === "fulfilled" && results[1].value;
     updateHealthUI();
   }
   function updateHealthUI() {
-    for(const [id,value,label] of [["server-health",health.server,"Servidor"],["web-health",health.web,"Web"]]){
+    for(const [id,value,label] of [["server-health",health.server,"Servidor"]]){
       const node=document.getElementById(id);if(!node)continue;
       node.className="badge " + (value===null?"":value?"green":"coral");
       node.textContent=state?.demo ? label + " · no consultado" : value===null ? "Comprobando " + label.toLowerCase() : value ? "● " + label + " activo" : "○ " + label + " no disponible";

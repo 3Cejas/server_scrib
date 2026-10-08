@@ -19,6 +19,14 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   completarla. Añadir la hora después no duplica ni reinicia las tareas del tablero.
 - Fichas reutilizables de personas: nombre completo, especialidades, biografía,
   redes y foto privada. Un papel y equipo diferentes en cada función.
+- Color de identidad estable por UUID, independiente del equipo azul/rojo y del
+  nombre. Elenco, reparto, inventario, disponibilidad y gestión utilizan la misma
+  paleta de 24 tonos; puede elegirse desde la ficha y queda incluido en las copias
+  de seguridad. Las fichas existentes reciben un color automático sin migración.
+  La hoja de ruta agrupa los equipos y diferencia sus secciones por color, sin
+  animaciones continuas. Los nombres siguen visibles y legibles al imprimir.
+- «Abrir web» abre `https://scribshow.es/`, no el propio backstage. Se retiran los
+  accesos duplicados a la web y «Producción anterior», sin borrar datos antiguos.
 - Cada ficha muestra sus bolos realizados y permite abrir el bolo o su mes del
   calendario. Se cuenta una participación por función, aunque tenga varios papeles.
   Solo se cuentan bolos realizados, no cancelados/archivados ni fechas futuras;
@@ -308,6 +316,8 @@ python3 import_history.py --data /RUTA/PRIVADA --schedule /RUTA/main.js \
 
 ```bash
 python3 -m unittest discover -s tools/scrib-world -p 'test_world.py' -v
+python3 -m unittest discover -s tools/scrib-world -p 'test_people_colors.py' -v
+node tools/scrib-world/test_people_colors.cjs
 node --check tools/scrib-world/public/app.js
 node --check tools/scrib-world/world_proxy.js
 python3 tools/scrib-world/server.py --demo --port 5131 --data /tmp/scrib-world-demo

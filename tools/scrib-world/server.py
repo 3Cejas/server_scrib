@@ -37,6 +37,7 @@ PREFIX = "/scrib/backstage/"
 LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
 KINDS = ("board", "ticket", "event", "person", "template", "availability", "inventory")
+PERSON_COLORS = ('auto','rose','peach','amber','gold','citron','pistachio','mint','jade','turquoise','cyan','sky','azure','periwinkle','violet','lilac','orchid','fuchsia','pink','salmon','lavender','ice','seafoam','sand','clay')
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -260,6 +261,7 @@ class Store:
                     "roles": values(data.get("roles", []), 12), "instagram": link(data.get("instagram", "")),
                     "website": link(data.get("website", "")), "otherSocial": link(data.get("otherSocial", "")),
                     "image": text(data.get("image", ""), 200)}
+            body['color'] = choice(data.get('color',(existing or {}).get('color','auto')),PERSON_COLORS)
             body["phone"] = phone_number(data.get("phone", (existing or {}).get("phone", "")))
             preserved = (existing or {}).get("phoneConfirmed", False) and body["phone"] == (existing or {}).get("phone", "")
             confirmed = data.get("phoneConfirmed", preserved)
@@ -912,7 +914,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not file.is_file():
                         raise Problem("No encontrado.", 404)
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
-                static = {"inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
+                static = {"people.css": ("people.css", "text/css; charset=utf-8"), "people-colors.js": ("people-colors.js", "application/javascript; charset=utf-8"), "inventory.js": ("inventory.js", "application/javascript; charset=utf-8"), "library.js": ("library.js", "application/javascript; charset=utf-8"), "resources.css": ("resources.css", "text/css; charset=utf-8"), "": ("index.html", "text/html; charset=utf-8"), "business.js": ('business.js','application/javascript; charset=utf-8'), 'business.css': ('business.css','text/css; charset=utf-8'), "app.js": ("app.js", "application/javascript; charset=utf-8"), "game-config.js": ("game-config.js", "application/javascript; charset=utf-8"), "activity.js": ("activity.js", "application/javascript; charset=utf-8"), "availability.js": ("availability.js", "application/javascript; charset=utf-8"), "app.css": ("app.css", "text/css; charset=utf-8")}
                 if route in static:
                     file, mime = static[route]
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)
