@@ -14,6 +14,8 @@ from unittest.mock import Mock
 from pathlib import Path
 from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
 from import_cast import schedule_literal, public_history, import_roster
+from import_history import import_history, published_day
+from participations import with_participations, show_key, show_digest
 
 ROOT = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("world", ROOT / "server.py")
@@ -339,9 +341,135 @@ class ClientCopyTests(unittest.TestCase):
         for removed in ("Revisar identidad", "Identidad y teléfono comprobados", "Importado de", "Coincidencia pública", "Nombre pendiente de contrastar", "Fuente: fechas publicadas", "p.sourceGroup", "p.publicName"):
             self.assertNotIn(removed, client)
         self.assertIn("personHistory(p)", client)
-        self.assertIn("p.history.map", client)
+        self.assertIn("p.participations", client)
+        self.assertIn("p.participationCount", client)
+        self.assertIn('"open-participation"', client)
+        self.assertIn('"show-calendar"', client)
+        self.assertIn('id="calendar-month"', client)
         self.assertIn('name="phoneConfirmed"', client)
         self.assertIn('!p.phone||!p.phoneConfirmed?"disabled"', client)
+
+
+class ParticipationTests(unittest.TestCase):
+    def person(self, history=None):
+        return dict(id="ana", kind="person", name="Ana", history=history or [])
+
+    def event(self, **changes):
+        return dict(id="bolo", kind="event", start="2026-03-27T20:00", title="<SCRI> B", venue="Sala", city="Madrid", status="completed", archived=False,
+                    cast=[dict(personId="ana", role="Escritura", team="blue"), dict(personId="ana", role="Interpretación", team="blue")], **changes)
+
+    def derive(self, person, *events):
+        return with_participations([person, *events], "2026-10-08")[0]
+
+    def test_multiple_roles_count_as_one_show(self):
+        p = self.derive(self.person(), self.event())
+        self.assertEqual(p["participationCount"], 1)
+        self.assertEqual(len(p["participations"][0]["roles"]), 2)
+        self.assertEqual(p["participations"][0]["eventId"], "bolo")
+
+    def test_legacy_rows_deduplicated_and_calendar_is_authoritative(self):
+        legacy = [dict(date="2026-03-27", title="SCRIB", venue="Sala", role=role) for role in ("Escritura", "Interpretación")]
+        p = self.derive(self.person(legacy))
+        self.assertEqual(p["participationCount"], 1)
+        self.assertEqual(len(p["participations"][0]["roles"]), 2)
+        p = self.derive(self.person(legacy), self.event())
+        self.assertEqual(p["participationCount"], 1)
+        self.assertEqual(p["participations"][0]["eventId"], "bolo")
+
+    def test_future_pending_cancelled_and_archived_are_not_performed(self):
+        legacy = [dict(date="2026-03-27", title="SCRIB", venue="Sala", role="Escritura")]
+        for patch in [dict(status="pending"), dict(status="cancelled"), dict(archived=True), dict(cast=[])]:
+            e = self.event(); e.update(patch)
+            self.assertEqual(self.derive(self.person(legacy), e)["participationCount"], 0)
+        e = self.event(); e["start"] = "2026-11-07"
+        self.assertEqual(self.derive(self.person(), e)["participationCount"], 0)
+
+    def test_no_history_bad_dates_and_unknown_cast_do_not_invent_shows(self):
+        for history in [[], [dict(date="2026-99-27")], [dict(date="2027-01-01")], [dict(date="")]]:
+            self.assertEqual(self.derive(self.person(history))["participationCount"], 0)
+        self.assertNotIn("participationCount", self.person())
+
+    def test_calendar_edits_do_not_resurrect_old_import_rows(self):
+        legacy = [dict(date="2026-03-27", title="SCRIB", venue="Sala", role="Escritura")]
+        e = self.event()
+        e["historyKey"] = show_digest(show_key(e["start"], e["title"], e["venue"]))
+        e.update(title="Nombre corregido", venue="Sala corregida", cast=[])
+        self.assertEqual(self.derive(self.person(legacy), e)["participationCount"], 0)
+
+
+class HistoryImportTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = world.Store(self.tmp.name)
+        self.person = self.store.create("person", dict(name="Ana Sempere", phone="+34900000001", phoneConfirmed=False), "test", str(uuid.uuid4()))
+        self.sections = [dict(events=[dict(date="27 de marzo de 2026", time="20:00", name="<SCRI> B", venue="Sala Madrid", teams=[dict(color="blue", writer="Ana Sempere", performers="Ana Sempere · Persona no registrada")])])]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_import(self, apply=True, instagram=None):
+        return import_history(self.store, self.sections, instagram, apply, "2026-10-08")
+
+    def test_dry_run_changes_nothing(self):
+        revision = self.store.snapshot()["revision"]
+        self.assertEqual(len(self.run_import(False)["events"]), 1)
+        self.assertEqual(self.store.snapshot()["revision"], revision)
+        self.assertFalse(any(x["kind"] == "event" for x in self.store.snapshot()["items"]))
+
+    def test_completed_show_without_prep_tasks_and_one_participation(self):
+        self.run_import()
+        items = self.store.snapshot()["items"]
+        e = next(x for x in items if x["kind"] == "event")
+        self.assertEqual(e["status"], "completed")
+        self.assertTrue(e["historical"])
+        self.assertEqual(len(e["cast"]), 2)
+        self.assertIn("Persona no registrada", e["description"])
+        self.assertEqual(len([x for x in items if x["kind"] == "person"]), 1)
+        self.assertFalse(any(x["kind"] == "ticket" for x in items))
+        self.assertTrue(any(x["id"] == e["boardId"] and x["eventId"] == e["id"] for x in items))
+        p = next(x for x in items if x["kind"] == "person")
+        self.assertEqual(p["participationCount"], 1)
+        self.assertEqual(len(p["participations"][0]["roles"]), 2)
+        self.assertNotIn("participationCount", self.store.details(p["id"])["item"])
+
+    def test_rerun_preserves_manual_cast_title_and_metadata(self):
+        ident = self.run_import()["events"][0]["id"]
+        e = self.store.details(ident)["item"]
+        self.store.update(ident, dict(e, title="Título corregido", cast=[]), "test", e["version"])
+        report = self.run_import()
+        self.assertTrue(report["events"][0]["existing"])
+        e = self.store.details(ident)["item"]
+        self.assertEqual(e["title"], "Título corregido")
+        self.assertEqual(e["cast"], [])
+        self.assertTrue(e["historical"])
+        self.assertIn("historyKey", e)
+        self.assertEqual(len([x for x in self.store.snapshot()["items"] if x["kind"] == "event"]), 1)
+
+    def test_no_time_or_team_invented_and_future_not_imported(self):
+        self.sections[0]["events"] = [dict(date="1 de febrero de 2025", name="SCRIB", venue="Casa", writers="Ana Sempere"), dict(date="7 de noviembre de 2026", name="León", venue="Universidad")]
+        self.run_import()
+        e = next(x for x in self.store.snapshot()["items"] if x["kind"] == "event")
+        self.assertEqual(e["start"], "2025-02-01")
+        self.assertEqual(e["city"], "")
+        self.assertEqual(e["cast"][0]["team"], "general")
+
+    def test_instagram_preserves_phone_and_does_not_replace_existing_link(self):
+        ig = {"Ana Sempere": dict(url="https://www.instagram.com/_anasempere/", evidence="https://anasempere.es/")}
+        self.run_import(instagram=ig)
+        p = self.store.details(self.person["id"])["item"]
+        self.assertEqual(p["instagram"], ig["Ana Sempere"]["url"])
+        self.assertEqual(p["phone"], self.person["phone"])
+        self.assertFalse(p["phoneConfirmed"])
+        ig["Ana Sempere"]["url"] = "https://instagram.com/another/"
+        self.assertTrue(self.run_import(instagram=ig)["instagram"][0]["keptExisting"])
+        self.assertEqual(self.store.details(p["id"])["item"]["instagram"], p["instagram"])
+
+    def test_unverified_instagram_rolls_back_import(self):
+        with self.assertRaises(ValueError):
+            self.run_import(instagram={"Ana Sempere": dict(url="https://instagram.com/name/")})
+        self.assertFalse(any(x["kind"] == "event" for x in self.store.snapshot()["items"]))
+        with self.assertRaises(ValueError):
+            published_day("30 de febrero de 2026")
 
 
 class IntegrationTests(unittest.TestCase):

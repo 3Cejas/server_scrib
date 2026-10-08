@@ -19,6 +19,11 @@ JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones cont
   completarla. Añadir la hora después no duplica ni reinicia las tareas del tablero.
 - Fichas reutilizables de personas: nombre completo, especialidades, biografía,
   redes y foto privada. Un papel y equipo diferentes en cada función.
+- Cada ficha muestra sus bolos realizados y permite abrir el bolo o su mes del
+  calendario. Se cuenta una participación por función, aunque tenga varios papeles.
+  Solo se cuentan bolos realizados, no cancelados/archivados ni fechas futuras;
+  el elenco del calendario prevalece sobre el historial antiguo. El mes se puede
+  elegir directamente, sin recorrer todos los meses desde el presente.
 - Plantilla inicial de 34 tareas transcritas de las tres capturas del usuario.
   Todas se crean en TO DO. Plantillas editables/duplicables; los cambios no alteran
   bolos anteriores ni reinician su progreso.
@@ -103,6 +108,20 @@ python3 import_cast.py --data /RUTA/PRIVADA --roster /RUTA/PRIVADA/leon.json \
   --schedule /RUTA/main.js
 # Primero revisar el informe. Añadir --apply para crear/actualizar las fichas.
 # --mapping /RUTA/PRIVADA/nombres.json solo para identidades confirmadas por el equipo.
+```
+
+`import_history.py` incorpora los bolos pasados publicados como realizados. Crea
+su ficha y un tablero vacío, sin checklist retrospectiva. Solo vincula personas
+ya registradas con coincidencia inequívoca; el resto del reparto publicado se
+conserva en las notas del bolo. No inventa horarios, equipos ni nuevas identidades.
+Una segunda ejecución no duplica funciones ni sobrescribe ediciones manuales.
+Los Instagram requieren un mapping revisado con URL y evidencia y solo rellenan
+campos vacíos. Antes de aplicar se guarda una copia consistente privada de SQLite.
+
+```bash
+python3 import_history.py --data /RUTA/PRIVADA --schedule /RUTA/main.js \
+  --instagram /RUTA/PRIVADA/instagram-confirmados.json
+# Revisar el informe antes de añadir --apply. No envía mensajes ni publica datos.
 ```
 
 ## Pruebas locales

@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
 from whatsapp import Bridge, WhatsappProblem, phone_number, personalize
+from participations import with_participations
 
 ROOT = Path(__file__).resolve().parent
 PREFIX = "/mundo-scrib/"
@@ -305,6 +306,9 @@ class Store:
                 raise Problem("Hay una entrada del elenco duplicada.")
             if existing:
                 body["boardId"] = existing["boardId"]
+                for key in ("historical", "historyKey"):
+                    if key in existing:
+                        body[key] = existing[key]
         return body
 
     def all(self, db, kind=None):
@@ -314,7 +318,7 @@ class Store:
     def snapshot(self):
         with self.connect() as db:
             db.execute("BEGIN")
-            return {"items": self.all(db), "members": self.members(db), "revision": db.execute("SELECT coalesce(max(seq),0) FROM activity").fetchone()[0],
+            return {"items": with_participations(self.all(db)), "members": self.members(db), "revision": db.execute("SELECT coalesce(max(seq),0) FROM activity").fetchone()[0],
                     "activity": [dict(r) for r in db.execute("SELECT * FROM activity ORDER BY seq DESC LIMIT 40")]}
 
     def create(self, kind, data, actor, request_id):
