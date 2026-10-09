@@ -54,7 +54,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));
 test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{
   const html=read('index.html'),nav=html.match(/<nav aria-label="Secciones">([\s\S]*?)<\/nav>/)[1];
   const entries=[...nav.matchAll(/<a\b[^>]*data-nav="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
-  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','messages','templates','finance','archive']);
+  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','messages','templates','finance']);
   for(const [,route,content] of entries){
     assert.match(content,/<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">/);
     assert.equal((content.match(/<svg/g)||[]).length,1,route);
@@ -68,6 +68,32 @@ test('presenter is available for person profiles and bolo casts',()=>{
   assert.match(app.profile.roleEditor(['Presentador']),/value="Presentador" checked/);
   assert.match(app.profile.roleTags(['Presentador']),/role-gold.*🎤.*Presentador/);
   assert.match(app.castRow({personId:'p3',team:'general',role:'Presentador'}),/value="Presentador" selected/);
+});
+test('only writing and acting cast rows expose blue/red teams and juror replaces participation',()=>{
+  const {app}=client();
+  for(const role of ['Técnica','Presentador','Jurado','Dramaturgia','Producción']){
+    const html=app.castRow({personId:'p3',team:'red',role});balanced(html);
+    assert.match(html,/class="cast-team"[^>]*hidden disabled/);assert.doesNotMatch(html,/>Rojo<|>Azul<|>General</);
+  }
+  for(const role of ['Escritura','Interpretación'])assert.doesNotMatch(app.castRow({role,team:'blue'}),/hidden disabled/);
+  assert.match(app.profile.roleEditor([]),/Jurado/);assert.doesNotMatch(app.profile.roleEditor(['Participación']),/Participación/);
+});
+test('archive is inside Tareas and inventory export selects separate team kits by default',async()=>{
+  const {app,state,event,nodes}=client();
+  state.items.push({id:'blue-object',kind:'inventory',title:'Gorra',team:'blue',quantity:1,category:'costume'}, {id:'red-object',kind:'inventory',title:'Gorra',team:'red',quantity:1,category:'costume'});
+  assert.match(app.renderBoards(),/href="#archive"/);
+  assert.equal(app.inventory.eventObjects(event).length,2);
+  await app.action({dataset:{action:'inventory-export',id:'e1'}});
+  const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.match(html,/inventory-export-team blue/);assert.match(html,/inventory-export-team red/);assert.equal((html.match(/name="objects"[^>]*checked/g)||[]).length,2);
+  assert.doesNotMatch(html,/Ubicación|Responsable|Compartido|Por revisar/);
+});
+test('communication has explicit send actions without individual confirmation checkboxes',()=>{
+  const {app,state,nodes}=client();state.demo=false;
+  app.showMessagePreview({id:'draft',people:[{id:'p1',name:'Ángela',text:'Mensaje personalizado',phone:'Prueba',delivery:{status:'pending'}}],deliveries:[]});
+  const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.match(html,/data-action="send-message"/);assert.match(html,/data-action="send-messages"/);
+  assert.doesNotMatch(html,/message-confirm|type="checkbox"|confirma el teléfono/i);
 });
 test('whole bolo card is a native link without nesting its independent task link',()=>{
   const {app,event}=client(),html=app.eventCard(event);balanced(html);
@@ -222,9 +248,9 @@ test('archiving a person keeps their color in the archive and read-only cast dia
   assert.match(nodes['dialog-content'].innerHTML,/Recuperar ficha/);
   assert.doesNotMatch(nodes['dialog-content'].innerHTML,/name="color"/);
 });
-test('inventory and WhatsApp labels use the same person identity',()=>{
+test('inventory omits hidden custodian metadata and communication retains person identity',()=>{
   const {app,state,nodes}=client();state.items.push({id:'obj',kind:'inventory',title:'Maleta',team:'blue',quantity:1,category:'props',condition:'good',custodianId:'p1',eventId:'e1'});
-  const html=app.inventory.list();balanced(html);assert.ok(html.includes(app.personLabel('p1')));
+  const html=app.inventory.list();balanced(html);assert.ok(!html.includes(app.personLabel('p1')));assert.doesNotMatch(html,/Responsable|Ubicación/);
   app.messageRecipients('e1');assert.ok(nodes['message-recipients'].innerHTML.includes(app.personLabel('p1')));
   app.showMessagePreview({id:'draft',people:[{id:'p1',name:'Earlier name',phone:'test',text:'Hello'}],deliveries:[]});
   assert.ok(nodes['dialog-content'].innerHTML.includes(app.personLabel('p1','Earlier name')));
@@ -281,9 +307,9 @@ test('form serializes multiple role tags and blank inventory quantity without tu
   const {app}=client();
   const person=await app.formData({dataset:{kind:'person'},entries:[['name','Ana'],['roles','Escritura'],['roles','Interpretación']],querySelectorAll:()=>[{value:'Escritura'},{value:'Interpretación'}]});
   assert.deepEqual(Array.from(person.roles),['Escritura','Interpretación']);assert.ok(!('phoneConfirmed' in person));
-  const object=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','']]});
+  const object=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','']],querySelector:()=>null});
   assert.equal(object.quantity,null);
-  const zero=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','0']]});assert.equal(zero.quantity,0);
+  const zero=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','0']],querySelector:()=>null});assert.equal(zero.quantity,0);
 });
 test('a phone is usable without identity checkbox, while missing phone remains disabled',()=>{
   const {app,people,nodes}=client();people[0].phoneConfirmed=false;people[1].phone='';
@@ -293,11 +319,11 @@ test('a phone is usable without identity checkbox, while missing phone remains d
   assert.doesNotMatch(html,/Confirma el teléfono|Teléfono confirmado/);
 });
 test('unquantified inventory cards and event entries stay explicit without NaN or null',()=>{
-  const {app,state,event}=client();state.items.push({id:'obj',kind:'inventory',title:'Mochilas',team:'general',quantity:null,category:'props',condition:'unchecked',eventId:'e1'});
+  const {app,state,event}=client();state.items.push({id:'obj',kind:'inventory',title:'Mochilas',team:'blue',quantity:null,category:'props',condition:'unchecked',eventId:'e1'});
   for(const html of [app.inventory.list(),app.inventory.eventPanel(event)]){
-    balanced(html);assert.match(html,/Cantidad sin especificar/);assert.match(html,/Por revisar/);assert.doesNotMatch(html,/× null|NaN/);
+    balanced(html);assert.match(html,/Cantidad sin especificar/);assert.doesNotMatch(html,/Por revisar|Compartido|× null|NaN/);
   }
-  assert.match(app.inventory.list(),/1 sin cantidad/);
+  assert.match(app.inventory.list(),/unidades · 1 objetos/);
 });
 
 function taskFixture() {

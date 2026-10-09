@@ -12,6 +12,8 @@
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};
   const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto",lighting:"Plano de luminotecnia"};
+  const TEAM_ROLES=new Set(['Escritura','Interpretación']);
+  const REQUIRED_CAST=[['Escritura','blue'],['Escritura','red'],['Interpretación','blue'],['Interpretación','red'],['Presentador','general'],['Técnica','general'],['Jurado','general']];
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   const deleteDialog = document.querySelector("#delete-confirmation");
@@ -74,7 +76,7 @@
   const profile = window.ScribPersonProfile({esc,roles:()=>state?.personRoles});
   const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
   const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
-  const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage});
+  const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage,dialog});
   const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage});
   const lighting = window.ScribLighting({state:()=>state,esc,btn,pageHead,request,toast,refresh,renderPage});
   dialog.addEventListener('close', () => { if (state) renderPage(); });
@@ -123,9 +125,9 @@
       columns:Object.fromEntries([...main.querySelectorAll(".column")].map(c=>[c.dataset.status,c.querySelector(".ticket-list").scrollTop]))
     } : null;
     const [page = "home", id] = route();
-    const nav = page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
+    const nav = page === "archive" ? "boards" : page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = "<SCRI> B / " + ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",lighting:"LUMINOTECNIA",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"WHATSAPP",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",lighting:"LUMINOTECNIA",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"COMUNICACIÓN",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "availability") content = polls.list();
@@ -223,7 +225,7 @@
     return `<div class="calendar"><div class="calendar-controls"><h2>${esc(new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(month))}</h2><div class="actions"><label class="calendar-jump">Ir a mes <input type="month" id="calendar-month" value="${year}-${String(m+1).padStart(2,"0")}" aria-label="Elegir mes y año del calendario"></label>${btn("month-prev","←","","small")}${btn("month-today","Hoy","","small")}${btn("month-next","→","","small")}</div></div><div class="calendar-week">${["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></div>`;
   }
   function renderBoards() {
-    return pageHead("TODO EL EQUIPO, EN MARCHA", "Tareas", "Tableros para organizar ideas, desarrollo, ensayos y producción. Los tableros de cada bolo están en su ficha.",btn("new-board","＋ Nuevo tablero","","primary")) +
+    return pageHead("TODO EL EQUIPO, EN MARCHA", "Tareas", "Tableros para organizar ideas, desarrollo, ensayos y producción. Los tableros de cada bolo están en su ficha.",btn("new-board","＋ Nuevo tablero","","primary")+`<a class="button" href="#archive">↺ Archivo recuperable</a>`) +
       `<div class="grid cols3">${active("board").filter(x=>!x.eventId).map(x=>{const p=progress(x.id), title=boardTitle(x.title);return `<article class="panel board-card ${esc(x.color)}"><a class="board-card-link" href="#board/${esc(x.id)}" aria-label="Abrir tablero ${esc(title)}"><h2 class="board-title">${esc(title)}</h2><p class="muted">${esc(x.description)}</p><div class="summary">${p.done} de ${p.total} tareas · ${p.percent}% completado</div>${progressHtml(p)}<span class="board-enter" aria-hidden="true">Entrar al tablero ↗</span></a>${btn("edit-board","Editar tablero " + title,x.id,"board-edit")}</article>`;}).join("") || empty("Tu primer tablero","Crea un tablero y organiza las tareas del equipo.")}</div>`;
   }
   function renderBoard(id) {
@@ -251,15 +253,15 @@
     if (!event || event.archived) return empty("Este bolo está archivado o no existe","Puedes recuperarlo junto con sus tareas desde el archivo.",`<a class="button" href="#archive">Ir al archivo</a>`);
     const p = progress(event.boardId), tasks = tasksFor(event.boardId), blocks = tasks.filter(x=>x.status === "blocked");
     const casts = ['blue','red','general'].map(team=>{
-      const rows=event.cast.filter(c=>c.team===team);
+      const rows=event.cast.filter(c=>(TEAM_ROLES.has(c.role)?c.team:'general')===team);
       if(team==='general'&&!rows.length)return '';
       return `<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="team-row">${rows.map(c=>{const p=item(c.personId);return `<button type="button" class="cast-chip ${team} ${colors.className(p)}" data-action="edit-person" data-id="${esc(c.personId)}"><span class="cast-person-name"><span class="avatar" aria-hidden="true">${esc(initials(p?.name))}</span>${personLabel(c.personId,' '+(p?.name||'Ficha no disponible'))}</span><small>${esc(c.role)}</small></button>`;}).join('')||'<p class="muted">Elenco pendiente de asignar.</p>'}</div></div>`;
     }).join('');
     return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",event.title,`${niceDate(event.start)} · ${hour(event.start)} · ${EVENT_STATUS[event.status]}`,
-      btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ WhatsApp al elenco",event.id) + btn("print","↓ Hoja de llamada",event.id) + (event.historical ? "" : `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) + (event.eventType === "rehearsal" ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
+      btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + btn("event-pdf","↓ Hoja de llamada PDF",event.id) + (event.historical ? "" : `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) + (event.eventType === "rehearsal" ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
       `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${event.eventType === "rehearsal" ? `<section class="panel event-prep-section"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel event-prep-section"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel event-prep-section"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
-      <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.cast.length?'':`<p class="muted section">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</section>
+      <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.eventType==='rehearsal'||event.historical?'':castReadiness(event.cast)}${event.cast.length?'':`<p class="muted section">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</section>
       ${inventory.eventPanel(event)}
       ${event.eventType === 'rehearsal' ? '' : `<section class="panel event-game-section"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}
@@ -284,8 +286,8 @@
     whatsappStatus=status;messageHistory=history.messages;
   }
   function renderMessages() {
-    return pageHead("COORDINAR SIN PERDER EL TOQUE PERSONAL","WhatsApp al elenco","Un mensaje individual por persona, con su nombre y los datos del bolo. Nunca se envía automáticamente.",btn("compose-message","＋ Preparar mensaje","","primary")) +
-      `<div class="panel service-top"><div>${badge(whatsappStatus?.ready?"CONECTADO":"COMPROBAR CONEXIÓN",whatsappStatus?.ready?"green":"gold")}<p class="muted">${esc(whatsappStatus?.message || "Comprueba la conexión del WhatsApp de Impropios antes de enviar.")}</p></div>${btn("message-history","↻ Actualizar","","small")}</div><div class="notice section">Primero confirma el teléfono en cada ficha. Después elige destinatarios y revisa el texto exacto. Cada envío necesita tu confirmación. Los números y mensajes quedan dentro de Sutura.</div><section class="section grid cols2">${messageHistory.map(d=>`<article class="panel"><p class="eyebrow">${d.expired?"VISTA PREVIA CADUCADA":"VISTA PREVIA"} · ${esc(dateTime(d.created))}</p><h3>${d.people.length} destinatarios${d.eventId?" · " + esc(titleOf(item(d.eventId))):""}</h3><p class="muted">${d.people.filter(p=>p.delivery.status === "sent").length} envíos confirmados</p>${btn("message-draft","Revisar mensajes",d.id)}</article>`).join("") || empty("El siguiente mensaje empieza aquí","Prepararlo no envía nada. Puedes elegir un bolo o escribir a personas concretas.")}</section>`;
+    return pageHead("COORDINAR SIN PERDER EL TOQUE PERSONAL","Comunicación","Mensajes de WhatsApp personalizados para tu elenco, por persona o para todo el reparto.",btn("compose-message","＋ Preparar mensaje","","primary")) +
+      `<div class="panel service-top"><div>${badge(whatsappStatus?.ready?"CONECTADO":"COMPROBAR CONEXIÓN",whatsappStatus?.ready?"green":"gold")}<p class="muted">${esc(whatsappStatus?.message || "Comprueba la conexión antes de enviar.")}</p></div>${btn("message-history","↻ Actualizar","","small")}</div><div class="notice section">Elige destinatarios, prepara el mensaje y envíalo desde la vista previa. Puedes enviar todos de una vez, sin confirmar cada tarjeta. Los teléfonos y mensajes permanecen en el espacio privado.</div><section class="section grid cols2">${messageHistory.map(d=>`<article class="panel"><p class="eyebrow">${d.expired?"VISTA PREVIA CADUCADA":"VISTA PREVIA"} · ${esc(dateTime(d.created))}</p><h3>${d.people.length} destinatarios${d.eventId?" · " + esc(titleOf(item(d.eventId))):""}</h3><p class="muted">${d.people.filter(p=>p.delivery.status === "sent").length} mensajes enviados</p>${btn("message-draft","Ver mensajes",d.id)}</article>`).join("") || empty("El siguiente mensaje empieza aquí","Prepararlo no envía nada. Puedes elegir un bolo o escribir a personas concretas.")}</section>`;
   }
   function messageRecipients(eventId, personId="") {
     const event=eventId?item(eventId):null;
@@ -294,7 +296,7 @@
     target.innerHTML=people.map(p=>`<label class="recipient-option"><input type="checkbox" name="people" value="${p.id}" ${!p.phone?"disabled":""} ${p.id===personId&&p.phone?"checked":""}><span><strong>${personLabel(p.id)}</strong><small>${p.phone?esc(profile.displayPhone(p.phone)):"Sin teléfono"}</small></span>${btn("edit-person","Ficha",p.id,"small")}</label>`).join("") || `<p class="muted">Este bolo no tiene elenco. Añádelo en su ficha primero.</p>`;
   }
   function openMessage(eventId="",personId="") {
-    openDialog("message","Un mensaje para cada persona",`<form id="message-form"><div class="notice">No se envía nada hasta revisar y confirmar cada mensaje.</div>${field("Contexto del mensaje",select("eventId",{"":"Sin bolo · mensaje libre",...Object.fromEntries(active("event").map(e=>[e.id,niceDate(e.start,false)+" · "+e.title]))},eventId,'id="message-event"'))}<fieldset class="recipient-list"><legend>Destinatarios · selección explícita</legend><div id="message-recipients"></div></fieldset>${field("Mensaje personalizado",area("text",eventId?"Hola {nombre},\n\nTe escribimos por {bolo}, el {fecha} a las {hora} en {lugar}. Tu papel: {papel}.\n\n¡Nos vemos en el escenario!":"Hola {nombre},\n\n",'required maxlength="4000" rows="8"'),"Variables: {nombre}, {nombre_completo}, {bolo}, {fecha}, {hora}, {lugar}, {convocatoria}, {papel}.")}<p class="form-error" role="alert"></p><div class="form-footer"><span>Hasta 50 destinatarios. Sin envíos en grupo.</span><button class="button primary" type="submit">Revisar vista previa →</button></div></form>`);
+    openDialog("message","Un mensaje para cada persona",`<form id="message-form"><div class="notice">Preparar la vista previa no envía nada. Después puedes enviar a una persona o a todos.</div>${field("Contexto del mensaje",select("eventId",{"":"Sin bolo · mensaje libre",...Object.fromEntries(active("event").map(e=>[e.id,niceDate(e.start,false)+" · "+e.title]))},eventId,'id="message-event"'))}<fieldset class="recipient-list"><legend>Destinatarios</legend><div id="message-recipients"></div></fieldset>${field("Mensaje personalizado",area("text",eventId?"Hola {nombre},\n\nTe escribimos por {bolo}, el {fecha} a las {hora} en {lugar}. Tu papel: {papel}.\n\n¡Nos vemos en el escenario!":"Hola {nombre},\n\n",'required maxlength="4000" rows="8"'),"Variables: {nombre}, {nombre_completo}, {bolo}, {fecha}, {hora}, {lugar}, {convocatoria}, {papel}.")}<p class="form-error" role="alert"></p><div class="form-footer"><span>Hasta 50 destinatarios. Mensajes individuales, nunca al grupo.</span><button class="button primary" type="submit">Ver vista previa →</button></div></form>`);
     messageRecipients(eventId,personId);
   }
   async function previewMessage(form) {
@@ -308,21 +310,36 @@
     finally{saving=false;button.disabled=false;}
   }
   function showMessagePreview(draft) {
-    openDialog("message","Revisa antes de enviar",`<div class="notice">Esta vista previa caduca a los 15 minutos. El botón envía solo el mensaje de esa tarjeta. No reenviamos mensajes dudosos automáticamente.</div><div class="message-preview-list">${draft.people.map((p,i)=>{
+    messageHistory=[draft,...messageHistory.filter(d=>d.id!==draft.id)];
+    openDialog("message","Mensajes personalizados",`<div class="notice">La vista previa caduca a los 15 minutos. Puedes enviar un mensaje o todos los pendientes. Cada envío se registra para evitar duplicados; un envío de resultado incierto no se repite automáticamente.</div><div class="message-preview-list">${draft.people.map((p,i)=>{
       const status=p.delivery?.status || "pending",available=status==="pending" && !draft.expired && !state.demo;
-      return `<article class="panel message-preview"><div class="service-top"><div><h3>${personLabel(p.id,p.name)}</h3><small>${esc(p.phone)}</small></div>${badge(deliveryLabel(status),status==="sent"?"green":"gold")}</div><div class="message-bubble">${esc(p.text)}</div>${available?`<label class="check-option"><input type="checkbox" class="message-confirm">Confirmo este teléfono y este texto</label><button type="button" class="button primary" data-action="send-message" data-id="${draft.id}" data-recipient="${i}">Enviar a ${esc(p.name.split(' ')[0])}</button>`:`<p class="hint">${state.demo?"Ensayo local: envío real bloqueado.":draft.expired&&status==="pending"?"Genera una nueva vista previa para enviar.":status==="unknown"||status==="sending"?"No repitas el envío sin comprobarlo antes en WhatsApp.":"Este mensaje ya no se enviará de nuevo."}</p>`}</article>`;
-    }).join("")}</div><div class="actions section">${btn("close-dialog","Cerrar")}</div>`);
+      return `<article class="panel message-preview"><div class="service-top"><div><h3>${personLabel(p.id,p.name)}</h3><small>${esc(p.phone)}</small></div>${badge(deliveryLabel(status),status==="sent"?"green":"gold")}</div><div class="message-bubble">${esc(p.text)}</div>${available?`<button type="button" class="button primary" data-action="send-message" data-id="${draft.id}" data-recipient="${i}">Enviar a ${esc(p.name.split(' ')[0])}</button>`:`<p class="hint">${state.demo?"Ensayo local: envío real bloqueado.":draft.expired&&status==="pending"?"Genera una nueva vista previa para enviar.":status==="unknown"||status==="sending"?"No repitas el envío sin comprobarlo antes en WhatsApp.":"Este mensaje ya no se enviará de nuevo."}</p>`}</article>`;
+    }).join("")}</div><div class="actions section">${!state.demo&&!draft.expired&&draft.people.some(p=>!p.delivery||p.delivery.status==='pending')?btn('send-messages','Enviar todos los pendientes',draft.id,'primary'):''}${btn("close-dialog","Cerrar")}</div>`);
   }
   async function sendMessage(node) {
     if(saving)return;
-    const card=node.closest('.message-preview');
-    if(!card.querySelector('.message-confirm').checked){toast("Confirma el destinatario y el texto de esta tarjeta antes de enviar.");return;}
-    saving=true;node.disabled=true;
+    const label=node.innerHTML;saving=true;node.disabled=true;node.textContent='Enviando…';
     try {
       const result=await request("whatsapp/send",{draftId:node.dataset.id,recipient:Number(node.dataset.recipient),confirmed:true});
       await loadMessages();const draft=messageHistory.find(d=>d.id===node.dataset.id);if(draft)showMessagePreview(draft);
       toast(result.item.status === "sent"?"WhatsApp ha confirmado el envío.":"Envío no confirmado. Revísalo en WhatsApp antes de volver a enviar.");
-    }catch(error){toast(error.message);}finally{saving=false;node.disabled=false;}
+    }catch(error){toast(error.message);}finally{saving=false;node.disabled=false;node.innerHTML=label;}
+  }
+  async function sendMessages(node) {
+    if(saving||state.demo)return;
+    const draft=messageHistory.find(d=>d.id===node.dataset.id);
+    if(!draft||draft.expired)throw new Error('Actualiza la vista previa antes de enviar.');
+    const pending=draft.people.map((p,i)=>({p,i})).filter(({p})=>!p.delivery||p.delivery.status==='pending');
+    saving=true;const label=node.innerHTML;node.disabled=true;let sent=0;
+    try {
+      for(const {i} of pending){node.textContent=`Enviando ${sent+1}/${pending.length}…`;
+        const result=await request('whatsapp/send',{draftId:draft.id,recipient:i});
+        if(result.item.status!=='sent')throw new Error('Envío sin confirmar. Se ha detenido el lote: revisa WhatsApp antes de repetir.');
+        sent++;
+      }
+      toast(`${sent} mensajes enviados.`);
+    } catch(e){toast(e.message);}
+    finally{saving=false;node.disabled=false;node.innerHTML=label;await loadMessages().catch(()=>{});const current=messageHistory.find(d=>d.id===draft.id);if(current)showMessagePreview(current);}
   }
   function renderArchive() {
     const archived = state.items.filter(x=>x.archived && !(x.kind === "board" && x.eventId) && !(x.kind === "ticket" && item(x.boardId)?.archived)).sort((a,b)=>b.updated.localeCompare(a.updated));
@@ -365,7 +382,16 @@
   function commentsHtml(comments) {return comments.map(c=>`<div class="comment"><small><strong>${esc(member(c.author))}</strong> · ${dateTime(c.created)}</small>${esc(c.body)}</div>`).join("") || `<p class="muted">Aquí empieza la conversación.</p>`;}
   function castRow(c = {}) {
     const choices=state.items.filter(p=>p.kind === "person" && (!p.archived || p.id === c.personId));
-    return `<div class="cast-editor-row"><select class="cast-person" aria-label="Persona del elenco" required>${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><select class="cast-role" aria-label="Papel en el bolo" required>${option("","Selecciona rol",c.role)}${profile.roleOptions(c.role)}</select><select class="cast-team" aria-label="Equipo">${option("general","General",c.team || "general")}${option("blue","Azul",c.team)}${option("red","Rojo",c.team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
+    const teamRole=TEAM_ROLES.has(c.role),team=teamRole?c.team||'blue':'general';
+    return `<div class="cast-editor-row${teamRole?'':' no-team'}"><select class="cast-person" aria-label="Persona del elenco">${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><select class="cast-role" aria-label="Papel en el bolo">${option("","Selecciona rol",c.role)}${profile.roleOptions(c.role)}</select><select class="cast-team" aria-label="Equipo" ${teamRole?'':'hidden disabled'}>${teamRole?option('blue','Azul',team)+option('red','Rojo',team):option('general','',team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
+  }
+  function castReadiness(cast) {
+    return `<div class="cast-readiness"><h3>Reparto obligatorio</h3><div class="label-group">${REQUIRED_CAST.map(([role,team])=>{const ready=cast.some(c=>c.role===role&&(team==='general'||c.team===team));return badge((ready?'✓ ':'○ ')+role+(team==='general'?'':team==='blue'?' · azul':' · rojo'),ready?'green':'gold');}).join('')}</div></div>`;
+  }
+  function updateCastReadiness() {
+    const pane=dialog.querySelector('#cast-readiness');if(!pane)return;
+    const cast=[...dialog.querySelectorAll('.cast-editor-row')].filter(n=>n.querySelector('.cast-person').value).map(n=>({role:n.querySelector('.cast-role').value,team:n.querySelector('.cast-team').value}));
+    pane.innerHTML=castReadiness(cast);
   }
   function openEvent(id, day) {
     const e = id ? item(id) : {title:"",start:day || today(),end:"",arrival:"",status:"pending",venue:"",city:"",address:"",description:"",ticketUrl:"",cast:[]};
@@ -373,12 +399,12 @@
       field("Nombre del bolo",input("title",e.title,"text",'required maxlength="240" placeholder="SCRIB · sala / festival"')) +
       `<div class="form-row">${field("Fecha del bolo",input("start",e.start.slice(0,10),"date", "required"))}${field("Hora · horario Madrid",input("startTime",e.start.length > 10 ? e.start.slice(11,16) : "","time"),"Déjala vacía si todavía está pendiente.")}</div>` +
       field("Fin (opcional; requiere hora de inicio)",input("end",localInput(e.end),"datetime-local")) +
-      `<div class="form-row">${field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local"))}${field("Estado del bolo",select("status",EVENT_STATUS,e.status))}</div>` +
+      field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local"))+input('status',e.status,'hidden') +
       `<div class="form-row">${field("Espacio / sala",input("venue",e.venue,"text",'maxlength="200"'))}${field("Ciudad",input("city",e.city,"text",'maxlength="120"'))}</div>` + field("Dirección / instrucciones de llegada",input("address",e.address,"text",'maxlength="1000"')) +
       field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"')) + field("Notas de producción",area("description",e.description,'maxlength="15000" placeholder="Acceso, necesidades de sala, contactos profesionales, ensayo…"')) +
       window.ScribWorldGameConfig.editor(e,state.gameConfigSchema) +
-      (id ? `<div class="notice">El tablero ya existe. Editar el bolo no reinicia ni duplica sus tareas.</div>` : field("Plantilla de tareas iniciales",select("templateId",Object.fromEntries(active("template").map(t=>[t.id,`${t.title} · ${t.tasks.length} tareas`])),"default-template"),"Se copiarán automáticamente en TO DO al guardar.")) +
-      `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Persona","","small")}</div>${!active("person").length?`<p class="muted">Primero crea las fichas en Elenco. Puedes guardar el bolo y añadir su reparto después.</p>`:""}<div class="cast-editor">${e.cast.map(castRow).join("")}</div></div>`));
+      (id ? '' : field("Plantilla de tareas iniciales",select("templateId",Object.fromEntries(active("template").map(t=>[t.id,`${t.title} · ${t.tasks.length} tareas`])),"default-template"),"Se copiarán automáticamente en TO DO al guardar.")) +
+      `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Persona","","small")}</div><div id="cast-readiness">${castReadiness(e.cast)}</div><p class="hint">Puedes guardar un borrador y completar después los puestos que faltan.</p><div class="cast-editor">${e.cast.map(castRow).join("")}</div></div>`));
   }
   function openPerson(id) {
     const p = id ? item(id) : {name:"",roles:[],bio:"",instagram:"",website:"",otherSocial:"",image:""};
@@ -416,13 +442,15 @@
       data.roles = [...form.querySelectorAll('[name=roles]:checked')].map(x=>x.value);
     } else if (form.dataset.kind === "inventory") {
       data.quantity = data.quantity === '' ? null : Number(data.quantity);
+      data.imageReference = form.querySelector('[name=imageReference]')?.checked || false;
     } else if (form.dataset.kind === "event") {
       const gameConfig = window.ScribWorldGameConfig.read(form);
       if(gameConfig !== undefined)data.gameConfig = gameConfig;
       delete data.gameConfigEnabled;
       if(data.startTime)data.start += "T" + data.startTime;
       delete data.startTime;
-      data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:row.querySelector(".cast-team").value}));
+      data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:TEAM_ROLES.has(row.querySelector('.cast-role').value)?row.querySelector(".cast-team").value:'general'})).filter(c=>c.personId);
+      if(data.cast.some(c=>!c.role))throw new Error('Elige el rol de cada persona del elenco.');
     } else if (form.dataset.kind === "template") {
       data.tasks = [...form.querySelectorAll(".template-row")].map(row=>({title:row.querySelector(".template-title").value,labels:splitValues(row.querySelector(".template-labels").value),description:row.querySelector(".template-description").value}));
     }
@@ -532,9 +560,11 @@
     else if(a === "compose-message")openMessage();
     else if(a === "compose-event")openMessage(id);
     else if(a === "compose-person")openMessage("",id);
-    else if(a === "message-history") {await loadMessages();renderPage();}
+    else if(a === "message-history") {if(node.disabled)return;const label=node.innerHTML;node.disabled=true;node.textContent='Actualizando…';node.setAttribute('aria-busy','true');try{await loadMessages();renderPage();}finally{node.disabled=false;node.innerHTML=label;node.removeAttribute('aria-busy');}}
     else if(a === "message-draft") {await loadMessages();const draft=messageHistory.find(x=>x.id===id);if(draft)showMessagePreview(draft);}
     else if(a === "send-message")await sendMessage(node);
+    else if(a === "send-messages")await sendMessages(node);
+    else if(a === "event-pdf")await window.ScribExport(state,{kind:'event',id},node);
     else if(a === "new-template")openTemplate();
     else if(a === "edit-template")openTemplate(id);
     else if(a === "duplicate-template")openTemplate(id,true);
@@ -542,7 +572,7 @@
     else if(a === "add-check")dialog.querySelector(".checklist-editor").insertAdjacentHTML("beforeend",checkRow());
     else if(a === "add-cast")dialog.querySelector(".cast-editor").insertAdjacentHTML("beforeend",castRow());
     else if(a === "add-template-task")dialog.querySelector(".template-editor").insertAdjacentHTML("beforeend",templateRow());
-    else if(a === "remove-row")node.parentElement.remove();
+    else if(a === "remove-row"){node.parentElement.remove();updateCastReadiness();}
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
     else if(a === "delete-ticket")askDelete(id);
@@ -563,9 +593,11 @@
     }
   }
   document.addEventListener("click",event=>{const node=event.target.closest("[data-action]");if(node)action(node).catch(error=>toast(error.message));});
-  document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
+  document.addEventListener("submit",event=>{if(event.target.matches("#inventory-export-form")){event.preventDefault();inventory.exportForm(event.target);}else if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
+    if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');updateCastReadiness();return;}
+    if(node.matches('.cast-person,.cast-team')){updateCastReadiness();return;}
     if(node.id==='lighting-scope'){lighting.changeScope(node).catch(error=>toast(error.message));return;}
     if(lighting.input(node)){if(['x','y'].includes(node.dataset.lightingField)){const value=Number(node.value);if(Number.isFinite(value) && node.value!=='')node.value=String(Math.max(Number(node.min),Math.min(Number(node.max),value)));}return;}
     if(node.name==='color'&&node.closest('#edit-form')?.dataset.kind==='person'){

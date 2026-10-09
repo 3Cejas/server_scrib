@@ -634,9 +634,9 @@ class MessageTests(StoreTests):
         with self.assertRaises(world.Problem):self.send(d,bridge)
         bridge.send.assert_not_called()
 
-    def test_wrong_actor_or_no_confirmation_cannot_send(self):
+    def test_wrong_actor_or_non_integer_recipient_cannot_send(self):
         d=self.preview();bridge=Mock()
-        with self.assertRaises(world.Problem):self.send(d,bridge,confirmed=False)
+        with self.assertRaises(world.Problem):self.send(d,bridge,recipient=True)
         with self.assertRaises(world.Problem):self.store.message_send({'draftId':d['id'],'recipient':0,'confirmed':True},'pablo',bridge)
         bridge.send.assert_not_called()
 

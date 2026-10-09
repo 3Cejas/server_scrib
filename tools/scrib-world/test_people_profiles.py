@@ -59,18 +59,17 @@ class ProfileTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(world.Problem):
                 self.person(instagram=value)
 
-    def test_phone_works_without_verification_but_send_still_requires_message_confirmation(self):
+    def test_phone_works_without_verification_and_explicit_send_needs_no_extra_confirmation(self):
         p = self.person(phone='600 000 001', phoneConfirmed=False)
         self.assertEqual(p['phone'], '+34600000001')
         self.assertNotIn('phoneConfirmed', p)
         d = self.store.message_preview({'people': [p['id']], 'text': 'Hola {nombre}'}, 'tester')
         bridge = Mock()
         payload = {'draftId': d['id'], 'recipient': 0, 'confirmed': False}
-        with self.assertRaises(world.Problem):
-            self.store.message_send(payload, 'tester', bridge)
-        bridge.send.assert_not_called()
-        self.store.message_send(dict(payload, confirmed=True), 'tester', bridge)
+        self.store.message_send(payload, 'tester', bridge)
         bridge.send.assert_called_once_with('+34600000001', 'Hola Persona')
+        self.store.message_send(dict(payload, confirmed=True), 'tester', bridge)
+        bridge.send.assert_called_once()
 
     def test_number_change_after_preview_still_blocks_stale_send(self):
         p = self.person(phone='+34600000001')

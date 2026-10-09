@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mundo SCRIB: SQLite, Authentik bridge, no third-party runtime dependencies."""
+"""SCRIB backstage: SQLite, Authentik bridge and optional isolated PDF renderer."""
 import argparse
 import base64
 import hashlib
@@ -29,7 +29,9 @@ from game_config import normalize as normalize_game_config, profile as game_prof
 from business import Business, SCHEMA as BUSINESS_SCHEMA
 from materials import MaterialLibrary, POLICY as MATERIAL_POLICY
 from inventory_seed import apply_initial_inventory
+from inventory_teams import apply_team_inventory
 from presenter_assignment import apply_presenter_assignment
+from production import TEAM_ROLES, normalize_role
 from lighting import default_plan as default_lighting, normalize as normalize_lighting
 
 ROOT = Path(__file__).resolve().parent
@@ -41,7 +43,7 @@ LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
 KINDS = ("board", "ticket", "event", "person", "template", "availability", "inventory")
 PERSON_COLORS = ('auto','rose','peach','amber','gold','citron','pistachio','mint','jade','turquoise','cyan','sky','azure','periwinkle','violet','lilac','orchid','fuchsia','pink','salmon','lavender','ice','seafoam','sand','clay')
-PERSON_ROLES = ('Escritura','Interpretación','Presentador','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación')
+PERSON_ROLES = ('Escritura','Interpretación','Presentador','Técnica','Jurado','Dramaturgia','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación')
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -292,6 +294,8 @@ class Store:
                   'condition':choice(data.get('condition','good'),('good','repair','missing','loaned','unchecked')),
                   'location':text(data.get('location',''),1000),'custodianId':text(data.get('custodianId',''),100),
                   'eventId':text(data.get('eventId',''),100),'image':text(data.get('image',''),200)}
+            body['sourceUrl'] = link(data.get('sourceUrl', (existing or {}).get('sourceUrl', '')))
+            body['imageReference'] = data.get('imageReference', (existing or {}).get('imageReference', False)) is True
             for field,reference in [('custodianId','person'),('eventId','event')]:
                 if body[field]:
                     linked=self.item(db,body[field],reference)
@@ -379,10 +383,16 @@ class Store:
                 if not isinstance(entry, dict):
                     raise Problem("Ficha de elenco no válida.")
                 person = self.item(db, entry.get("personId", ""), "person")
-                cast_entry = {"personId": person["id"], "role": text(entry.get("role", ""), 100, True), "team": choice(entry.get("team", "general"), ("general", "blue", "red"))}
-                if person["archived"] and (not existing or cast_entry not in existing.get("cast", [])):
+                role = normalize_role(text(entry.get("role", ""), 100, True))
+                team = choice(entry.get("team", "general"), ("general", "blue", "red")) if role in TEAM_ROLES else 'general'
+                cast_entry = {"personId": person["id"], "role": role, "team": team}
+                if person["archived"] and not any(c['personId']==person['id'] and normalize_role(c['role'])==role and (c['team']==team or role not in TEAM_ROLES) for c in (existing or {}).get('cast', [])):
                     raise Problem("Recupera primero la ficha de esta persona para asignarle un nuevo papel.")
                 body["cast"].append(cast_entry)
+            if 'inventoryIds' in data or existing and 'inventoryIds' in existing:
+                body['inventoryIds'] = values(data.get('inventoryIds', (existing or {}).get('inventoryIds', [])), 500, 100)
+                for ident in body['inventoryIds']:
+                    self.item(db, ident, 'inventory')
             if len({(c["personId"], c["role"], c["team"]) for c in body["cast"]}) != len(cast):
                 raise Problem("Hay una entrada del elenco duplicada.")
             if existing:
@@ -678,8 +688,8 @@ class Store:
             return result
 
     def message_send(self, data, actor, bridge):
-        if data.get("confirmed") is not True or type(data.get("recipient")) is not int:
-            raise Problem("Confirma expresamente el destinatario y el mensaje de la vista previa.")
+        if type(data.get("recipient")) is not int:
+            raise Problem("Selecciona un destinatario de la vista previa.")
         ident, index = data.get("draftId"), data["recipient"]
         with self.transaction() as db:
             row = db.execute("SELECT * FROM message_drafts WHERE id=? AND actor=?", (ident, actor)).fetchone()
@@ -1027,6 +1037,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, (ROOT / 'assets' / 'scrib-world-logo.png').read_bytes(), 'image/png')
                 if route == 'tasks.css':
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
+                if route == 'export.js':
+                    return self.reply(200, (ROOT / 'public' / 'export.js').read_bytes(), 'application/javascript; charset=utf-8')
                 if route in ('lighting.js', 'lighting.css'):
                     mime = 'application/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     return self.reply(200, (ROOT / 'public' / route).read_bytes(), mime)
@@ -1037,6 +1049,15 @@ class Handler(BaseHTTPRequestHandler):
                 raise Problem("No encontrado.", 404)
             self.csrf_check(actor)
             data = self.body()
+            if route == 'api/pdf':
+                # Isolated renderer packages, not global/system dependency changes.
+                import sys
+                packages = str(store.directory/'python-packages')
+                if packages not in sys.path and Path(packages).is_dir():
+                    sys.path.insert(0,packages)
+                from pdf_export import generate
+                return self.reply(200, generate(store, data, user), 'application/pdf',
+                                  {'Content-Disposition': 'attachment; filename="SCRIB-'+str(data.get('kind','document'))+'.pdf"'})
             if route.startswith('api/business/'):
                 if user['role'] != 'admin':
                     raise Problem('Gestión reservada a administración.',403)
@@ -1123,6 +1144,9 @@ def main():
         seeded = apply_initial_inventory(store)
         if seeded['added']:
             LOG.info('Inventario solicitado: %s fichas añadidas', seeded['added'])
+        kits = apply_team_inventory(store)
+        if not kits['alreadyApplied']:
+            LOG.info('Kits solicitados: %s añadidos, %s actualizados', kits['added'],kits['updated'])
         presenter = apply_presenter_assignment(store)
         if presenter['status'] == 'assigned':
             LOG.info('Rol solicitado de presentador añadido a David Viñas')

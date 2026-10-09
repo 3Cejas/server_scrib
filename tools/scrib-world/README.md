@@ -2,7 +2,34 @@
 
 Aplicación independiente de producción y dramaturgia en `/scrib/`.
 Guardar datos aquí no modifica las partidas del videojuego. Python 3.10+, SQLite y
-JavaScript/CSS sin dependencias de terceros, fuentes remotas ni animaciones continuas.
+JavaScript/CSS sin fuentes remotas ni animaciones continuas. El render de PDFs
+usa ReportLab (requirements.txt), instalado de forma aislada en
+`SCRIB_WORLD_DATA/python-packages`; no cambia el Python del sistema.
+
+## Producción y PDFs
+
+- Inventario azul/rojo: dos kits completos, con selección de objetos al exportar.
+  Cada bolo incluye por defecto todos los objetos activos, salvo selección explícita.
+  Se preservan los datos antiguos de ubicación/responsable sin mostrarlos.
+- La ampliación solicitada se aplica una sola vez con `inventory_teams.py`, dentro
+  de una transacción y con recibo en `requests`. No resucita objetos archivados ni
+  reemplaza fotos manuales. Fotografías de catálogo y URLs en
+  `inventory_references.json`; las referencias no acreditan compras ni existencias.
+- `POST /scrib/backstage/api/pdf` requiere identidad y CSRF. Inventario, hoja de
+  llamada, luminotecnia y memoria llevan el logo; acuerdos/facturas requieren admin.
+  El render nunca descarga URLs ni acepta rutas de archivo aportadas por clientes.
+- Reparto mínimo visible: escritura e interpretación por equipo, presentador,
+  técnica y jurado. Se permiten borradores incompletos. Solo escritura e
+  interpretación muestran selector de equipo; los demás roles son generales.
+- Comunicación: vista previa y envío individual o lote, sin casilla de confirmación
+  por destinatario. Se mantienen autoría, caducidad, versión del teléfono/bolo,
+  CSRF y reserva durable para que un resultado incierto no se reintente solo.
+- Archivo recuperable se encuentra dentro de Tareas; la conexión al lado de SCRIB
+  pertenece al backstage, no confirma la sesión del videojuego.
+
+Verificación: `python -m unittest discover -s tools/scrib-world`, con ReportLab y
+pypdf disponibles; `node --test --test-isolation=none tools/scrib-world/test_*.cjs`.
+Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
 
 ## Qué incluye
 

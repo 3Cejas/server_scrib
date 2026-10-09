@@ -1,15 +1,16 @@
 "use strict";
 window.ScribPersonProfile = function(h) {
   const {esc}=h;
-  const catalog=['Escritura','Interpretación','Presentador','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación'];
+  const catalog=['Escritura','Interpretación','Presentador','Técnica','Jurado','Dramaturgia','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación'];
   const icons={'Escritura':'✍️','Interpretación':'🎭','Presentador':'🎤','Dramaturgia':'📖','Técnica':'🎛️','Producción':'📋','Dirección':'🎬','Música':'🎵','Comunicación':'📣','Fotografía':'📷','Vídeo':'🎥','Diseño':'🎨','Coordinación':'🧭','Participación':'✨'};
   const tones={'Escritura':'gold','Interpretación':'cyan','Presentador':'gold','Dramaturgia':'violet','Técnica':'mint','Producción':'coral','Dirección':'pink','Música':'violet','Comunicación':'coral','Fotografía':'gold','Vídeo':'cyan','Diseño':'pink','Coordinación':'mint','Participación':'gold'};
+  icons.Jurado='⚖️';tones.Jurado='violet';
   const roles=()=>h.roles?.()||catalog;
   const canonical=r=>roles().find(x=>x.toLocaleLowerCase('es')===r.toLocaleLowerCase('es'))||r;
-  const choices=selected=>[...new Set([...roles(),...(selected||[]).map(canonical)])];
+  const choices=selected=>[...new Set([...roles(),...(selected||[]).map(canonical)])].filter(r=>r!=='Participación');
   const roleTag=r=>`<span class="person-role role-${tones[canonical(r)]||'violet'}"><span aria-hidden="true">${icons[canonical(r)]||'✦'}</span>${esc(canonical(r))}</span>`;
   function roleTags(selected=[]) {
-    return `<div class="person-role-tags">${selected.map(roleTag).join('')||'<span class="muted">Roles pendientes</span>'}</div>`;
+    return `<div class="person-role-tags">${selected.filter(r=>r!=='Participación').map(roleTag).join('')||'<span class="muted">Roles pendientes</span>'}</div>`;
   }
   function roleEditor(selected=[]) {
     const checked=new Set(selected.map(canonical));

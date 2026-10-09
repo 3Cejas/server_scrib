@@ -1,0 +1,38 @@
+{
+  "gorra": {
+    "blue": {"url":"https://promoregalo.es/products/gorra-haliard-20831","file":"gorra-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/20831-019-P.jpg?v=1769456359"},
+    "red": {"url":"https://promoregalo.es/products/gorra-haliard-20831","file":"gorra-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/20831-003-P.jpg?v=1769456359"}
+  },
+  "balon-playa": {
+    "blue": {"url":"https://promoregalo.es/products/balon-inflable-playa-aquatime-mo8701","file":"balon-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/mo8701-04.jpg?v=1770307152"},
+    "red": {"url":"https://promoregalo.es/products/balon-inflable-playa-aquatime-mo8701","file":"balon-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/mo8701-05.jpg?v=1770307159"}
+  },
+  "chaquetas": {
+    "blue": {"url":"https://promoregalo.es/products/klusten-4724","file":"chaqueta-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/4724-019-P.jpg?v=1769528462"},
+    "red": {"url":"https://promoregalo.es/products/klusten-4724","file":"chaqueta-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/4724-003-P.jpg?v=1769528462"}
+  },
+  "taza": {
+    "blue": {"url":"https://promoregalo.es/products/taza-metalica-wilem-5571","file":"taza-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/5571-019-P.jpg?v=1769541036"},
+    "red": {"url":"https://promoregalo.es/products/taza-metalica-wilem-5571","file":"taza-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/5571-003-P.jpg?v=1769541036"}
+  },
+  "mochilas": {
+    "blue": {"url":"https://promoregalo.es/products/spook-3164","file":"mochila-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/3164-019-P.jpg?v=1769513890"},
+    "red": {"url":"https://promoregalo.es/products/spook-3164","file":"mochila-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/3164-003-P.jpg?v=1769513890"}
+  },
+  "panuelo": {
+    "blue": {"url":"https://promoregalo.es/products/panuelo-festero","file":"panuelo-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/9003_05_2_1.jpg?v=1791457423"},
+    "red": {"url":"https://promoregalo.es/products/panuelo-festero","file":"panuelo-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/9003_60_2_1.jpg?v=1791457423"}
+  },
+  "cinta-color": {
+    "blue": {"url":"https://www.amazon.es/dp/B085J2W4V5","file":"cinta-blue.jpg","imageUrl":"https://m.media-amazon.com/images/I/619ym35yTsL._SL1400_.jpg"},
+    "red": {"url":"https://www.amazon.es/dp/B085J2X34B","file":"cinta-red.jpg","imageUrl":"https://m.media-amazon.com/images/I/61ofWrtfiWL._SL1400_.jpg"}
+  },
+  "linternas": {
+    "blue": {"url":"https://www.amazon.es/dp/B0DF59FVKW","file":"linternas-blue.jpg","imageUrl":"https://m.media-amazon.com/images/I/71PDYX2FGTL._AC_SL1500_.jpg"},
+    "red": {"url":"https://www.amazon.es/dp/B0DF58S7TT","file":"linternas-red.jpg","imageUrl":"https://m.media-amazon.com/images/I/71KO7AvhD1L._AC_SL1500_.jpg"}
+  },
+  "gafas-color": {
+    "blue": {"url":"https://promoregalo.es/products/gafas-de-sol-rpet-macusa-mo6531","file":"gafas-blue.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/mo6531-23.jpg?v=1770288433"},
+    "red": {"url":"https://promoregalo.es/products/gafas-de-sol-rpet-macusa-mo6531","file":"gafas-red.jpg","imageUrl":"https://cdn.shopify.com/s/files/1/0949/4976/9543/files/mo6531-25.jpg?v=1770288451"}
+  }
+}

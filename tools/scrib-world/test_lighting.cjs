@@ -10,7 +10,7 @@ function setup() {
   vm.createContext(context);vm.runInContext(read('public/lighting.js'),context);
   const app=context.window.ScribLighting({state:()=>state,
     esc:v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
-    btn:(action,label)=>`<button data-action="${action}">${label}</button>`,pageHead:(_,title,sub)=>`<h1>${title}</h1><p>${sub}</p>`,
+    btn:(action,label)=>`<button data-action="${action}">${label}</button>`,pageHead:(_,title,sub,actions)=>`<h1>${title}</h1><p>${sub}</p>${actions||''}`,
     request:async(url,data)=>{calls.push({url,data});if(saveReply instanceof Error)throw saveReply;return saveReply || {item:{id:'lighting-'+(data.eventId||'base'),kind:'lighting',eventId:data.eventId,version:data.version+1,...JSON.parse(JSON.stringify(data.plan))}};},
     toast:m=>toasts.push(m),refresh:async()=>{if(refreshError)throw new Error('offline');},renderPage:()=>{updates++;}});
   return {app,state,nodes,calls,toasts,setAnswer:v=>{answer=v;},setReply:v=>{saveReply=v;},setRefreshError:()=>{refreshError=true;},updates:()=>updates};
@@ -19,7 +19,7 @@ const action=(app,a,id='')=>app.action({dataset:{action:a,id}});
 test('complete stage with blue/red streets, tables, screen, presenter and frontals is safe and responsive',()=>{
   const {app}=setup(),html=app.render();
   for(const id of defaults().elements.map(e=>e.id))assert.ok(html.includes(`data-lighting-node="${id}"`));
-  assert.match(html,/Vista desde el público/);assert.match(html,/no está a escala/);assert.match(html,/no controla focos reales/);
+  assert.match(html,/Vista desde el público/);assert.match(html,/no está a escala/);assert.doesNotMatch(html,/no controla focos reales/);assert.match(html,/data-action="lighting-pdf"/);
   assert.match(html,/León &lt;7 noviembre&gt;/);assert.match(html,/role="button" aria-pressed="true"/);
   assert.match(read('public/lighting.css'),/grid-template-columns:minmax\(0,1fr\)/);
   assert.doesNotMatch(html,/style="|on(?:click|change|input)=/);assert.doesNotMatch(read('public/lighting.css'),/animation:|filter:blur/);

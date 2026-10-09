@@ -5,7 +5,7 @@ window.ScribBusiness = function(h) {
   const euro=c=>new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format((Number(c)||0)/100);
   const amount=c=>((Number(c)||0)/100).toFixed(2);
   const date=v=>new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',dateStyle:'long',timeStyle:'short'}).format(new Date(v));
-  let cache={},pending=new Set(),errors={};
+  let cache={},pending=new Set(),errors={},paths={};
   // Printing must start at the document beginning, not the modal's screen scroll.
   let printScroll=null;
   window.addEventListener('beforeprint',()=>{
@@ -17,7 +17,7 @@ window.ScribBusiness = function(h) {
     if(printScroll){dialog.scrollTop=printScroll.dialog;window.scrollTo(printScroll.x,printScroll.y);printScroll=null;}
   });
   const admin=()=>h.state()?.user.role==='admin';
-  function load(key,path){if(pending.has(key))return;pending.add(key);request(path).then(v=>{cache[key]=v;delete errors[key];}).catch(e=>errors[key]=e.message).finally(()=>{pending.delete(key);if(!dialog.open)renderPage();});}
+  function load(key,path){paths[key]=path;if(pending.has(key))return;pending.add(key);request(path).then(v=>{cache[key]=v;delete errors[key];}).catch(e=>errors[key]=e.message).finally(()=>{pending.delete(key);if(!dialog.open)renderPage();});}
   function get(key,path){if(!cache[key]&&!errors[key])load(key,path);return cache[key];}
   function records(){return cache.overview?.records||[];}
   function record(type,id){return records().find(r=>r.type===type&&r.id===id)||{version:0,id};}
@@ -46,17 +46,35 @@ window.ScribBusiness = function(h) {
   async function generate(id){await ensure();const e=item(id),s=record('settings','organizer');form('Preparar acuerdos · '+e.title,`<p class="notice">Revisa la plantilla y el bolo. Los acuerdos ya vigentes se conservan; no se sustituyen documentos firmados ni se envía nada.</p><div class="recipient-list">${choices(e)}</div><label class="check-option section"><input type="checkbox" name="confirmed" required>He revisado el bolo, el elenco y la plantilla</label>`,f=>request('business/generate',{eventId:id,eventVersion:e.version,settingsVersion:s.version,people:[...f.querySelectorAll('[name=people]:checked')].map(n=>n.value)}));}
   async function invoiceForm(value){await ensure();const [eventId,personId]=value.split('|');form('Preparar borrador · '+item(personId).name,`<p class="notice">Se toman los importes asignados por día y los datos fiscales verificados. No se emite una factura ni se inicia un pago. La numeración debe revisarla la persona emisora.</p>${field('Fecha',input('date',new Date().toISOString().slice(0,10),'date','required'))}${field('Serie (opcional)',input('series','','text','maxlength="60"'))}${field('Número propuesto (opcional)',input('number','','text','maxlength="60"'))}`,async f=>{const r=await request('business/invoice',{...Object.fromEntries(new FormData(f)),eventId,personId});location.hash='invoice/'+r.item.id;});}
   async function sendLinks(id){const a=await request('business/agreements/'+id);const valid=a.agreements.filter(c=>c.status!=='revoked'&&c.expires*1000>Date.now());form('Enviar enlaces de acuerdos',`<p class="notice">Selecciona una persona o todo el elenco. El siguiente paso muestra los mensajes exactos antes del envío automático individual.</p><div class="recipient-list">${valid.map(c=>`<label class="check-option"><input type="checkbox" name="people" value="${c.personId}" checked>${personLabel(c.personId,c.name)}</label>`).join('')}</div>${field('Mensaje',area('text','Hola {nombre}, te enviamos tu acuerdo para participar en {bolo}. En el enlace puedes descargarlo y devolverlo firmado. Gracias.','required maxlength="4000"'))}`,async f=>{const r=await request('whatsapp/preview',{eventId:id,agreements:true,text:f.elements.namedItem('text').value,people:[...f.querySelectorAll('[name=people]:checked')].map(n=>n.value)});setTimeout(()=>preview(r.item),0);});}
-  function preview(draft){openDialog('business','Revisa los mensajes antes de enviarlos',`<div class="notice">Los envíos se harán uno a uno. Si alguno queda sin confirmación, no se reenvía automáticamente; comprueba WhatsApp.</div>${draft.people.map(p=>`<article class="panel section"><h3>${personLabel(p.id,p.name)}</h3><p>${esc(p.phone)}</p><div class="notes section">${esc(p.text)}</div></article>`).join('')}<form id="agreement-send"><label class="check-option section"><input type="checkbox" required>Confirmo todos estos destinatarios y mensajes</label><p class="form-error" role="alert"></p><p class="send-status" role="status"></p><button type="submit" class="button primary" ${h.state().demo?'disabled':''}>Enviar ${draft.people.length} mensajes individualmente</button></form>`);const f=dialog.querySelector('form');f.addEventListener('submit',async e=>{e.preventDefault();const button=f.querySelector('button');if(button.disabled)return;button.disabled=true;const statuses=[];for(let i=0;i<draft.people.length;i++){try{const r=await request('whatsapp/send',{draftId:draft.id,recipient:i,confirmed:true});statuses.push(draft.people[i].name+': '+(r.item.status==='sent'?'Confirmado':'No confirmado · revisar WhatsApp'));}catch(e){statuses.push(draft.people[i].name+': '+e.message);break;}f.querySelector('.send-status').textContent=statuses.join('\n');}invalidate();button.textContent='Proceso terminado · consultar estados';});}
+  function preview(draft){
+    openDialog('business','Acuerdos personalizados',`<div class="notice">Pulsa Enviar para mandar los mensajes personalizados a todos los destinatarios elegidos. No hace falta confirmar cada mensaje. Si un envío queda sin confirmar, el lote se detiene y no se repite automáticamente.</div>${draft.people.map(p=>`<article class="panel section"><h3>${personLabel(p.id,p.name)}</h3><p>${esc(p.phone)}</p><div class="notes section">${esc(p.text)}</div></article>`).join('')}<form id="agreement-send"><p class="form-error" role="alert"></p><p class="send-status" role="status"></p><button type="submit" class="button primary" ${h.state().demo?'disabled':''}>Enviar ${draft.people.length} mensajes</button></form>`);
+    const f=dialog.querySelector('form');
+    f.addEventListener('submit',async e=>{
+      e.preventDefault();const button=f.querySelector('button');if(button.disabled)return;
+      button.disabled=true;const statuses=[];
+      for(let i=0;i<draft.people.length;i++){
+        button.textContent=`Enviando ${i+1}/${draft.people.length}…`;
+        try{
+          const r=await request('whatsapp/send',{draftId:draft.id,recipient:i});
+          statuses.push(draft.people[i].name+': '+(r.item.status==='sent'?'Enviado':'No confirmado · revisar WhatsApp'));
+          f.querySelector('.send-status').textContent=statuses.join('\n');
+          if(r.item.status!=='sent')break;
+        }catch(e){statuses.push(draft.people[i].name+': '+e.message);break;}
+      }
+      f.querySelector('.send-status').textContent=statuses.join('\n');
+      invalidate();button.textContent='Proceso terminado · consultar estados';
+    });
+  }
   async function action(node){const {action:a,id}=node.dataset;if(!a.startsWith('business-'))return false;
-    if(a==='business-print'){document.querySelectorAll('.report-story').forEach(n=>n.open=true);window.print();}
-    else if(a==='business-refresh'){invalidate();renderPage();}
+    if(a==='business-print'){const [page,routeId]=location.hash.slice(1).split('/');await window.ScribExport(h.state(),{kind:id?'agreement':page==='invoice'?'invoice':'report',id:id||routeId},node);}
+    else if(a==='business-refresh'){if(node.disabled)return true;const label=node.innerHTML;node.disabled=true;node.textContent='Actualizando…';node.setAttribute('aria-busy','true');try{await Promise.all(Object.entries(paths).map(async([key,path])=>{cache[key]=await request(path);delete errors[key];}));renderPage();}finally{node.disabled=false;node.innerHTML=label;node.removeAttribute('aria-busy');}}
     else if(a==='business-settings')await settings();else if(a==='business-person')await person(id);else if(a==='business-billing')await billing(id);
     else if(a==='business-settlement')await settlement(id);else if(a==='business-add-day')dialog.querySelector('.settlement-days').insertAdjacentHTML('beforeend',dayRow(item(id)));
     else if(a==='business-remove-day')node.closest('.settlement-day').remove();else if(a==='business-generate')await generate(id);
     else if(a==='business-invoice')await invoiceForm(id);else if(a==='business-send-links')await sendLinks(id);
     else {const all=Object.values(cache).flatMap(v=>v.agreements||[]),c=all.find(c=>c.id===id);if(!c)throw new Error('Actualiza la lista de acuerdos.');
       if(a==='business-copy'){try{await navigator.clipboard.writeText(c.link);toast('Enlace personal copiado.');}catch(_){openDialog('business','Copiar enlace',field('Enlace personal',input('link',c.link,'text','readonly')));}}
-      else if(a==='business-agreement-view'){openDialog('business',c.name,`<div class="printable agreement-document"><h3>${esc(c.eventTitle)}</h3><div class="notes section">${esc(c.text)}</div></div><div class="actions section no-print">${btn('business-print','↓ Guardar en PDF')}</div>`);}
+      else if(a==='business-agreement-view'){openDialog('business',c.name,`<div class="printable agreement-document"><h3>${esc(c.eventTitle)}</h3><div class="notes section">${esc(c.text)}</div></div><div class="actions section no-print">${btn('business-print','↓ Guardar en PDF',c.id)}</div>`);}
       else if(a==='business-review'||a==='business-revoke'){if(!window.confirm(a==='business-review'?'¿Has descargado y revisado el documento y la firma?':'¿Revocar este enlace? Los documentos se conservan y no podrán sustituirse con este enlace.'))return true;await request('business/agreement-state',{id,status:a==='business-review'?'reviewed':'revoked'});invalidate();renderPage();}}
     return true;
   }
