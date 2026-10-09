@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
+PLAN_SPLIT = 725
 TEAMS = {'blue': 'EQUIPO AZUL', 'red': 'EQUIPO ROJO'}
 CATEGORIES = {'props': 'Utilería', 'costume': 'Vestuario', 'furniture': 'Mobiliario',
               'technical': 'Técnica', 'other': 'Otros'}
@@ -210,8 +211,11 @@ def generate(store, data, user, *, agreement_token=None):
             if 'plan' in data:
                 from server import text
                 plan = normalize(data['plan'], problem, text)
-            heading(title or 'Plano técnico', 'Escenario, vídeo, sonido y sala de intérpretes')
-            story.append(PlanImage(data['planImage'],problem) if 'planImage' in data else StagePlan(plan,font))
+            heading(title or 'Plano técnico', 'Escenario y público')
+            story.append(PlanImage(data['planImage'],problem,'stage') if 'planImage' in data else StagePlan(plan,font,'stage'))
+            story.append(PageBreak())
+            heading('Técnica y sala de intérpretes', 'Continuación del mismo plano - conexiones y distribución')
+            story.append(PlanImage(data['planImage'],problem,'backstage') if 'planImage' in data else StagePlan(plan,font,'backstage'))
             story.append(PageBreak())
             section('Leyenda del plano')
             for number,e in enumerate(plan['elements'],1):
@@ -488,7 +492,7 @@ def AgreementChoice(name, label, checked, style, color):
     return Choice()
 
 
-def PlanImage(encoded,problem):
+def PlanImage(encoded,problem,region=None):
     # Decode a bounded local PNG only: never XML, a path or remote content.
     from PIL import Image as PillowImage
     from reportlab.platypus import Image
@@ -503,66 +507,103 @@ def PlanImage(encoded,problem):
             image.verify()
     except (ValueError,binascii.Error,OSError,PillowImage.DecompressionBombError):
         raise problem('No se pudo leer la imagen del plano. Vuelve a exportar desde Técnica.') from None
-    result=Image(io.BytesIO(raw),width=535*width/height,height=535);result.hAlign='CENTER'
+    if region is not None:
+        if region not in ('stage','backstage'):raise problem('Zona del plano no válida.')
+        logical_height=1600 if height*5==width*8 else 1250
+        top,bottom=(0,PLAN_SPLIT) if region=='stage' else (PLAN_SPLIT,logical_height)
+        # Crop only at the empty gap between zones, not through any element.
+        try:
+            with PillowImage.open(io.BytesIO(raw)) as image:
+                cropped=image.crop((0,round(top*height/logical_height),width,round(bottom*height/logical_height)))
+                output=io.BytesIO();cropped.save(output,format='PNG');raw=output.getvalue()
+                width,height=cropped.size
+        except (ValueError,OSError,PillowImage.DecompressionBombError):
+            raise problem('No se pudo leer la imagen del plano. Vuelve a exportar desde Técnica.') from None
+        scale=min(511/width,535/height)
+        result=Image(io.BytesIO(raw),width=width*scale,height=height*scale)
+    else:
+        result=Image(io.BytesIO(raw),width=535*width/height,height=535)
+    result.hAlign='CENTER'
     return result
 
 
-def StagePlan(plan,font='ScribSans'):
+def StagePlan(plan,font='ScribSans',region='stage'):
+    """Vector fallback with the same coordinates and cable layers as the web."""
     from reportlab.platypus import Flowable
     from reportlab.lib import colors
+    from reportlab.pdfbase import pdfmetrics
+    from lighting import coordinates
     class Drawing(Flowable):
         def __init__(self):
             super().__init__()
-            self.width,self.height = 511,535
+            self.top,self.bottom=(0,PLAN_SPLIT) if region=='stage' else (PLAN_SPLIT,1600)
+            self.scale=511/1000
+            self.width,self.height=511,(self.bottom-self.top)*self.scale
         def draw(self):
             c=self.canv
-            from lighting import coordinates
-            c.setFillColor(colors.HexColor('#101217'));c.roundRect(0,10,511,520,8,fill=1,stroke=0)
-            c.setStrokeColor(colors.HexColor('#596173'))
-            c.rect(35,530-620*.31,430,540*.31,fill=0)
-            c.rect(30,530-1240*.31,450,510*.31,fill=0)
-            c.rect(30,530-1580*.31,450,300*.31,fill=0)
-            c.setFont(font,9)
-            for label,y in [('TÉCNICA',745),('SALA INTÉRPRETES',1310)]:
-                c.setFillColor(colors.HexColor('#bec7da'));c.drawCentredString(255,530-y*.31,label)
-            def point(e):
-                x,y=coordinates(e);return x/2,530-y*.31
+            c.saveState()
+            clip=c.beginPath();clip.rect(0,0,self.width,self.height);c.clipPath(clip,stroke=0)
+            c.translate(0,self.height);c.scale(self.scale,-self.scale);c.translate(0,-self.top)
+            c.setFillColor(colors.HexColor('#0c101b'));c.rect(0,0,1000,1600,fill=1,stroke=0)
+            for x,y,w,h in ((70,80,860,540),(60,730,900,510),(60,1280,900,300)):
+                c.setFillColor(colors.HexColor('#121825'));c.setStrokeColor(colors.HexColor('#607087'))
+                c.setLineWidth(2);c.roundRect(x,y,w,h,18,fill=1,stroke=1)
+            def text(label,x,y,size=16,color='#e7e1ff',anchor='center',halo=False):
+                # Keep text upright inside the inverted SVG coordinate system.
+                c.saveState();c.translate(x,y);c.scale(1,-1)
+                c.setFillColor(colors.HexColor(color));c.setFont(font,size)
+                width=pdfmetrics.stringWidth(label,font,size)
+                offset=0 if anchor=='left' else -width if anchor=='right' else -width/2
+                if halo:
+                    # A dark backing keeps names readable across cable routes.
+                    c.setFillColor(colors.HexColor('#0c101b'))
+                    c.roundRect(offset-4,-4,width+8,size+5,3,fill=1,stroke=0)
+                    c.setFillColor(colors.HexColor(color))
+                c.drawString(offset,0,label)
+                c.restoreState()
+            for label,y in [('FONDO DEL ESCENARIO',43),('PÚBLICO',714),('TÉCNICA',770),('SALA INTÉRPRETES',1310)]:
+                text(label,500,y,17,'#bdc6d9')
+            palette={'blue':'#39ccff','red':'#ff708c','warm':'#ffcf81','white':'#e7e1ff'}
+            cable_colors={'hdmi':'#55d7ff','data':'#c9b8ff','audio':'#ca93ff','power':'#ffd16e','dmx':'#6ce6a4'}
             nodes={e['id']:e for e in plan['elements']}
-            # Numbered symbols avoid long labels colliding. Full names below the diagram.
-            for connection in plan['connections']:
-                if connection['type'] not in ('hdmi','dmx'):continue
-                a,b=point(nodes[connection['from']]),point(nodes[connection['to']])
-                c.setStrokeColor(colors.HexColor('#46c8ff' if connection['type']=='hdmi' else '#64d997'))
-                c.setLineWidth(.7);c.setDash(3,2)
-                p=c.beginPath();p.moveTo(*a)
+            for index,connection in enumerate(plan['connections']):
                 source,target=nodes[connection['from']],nodes[connection['to']]
+                ax,ay=coordinates(source);bx,by=coordinates(target)
+                c.setStrokeColor(colors.HexColor(cable_colors[connection['type']]));c.setLineWidth(3)
+                c.setDash(*({'power':(8,5),'dmx':(3,4),'data':(3,5)}.get(connection['type'],())))
+                p=c.beginPath();p.moveTo(ax,ay)
                 if source.get('zone')!=target.get('zone'):
-                    margin=494 if target['x']>50 else 17
-                    p.lineTo(margin,a[1]);p.lineTo(margin,b[1])
-                else:
-                    p.lineTo(a[0],(a[1]+b[1])/2);p.lineTo(b[0],(a[1]+b[1])/2)
-                p.lineTo(*b);c.drawPath(p)
+                    margin=965-index*3 if target['x']>50 else 35+index*3
+                    p.lineTo(margin,ay);p.lineTo(margin,by)
+                else:p.lineTo(ax,(ay+by)/2);p.lineTo(bx,(ay+by)/2)
+                p.lineTo(bx,by);c.drawPath(p)
             c.setDash()
-            for index,e in enumerate(plan['elements'],1):
-                x,y=point(e)
-                color='#bec7da' if e['type']=='monitor' else {'blue':'#46f0ff','red':'#ff6b6b','warm':'#f2d777','white':'#bec7da'}[e['color']]
-                c.setFillColor(colors.HexColor(color));c.setStrokeColor(colors.HexColor(color))
-                if e['type']=='screen':c.rect(x-65,y-9,130,18,fill=0)
-                elif e['type'] in ('desk','monitor','computer','console','projector','splitter','video-card','psu','controller'):c.roundRect(x-16,y-7,32,14,3,fill=0)
-                elif e['type']=='power':
-                    c.roundRect(x-5,y-5,10,10,2,fill=0)
-                    c.line(x-2,y+5,x-2,y+9);c.line(x+2,y+5,x+2,y+9)
-                    c.line(x,y-5,x,y-9);c.line(x,y-9,x+10,y-9)
-                elif e['type']=='speaker':
-                    c.roundRect(x-9,y-14,18,28,2,fill=0);c.circle(x,y-5,6,fill=0);c.circle(x,y+7,3,fill=0)
-                elif e['type']=='front':
-                    for offset in (-45,0,45):c.circle(x+offset,y,8,fill=1)
-                else:c.circle(x,y,11,fill=1)
-                c.setFont(font,7);c.drawCentredString(x,y+(15 if e['type']=='power' else -18),str(index))
-                if e['type']=='smoke':
-                    c.line(x,y-12,x,y-27);c.line(x,y-27,x-4,y-22);c.line(x,y-27,x+4,y-22)
-            c.setFillColor(colors.HexColor('#b0b8c7'));c.setFont(font,8)
-            c.drawCentredString(255,260,'PÚBLICO / PROSCENIO')
-            c.drawCentredString(137,229,'TÉCNICA');c.drawCentredString(367,229,'SALA DE INTÉRPRETES')
-            c.drawCentredString(255,515,'HDMI: azul - DMX: verde - detalles de todas las conexiones a continuación')
+            for e in plan['elements']:
+                x,y=coordinates(e);kind=e['type']
+                color=palette['white' if kind=='monitor' else e['color']]
+                c.setStrokeColor(colors.HexColor(color));c.setFillColor(colors.HexColor('#171e2d'));c.setLineWidth(2)
+                if kind=='screen':c.roundRect(x-150,y-30,300,60,5,fill=1,stroke=1)
+                elif kind=='desk':c.roundRect(x-80,y-30,160,60,10,fill=1,stroke=1);c.rect(x-27,y-22,54,30,fill=0)
+                elif kind in ('monitor','computer','console','projector','splitter','video-card','psu','controller'):
+                    c.roundRect(x-35,y-24,70,43,5,fill=1,stroke=1)
+                elif kind=='power':c.roundRect(x-13,y-22,26,44,6,fill=1,stroke=1)
+                elif kind=='speaker':
+                    c.roundRect(x-23,y-35,46,70,5,fill=1,stroke=1);c.circle(x,y-16,8,fill=0);c.circle(x,y+13,15,fill=0)
+                elif kind=='front':
+                    for offset in (-115,0,115):c.circle(x+offset,y,23,fill=1,stroke=1)
+                elif kind=='smoke':
+                    c.roundRect(x-28,y-15,56,30,5,fill=1,stroke=1);c.line(x,y+15,x,y+40);c.line(x,y+40,x-10,y+30);c.line(x,y+40,x+10,y+30)
+                else:c.circle(x,y,25,fill=1,stroke=1)
+                label=e['label']
+                if kind!='monitor' and e['color'] in ('blue','red'):
+                    label=re.sub(r'(?:\s*·)?\s+(?:azul(?:es)?|roj[oa]s?)$','',label,flags=re.I)
+                parts=label.split(' · ') if e.get('zone') or kind=='spot' else [label]
+                offset=67 if kind=='desk' and not e.get('zone') else 62 if kind=='screen' else -28 if kind=='smoke' else -60 if kind=='spot' else 45 if kind=='street' else 32 if kind=='power' and e.get('zone') else 43 if e.get('zone') else 57
+                anchor='left' if e['id']=='blue-power' else 'right' if e['id']=='red-power' else 'center'
+                for number,part in enumerate(parts):
+                    text(part if len(part)<=29 else part[:28]+'…',x,y+offset+18*number,16,color,anchor,halo=True)
+            for x in (280,350,420,500,580,650,720):
+                c.setStrokeColor(colors.HexColor('#bdc6d9'));c.setLineWidth(2);c.circle(x,650,7,fill=0)
+                c.line(x,660,x,680);c.line(x-7,680,x-7,690);c.line(x+7,680,x+7,690)
+            c.restoreState()
     return Drawing()
