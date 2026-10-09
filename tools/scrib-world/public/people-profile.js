@@ -14,7 +14,7 @@ window.ScribPersonProfile = function(h) {
   }
   function roleEditor(selected=[]) {
     const checked=new Set(selected.map(canonical));
-    return `<fieldset class="person-role-picker"><legend>Roles · elige las etiquetas</legend><div class="role-options">${choices(selected).map(r=>`<label class="role-option role-${tones[r]||'violet'}"><input type="checkbox" name="roles" value="${esc(r)}" ${checked.has(r)?'checked':''}><span><i aria-hidden="true">${icons[r]||'✦'}</i>${esc(r)}</span></label>`).join('')}</div><p class="hint">Puedes elegir varios roles. No es necesario escribirlos a mano.</p></fieldset>`;
+    return `<fieldset class="person-role-picker"><legend>Roles · elige las etiquetas</legend><div class="role-options">${choices(selected).map(r=>`<label class="role-option role-${tones[r]||'violet'}"><input type="checkbox" name="roles" value="${esc(r)}" ${checked.has(r)?'checked':''}><span><i aria-hidden="true">${icons[r]||'✦'}</i>${esc(r)}</span></label>`).join('')}</div></fieldset>`;
   }
   function roleOptions(selected='') {
     return choices(selected?[selected]:[]).map(r=>`<option value="${esc(r)}" ${canonical(selected)===r?'selected':''}>${icons[r]||'✦'} ${esc(r)}</option>`).join('');

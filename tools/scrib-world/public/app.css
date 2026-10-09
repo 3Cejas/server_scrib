@@ -16,6 +16,8 @@
 .sidebar nav a.active .nav-icon{color:var(--text)}
 /* The main link covers the entire card; the task link remains independent. */
 .event-card{position:relative;min-width:0}
+.event-card.is-completed{box-shadow:0 9px 22px #0008,inset 0 0 0 1px #edcb7130;border-color:#887951;background:linear-gradient(145deg,#24251f,#141922)}
+.calendar-event.completed{box-shadow:0 4px 9px #0009,inset 0 0 0 1px #edcb7125;border-left-color:var(--gold)}
 .event-card-link{display:grid;gap:13px;min-width:0;text-decoration:none;color:inherit}
 .event-card-link::after{content:"";position:absolute;inset:0;border-radius:inherit}
 .event-card-link:focus-visible{outline:0}

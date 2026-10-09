@@ -27,7 +27,7 @@ from participations import with_participations
 from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PREFIX, TOKEN_RE
 from game_config import normalize as normalize_game_config, profile as game_profile, SCHEMA as GAME_CONFIG_SCHEMA
 from business import Business, SCHEMA as BUSINESS_SCHEMA
-from materials import MaterialLibrary, POLICY as MATERIAL_POLICY
+from materials import MaterialLibrary, POLICY as MATERIAL_POLICY, PREVIEW_POLICY as MATERIAL_PREVIEW_POLICY
 from inventory_seed import apply_initial_inventory
 from inventory_teams import apply_team_inventory
 from presenter_assignment import apply_presenter_assignment
@@ -820,6 +820,9 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def material_file(self, route):
+        preview=self.server.materials.preview(route)
+        if preview is not None:
+            return self.reply(200,preview,'text/html; charset=utf-8',extra={'Content-Security-Policy':MATERIAL_PREVIEW_POLICY})
         found=self.server.materials.file(route)
         if not found:raise Problem('Material no encontrado.',404)
         path,mime=found;length=path.stat().st_size

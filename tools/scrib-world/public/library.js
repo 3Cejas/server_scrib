@@ -1,6 +1,6 @@
 "use strict";
 window.ScribMaterials = function(h) {
-  let materials=null, pending=null, error='';
+  let materials=null, pending=null, error='', coversObserver=null;
   function load() {
     if(materials||pending)return;
     pending=h.request('materials').then(data=>{materials=data.materials;error='';}).catch(e=>{error=e.message;}).finally(()=>{pending=null;if(/^#materials?$|^#material\//.test(location.hash))h.renderPage();});
@@ -11,7 +11,20 @@ window.ScribMaterials = function(h) {
   }
   function list() {
     return h.pageHead('LA CAJA DE HERRAMIENTAS','Materiales','Las presentaciones de SCRIB, reunidas aquí con sus imágenes, vídeos y animaciones. Acceso exclusivo del equipo.')+
-      (materials?`<div class="grid cols2 material-grid">${materials.map(m=>`<article class="panel material-card"><a href="#material/${h.esc(m.id)}" class="material-cover" aria-label="Abrir ${h.esc(m.title)}"><img src="${h.esc(m.cover)}" alt="" loading="lazy"><span>▶ Abrir presentación</span></a><div class="material-body"><div class="label-group">${m.tags.map(t=>h.badge(t,'violet')).join('')}${h.badge(m.slides+' diapositivas','cyan')}</div><h2>${h.esc(m.title)}</h2><p class="muted">${h.esc(m.description)}</p><a href="#material/${h.esc(m.id)}" class="button primary">Presentar ↗</a></div></article>`).join('')}</div>`:waiting());
+      (materials?`<div class="grid cols2 material-grid">${materials.map(m=>`<article class="panel material-card"><a href="#material/${h.esc(m.id)}" class="material-cover" aria-label="Abrir ${h.esc(m.title)}">${m.coverType==='slide'?`<iframe class="material-slide-cover" src="${h.esc(m.cover)}" title="Primera diapositiva de ${h.esc(m.title)}" sandbox="allow-same-origin" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>`:`<img src="${h.esc(m.cover)}" alt="" loading="lazy">`}<span>▶ Abrir presentación</span></a><div class="material-body"><div class="label-group">${m.tags.map(t=>h.badge(t,'violet')).join('')}${h.badge(m.slides+' diapositivas','cyan')}</div><h2>${h.esc(m.title)}</h2><p class="muted">${h.esc(m.description)}</p><a href="#material/${h.esc(m.id)}" class="button primary">Presentar ↗</a></div></article>`).join('')}</div>`:waiting());
+  }
+  function afterRender() {
+    coversObserver?.disconnect();coversObserver=null;
+    const covers=[...document.querySelectorAll('.material-cover')].filter(cover=>cover.querySelector('.material-slide-cover'));
+    const resize=cover=>{
+      const frame=cover.querySelector('.material-slide-cover');
+      if(frame&&cover.clientWidth>0){frame.style.transform=`scale(${cover.clientWidth/1440})`;frame.classList.add('is-ready');}
+    };
+    covers.forEach(resize);
+    if(covers.length&&typeof ResizeObserver!=='undefined'){
+      coversObserver=new ResizeObserver(entries=>entries.forEach(entry=>resize(entry.target)));
+      covers.forEach(cover=>coversObserver.observe(cover));
+    }
   }
   function detail(id) {
     if(!materials)return waiting();
@@ -29,5 +42,5 @@ window.ScribMaterials = function(h) {
     if(node.dataset.action==='reload-materials'){error='';load();h.renderPage();return true;}
     return false;
   }
-  return {list,detail,action};
+  return {list,detail,action,afterRender};
 };

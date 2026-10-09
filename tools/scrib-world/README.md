@@ -131,7 +131,7 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
 - **Inventario** registra objetos del equipo azul, rojo o compartidos: cantidad,
   categoría, estado, ubicación, responsable del elenco, descripción y foto privada.
   Filtros y búsqueda no duplican existencias; la ficha de cada bolo muestra los
-  objetos asociados. Cantidades enteras 0–9999 o «Sin especificar», referencias validadas, conflictos
+  objetos asociados con miniaturas de sus fotos privadas. Cantidades enteras 0–9999 o «Sin especificar», referencias validadas, conflictos
   de versión y archivo recuperable. No se precargan objetos ficticios.
 - La lista de 11 objetos solicitada el 8/10/2026 está en `initial_inventory.json`.
   Se añade atómicamente una sola vez al iniciar el servidor en producción, como
@@ -145,7 +145,9 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
   de los backups SQLite y ZIP existentes. La asociación con un bolo no archiva
   ni elimina el objeto cuando termina o se archiva ese bolo.
 - **Materiales** conserva las dos presentaciones HTML completas antes alojadas en
-  scribshow.es: guía del espectáculo y charla Sutura/SCRIB. Visor con flechas,
+  scribshow.es: «Guía del espectáculo» y «El origen de <SCRI> B». Las miniaturas
+  muestran la primera diapositiva original en un lienzo proporcional, sin ejecutar
+  el reproductor, animaciones, vídeos ni sonido. Visor con flechas,
   teclado, deslizado y pantalla completa. Actualizar otras tareas no reinicia las
   diapositivas. Los medios, tipografías y vídeos son locales.
 - Biblioteca autenticada en `/scrib/backstage/materials/`: lista exacta de archivos
@@ -154,6 +156,11 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
   `unsafe-inline`; estilos inline solo en estas presentaciones de confianza.
 - El código y los medios se conservan en Git. Publicar Mundo SCRIB antes de retirar
   las carpetas públicas de players_scrib; sus enlaces antiguos redirigen a Sutura.
+- La agenda prioriza bolos y ensayos por realizar, del más cercano al más lejano;
+  después muestra el historial del más reciente al más antiguo. Los realizados
+  tienen una sombra distintiva tanto en las tarjetas como en el calendario.
+- Editar una persona conserva su color guardado, pero ya no muestra un selector
+  de color ni el mensaje auxiliar de selección de varios roles.
 
 ## Configuración del videojuego por bolo
 

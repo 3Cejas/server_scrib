@@ -7,9 +7,10 @@ import unittest
 import uuid
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urljoin, urlsplit
 import test_world as fixtures
-from materials import MaterialLibrary, POLICY, PREFIX
+from materials import MaterialLibrary, POLICY, PREVIEW_POLICY, PREFIX
 
 world=fixtures.world
 ROOT=Path(__file__).resolve().parent
@@ -84,7 +85,49 @@ class MaterialTests(unittest.TestCase):
         self.assertEqual(decks[0]['slides'],19);self.assertGreater(decks[1]['slides'],25)
         for d in decks:
             self.assertIsNotNone(self.library.file(d['id']+'/'))
-            self.assertIsNotNone(self.library.file(d['cover'].removeprefix(PREFIX)))
+            self.assertEqual(d['coverType'],'slide')
+            self.assertIsNotNone(self.library.preview(d['cover'].removeprefix(PREFIX)))
+        self.assertEqual(decks[1]['title'],'El origen de <SCRI> B')
+
+    def test_covers_use_only_the_real_first_slide_without_player_or_notes(self):
+        for ident,content,next_content in [('tutorial','Dos historias.','Mapa de la experiencia'),('charla','¿Quién es','origin-dangerous')]:
+            with self.subTest(ident=ident):
+                preview=self.library.preview(ident+'/cover.html')
+                self.assertIn(content,preview);self.assertNotIn(next_content,preview)
+                self.assertEqual(preview.count('<section '),1)
+                self.assertNotRegex(preview,r'<(?:script|video|audio|aside)\b')
+                self.assertIn('animation:none!important',preview)
+                self.assertIn("script-src 'none'",PREVIEW_POLICY)
+                self.assertIn("media-src 'none'",PREVIEW_POLICY)
+                for ref in re.findall(r'(?:src|href)="([^"]+)"',preview):
+                    route=urlsplit(urljoin(PREFIX+ident+'/cover.html',ref)).path.removeprefix(PREFIX)
+                    self.assertIsNotNone(self.library.file(route),(ident,ref))
+        for route in ['../tutorial/cover.html','tutorial/../charla/cover.html','shared/cover.html','unknown/cover.html','charla/cover.html?x=1']:
+            self.assertIsNone(self.library.preview(route))
+
+    def test_cover_endpoint_auth_csp_and_head_using_real_dispatch_without_sockets(self):
+        def request(command='GET',secret='test-secret',route='tutorial/cover.html'):
+            handler=object.__new__(world.Handler)
+            handler.server=SimpleNamespace(materials=self.library,store=None,demo=False,secret='test-secret')
+            handler.command=command;handler.path=world.PREFIX+'materials/'+route
+            handler.headers={'X-Scrib-Bridge':secret,'X-Scrib-User':'tester'}
+            handler.wfile=io.BytesIO();result={'headers':{}}
+            handler.send_response=lambda status:result.update(status=status)
+            handler.send_header=lambda name,value:result['headers'].update({name:value})
+            handler.end_headers=lambda:None
+            handler.dispatch();result['body']=handler.wfile.getvalue()
+            return result
+        denied=request(secret='');self.assertEqual(denied['status'],401)
+        for route in ['tutorial/cover.html','charla/cover.html']:
+            result=request(route=route)
+            self.assertEqual(result['status'],200);self.assertIn(b'<section ',result['body'])
+            self.assertEqual(result['headers']['Content-Security-Policy'],PREVIEW_POLICY)
+            self.assertEqual(result['headers']['Cache-Control'],'no-store')
+            self.assertEqual(result['headers']['Content-Length'],str(len(result['body'])))
+            head=request(command='HEAD',route=route)
+            self.assertEqual(head['status'],200);self.assertFalse(head['body'])
+            self.assertEqual(head['headers']['Content-Length'],result['headers']['Content-Length'])
+        self.assertEqual(request(route='shared/cover.html')['status'],404)
 
     def test_all_local_resource_references_resolve_inside_library(self):
         for route,path in self.library.files.items():
@@ -112,6 +155,7 @@ class MaterialTests(unittest.TestCase):
             outside=Path(directory)/'outside.html';outside.write_text('secret')
             (root/'tutorial'/'index.html').symlink_to(outside)
             self.assertIsNone(MaterialLibrary(root).file('tutorial/'))
+            self.assertIsNone(MaterialLibrary(root).preview('tutorial/cover.html'))
 
     def test_ranges_open_suffix_clamped_and_unsatisfiable(self):
         for value,expected in [('',(0,99,False)),('bytes=10-19',(10,19,True)),('bytes=90-',(90,99,True)),('bytes=-5',(95,99,True)),('bytes=0-200',(0,99,True)),('bytes=-200',(0,99,True))]:
@@ -127,7 +171,7 @@ class HTTPResourceTests(unittest.TestCase):
     csrf=fixtures.HTTPTests.csrf
 
     def test_every_new_route_requires_valid_auth(self):
-        for route in ['inventory.js','library.js','resources.css','api/materials','materials/tutorial/','materials/shared/logo.png','materials/charla/charla.js']:
+        for route in ['inventory.js','library.js','resources.css','api/materials','materials/tutorial/','materials/tutorial/cover.html','materials/charla/cover.html','materials/shared/logo.png','materials/charla/charla.js']:
             self.assertEqual(self.req(route,headers={'X-Scrib-Bridge':''})[0],401)
 
     def test_metadata_viewer_and_strict_app_policy(self):

@@ -33,7 +33,7 @@ function client() {
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -212,6 +212,47 @@ test('calendar picks up collaboration changes while keeping the selected month/d
   const card=app.eventCard({...event,title:'<script>alert(1)</script>'});balanced(card);
   assert.doesNotMatch(card,/<script>/);assert.match(card,/&lt;script&gt;/);
 });
+test('agenda lists nearest upcoming events first, then history newest first without mutating state',()=>{
+  const {app,state,event}=client();
+  state.items=state.items.filter(e=>e.kind!=='event');
+  const rows=[
+    ['old','2000-01-01','completed'],['far','2098-11-07','confirmed'],
+    ['recent','2020-01-01','completed'],['near','2097-11-07','pending'],
+    ['cancelled','2019-01-01','cancelled'],['today',app.today(),'confirmed']
+  ].map(([id,start,status])=>({...event,id,start,status}));
+  state.items.push(...rows,{...event,id:'archived',start:'2096-01-01',archived:true});
+  const before=state.items.slice();
+  assert.deepEqual(Array.from(app.agendaEvents(),e=>e.id),['today','near','far','recent','cancelled','old']);
+  assert.deepEqual(state.items,before);
+  rows.find(e=>e.id==='near').status='completed';
+  assert.deepEqual(Array.from(app.agendaEvents(),e=>e.id),['today','far','near','recent','cancelled','old']);
+});
+test('completed shows and rehearsals have a shadow, upcoming ones are unchanged',()=>{
+  const {app,event}=client();
+  for(const eventType of ['show','rehearsal']){
+    const html=app.eventCard({...event,eventType,status:'completed'});balanced(html);
+    assert.match(html,/class="panel event-card is-completed"/);
+  }
+  assert.doesNotMatch(app.eventCard(event),/is-completed/);
+  assert.match(read('app.css'),/\.event-card\.is-completed\{[^}]*box-shadow:/);
+  assert.match(read('app.css'),/\.calendar-event\.completed\{[^}]*box-shadow:/);
+});
+test('event inventory shows private object photo thumbnails and preserves selection and team boundaries',()=>{
+  const {app,state,event}=client(),image='a'.repeat(64)+'.png';
+  state.items.push(
+    {id:'photo',kind:'inventory',title:'Linterna <azul>',team:'blue',quantity:2,category:'technical',image,imageReference:true},
+    {id:'blank',kind:'inventory',title:'Chaqueta',team:'red',quantity:1,category:'costume'},
+    {id:'excluded',kind:'inventory',title:'No incluir',team:'red',image},
+    {id:'archived',kind:'inventory',title:'Archivado',team:'blue',image,archived:true}
+  );
+  event.inventoryIds=['photo','blank','archived'];
+  const html=app.inventory.eventPanel(event);balanced(html);
+  assert.match(html,new RegExp('class="event-object-photo reference-photo" src="/scrib/backstage/images/'+image+'" alt="" loading="lazy"'));
+  assert.match(html,/Linterna &lt;azul&gt;/);assert.match(html,/event-object-placeholder[^>]*>👕/);
+  assert.match(html,/event-object blue[^>]*data-id="photo"/);assert.match(html,/event-object red[^>]*data-id="blank"/);
+  assert.doesNotMatch(html,/No incluir|Archivado/);
+  assert.match(read('resources.css'),/\.event-object-photo[^}]*object-fit:contain/);
+});
 
 test('automatic colors stay stable on rename/team changes and unsafe color values never become CSS',()=>{
   const {colors}=client(),original=colors.key({id:'fixed-uuid',name:'Ana',team:'blue'});
@@ -263,15 +304,12 @@ test('names and snapshot names remain safely escaped, including long names',()=>
   assert.match(app.personLabel('p1','Earlier <name>'),/Earlier &lt;name&gt;/);
   assert.match(app.personLabel('missing','Public <name>'),/person-tone-neutral.*Public &lt;name&gt;/);
 });
-test('person dialog exposes saved palette choice, previews without submitting and resets for other forms',()=>{
-  const {app,nodes,colors,listeners}=client();app.openPerson('p1');
+test('person dialog hides the color picker and roles hint without losing saved colors',()=>{
+  const {app,nodes}=client();app.openPerson('p1');
   assert.ok(nodes.editor.classList.contains('person-tone-orchid'));
-  assert.match(nodes['dialog-content'].innerHTML,/<select name="color"\s*>/);
-  assert.match(nodes['dialog-content'].innerHTML,/<option value="orchid" selected>/);
-  assert.equal((nodes['dialog-content'].innerHTML.match(/<option value=/g)||[]).length,Object.keys(colors.options).length);
-  const form={dataset:{kind:'person',id:'p1'},querySelector:()=>({value:'New name'})};
-  listeners.change({target:{name:'color',value:'mint',id:'',closest:()=>form,matches:()=>false}});
-  assert.ok(nodes.editor.classList.contains('person-tone-mint'));
+  assert.match(nodes['dialog-content'].innerHTML,/<input name="color" type="hidden" value="orchid"/);
+  assert.doesNotMatch(nodes['dialog-content'].innerHTML,/<select name="color"|Color de la persona|Puedes elegir varios roles|No es necesario escribirlos/);
+  app.openPerson('p3');assert.match(nodes['dialog-content'].innerHTML,/<input name="color" type="hidden" value="auto"/);
   app.openDialog('event','Other form','');assert.ok(!nodes.editor.classList.contains('person-colored'));
   assert.ok(![...nodes.editor.classList].some(c=>c.startsWith('person-tone-')));
 });
@@ -339,8 +377,9 @@ test('roles are checkbox tags, not a free text field, including cast selectors',
 });
 test('form serializes multiple role tags and blank inventory quantity without turning it into zero',async()=>{
   const {app}=client();
-  const person=await app.formData({dataset:{kind:'person'},entries:[['name','Ana'],['roles','Escritura'],['roles','Interpretación']],querySelectorAll:()=>[{value:'Escritura'},{value:'Interpretación'}]});
+  const person=await app.formData({dataset:{kind:'person'},entries:[['name','Ana'],['color','orchid'],['roles','Escritura'],['roles','Interpretación']],querySelectorAll:()=>[{value:'Escritura'},{value:'Interpretación'}]});
   assert.deepEqual(Array.from(person.roles),['Escritura','Interpretación']);assert.ok(!('phoneConfirmed' in person));
+  assert.equal(person.color,'orchid');
   const object=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','']],querySelector:()=>null});
   assert.equal(object.quantity,null);
   const zero=await app.formData({dataset:{kind:'inventory'},entries:[['title','Mochilas'],['quantity','0']],querySelector:()=>null});assert.equal(zero.quantity,0);

@@ -149,6 +149,7 @@
     else if (page === "archive") content = renderArchive();
     else content = renderHome();
     main.innerHTML = (state.demo ? `<div class="notice demo-notice">ENSAYO LOCAL · Datos ficticios, sin conexión con una partida ni con datos de producción.</div>` : "") + content;
+    library.afterRender?.();
     if(page==='inventory')inventory.applyFilters();
     if(page === "people")main.querySelectorAll('[data-person]').forEach(card=>{
       const p=item(card.dataset.person);
@@ -161,9 +162,10 @@
   }
   function eventCard(event) {
     const p = progress(event.boardId);
+    const completed = event.status === 'completed' ? ' is-completed' : '';
     const link = `<a class="event-card-link" href="#event/${esc(event.id)}" aria-label="Abrir ${event.eventType === 'rehearsal' ? 'ensayo' : 'bolo'} ${esc(event.title)} · ${esc(niceDate(event.start))}">`;
-    if(event.eventType === "rehearsal") return `<article class="panel event-card">${link}<p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p>${esc(dateTime(event.start))} — ${esc(hour(event.end))}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${esc(EVENT_STATUS[event.status])}</p><span class="event-enter" aria-hidden="true">Ver ensayo ↗</span></a></article>`;
-    return `<article class="panel event-card">${link}<div class="service-top"><span class="event-date">${esc(niceDate(event.start,false))} · ${esc(hour(event.start))}</span>${badge(EVENT_STATUS[event.status],event.status === "confirmed" ? "green" : "gold")}</div><h3>${esc(event.title)}</h3><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
+    if(event.eventType === "rehearsal") return `<article class="panel event-card${completed}">${link}<p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p>${esc(dateTime(event.start))} — ${esc(hour(event.end))}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${esc(EVENT_STATUS[event.status])}</p><span class="event-enter" aria-hidden="true">Ver ensayo ↗</span></a></article>`;
+    return `<article class="panel event-card${completed}">${link}<div class="service-top"><span class="event-date">${esc(niceDate(event.start,false))} · ${esc(hour(event.start))}</span>${badge(EVENT_STATUS[event.status],event.status === "confirmed" ? "green" : "gold")}</div><h3>${esc(event.title)}</h3><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
   }
   function homeCalendarDays(value) {
     const first = new Date(value + "-01T12:00:00Z");
@@ -209,10 +211,19 @@
     const target = item(log.target);
     return `<div class="activity-row"><span class="activity-dot">•</span><div>${esc(member(log.actor))} · ${esc(log.action)}<small>${esc(titleOf(target))} · ${esc(dateTime(log.created))}</small></div></div>`;
   }
+  function agendaEvents() {
+    const current=today();
+    const upcoming=e=>!['completed','cancelled'].includes(e.status)&&e.start.slice(0,10)>=current;
+    return active('event').sort((a,b)=>{
+      const first=upcoming(a),second=upcoming(b);
+      if(first!==second)return first?-1:1;
+      return (first?a.start.localeCompare(b.start):b.start.localeCompare(a.start))||a.id.localeCompare(b.id);
+    });
+  }
   function renderEvents() {
     return pageHead("LA GIRA, BIEN ATADA", "Bolos y calendario", "Funciones y ensayos del elenco, juntos en el calendario. Los ensayos se pueden confirmar desde Disponibilidad. Horarios de Madrid.",btn("new-event","＋ Crear bolo","","primary")) +
       `<div class="toolbar"><div class="segmented" aria-label="Vista de los bolos"><button type="button" data-action="events-calendar" class="${calendarMode === "calendar"?"active":""}">Calendario</button><button type="button" data-action="events-agenda" class="${calendarMode === "agenda"?"active":""}">Agenda</button></div><a class="button small" href="${BASE}api/calendar.ics">↓ Exportar calendario</a></div>` +
-      (calendarMode === "agenda" ? `<div class="grid cols3">${active("event").sort((a,b)=>a.start.localeCompare(b.start)).map(eventCard).join("") || empty("Todavía no hay bolos","Crea tu primera función y prepara el equipo.")}</div>` : renderCalendar());
+      (calendarMode === "agenda" ? `<div class="grid cols3">${agendaEvents().map(eventCard).join("") || empty("Todavía no hay bolos","Crea tu primera función y prepara el equipo.")}</div>` : renderCalendar());
   }
   function renderCalendar() {
     const year = month.getFullYear(), m = month.getMonth(), first = new Date(year,m,1), start = new Date(year,m,1 - (first.getDay()+6)%7);
@@ -424,7 +435,7 @@
     openDialog("person",id ? p.name : "Una persona del equipo",formShell("person",p,
       `<div class="person-summary">${profile.roleTags(p.roles)}${profile.contacts(p)}</div>` +
       field("Nombre completo",input("name",p.name,"text",'required maxlength="160"')) + profile.roleEditor(p.roles) +
-      field('Color de la persona',select('color',colors.options,p.color||'auto'),'El mismo color en elenco, bolos, inventario, disponibilidad y gestión. No modifica su equipo azul o rojo.') +
+      input('color',p.color||'auto','hidden') +
       field("Teléfono",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="tel"')) +
       personHistory(p) +
       business.personLink(p.id) +
@@ -613,9 +624,6 @@
     if(node.matches('.cast-person,.cast-team')){updateCastReadiness();return;}
     if(node.id==='lighting-scope'){lighting.changeScope(node).catch(error=>toast(error.message));return;}
     if(lighting.input(node)){if(['x','y'].includes(node.dataset.lightingField)){const value=Number(node.value);if(Number.isFinite(value) && node.value!=='')node.value=String(Math.max(Number(node.min),Math.min(Number(node.max),value)));}return;}
-    if(node.name==='color'&&node.closest('#edit-form')?.dataset.kind==='person'){
-      const form=node.closest('form');colors.decorate(dialog,{id:form.dataset.id,name:form.querySelector('[name=name]').value,color:node.value});
-    }
     if(inventory.filter(node))return;
     if(node.matches("#calendar-month") && /^\d{4}-\d{2}$/.test(node.value)){month=new Date(Number(node.value.slice(0,4)),Number(node.value.slice(5,7))-1,1);renderPage();return;}
     if(node.matches("[data-ticket-status]")) moveTicket(node.dataset.ticketStatus,node.value);
