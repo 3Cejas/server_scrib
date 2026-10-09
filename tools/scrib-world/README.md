@@ -18,10 +18,15 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 - `POST /scrib/backstage/api/pdf` requiere identidad y CSRF. Inventario, hoja de
   llamada, técnica y memoria llevan el logo; acuerdos/facturas requieren admin.
   El render nunca descarga URLs ni acepta rutas de archivo aportadas por clientes.
-- Todos los PDF generados tienen cabecera retro con el logo original, colores
-  azul/rojo, redes enlazadas `@scrib_show` y `@su.tu.ra`, marca de agua tenue,
-  referencia y aviso de uso interno/no distribución en cada página. La tipografía
-  del cuerpo sigue siendo legible al imprimir. Los PDF firmados que se suben no
+- Todos los PDF generados usan fondo negro y la estética de la cabecera del
+  informe del videojuego: logos originales de SCRIB y Sutura, título blanco y
+  línea azul/roja. La marca de agua es el logo de los signos y la pluma, al 5,5%
+  de opacidad. El pie lleva iconos vectoriales para redes, web, correo, aviso,
+  referencia y fecha, con enlaces a `@scrib_show`, `@su.tu.ra`, `scribshow.es` y
+  `scribaleatorio@gmail.com`. Se numeran solo con un número. Inventario y checklist
+  técnica se presentan en tarjetas a dos columnas con casillas vectoriales;
+  las notas largas fluyen completas a continuación sin truncarse. Fondo negro
+  significa mayor consumo de tinta al imprimir. Los PDF firmados que se suben no
   se reescriben ni se alteran: este diseño no afecta a sus firmas existentes.
 - Trazabilidad privada: cada exportación se vincula al usuario autenticado mediante
   una referencia aleatoria y un sello HMAC-SHA-256 en metadatos. El PDF no contiene
@@ -48,7 +53,10 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 - Comunicación: vista previa y envío individual o lote, sin casilla de confirmación
   por destinatario. Se mantienen autoría, caducidad, versión del teléfono/bolo,
   CSRF y reserva durable para que un resultado incierto no se reintente solo.
-- Archivo recuperable se encuentra dentro de Tareas; la conexión al lado de SCRIB
+- Archivo recuperable se encuentra dentro de Tareas. El menú tiene una sola
+  cabecera con el logo y el indicador de conexión, sin repetir el nombre de la
+  sección encima del contenido. El cierre de sesión sigue accesible en móvil.
+  La conexión al lado de SCRIB
   pertenece al backstage, no confirma la sesión del videojuego.
 
 Verificación: `python -m unittest discover -s tools/scrib-world`, con ReportLab y

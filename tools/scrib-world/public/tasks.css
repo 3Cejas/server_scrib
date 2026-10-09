@@ -1,6 +1,12 @@
 .sidebar .brand{display:flex;align-items:center;gap:8px;padding:0;margin-bottom:30px}
 .brand-logo{display:block;width:60px;height:60px;object-fit:contain;flex-shrink:0}
 .sidebar .brand-word{font-size:1.35rem}
+/* A single brand/status header, without a duplicated section title above main. */
+.sidebar-heading{display:flex;align-items:center;gap:12px;min-width:0;margin-bottom:24px}
+.sidebar .sidebar-heading .brand{margin:0;flex-shrink:0}
+.sidebar-heading .connection{min-width:0;white-space:normal;overflow-wrap:anywhere;font-size:.7rem}
+.stage>main{min-height:calc(100dvh - 65px)}
+@media(max-width:760px){.sidebar-heading{margin-bottom:14px;justify-content:space-between}.sidebar-heading .connection{max-width:60%}.sidebar .sidebar-bottom{display:block;padding-top:8px}.sidebar .identity{margin-top:0;padding-top:6px;justify-content:flex-end;font-size:.7rem}.sidebar .identity .avatar{display:none}.sidebar .identity div{flex:0 1 auto}.sidebar .identity>a{min-height:36px;min-width:36px;text-align:center}.stage>main{min-height:calc(100dvh - 230px)}}
 .button .action-icon{width:19px;height:19px;flex-shrink:0;pointer-events:none}
 .button.icon-only{width:44px;height:44px;min-width:44px;min-height:44px;padding:10px;flex-shrink:0}
 .board-card{position:relative;min-width:0;transition:border-color .15s,background-color .15s}

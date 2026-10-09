@@ -8,6 +8,7 @@ from server import Store
 from inventory_seed import apply_initial_inventory
 from inventory_teams import apply_team_inventory
 from pdf_export import generate
+from lighting import default_plan
 
 
 def main():
@@ -25,8 +26,11 @@ def main():
                 'muses':{'equipos':{'1':{'musas':[{'nombre':'NÉBULA','stats':{'introducidas':13,'enviadas':18}},{'nombre':'LUNA','stats':{'introducidas':7,'enviadas':14}}]},'2':{'musas':[{'nombre':'CASIOPEA','stats':{'introducidas':9,'enviadas':16}}]}}}}
         store.business.archive_report(report)
         with store.connect() as db:ids=[o['id'] for o in store.all(db,'inventory')]
+        plan=default_plan()
+        # Include both completed and pending vector checkboxes in visual QA.
+        for check in plan['checklist'][:3]:check['done']=True
         for name,data in [('inventario-scrib-muestra.pdf',{'kind':'inventory','ids':ids}),
-                          ('tecnica-scrib-muestra.pdf',{'kind':'lighting'}),
+                          ('tecnica-scrib-muestra.pdf',{'kind':'lighting','plan':plan}),
                           ('memoria-scrib-muestra.pdf',{'kind':'report','id':'muestra-diseno'})]:
             (args.output/name).write_bytes(generate(store,data,{'role':'admin','username':'demo-exportador'}))
             print(args.output/name)

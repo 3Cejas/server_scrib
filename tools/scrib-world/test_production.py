@@ -91,6 +91,58 @@ class ProductionTests(unittest.TestCase):
         self.assertIn('<b>original</b>',text);self.assertGreater(len(reader.pages),5)
         self.assertEqual(text.count('Una nota extensa'),400)
 
+    def test_pdf_dark_pages_logo_watermark_icons_links_and_number_only_pagination(self):
+        from pypdf.generic import ContentStream
+        self.seed();_,reader=self.pdf_text({'kind':'inventory','ids':[o['id'] for o in self.objects()]})
+        for number,page in enumerate(reader.pages,1):
+            text=page.extract_text()
+            self.assertNotIn('Página ',text)
+            self.assertIn('scribaleatorio@gmail.com',text)
+            links=[a.get_object().get('/A',{}).get('/URI') for a in page.get('/Annots',[])]
+            self.assertEqual(set(links),{'https://www.instagram.com/scrib_show/',
+                'https://www.instagram.com/su.tu.ra/','https://scribshow.es/','mailto:scribaleatorio@gmail.com'})
+            alpha=page['/Resources']['/ExtGState']
+            self.assertTrue(any(abs(float(s.get('/ca',1))-.055)<.0001 for s in alpha.values()))
+            ops=ContentStream(page.get_contents(),reader).operations
+            # Opaque black full-page paint, and the same logo XObject used both
+            # as the large watermark and in the header, not text masquerading as a logo.
+            self.assertTrue(any(op==b're' and len(args)==4 and args[:2]==[0,0]
+                and abs(float(args[2])-float(page.mediabox.width))<.01
+                and abs(float(args[3])-float(page.mediabox.height))<.01 for args,op in ops))
+            self.assertTrue(any(op==b'rg' and all(abs(float(v)-5/255)<.0001 for v in args) for args,op in ops))
+            images=[str(args[0]) for args,op in ops if op==b'Do']
+            self.assertTrue(any(images.count(name)==2 for name in images))
+            footer=[]
+            page.extract_text(visitor_text=lambda value,cm,tm,*_:footer.append(value.strip())
+                if cm[4]+tm[4]>500 and 20<cm[5]+tm[5]<40 and value.strip() else None)
+            self.assertEqual(footer,[str(number)])
+
+    def test_inventory_and_technical_checklist_use_two_columns_without_ascii_checkboxes(self):
+        self.seed();objects=[o for o in self.objects() if o['team']=='blue']
+        _,reader=self.pdf_text({'kind':'inventory','ids':[o['id'] for o in objects]})
+        chosen=sorted(objects,key=lambda o:o['title'].casefold())
+        positions={}
+        def capture(value,cm,tm,*_):
+            if value.strip() in [o['title'] for o in chosen]:
+                positions[value.strip()]=(cm[4]+tm[4],cm[5]+tm[5])
+        reader.pages[0].extract_text(visitor_text=capture)
+        left,right=positions[chosen[0]['title']],positions[chosen[1]['title']]
+        self.assertLess(left[0],right[0]-200);self.assertAlmostEqual(left[1],right[1],places=3)
+        from lighting import default_plan
+        plan=default_plan();plan['checklist'][0]['done']=True
+        text,reader=self.pdf_text({'kind':'lighting','plan':plan})
+        self.assertNotIn('[ ]',text);self.assertNotIn('[OK]',text)
+        self.assertIn('Completado',text);self.assertIn('Por comprobar',text)
+        checks=[c for c in plan['checklist'] if c['category']==plan['checklist'][0]['category']][:2];positions={}
+        for page in reader.pages:
+            def capture_check(value,cm,tm,*_):
+                for check in checks:
+                    if value.startswith(check['text'][:25]):
+                        positions[check['id']]=(cm[4]+tm[4],cm[5]+tm[5])
+            page.extract_text(visitor_text=capture_check)
+        left,right=positions[checks[0]['id']],positions[checks[1]['id']]
+        self.assertLess(left[0],right[0]-200);self.assertAlmostEqual(left[1],right[1],places=3)
+
     def test_pdf_invalid_selection_stale_objects_financial_authorization_and_private_paths(self):
         for data in ({'kind':'other'},{'kind':'inventory','ids':[]},{'kind':'inventory','ids':['missing']}):
             with self.assertRaises(world.Problem):generate(self.store,data,ADMIN)
@@ -105,8 +157,11 @@ class ProductionTests(unittest.TestCase):
         self.seed();e=self.create('event',title='León',start='2026-11-07T19:00',venue='Teatro')
         text,_=self.pdf_text({'kind':'event','id':e['id']});self.assertIn('HOJA DE LLAMADA',text);self.assertIn('Linternas',text)
         from lighting import default_plan
-        plan=default_plan();plan['elements'][0]['label']='Calle personalizada';text,_=self.pdf_text({'kind':'lighting','plan':plan})
+        plan=default_plan();plan['elements'][0]['label']='Calle personalizada';text,reader=self.pdf_text({'kind':'lighting','plan':plan})
         self.assertIn('Calle personalizada',text)
+        for page in reader.pages:
+            self.assertNotIn(page.extract_text().strip().splitlines()[-1],
+                ['Leyenda del plano','Conexiones y cableado','Checklist de montaje técnico'])
         with self.store.connect() as db:self.assertEqual(self.store.all(db,'lighting'),[])
 
     def test_report_pdf_preserves_line_breaks_metrics_scores_and_muse_ranking(self):

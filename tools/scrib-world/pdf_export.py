@@ -40,9 +40,9 @@ def generate(store, data, user):
     if 'ScribRetro' not in pdfmetrics.getRegisteredFontNames():
         pdfmetrics.registerFont(TTFont('ScribRetro',str(ROOT/'materials/shared/retro.ttf')))
     pdfmetrics.registerFontFamily('ScribSans',normal=font,bold='ScribSansBold',italic=font,boldItalic='ScribSansBold')
-    ink, muted = colors.HexColor('#182032'), colors.HexColor('#5e6576')
-    gold = colors.HexColor('#b88b27')
-    tones = {'blue': colors.HexColor('#087da4'), 'red': colors.HexColor('#c33250'),
+    ink, muted = colors.HexColor('#f4f4f6'), colors.HexColor('#b0b8c7')
+    gold = colors.HexColor('#f2d777')
+    tones = {'blue': colors.HexColor('#46f0ff'), 'red': colors.HexColor('#ff6b6b'),
              'general': gold}
     styles = getSampleStyleSheet()
     for name in ('Normal', 'Title', 'Heading1', 'Heading2', 'Heading3'):
@@ -64,6 +64,7 @@ def generate(store, data, user):
                               textColor=ink, spaceAfter=6))
     styles.add(ParagraphStyle('Score',fontName='ScribSansBold',fontSize=27,leading=34,
                               textColor=ink,spaceAfter=12))
+    styles.add(ParagraphStyle('Check',fontName=font,fontSize=9,leading=13,textColor=ink))
     clean = lambda s: ''.join(c for c in str(s or '').replace('\u2014','-').replace('\u2013','-') if ord(c) < 0x1f000)
     def para(value, style='Normal'):
         return Paragraph(escape(clean(value)).replace('\n', '<br/>'), styles[style])
@@ -75,10 +76,10 @@ def generate(store, data, user):
     def section(value, team='general'):
         style = ParagraphStyle('section-'+team, parent=styles['Heading2'], textColor=tones[team],
                                borderColor=tones[team],borderWidth=0,borderPadding=7,
-                               backColor=colors.HexColor('#eef5f8' if team=='blue' else '#fff0f3' if team=='red' else '#f6f2e7'))
+                               backColor=colors.HexColor('#102329' if team=='blue' else '#291417' if team=='red' else '#242116'))
         gap=Spacer(1,5);gap.keepWithNext=True
         story.extend([Paragraph(escape(clean(value)), style), gap])
-    def image(value):
+    def image(value, size=56):
         if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|webp)', str(value or '')):
             return None
         path = store.directory/'images'/value
@@ -88,9 +89,25 @@ def generate(store, data, user):
             # Only existing validated private images; never interpret a URL/path.
             reader = ImageReader(str(path))
             w, h = reader.getSize()
-            return Image(str(path), width=72*min(1,w/h), height=72*min(1,h/w))
+            return Image(str(path), width=size*min(1,w/h), height=size*min(1,h/w))
         except Exception:
             return None
+    def card_style(team='general'):
+        return TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
+            ('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#101d22' if team=='blue' else '#241316' if team=='red' else '#1b1a15')),
+            ('BOX',(0,0),(-1,-1),.5,tones[team]),
+            ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
+            ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)])
+    def two_columns(cards):
+        # Individual rows can move to the next page, without shrinking text or
+        # splitting a material's photo away from its name. The gutter stays empty.
+        for start in range(0,len(cards),2):
+            row=Table([[cards[start],'',cards[start+1] if start+1<len(cards) else '']],
+                      colWidths=[246.5,18,246.5],hAlign='LEFT')
+            row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
+                ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
+                ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+            story.extend([row,Spacer(1,10)])
     def inventory(objects):
         for team in ('blue', 'red'):
             chosen = sorted([o for o in objects if o['team'] == team], key=lambda o: o['title'].casefold())
@@ -100,23 +117,35 @@ def generate(store, data, user):
                 story.append(PageBreak())
             section(TEAMS[team], team)
             story.append(para(str(len(chosen))+' objetos seleccionados', 'Small'))
+            cards, long_notes = [], []
             for obj in chosen:
                 photo = image(obj.get('image')) if data.get('photos', True) else None
                 quantity = str(obj['quantity']) if obj.get('quantity') is not None else 'Sin especificar'
-                texts = [para(obj['title'], 'Object'),
-                         para('Cantidad: '+quantity+'  |  '+CATEGORIES.get(obj['category'], 'Otros'), 'Small')]
+                texts = [para('Cantidad: '+quantity, 'Object'),
+                         para(CATEGORIES.get(obj['category'], 'Otros'), 'Small')]
                 if obj.get('imageReference'):
                     texts.append(para('Imagen de catálogo orientativa', 'Small'))
-                block = Table([[photo or '', texts]], colWidths=[96, 415], hAlign='LEFT')
-                block.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-                    ('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#eaf5fa' if team=='blue' else '#fff0f2')),
-                    ('LINEBEFORE',(0,0),(0,-1),3,tones[team]),
-                    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
-                    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
-                story.extend([block, Spacer(1, 7)])
+                title_row=Table([[CheckBox(False,tones[team]),para(obj['title'],'Object')]],colWidths=[22,204.5])
+                title_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
+                    ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+                details=Table([[photo,texts]],colWidths=[68,158.5]) if photo else texts
+                if photo:
+                    details.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+                        ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+                content=[title_row,Spacer(1,5),details] if photo else [title_row,Spacer(1,5),*texts]
                 if data.get('notes', True) and obj.get('description'):
-                    story.append(para(obj['description']))
-                story.append(Spacer(1, 8))
+                    if len(obj['description'])<=220 and obj['description'].count('\n')<6:
+                        content.append(para(obj['description'],'Small'))
+                    else:
+                        # Unbounded notes must flow normally across pages, not
+                        # become an unsplittable cell or lose any supplied text.
+                        content.append(para('Notas completas a continuación','Small'))
+                        long_notes.append(obj)
+                block=Table([[content]],colWidths=[246.5],hAlign='LEFT')
+                block.setStyle(card_style(team));cards.append(block)
+            two_columns(cards)
+            for obj in long_notes:
+                story.extend([para('Notas - '+obj['title'],'Heading3'),para(obj['description']),Spacer(1,12)])
     with store.connect() as db:
         all_objects = [o for o in store.all(db, 'inventory') if not o['archived']]
         if kind == 'inventory':
@@ -175,15 +204,21 @@ def generate(store, data, user):
                     block.append(para('Circuito / canal: '+(e.get('channel') or 'Pendiente'), 'Small'))
                 if e.get('notes'):
                     block.append(para(e['notes']))
+                if number==1:
+                    # Keep the section banner with its first complete entry;
+                    # later legend entries can move as a unit to the next page.
+                    block=story[-2:]+block;del story[-2:]
                 story.append(KeepTogether(block))
             if plan.get('notes'):
                 section('Notas para la sala')
                 story.append(para(plan['notes']))
             section('Conexiones y cableado')
-            for c in plan['connections']:
+            for index,c in enumerate(plan['connections']):
                 nodes={e['id']:e for e in plan['elements']}
                 block=[para(c['label'], 'Heading3'),para(nodes[c['from']]['label']+' → '+nodes[c['to']]['label'])]
                 if c.get('notes'):block.append(para(c['notes'],'Small'))
+                if index==0:
+                    block=story[-2:]+block;del story[-2:]
                 story.append(KeepTogether(block))
             section('Walkies - cuatro unidades')
             for w in plan['walkies']:
@@ -192,9 +227,13 @@ def generate(store, data, user):
             section('Checklist de montaje técnico')
             for group in dict.fromkeys(c['category'] for c in plan['checklist']):
                 story.append(para(group,'Heading3'))
+                cards=[]
                 for check in plan['checklist']:
                     if check['category']==group:
-                        story.append(para(('[OK] ' if check['done'] else '[ ] ')+check['text']))
+                        contents=[para(check['text'],'Check'),Spacer(1,5),para('Completado' if check['done'] else 'Por comprobar','Small')]
+                        card=Table([[CheckBox(check['done'],gold),contents]],colWidths=[32,214.5])
+                        card.setStyle(card_style());cards.append(card)
+                two_columns(cards)
         elif kind == 'report':
             report = store.business.report(data.get('id',''))
             date = datetime.fromtimestamp(report['endedAt']/1000,ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')
@@ -262,48 +301,83 @@ def generate(store, data, user):
     def frame(canvas, doc):
         w,h = A4
         canvas.saveState()
-        # A pale solid ink also prints consistently in PDF 1.3 viewers. Setting
-        # a color after fill alpha would reset transparency in ReportLab.
-        canvas.translate(w/2,h/2);canvas.rotate(28)
-        canvas.setFillColor(colors.HexColor('#edf0f4'));canvas.setFont('ScribSansBold',54)
-        canvas.drawCentredString(0,14,'<SCRI> B');canvas.setFont('ScribSansBold',14)
-        canvas.drawCentredString(0,-16,'MATERIAL INTERNO - SUTURA TEATRO')
-        canvas.restoreState()
+        canvas.setFillColor(colors.HexColor('#050505'));canvas.rect(0,0,w,h,fill=1,stroke=0)
+        # Reuse the actual brackets-and-pen logo, softly behind the document.
+        # Set alpha after the color, and restore before drawing foreground ink.
         canvas.saveState()
-        canvas.setFillColor(colors.HexColor('#080f1a'));canvas.rect(0,h-88,w,88,fill=1,stroke=0)
-        canvas.setStrokeColor(colors.HexColor('#172633'));canvas.setLineWidth(.35)
-        for x in range(0,int(w),18):canvas.line(x,h-88,x,h)
-        for y in range(int(h)-88,int(h),18):canvas.line(0,y,w,y)
-        cyan,red=colors.HexColor('#37ddeb'),colors.HexColor('#ff617d')
-        canvas.setFillColor(cyan);canvas.rect(0,h-91,w/2,3,fill=1,stroke=0)
-        canvas.setFillColor(red);canvas.rect(w/2,h-91,w/2,3,fill=1,stroke=0)
-        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),34,h-76,65,65,preserveAspectRatio=True,mask='auto')
-        canvas.setFont('ScribRetro',20);canvas.setFillColor(cyan);canvas.drawString(109,h-37,'<SCRI> B')
-        canvas.setFont('ScribSansBold',7.8);canvas.setFillColor(colors.HexColor('#f2d777'))
-        canvas.drawString(109,h-56,'PRODUCCIÓN / SUTURA TEATRO')
-        canvas.setFont('ScribSansBold',8);canvas.setFillColor(colors.white)
-        canvas.drawRightString(w-34,h-36,labels[kind])
-        canvas.setFont(font,7);canvas.setFillColor(colors.HexColor('#aebdce'))
-        canvas.drawRightString(w-34,h-55,'EL PRIMER VIDEOJUEGO-ESPECTÁCULO DE ESCRITURA EN VIVO')
-        canvas.setStrokeColor(colors.HexColor('#cbd5df'));canvas.line(42,66,w-42,66)
-        canvas.setFont('ScribSansBold',8);canvas.setFillColor(tones['blue'])
-        for x,label,url in [(42,'@scrib_show','https://www.instagram.com/scrib_show/'),
-                            (178,'@su.tu.ra','https://www.instagram.com/su.tu.ra/'),
-                            (305,'scribshow.es','https://scribshow.es/')]:
-            canvas.drawString(x,52,label)
-            canvas.linkURL(url,(x,50,x+pdfmetrics.stringWidth(label,'ScribSansBold',8),61),relative=0,thickness=0)
-        canvas.setFillColor(ink);canvas.setFont('ScribSansBold',7)
-        canvas.drawString(42,37,'USO INTERNO. NO DISTRIBUIR, REPRODUCIR NI PUBLICAR SIN AUTORIZACIÓN DE SUTURA TEATRO.')
-        canvas.setFont(font,6.5);canvas.setFillColor(muted)
-        canvas.drawString(42,23,'Ref. '+reference+'  |  '+stamp)
-        canvas.drawRightString(w-42,23,'Página '+str(doc.page))
+        canvas.setFillAlpha(.055)
+        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),w/2-190,h/2-190,380,380,mask='auto')
+        canvas.restoreState()
+        # Same visual language as the videogame's report: black page, logos at
+        # either end of a dark header, white heading and a cyan/red rule.
+        canvas.setFillColor(colors.HexColor('#0c0c0c'));canvas.rect(0,h-82,w,82,fill=1,stroke=0)
+        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),36,h-73,62,62,mask='auto')
+        canvas.drawImage(str(ROOT/'materials/shared/logo_sutura.png'),w-89,h-66,47,47,preserveAspectRatio=True,mask='auto')
+        canvas.setFont('ScribSansBold',16);canvas.setFillColor(ink)
+        canvas.drawString(111,h-38,labels[kind])
+        canvas.setFont('ScribSansBold',7.8);canvas.setFillColor(muted)
+        canvas.drawString(111,h-57,'PRODUCCIÓN / SUTURA TEATRO')
+        canvas.setFillColor(tones['blue']);canvas.rect(36,h-85,(w-72)/2,3,fill=1,stroke=0)
+        canvas.setFillColor(tones['red']);canvas.rect(w/2,h-85,(w-72)/2,3,fill=1,stroke=0)
+        canvas.setStrokeColor(colors.HexColor('#383838'));canvas.setLineWidth(.5);canvas.line(42,82,w-42,82)
+        canvas.setFont('ScribSansBold',7);canvas.setFillColor(ink)
+        for x,icon,label,url in [(42,'instagram','@scrib_show','https://www.instagram.com/scrib_show/'),
+                                 (154,'instagram','@su.tu.ra','https://www.instagram.com/su.tu.ra/'),
+                                 (254,'web','scribshow.es','https://scribshow.es/'),
+                                 (358,'mail','scribaleatorio@gmail.com','mailto:scribaleatorio@gmail.com')]:
+            draw_icon(canvas,icon,x,64,10,tones['blue'])
+            canvas.drawString(x+15,66,label)
+            canvas.linkURL(url,(x,63,x+15+pdfmetrics.stringWidth(label,'ScribSansBold',7),75),relative=0,thickness=0)
+        draw_icon(canvas,'lock',42,46,9,gold)
+        canvas.setFillColor(muted);canvas.setFont('ScribSansBold',6.5)
+        canvas.drawString(57,48,'MATERIAL INTERNO. NO DISTRIBUIR, REPRODUCIR NI PUBLICAR SIN AUTORIZACIÓN DE SUTURA TEATRO.')
+        draw_icon(canvas,'document',42,29,9,muted)
+        canvas.setFont(font,6.2);canvas.setFillColor(muted);canvas.drawString(57,31,'Ref. '+reference)
+        draw_icon(canvas,'clock',351,29,9,muted)
+        canvas.drawString(365,31,stamp)
+        canvas.setFont('ScribSansBold',9);canvas.setFillColor(ink)
+        canvas.drawRightString(w-42,31,str(doc.page))
         canvas.restoreState()
     doc = SimpleDocTemplate(buffer,pagesize=A4,rightMargin=42,leftMargin=42,
-                           topMargin=112,bottomMargin=82,title=title or 'SCRIB - '+kind,
+                           topMargin=107,bottomMargin=96,title=title or 'SCRIB - '+kind,
                            author='SCRIB / Sutura Teatro')
     doc.build(story,onFirstPage=frame,onLaterPages=frame)
     from document_trace import seal_pdf
     return seal_pdf(store,buffer.getvalue(),user,kind,data.get('id',''),reference,created)
+
+
+def draw_icon(canvas,kind,x,y,size,color):
+    """Small vector icons: reliable in PDF viewers without emoji/font fallbacks."""
+    canvas.saveState();canvas.translate(x,y);canvas.scale(size/12,size/12)
+    canvas.setStrokeColor(color);canvas.setFillColor(color);canvas.setLineWidth(1)
+    if kind=='instagram':
+        canvas.roundRect(1,1,10,10,3,fill=0);canvas.circle(6,6,2.4,fill=0);canvas.circle(9,9,.6,fill=1)
+    elif kind=='mail':
+        canvas.roundRect(.5,2,11,8,1,fill=0)
+        canvas.line(1,9,6,5);canvas.line(6,5,11,9)
+    elif kind=='web':
+        canvas.circle(6,6,5,fill=0);canvas.ellipse(3,1,9,11,fill=0);canvas.line(1,6,11,6)
+    elif kind=='lock':
+        canvas.roundRect(2,1,8,6,1,fill=0);canvas.roundRect(4,5,4,6,2,fill=0);canvas.circle(6,4,.6,fill=1)
+    elif kind=='clock':
+        canvas.circle(6,6,5,fill=0);canvas.line(6,6,6,9);canvas.line(6,6,9,5)
+    elif kind=='document':
+        p=canvas.beginPath();p.moveTo(2,1);p.lineTo(10,1);p.lineTo(10,8);p.lineTo(7,11);p.lineTo(2,11);p.close()
+        canvas.drawPath(p);canvas.line(7,11,7,8);canvas.line(7,8,10,8)
+        canvas.line(4,5,8,5);canvas.line(4,3,7,3)
+    canvas.restoreState()
+
+
+def CheckBox(done,color):
+    from reportlab.platypus import Flowable
+    class Drawing(Flowable):
+        def __init__(self):
+            super().__init__();self.width,self.height=14,16
+        def draw(self):
+            c=self.canv;c.setStrokeColor(color);c.setLineWidth(1.2);c.roundRect(0,1,13,13,3,fill=0)
+            if done:
+                c.setLineWidth(1.8);p=c.beginPath();p.moveTo(3,7);p.lineTo(5.5,4.5);p.lineTo(10,10);c.drawPath(p)
+    return Drawing()
 
 
 def StagePlan(plan,font='ScribSans'):
@@ -316,8 +390,8 @@ def StagePlan(plan,font='ScribSans'):
         def draw(self):
             c=self.canv
             from lighting import coordinates
-            c.setFillColor(colors.HexColor('#f4f5f9'));c.roundRect(0,10,511,520,8,fill=1,stroke=0)
-            c.setStrokeColor(colors.HexColor('#b7c1d0'))
+            c.setFillColor(colors.HexColor('#101217'));c.roundRect(0,10,511,520,8,fill=1,stroke=0)
+            c.setStrokeColor(colors.HexColor('#596173'))
             c.rect(35,282,430,216,fill=0);c.rect(30,38,215,204,fill=0);c.rect(260,38,215,204,fill=0)
             def point(e):
                 x,y=coordinates(e);return x/2,530-y*.4
@@ -326,7 +400,7 @@ def StagePlan(plan,font='ScribSans'):
             for connection in plan['connections']:
                 if connection['type'] not in ('hdmi','dmx'):continue
                 a,b=point(nodes[connection['from']]),point(nodes[connection['to']])
-                c.setStrokeColor(colors.HexColor('#2389b0' if connection['type']=='hdmi' else '#369b65'))
+                c.setStrokeColor(colors.HexColor('#46c8ff' if connection['type']=='hdmi' else '#64d997'))
                 c.setLineWidth(.7);c.setDash(3,2)
                 p=c.beginPath();p.moveTo(*a)
                 source,target=nodes[connection['from']],nodes[connection['to']]
@@ -339,7 +413,7 @@ def StagePlan(plan,font='ScribSans'):
             c.setDash()
             for index,e in enumerate(plan['elements'],1):
                 x,y=point(e)
-                color={'blue':'#1682ae','red':'#d3405c','warm':'#cda548','white':'#5b6380'}[e['color']]
+                color={'blue':'#46f0ff','red':'#ff6b6b','warm':'#f2d777','white':'#bec7da'}[e['color']]
                 c.setFillColor(colors.HexColor(color));c.setStrokeColor(colors.HexColor(color))
                 if e['type']=='screen':c.rect(x-65,y-9,130,18,fill=0)
                 elif e['type'] in ('desk','monitor','computer','console','projector','splitter','video-card','psu','controller'):c.roundRect(x-16,y-7,32,14,3,fill=0)
@@ -355,7 +429,7 @@ def StagePlan(plan,font='ScribSans'):
                 c.setFont(font,7);c.drawCentredString(x,y+(15 if e['type']=='power' else -18),str(index))
                 if e['type']=='smoke':
                     c.line(x,y-12,x,y-27);c.line(x,y-27,x-4,y-22);c.line(x,y-27,x+4,y-22)
-            c.setFillColor(colors.HexColor('#5e6576'));c.setFont(font,8)
+            c.setFillColor(colors.HexColor('#b0b8c7'));c.setFont(font,8)
             c.drawCentredString(255,260,'PÚBLICO / PROSCENIO')
             c.drawCentredString(137,229,'TÉCNICA');c.drawCentredString(367,229,'SALA DE INTÉRPRETES')
             c.drawCentredString(255,515,'HDMI: azul - DMX: verde - detalles de todas las conexiones a continuación')

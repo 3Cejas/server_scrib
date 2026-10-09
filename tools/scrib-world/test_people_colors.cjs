@@ -15,7 +15,7 @@ function element() {
     showModal(){this.open=true;},close(){this.open=false;},listeners};
 }
 function client() {
-  const nodes = Object.fromEntries(['main','editor','dialog-title','dialog-kicker','dialog-content','message-recipients','server-health','delete-confirmation','delete-ticket-name','delete-error','breadcrumb','toast','user-name','user-avatar','connection'].map(k=>[k,element()]));
+  const nodes = Object.fromEntries(['main','editor','dialog-title','dialog-kicker','dialog-content','message-recipients','server-health','delete-confirmation','delete-ticket-name','delete-error','toast','user-name','user-avatar','connection'].map(k=>[k,element()]));
   nodes['delete-confirmation'].open=false;
   nodes.editor.querySelector=q=>nodes[q.slice(1)]||null;
   const listeners={},calls=[],responses={};
@@ -33,7 +33,7 @@ function client() {
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -50,6 +50,20 @@ function balanced(html) {
   assert.deepEqual(stack,[]);
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('one logo/status header keeps connection updates and section rendering without a breadcrumb node',async()=>{
+  const {app,nodes,state,responses}=client();
+  const html=read('index.html');balanced(html);
+  assert.equal((html.match(/class="brand-logo"/g)||[]).length,1);
+  assert.equal((html.match(/id="connection"/g)||[]).length,1);
+  assert.doesNotMatch(html,/topbar-brand|brand-word|workspace-caption|id="breadcrumb"/);
+  assert.match(html,/<header class="sidebar-heading">[\s\S]*?<\/header>/);
+  assert.match(html,/href="\/logout" aria-label="Cerrar sesión"/);
+  responses['/scrib/backstage/api/state']=state;
+  await app.refresh(false);assert.equal(nodes.connection.textContent,'● Ensayo local');
+  state.demo=false;await app.refresh(false);assert.equal(nodes.connection.textContent,'● Conectado');
+  assert.doesNotThrow(()=>app.renderPage());assert.match(nodes.main.innerHTML,/page-head/);
+});
 
 test('management uses full-card show links with actual financial totals, calendar date and venue',async()=>{
   const {app,state,event,responses}=client();

@@ -129,7 +129,6 @@
     const [page = "home", id] = route();
     const nav = page === "archive" ? "boards" : page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",lighting:"TÉCNICA",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"COMUNICACIÓN",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "availability") content = polls.list();
