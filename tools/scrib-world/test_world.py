@@ -45,20 +45,14 @@ class StoreTests(unittest.TestCase):
     def event(self, **changes):
         return self.create("event", {"title":"Bolo", "start":"2026-10-20T19:00", **changes})
 
-    def test_default_checklist_matches_screenshots(self):
-        template = next(x for x in self.store.snapshot()["items"] if x["id"] == "default-template")
-        self.assertEqual(len(template["tasks"]), 34)
-        self.assertEqual(template["tasks"][0]["title"], "Preparar Carnalizadores")
-        self.assertEqual(template["tasks"][-1]["title"], "20. Intérpretes listos")
+    def test_new_world_has_no_task_template(self):
+        self.assertFalse(any(x['kind'] == 'template' for x in self.store.snapshot()['items']))
+        self.assertTrue(any(x['id'] == 'dramaturgia' for x in self.store.snapshot()['items']))
 
-    def test_event_creates_board_and_all_tasks_in_todo(self):
+    def test_event_does_not_create_board_or_tasks(self):
         e = self.event()
-        items = self.store.snapshot()["items"]
-        tasks = [x for x in items if x["kind"] == "ticket" and x["boardId"] == e["boardId"]]
-        self.assertEqual(len(tasks), 34)
-        self.assertTrue(all(x["status"] == "todo" for x in tasks))
-        board = next(x for x in items if x["id"] == e["boardId"])
-        self.assertEqual(board["eventId"], e["id"])
+        self.assertEqual(e['boardId'], '')
+        self.assertFalse(any(x['kind']=='ticket' or x.get('eventId')==e['id'] for x in self.store.snapshot()['items']))
 
     def test_event_retry_is_idempotent_even_concurrently(self):
         token = str(uuid.uuid4())
@@ -66,7 +60,7 @@ class StoreTests(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(lambda _: self.create("event", payload, token), range(4)))
         self.assertEqual(len({x["id"] for x in results}), 1)
-        self.assertEqual(len([x for x in self.store.snapshot()["items"] if x["kind"] == "ticket"]), 34)
+        self.assertEqual(len([x for x in self.store.snapshot()["items"] if x["kind"] == "ticket"]), 0)
 
     def test_token_cannot_be_reused_with_other_payload(self):
         token = str(uuid.uuid4())
@@ -79,20 +73,20 @@ class StoreTests(unittest.TestCase):
         e = self.event()
         update = self.store.update(e["id"], dict(e, title="Nuevo nombre"), "angela", e["version"])
         self.assertEqual(update["boardId"], e["boardId"])
-        self.assertEqual(len([x for x in self.store.snapshot()["items"] if x["kind"] == "ticket"]), 34)
+        self.assertEqual(len([x for x in self.store.snapshot()["items"] if x["kind"] == "ticket"]), 0)
 
     def test_custom_template_and_existing_events_independent(self):
         t = self.create("template", {"title":"Pequeño formato", "tasks":[{"title":"Preparar luz", "labels":["TÉCNICA"]}]})
         e = self.event(templateId=t["id"])
         self.store.update(t["id"], dict(t, tasks=[{"title":"Otra tarea","labels":[]}]), "angela",t["version"])
         tasks = [x for x in self.store.snapshot()["items"] if x["kind"] == "ticket" and x.get("boardId") == e["boardId"]]
-        self.assertEqual(len(tasks), 1)
-        self.assertEqual(tasks[0]["title"], "Preparar luz")
+        self.assertEqual(len(tasks), 0)
+        self.assertEqual(self.store.details(t["id"])["item"]["tasks"][0]["title"], "Otra tarea")
 
-    def test_invalid_template_rolls_back_event(self):
-        with self.assertRaises(world.Problem):
-            self.event(templateId="does-not-exist")
-        self.assertFalse(any(x["kind"] == "event" for x in self.store.snapshot()["items"]))
+    def test_retired_template_field_is_ignored_even_on_old_clients(self):
+        e=self.event(templateId="does-not-exist")
+        self.assertEqual(e['boardId'], '')
+        self.assertFalse(any(x['kind']=='ticket' for x in self.store.snapshot()['items']))
 
     def test_move_between_every_status_and_reorder(self):
         a, b, c = self.task(), self.task(), self.task()
@@ -155,6 +149,11 @@ class StoreTests(unittest.TestCase):
 
     def test_event_archive_and_restore_preserve_previously_archived_tasks(self):
         e=self.event()
+        # Old production tasks remain recoverable, even after retiring their UI.
+        with self.store.transaction() as db:
+            board=self.store.insert(db,'board',dict(title='Legacy',eventId=e['id'],color='gold',description=''),'angela')
+            e=self.store.save(db,e,dict(boardId=board['id']),'angela')
+        self.task(boardId=board['id']);self.task(boardId=board['id'])
         tasks=[x for x in self.store.snapshot()["items"] if x["kind"] == "ticket"]
         self.store.archive(tasks[0]["id"],True,"angela",tasks[0]["version"])
         archived=self.store.archive(e["id"],True,"angela",e["version"])
@@ -169,7 +168,10 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(world.Problem):self.task()
         with self.assertRaises(world.Problem):self.store.comment(t["id"],"Nota","angela",str(uuid.uuid4()))
 
-    def test_default_template_not_archivable(self):
+    def test_legacy_templates_survive_restart(self):
+        with self.store.transaction() as db:
+            t=self.store.insert(db,'template',dict(title='Legacy',tasks=[]),'angela','default-template')
+        self.assertEqual(world.Store(self.tmp.name).details(t['id'])['item']['title'],'Legacy')
         with self.assertRaises(world.Problem):self.store.archive("default-template",True,"angela",1)
 
     def test_links_not_javascript_or_credentials(self):
@@ -214,7 +216,7 @@ class StoreTests(unittest.TestCase):
         event = self.event(start="2026-11-07")
         self.assertEqual(event['start'], '2026-11-07')
         tasks=[x for x in self.store.snapshot()['items'] if x['kind']=='ticket' and x['boardId']==event['boardId']]
-        self.assertEqual(len(tasks),34)
+        self.assertEqual(len(tasks),0)
         self.assertTrue(all(t['status']=='todo' for t in tasks))
         data=world.ics(self.store.snapshot()).decode()
         self.assertIn('DTSTART;VALUE=DATE:20261107',data)
@@ -233,7 +235,7 @@ class StoreTests(unittest.TestCase):
         no_hour=self.store.update(e['id'],dict(with_hour,start='2026-11-07'),'angela',with_hour['version'])
         self.assertEqual(no_hour['start'],'2026-11-07')
         self.assertEqual(no_hour['boardId'],e['boardId'])
-        self.assertEqual(len([x for x in self.store.snapshot()['items'] if x['kind']=='ticket']),34)
+        self.assertEqual(len([x for x in self.store.snapshot()['items'] if x['kind']=='ticket']),0)
 
     def test_max_lengths_and_invalid_kind(self):
         with self.assertRaises(world.Problem):self.task(title="x"*241)

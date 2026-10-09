@@ -38,7 +38,7 @@ class GameConfigTests(unittest.TestCase):
         self.assertEqual(len(event['gameConfig']['modos']), 6)
         edited = self.store.update(event['id'], dict(event, gameConfig={'parametros': {'duracion_minutos': 25}}), 'ensayo', event['version'])
         self.assertEqual(edited['gameConfig']['parametros']['duracion_minutos'], 25)
-        self.assertEqual(len([i for i in self.store.snapshot()['items'] if i['kind'] == 'ticket']), 34)
+        self.assertEqual(len([i for i in self.store.snapshot()['items'] if i['kind'] == 'ticket']), 0)
 
     def test_older_clients_preserve_config_and_explicit_null_removes_it(self):
         event = self.event(gameConfig={})

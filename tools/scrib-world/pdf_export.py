@@ -15,7 +15,7 @@ CATEGORIES = {'props': 'Utilería', 'costume': 'Vestuario', 'furniture': 'Mobili
               'technical': 'Técnica', 'other': 'Otros'}
 
 
-def generate(store, data, user):
+def generate(store, data, user, *, agreement_token=None):
     # Optional imports keep diagnostics/legacy startup usable without the renderer.
     from reportlab.lib import colors
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -30,7 +30,7 @@ def generate(store, data, user):
     kind = data.get('kind')
     if kind not in ('inventory', 'event', 'lighting', 'report', 'invoice', 'agreement'):
         raise problem('Este documento no se puede exportar.', 400)
-    if kind in ('invoice', 'agreement') and user['role'] != 'admin':
+    if kind in ('invoice', 'agreement') and user['role'] != 'admin' and not (kind == 'agreement' and agreement_token):
         raise problem('Documento reservado a administración.', 403)
     title = str(data.get('title') or '')
     if len(title) > 160:
@@ -67,6 +67,9 @@ def generate(store, data, user):
     styles.add(ParagraphStyle('Score',fontName='ScribSansBold',fontSize=27,leading=34,
                               textColor=ink,spaceAfter=12))
     styles.add(ParagraphStyle('Check',fontName=font,fontSize=9,leading=13,textColor=ink))
+    styles.add(ParagraphStyle('AgreementBody', parent=styles['Normal'], fontSize=10.5, leading=15))
+    styles.add(ParagraphStyle('AgreementClause', parent=styles['Heading3'], fontSize=10.5,
+                              leading=16, spaceBefore=7, spaceAfter=5, textColor=gold))
     clean = lambda s: ''.join(c for c in str(s or '').replace('\u2014','-').replace('\u2013','-') if ord(c) < 0x1f000)
     def para(value, style='Normal'):
         return Paragraph(escape(clean(value)).replace('\n', '<br/>'), styles[style])
@@ -270,12 +273,45 @@ def generate(store, data, user):
                 if not muses:
                     story.append(para('Sin musas registradas.','Small'))
         elif kind == 'agreement':
+            if agreement_token:
+                authorized = store.business.lookup(db, agreement_token)
+                if not authorized or authorized['id'] != data.get('id'):
+                    raise problem('Este enlace no permite descargar este acuerdo.', 403)
             agreement = db.execute('SELECT body FROM agreements WHERE id=?',(data.get('id',''),)).fetchone()
             if not agreement:
                 raise problem('Acuerdo no encontrado.',404)
             document = __import__('json').loads(agreement['body'])
-            heading(title or 'Acuerdo de colaboración',document['name'])
-            story.append(para(document['text']))
+            lines = document['text'].splitlines()
+            standard = lines and lines[0].startswith('ACUERDO DE COLABORACIÓN')
+            heading(title or ('Acuerdo de colaboración artística puntual' if standard else 'Acuerdo de colaboración'),
+                    document.get('eventTitle', '') + ' · ' + document['name'])
+            if standard:
+                lines = lines[2:]
+            acceptance_index = None
+            for line in lines:
+                if line.startswith('Fdo. LA COMPAÑÍA'):
+                    break
+                if not line.strip():
+                    story.append(Spacer(1, 6))
+                elif line == 'CLÁUSULAS' or re.match(r'^[A-ZÁÉÍÓÚÑ]+\. ', line):
+                    if line.startswith('DECIMOCUARTA.'):
+                        acceptance_index = len(story)
+                    story.append(para(line, 'AgreementClause'))
+                else:
+                    story.append(para(line, 'AgreementBody'))
+            if any(line.startswith('Fdo. LA COMPAÑÍA') for line in lines):
+                names = lines[-1].split('                         ', 1)
+                signatures = Table([[
+                    [para('LA COMPAÑÍA', 'AgreementClause'), Spacer(1, 32),
+                     para(document.get('representative') or names[0], 'Small')],
+                    [para('LA PERSONA COLABORADORA', 'AgreementClause'), Spacer(1, 32),
+                     para(names[-1] if len(names) > 1 else document['name'], 'Small')]]],
+                     colWidths=[255.5,255.5])
+                signatures.setStyle(card_style())
+                closing = story[acceptance_index:] if acceptance_index is not None else []
+                if acceptance_index is not None:
+                    del story[acceptance_index:]
+                story.append(KeepTogether(closing+[Spacer(1,12), signatures]))
         else:
             records = store.business.overview()['records']
             invoice = next((r for r in records if r['type']=='invoice' and r['id']==data.get('id')),None)
@@ -287,8 +323,11 @@ def generate(store, data, user):
             for label, party in [('Emisor',invoice['issuer']),('Destinatario',invoice['recipient'])]:
                 section(label)
                 story.append(para('\n'.join(str(party.get(k,'')) for k in ('legalName','name','taxId','address'))))
+            section('Concepto')
+            story.append(para(invoice.get('concept') or 'Participación en <SCRI> B · '+invoice['eventTitle']))
+            story.append(Spacer(1, 12))
             for line in invoice['lines']:
-                story.append(para(str(line['date'])+' - '+f"{line['amount']/100:.2f} EUR"))
+                story.append(para(str(line.get('concept') or line['date'])+' - '+f"{line['amount']/100:.2f} EUR"))
             for label,key in [('Base imponible','base'),('IVA','vat'),('Retención','withholding'),('Total','total')]:
                 value = -invoice[key] if key=='withholding' else invoice[key]
                 story.append(para(label+': '+f"{value/100:.2f} EUR",'Heading3'))
@@ -392,12 +431,12 @@ def PlanImage(encoded,problem):
         raw=base64.b64decode(encoded,validate=True)
         with PillowImage.open(io.BytesIO(raw)) as image:
             width,height=image.size
-            if image.format!='PNG' or not 1000<=width<=2000 or height*4!=width*5 or width*height>5_000_000:
+            if image.format!='PNG' or not 1000<=width<=2000 or (height*4!=width*5 and height*5!=width*8) or width*height>5_000_000:
                 raise ValueError('Invalid plan dimensions')
             image.verify()
     except (ValueError,binascii.Error,OSError,PillowImage.DecompressionBombError):
         raise problem('No se pudo leer la imagen del plano. Vuelve a exportar desde Técnica.') from None
-    result=Image(io.BytesIO(raw),width=428,height=535);result.hAlign='CENTER'
+    result=Image(io.BytesIO(raw),width=535*width/height,height=535);result.hAlign='CENTER'
     return result
 
 
@@ -413,9 +452,14 @@ def StagePlan(plan,font='ScribSans'):
             from lighting import coordinates
             c.setFillColor(colors.HexColor('#101217'));c.roundRect(0,10,511,520,8,fill=1,stroke=0)
             c.setStrokeColor(colors.HexColor('#596173'))
-            c.rect(35,282,430,216,fill=0);c.rect(30,38,215,204,fill=0);c.rect(260,38,215,204,fill=0)
+            c.rect(35,530-620*.31,430,540*.31,fill=0)
+            c.rect(30,530-1240*.31,450,510*.31,fill=0)
+            c.rect(30,530-1580*.31,450,300*.31,fill=0)
+            c.setFont(font,9)
+            for label,y in [('TÉCNICA',745),('SALA INTÉRPRETES',1310)]:
+                c.setFillColor(colors.HexColor('#bec7da'));c.drawCentredString(255,530-y*.31,label)
             def point(e):
-                x,y=coordinates(e);return x/2,530-y*.4
+                x,y=coordinates(e);return x/2,530-y*.31
             nodes={e['id']:e for e in plan['elements']}
             # Numbered symbols avoid long labels colliding. Full names below the diagram.
             for connection in plan['connections']:

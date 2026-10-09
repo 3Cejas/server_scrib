@@ -172,5 +172,18 @@ class BusinessHttpTests(BusinessTests):
         self.assertEqual(status,200)
         self.assertIn(self.person['name'],preview['previews'][0]['text'])
         self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+    def test_personal_link_downloads_branded_pdf_without_exposing_other_agreements(self):
+        agreement=self.agreement()
+        with self.store.connect() as db:
+            token=db.execute('SELECT token FROM agreements WHERE id=?',(agreement['id'],)).fetchone()['token']
+        route='/scrib-disponibilidad/'+token+'/acuerdo.pdf'
+        status,headers,raw=self.call(route,headers={'X-Scrib-Bridge':''})
+        self.assertEqual(status,200)
+        self.assertEqual(headers['Content-Type'],'application/pdf')
+        self.assertTrue(raw.startswith(b'%PDF'))
+        self.assertIn('attachment',headers['Content-Disposition'])
+        self.assertEqual(self.call('/scrib-disponibilidad/'+'A'*43+'/acuerdo.pdf')[0],404)
+        self.b.agreement_state(dict(id=agreement['id'],status='revoked'),'admin')
+        self.assertEqual(self.call(route)[0],404)
 
 if __name__=='__main__':unittest.main()

@@ -5,9 +5,11 @@ window.ScribPlanImage = async function(source) {
   const copy=source.cloneNode(true),properties=['fill','stroke','stroke-width','stroke-dasharray','stroke-linejoin','stroke-linecap','opacity','fill-opacity','stroke-opacity','font-family','font-size','font-weight','font-style','letter-spacing','text-anchor','paint-order','visibility'];
   const originals=[source,...source.querySelectorAll('*')],clones=[copy,...copy.querySelectorAll('*')];
   originals.forEach((node,i)=>{const style=getComputedStyle(node);clones[i].setAttribute('style',properties.map(p=>p+':'+style.getPropertyValue(p).replace(/url\(["']?[^)#]*#([^)'"\s]+)["']?\)/g,'url(#$1)')).join(';'));});
-  copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('width','1000');copy.setAttribute('height','1250');
+  const height=source.viewBox.baseVal.height;
+  if(![1250,1600].includes(height))throw new Error('Formato de plano no válido.');
+  copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('width','1000');copy.setAttribute('height',String(height));
   const background=document.createElementNS('http://www.w3.org/2000/svg','rect');
-  for(const [key,value] of Object.entries({width:'1000',height:'1250',fill:'#0c101b'}))background.setAttribute(key,value);
+  for(const [key,value] of Object.entries({width:'1000',height:String(height),fill:'#0c101b'}))background.setAttribute(key,value);
   copy.insertBefore(background,copy.firstChild);
   const serialized=new XMLSerializer().serializeToString(copy),image=new Image();
   await new Promise((resolve,reject)=>{
@@ -15,9 +17,9 @@ window.ScribPlanImage = async function(source) {
     image.onload=()=>{clearTimeout(timeout);resolve();};image.onerror=()=>{clearTimeout(timeout);reject(new Error('No se pudo preparar el dibujo del plano.'));};
     image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(serialized);
   });
-  const canvas=document.createElement('canvas');canvas.width=1500;canvas.height=1875;
+  const canvas=document.createElement('canvas');canvas.width=1500;canvas.height=height*1.5;
   const context=canvas.getContext('2d');if(!context)throw new Error('No se pudo preparar el dibujo del plano.');
-  context.drawImage(image,0,0,1500,1875);
+  context.drawImage(image,0,0,canvas.width,canvas.height);
   return canvas.toDataURL('image/png').split(',')[1];
 };
 window.ScribExport = async function(state, data, button) {

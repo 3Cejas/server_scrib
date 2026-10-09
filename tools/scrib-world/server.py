@@ -175,9 +175,7 @@ class Store:
             db.executescript(AVAILABILITY_SCHEMA)
             db.executescript(BUSINESS_SCHEMA)
             db.executescript(DOCUMENT_TRACE_SCHEMA)
-            if not db.execute("SELECT 1 FROM items WHERE kind='template'").fetchone():
-                tasks = json.loads((ROOT / "default_tasks.json").read_text())
-                self.insert(db, "template", {"title": "Preparación de un bolo", "tasks": tasks}, "sistema", "default-template")
+            if not db.execute("SELECT 1 FROM items WHERE id='dramaturgia'").fetchone():
                 self.insert(db, "board", {"title": "Dramaturgia", "description": "Ideas, escritura, ensayos y decisiones creativas.", "eventId": "", "color": "violet"}, "sistema", "dramaturgia")
         os.chmod(self.path, 0o600)
 
@@ -404,10 +402,18 @@ class Store:
             if len({(c["personId"], c["role"], c["team"]) for c in body["cast"]}) != len(cast):
                 raise Problem("Hay una entrada del elenco duplicada.")
             if existing:
-                body["boardId"] = existing["boardId"]
+                body["boardId"] = existing.get("boardId", "")
                 for key in ("historical", "historyKey", "sourcePollId", "sourceSlotId", "parentEventId"):
                     if key in existing:
                         body[key] = existing[key]
+            parent_id = data.get('parentEventId', (existing or {}).get('parentEventId', ''))
+            if parent_id:
+                if body['eventType'] != 'rehearsal':
+                    raise Problem('Solo los ensayos pueden asociarse a otro bolo.')
+                parent = self.item(db, text(parent_id, 100, True), 'event', True)
+                if parent.get('eventType', 'show') != 'show' or parent['id'] == (existing or {}).get('id'):
+                    raise Problem('Elige un bolo válido para este ensayo.')
+                body['parentEventId'] = parent['id']
         return body
 
     def all(self, db, kind=None):
@@ -442,14 +448,10 @@ class Store:
                 return result
             body = self.validate(db, kind, data)
             if kind == "event":
-                template = self.item(db, data.get("templateId", "default-template"), "template", True) if body["eventType"] != "rehearsal" else {"tasks": []}
-                event_id, board_id = str(uuid.uuid4()), str(uuid.uuid4())
-                body["boardId"] = board_id
-                result = self.insert(db, kind, body, actor, event_id)
-                self.insert(db, "board", {"title": self.board_title(body["title"]), "description": f"Preparación · {body['venue']}", "color": "gold", "eventId": event_id}, actor, board_id)
-                for pos, task in enumerate(template["tasks"]):
-                    ticket = dict(task, boardId=board_id, status="todo", priority="normal", due="", assignees=[], checklist=[], blockedReason="", position=pos)
-                    self.insert(db, "ticket", ticket, actor)
+                # Retired feature: preserve old boards/templates in storage, but
+                # never generate production tasks for new bolos or rehearsals.
+                body["boardId"] = ""
+                result = self.insert(db, kind, body, actor)
             else:
                 result = self.insert(db, kind, body, actor)
                 if kind == "availability":
@@ -502,9 +504,9 @@ class Store:
             targets = [item]
             if item["kind"] in ("event", "board"):
                 board_id = item["boardId"] if item["kind"] == "event" else ident
-                if archived:
+                if archived and board_id:
                     targets += [x for x in self.all(db) if not x["archived"] and x["id"] != ident and (x.get("boardId") == board_id or x["id"] == board_id)]
-                else:
+                elif not archived:
                     targets += [x for x in self.all(db) if x["archived"] and x["id"] != ident and x.get("archiveGroup") == item.get("archiveGroup")]
             if item["kind"] == "board" and item.get("eventId"):
                 raise Problem("Archiva o recupera el bolo desde su ficha, junto con su tablero.")
@@ -945,6 +947,19 @@ class Handler(BaseHTTPRequestHandler):
         tail = route[len(PUBLIC_PREFIX):]
         if self.command in ('GET', 'HEAD') and tail in ('form.js', 'form.css'):
             return self.reply(200, (ROOT / 'public' / tail).read_bytes(), 'application/javascript; charset=utf-8' if tail.endswith('.js') else 'text/css; charset=utf-8')
+        download = re.fullmatch('(' + TOKEN_RE + ')/acuerdo.pdf', tail)
+        if download and self.command in ('GET', 'HEAD'):
+            token = download.group(1)
+            with self.server.store.connect() as db:
+                agreement = self.server.store.business.lookup(db, token)
+                if not agreement:
+                    raise Problem('Este enlace ya no está disponible.', 404)
+                ident = agreement['id']
+            from pdf_export import generate
+            raw = generate(self.server.store, {'kind':'agreement', 'id':ident},
+                           {'role':'public', 'username':'enlace-acuerdo-'+ident}, agreement_token=token)
+            return self.reply(200, raw, 'application/pdf',
+                              {'Content-Disposition':'attachment; filename="SCRIB-acuerdo-colaboracion.pdf"'})
         match = re.fullmatch('(api/)?(' + TOKEN_RE + ')/?', tail)
         if not match:
             raise Problem('Este enlace ya no está disponible.', 404)
@@ -1163,9 +1178,6 @@ def demo_data(store):
     person = store.create("person", {"name": "Elenco de prueba", "roles": ["Escritura", "Interpretación"]}, "ensayo", "demo_person_request")
     event = store.create("event", {"title": "Ensayo general · datos ficticios", "start": (datetime.now(TZ) + timedelta(days=8)).isoformat(timespec="minutes"), "venue": "Sala de ensayo", "city": "Madrid", "status": "pending", "cast": [{"personId": person["id"], "role": "Escritura", "team": "blue"}]}, "ensayo", "demo_event_request")
     store.create("ticket", {"title": "Explorar la frase final", "description": "Probar dos cierres y compartir sensaciones en los comentarios.", "boardId": "dramaturgia", "labels": ["ESCRITURA"], "assignees": ["ensayo"], "priority": "high", "checklist": [{"text": "Lectura en voz alta", "done": False}]}, "ensayo", "demo_ticket_request")
-    items = store.snapshot()["items"]
-    first = next(x for x in items if x["kind"] == "ticket" and x["boardId"] == event["boardId"])
-    store.move(first["id"], "done", "", "ensayo", first["version"])
 
 
 def main():

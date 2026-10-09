@@ -20,7 +20,7 @@
   function renderAgreement(){
     document.title='Acuerdo SCRIB · '+poll.name;
     root.innerHTML=`<p class="eyebrow">✍ TU ACUERDO DE COLABORACIÓN</p><h1>${esc(poll.title)}</h1><p class="description">${esc(poll.name)} · enlace personal, no lo reenvíes.</p><button type="button" id="print-agreement">Descargar / guardar acuerdo en PDF</button><article class="agreement-document">${esc(poll.text)}</article><div class="notice no-print">El PDF subido se conserva sin modificar. La organización revisará el documento; subirlo no valida automáticamente la identidad ni la firma.</div><section class="no-print"><h2>Devolver el acuerdo firmado</h2><p>${poll.status==='reviewed'?'✓ Documento recibido y revisado por organización.':poll.uploads.length?'✓ Documento recibido, pendiente de revisión. Puedes corregirlo subiendo otra versión.':'Firma el documento y sube el PDF aquí (máximo 3 MB).'}</p>${poll.uploads.map(u=>`<p class="hint">${esc(u.name)} · ${esc(u.created)}</p>`).join('')}${poll.status==='reviewed'?'':`<form id="signed-upload"><label class="field">PDF firmado<input type="file" name="pdf" accept="application/pdf,.pdf" required></label><p class="error" role="alert"></p><p class="success" role="status"></p><button class="primary" type="submit">Subir PDF firmado</button></form>`}</section>`;
-    root.querySelector('#print-agreement').onclick=()=>window.print();
+    root.querySelector('#print-agreement').onclick=()=>{location.href='/scrib-disponibilidad/'+token+'/acuerdo.pdf';};
     root.querySelector('#signed-upload')?.addEventListener('submit',async e=>{
       e.preventDefault();const form=e.target,button=form.querySelector('button'),file=form.elements.namedItem('pdf').files[0];
       if(button.disabled)return;

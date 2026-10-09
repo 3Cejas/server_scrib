@@ -127,7 +127,7 @@ test('cross-board dependencies are visible at both ends, safe and reflect comple
 test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{
   const html=read('index.html'),nav=html.match(/<nav aria-label="Secciones">([\s\S]*?)<\/nav>/)[1];
   const entries=[...nav.matchAll(/<a\b[^>]*data-nav="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
-  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','messages','templates','finance']);
+  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','messages','finance']);
   for(const [,route,content] of entries){
     assert.match(content,/<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">/);
     assert.equal((content.match(/<svg/g)||[]).length,1,route);
@@ -168,11 +168,11 @@ test('communication has explicit send actions without individual confirmation ch
   assert.match(html,/data-action="send-message"/);assert.match(html,/data-action="send-messages"/);
   assert.doesNotMatch(html,/message-confirm|type="checkbox"|confirma el teléfono/i);
 });
-test('whole bolo card is a native link without nesting its independent task link',()=>{
+test('whole bolo card is a native link without retired per-bolo tasks',()=>{
   const {app,event}=client(),html=app.eventCard(event);balanced(html);
   assert.match(html,/<a class="event-card-link" href="#event\/e1" aria-label="Abrir bolo León · función/);
   assert.equal((html.match(/href="#event\/e1"/g)||[]).length,1);
-  assert.match(html,/<\/a><a class="button small event-task-link" href="#board\/b1">Abrir tareas ↗<\/a>/);
+  assert.doesNotMatch(html,/event-task-link|Abrir tareas|Preparación/);
   const primary=html.match(/<a class="event-card-link"[^>]*>([\s\S]*?)<\/a>/)[1];
   assert.doesNotMatch(primary,/<a\b|<button\b/);
   assert.match(read('app.css'),/\.event-card-link::after\{content:"";position:absolute;inset:0/);
@@ -686,4 +686,18 @@ test('an unexpected successful HTTP response cannot falsely confirm a deletion',
   app.askDelete(ticket.id);await app.confirmDelete();
   assert.match(nodes['delete-error'].textContent,/No se ha podido confirmar/);
   assert.ok(nodes['delete-confirmation'].open);assert.ok(state.items.some(x=>x.id===ticket.id));
+});
+
+test('bolos support linked manual rehearsals with no templates or required-cast banner',()=>{
+  const {app,state,event,nodes}=client();
+  app.openEvent('',undefined,event.id);
+  const form=nodes['dialog-content'].innerHTML;
+  assert.match(form,/name="eventType"[^>]*value="rehearsal"/);
+  assert.match(form,/name="parentEventId"[^>]*value="e1"/);
+  assert.doesNotMatch(form,/Reparto obligatorio|templateId|Plantilla de tareas/);
+  state.items.push({...event,id:'rehearsal',title:'Ensayo manual',eventType:'rehearsal',parentEventId:'e1',start:'2026-11-01T19:00'});
+  const html=app.renderEvent(event.id);balanced(html);
+  assert.ok(html.includes('#event/rehearsal'));assert.match(html,/Ensayo manual/);
+  assert.doesNotMatch(html,/Reparto obligatorio|Abrir tareas|tareas completadas/);
+  assert.ok(!app.renderEvent('rehearsal').includes('#poll/undefined'));
 });

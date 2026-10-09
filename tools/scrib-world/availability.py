@@ -220,10 +220,9 @@ class Availability:
             title = self.text(data.get('title', ('Ensayo · ' + poll['title'])[:240]), 240, True)
             description = 'Asistentes seleccionados:\n' + '\n'.join(names)
             body = self.store.validate(db, 'event', dict(title=title, description=description, start=slot['start'], end=slot['end'], venue=self.text(data.get('location', poll['location']), 200), status='confirmed', eventType='rehearsal', cast=cast))
-            event_id, board_id = str(uuid.uuid4()), str(uuid.uuid4())
-            body.update(boardId=board_id, sourcePollId=poll['id'], sourceSlotId=slot['id'], parentEventId=poll['eventId'])
+            event_id = str(uuid.uuid4())
+            body.update(boardId='', sourcePollId=poll['id'], sourceSlotId=slot['id'], parentEventId=poll['eventId'])
             event = self.store.insert(db, 'event', body, actor, event_id)
-            self.store.insert(db, 'board', dict(title=title, description='Organización del ensayo', color='violet', eventId=event_id), actor, board_id)
             close = data.get('close', True)
             if type(close) is not bool:
                 raise self.problem('Estado de cierre no válido.')

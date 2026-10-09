@@ -62,9 +62,9 @@ def upgrade(data):
 def coordinates(element):
     zone = element.get('zone', 'stage')
     if zone == 'technical':
-        return 70 + 4 * element['x'], 755 + 4.8 * element['y']
+        return 100 + 8 * element['x'], 755 + 4.8 * element['y']
     if zone == 'actors':
-        return 530 + 4 * element['x'], 755 + 4.8 * element['y']
+        return 100 + 8 * element['x'], 1290 + 2.5 * element['y']
     return 100 + 8 * element['x'], 100 + 5 * element['y']
 
 

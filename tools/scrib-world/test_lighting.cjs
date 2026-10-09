@@ -196,3 +196,14 @@ test('v2 UI migration keeps connection notes and completed checks and never muta
   const p=calls[0].data.plan;assert.equal(p.elements.length,28);assert.equal(p.elements[0].x,18);assert.equal(p.connections[0].from,'video-card');
   assert.equal(p.connections[0].notes,'Mantener');assert.ok(p.checklist[0].done);assert.ok(p.checklist.slice(18).every(c=>!c.done));
 });
+
+test('technical area spans full width and actors room is below, preserving equipment positions',()=>{
+  const {app}=setup(),html=app.render();
+  assert.match(html,/viewBox="0 0 1000 1600"/);
+  assert.match(html,/x="60" y="730" width="900"/);
+  assert.match(html,/x="60" y="1280" width="900"/);
+  const translation=id=>html.split('data-lighting-node="'+id+'"')[0].split('transform="translate(').at(-1).split(')"')[0].split(',').map(Number);
+  const [techX,techY]=translation('game-computer'),[actorsX,actorsY]=translation('actors-blue');
+  assert.ok(actorsY>techY+100);
+  assert.equal(techX,100+8*defaults().elements.find(e=>e.id==='game-computer').x);
+});

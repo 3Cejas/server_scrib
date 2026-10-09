@@ -11,7 +11,7 @@ window.ScribMaterials = function(h) {
   }
   function list() {
     return h.pageHead('LA CAJA DE HERRAMIENTAS','Materiales','Las presentaciones de SCRIB, reunidas aquí con sus imágenes, vídeos y animaciones. Acceso exclusivo del equipo.',
-      '<a class="button" href="/scrib/backstage/android/scrib.apk" download>↓ App Android</a>'+(h.isAdmin?.()?h.btn('verify-document','✓ Comprobar PDF'):''))+
+      (h.isAdmin?.()?h.btn('verify-document','✓ Comprobar PDF'):''))+
       (materials?`<div class="grid cols2 material-grid">${materials.map(m=>`<article class="panel material-card"><a href="#material/${h.esc(m.id)}" class="material-cover" aria-label="Abrir ${h.esc(m.title)}">${m.coverType==='slide'?`<iframe class="material-slide-cover" src="${h.esc(m.cover)}" title="Primera diapositiva de ${h.esc(m.title)}" sandbox="allow-same-origin" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>`:`<img src="${h.esc(m.cover)}" alt="" loading="lazy">`}<span>▶ Abrir presentación</span></a><div class="material-body"><div class="label-group">${m.tags.map(t=>h.badge(t,'violet')).join('')}${h.badge(m.slides+' diapositivas','cyan')}</div><h2>${h.esc(m.title)}</h2><p class="muted">${h.esc(m.description)}</p><a href="#material/${h.esc(m.id)}" class="button primary">Presentar ↗</a></div></article>`).join('')}</div>`:waiting());
   }
   function afterRender() {

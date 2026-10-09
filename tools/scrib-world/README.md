@@ -8,6 +8,20 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 
 ## Producción y PDFs
 
+- Ensayos manuales desde cada bolo, además de los elegidos por disponibilidad.
+  Son eventos `rehearsal` asociados por `parentEventId` y se muestran en el calendario.
+- El acuerdo conserva las 14 cláusulas del modelo Imparables 2026 de Drive.
+  Sus PDF tienen ambos logos, títulos de cláusula y firmas junto a aceptación.
+  El enlace personal descarga el mismo PDF maquetado, no la impresión del navegador;
+  solo permite descargar su propio acuerdo mientras no haya caducado o sido revocado.
+- Concepto de factura automático: roles, espectáculo, bolo y días liquidados.
+  Datos de la entidad en registros privados, tipos fiscales individuales y
+  numeración a revisar por el emisor; los documentos siguen siendo borradores.
+  Los datos importados con domicilio pendiente no habilitan generación de acuerdos/facturas.
+- En Técnica la sala de intérpretes se sitúa debajo de la zona técnica,
+  ambas a todo el ancho. Arrastre, deshacer y PDF usan las nuevas coordenadas
+  sin cambiar las posiciones normalizadas guardadas.
+
 - Inventario azul/rojo: dos kits completos, con selección de objetos al exportar.
   Cada bolo incluye por defecto todos los objetos activos, salvo selección explícita.
   Se preservan los datos antiguos de ubicación/responsable sin mostrarlos.
@@ -85,7 +99,7 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   tarjetas clicables y lápiz de edición independiente. Logo original de SCRIB
   en cabecera y favicon; sin los accesos a Mundo Sutura, cambiar mundo o videojuego.
   La autenticación sigue siendo la misma, aunque se retira su texto de la interfaz.
-- Kanban de tareas y un tablero por bolo. Arrastre y reordenación de tarjetas
+- Kanban de tareas generales. Arrastre y reordenación de tarjetas
   con ratón o asa táctil; flechas entre columnas para teclado/móvil, sin
   desplegables de estado. Editar conserva la columna actual. Las tarjetas toman
   el color de su columna y muestran cada responsable con un chip de nombre.
@@ -103,7 +117,7 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   convocatoria del elenco, lugar, horario, información y hoja de llamada imprimible.
 - Se pueden crear bolos con fecha y hora pendiente: se muestran como «Hora pendiente»,
   se exportan como fecha (sin inventar las 00:00) y bloquean `{hora}` en WhatsApp hasta
-  completarla. Añadir la hora después no duplica ni reinicia las tareas del tablero.
+  completarla. Añadir la hora después conserva el elenco y la configuración.
 - Fichas reutilizables de personas: nombre completo, especialidades, biografía,
   redes y foto privada. Un papel y equipo diferentes en cada función.
 - Fichas visuales con tarjetas de teléfono y `@usuario` de Instagram, enlaces
@@ -131,9 +145,8 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 - Cada objeto del inventario es un botón accesible de edición de toda la tarjeta,
   sin lápiz aparte. Se retiran del editor el enlace de producto y la casilla de
   imagen de referencia; editar otros datos conserva las referencias existentes.
-- Plantilla inicial de 34 tareas transcritas de las tres capturas del usuario.
-  Todas se crean en TO DO. Plantillas editables/duplicables; los cambios no alteran
-  bolos anteriores ni reinician su progreso.
+- Retirados el menú de plantillas de tareas y las tareas automáticas por bolo.
+  Los datos antiguos se conservan en SQLite y respaldos, sin borrarlos.
 - Archivo recuperable. Archivar/recuperar un bolo opera también sobre su tablero y
   sus tareas, sin recuperar tareas que ya estaban archivadas por separado.
 - Papelera en cada ticket y en su ficha: eliminación definitiva con confirmación,

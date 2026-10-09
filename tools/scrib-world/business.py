@@ -63,11 +63,14 @@ class Business:
             if kind == 'settings':
                 if ident != 'organizer':
                     raise self.problem('Configuración no válida.')
-                body = {k: self.text(data.get(k, ''), limit, k in ('name', 'taxId', 'address', 'representative', 'template'))
-                        for k, limit in [('name',200), ('taxId',40), ('address',1000), ('representative',200), ('template',22000)]}
-                if data.get('confirmed') is not True:
+                if type(data.get('confirmed')) is not bool:
                     raise self.problem('Revisa y confirma los datos de la entidad y la plantilla.')
-                body['confirmed'] = True
+                confirmed = data['confirmed']
+                body = {k: self.text(data.get(k, ''), limit, k in ('name', 'taxId', 'representative', 'template') or k == 'address' and confirmed)
+                        for k, limit in [('name',200), ('taxId',40), ('address',1000), ('representative',200), ('template',22000)]}
+                # Import only known fiscal fields when a source conflict remains.
+                # Draft settings can be previewed but cannot generate documents.
+                body['confirmed'] = confirmed
             elif kind == 'billing':
                 self.store.item(db, ident, 'person', True)
                 body = {k: self.text(data.get(k,''), limit) for k, limit in [('legalName',200), ('taxId',40), ('address',1000), ('iban',40), ('source',2000)]}
@@ -198,7 +201,7 @@ class Business:
                 'entidad':settings.get('name',''),'cif':settings.get('taxId',''),'domicilio':settings.get('address',''),
                 'representante':settings.get('representative',''),'bolo':event['title'],'fecha':dates,
                 'lugar':' · '.join(filter(None,[event['venue'],event['city'],event['address']])),
-                'papel':roles,'fecha_firma':self.now()[:10]}
+                'papel':roles,'fecha_firma':self.event_date(self.now()[:10], True)}
         rendered=settings.get('template') or ((Path(__file__).parent/'agreement_template.txt').read_text() if preview else '')
         for key,value in fields.items():
             rendered=rendered.replace('{'+key+'}',value or ('['+key.replace('_',' ').capitalize()+' pendiente]' if preview else ''))
@@ -249,7 +252,8 @@ class Business:
                 billing=self.record(db,'billing',person_id)
                 rendered=self.render_agreement(event,person,billing,settings)
                 ident=str(uuid.uuid4());token=self.store.availability.new_token()
-                body={'name':person['name'],'eventTitle':event['title'],'text':rendered,'created':self.now(),'templateVersion':settings['version'],'eventVersion':event['version']}
+                body={'name':person['name'],'eventTitle':event['title'],'text':rendered,'representative':settings['representative'],
+                      'created':self.now(),'templateVersion':settings['version'],'eventVersion':event['version']}
                 db.execute('INSERT INTO agreements VALUES(?,?,?,?,?,?,?,?)', (ident,event_id,person_id,hashlib.sha256(token.encode()).hexdigest(),token,json.dumps(body,ensure_ascii=False),'generated',time.time()+90*86400))
                 generated.append(ident)
             self.store.activity(db,event_id,actor,'acuerdos preparados (sin envío)')
@@ -329,13 +333,27 @@ class Business:
             for d in settlement.get('days',[]):
                 lines.extend({'date':d['date'],'amount':a['amount']} for a in d['allocations'] if a['personId']==person_id)
             if not lines:raise self.problem('No hay importes asignados a esta persona en el bolo.')
+            roles = list(dict.fromkeys(c['role'] for c in event['cast'] if c['personId'] == person_id))
+            if not roles:
+                raise self.problem('Asigna el rol de esta persona en el elenco del bolo antes de preparar su factura.')
+            def join(parts):
+                conjunction = ' e ' if re.match(r'^(i|hi(?![ae]))', parts[-1], re.IGNORECASE) else ' y '
+                return conjunction.join([', '.join(parts[:-1]), parts[-1]]) if len(parts) > 1 else parts[0]
+            role_text = join(roles)
+            days = sorted(set(l['date'] for l in lines))
+            context = event['title'] + (' · ' + event['venue'] if event.get('venue') else '')
+            concept = ('Remuneración por los roles de ' + role_text + ' en el espectáculo <SCRI> B, en el marco de ' +
+                       context + ', ' + ('el día ' if len(days) == 1 else 'los días ') +
+                       join([self.event_date(day, True) for day in days]) + '.')
+            for line in lines:
+                line['concept'] = role_text + ' · ' + self.event_date(line['date'], True)
             base=sum(l['amount'] for l in lines)
             vat=int((Decimal(base)*Decimal(billing['vat'])/100).quantize(Decimal(1),rounding=ROUND_HALF_UP))
             withholding=int((Decimal(base)*Decimal(billing['withholding'])/100).quantize(Decimal(1),rounding=ROUND_HALF_UP))
             ident=str(uuid.uuid4())
             body={'id':ident,'eventId':event_id,'personId':person_id,'eventTitle':event['title'],'issuer':billing,'recipient':settings,
-                  'date':self.date(data.get('date','')),'series':self.text(data.get('series',''),60),'number':self.text(data.get('number',''),60),
-                  'lines':lines,'base':base,'vat':vat,'withholding':withholding,'total':base+vat-withholding,'created':self.now(),'status':'draft'}
+                  'date':self.date(data.get('date','')),'series':self.text(data.get('series','SUTURA'),60),'number':self.text(data.get('number',''),60),
+                  'concept':concept,'roles':roles,'lines':lines,'base':base,'vat':vat,'withholding':withholding,'total':base+vat-withholding,'created':self.now(),'status':'draft'}
             if not body['date']:raise self.problem('Indica la fecha del borrador.')
             db.execute('INSERT INTO business_records VALUES(?,?,?,1)',('invoice',ident,json.dumps(body,ensure_ascii=False)))
             self.store.activity(db,event_id,actor,'borrador de factura preparado (no emitido ni pagado)')
