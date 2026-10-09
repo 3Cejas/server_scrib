@@ -23,6 +23,13 @@
 .server-health{display:flex;align-items:center;gap:6px;font-size:.64rem;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
 .server-health.is-online{color:var(--green)}
 .server-health.is-offline{color:var(--coral)}
+.sidebar-app{display:flex;align-items:center;gap:12px;margin-top:10px;padding:12px;border:1px solid #bda1ff55;border-radius:12px;background:linear-gradient(125deg,#302440,#1c212d)}
+.sidebar-app:hover{border-color:var(--violet);background:#302a42}
+.sidebar-app>.nav-icon{width:24px;height:24px;flex:0 0 24px;color:var(--violet)}
+.sidebar-app>span{display:grid;gap:4px;min-width:0}
+.sidebar-app strong{font-size:.8rem}.sidebar-app strong>span{color:var(--violet);margin-left:6px}
+.sidebar-app small{font-size:.65rem;color:var(--muted)}
+.app-download{border-color:#bda1ff66;color:var(--violet)}
 @media(max-width:760px){.sidebar-web{margin-top:12px;padding:10px 12px}.sidebar-web-copy{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}.sidebar-web>.nav-icon{width:20px;height:20px;flex-basis:20px}}
 /* The main link covers the entire card; the task link remains independent. */
 .event-card{position:relative;min-width:0}

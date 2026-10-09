@@ -50,6 +50,7 @@
     prev:'<path d="m15 5-7 7 7 7"/>', next:'<path d="m9 5 7 7-7 7"/>',
     wallet:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M16 13h5v4h-5Z"/>',
     document:'<path d="M14 2H5v20h14V7ZM14 2v5h5M8 12h8M8 16h8"/>',
+    phone:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4M11 19h2"/>',
     check:'<path d="m4 12 5 5L20 6"/>',
     close:'<path d="m6 6 12 12M18 6 6 18"/>',
     send:'<path d="m22 2-7 20-4-9-9-4 20-7ZM11 13 22 2"/>',
@@ -207,7 +208,7 @@
     const upcoming = active("event").filter(x => x.start.slice(0,10) >= today() && !["cancelled","completed"].includes(x.status)).sort((a,b)=>a.start.localeCompare(b.start));
     const tasks = active("ticket"), mine = tasks.filter(x => x.status !== "done" && x.assignees.includes(state.user.username));
     const blocked = tasks.filter(x=>x.status === "blocked"), late = tasks.filter(x=>x.status !== "done" && x.due && x.due < today());
-    return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",btn("new-event","＋ Crear bolo","","primary")) +
+    return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",`<a class="button app-download" href="${BASE}android/scrib.apk" download="SCRIB-Android.apk" aria-label="Descargar la app de SCRIB para Android">${icon('phone')} Descargar app · Android</a>`+btn("new-event","＋ Crear bolo","","primary")) +
       `<section class="hero"><div><p class="eyebrow">DEL LABORATORIO AL ESCENARIO</p><h2>Escribir es un juego.<br>Prepararlo, un trabajo en equipo.</h2><p>Bolos, ideas, elenco y tareas en un mismo backstage. Sin perder lo que importa entre mensajes.</p></div><div class="hero-orbit" aria-hidden="true">✳</div></section>
       <section class="grid cols4 section">${[[upcoming.length,"Bolos por venir","El siguiente acto", "gold"],[mine.length,"Mis tareas abiertas","Asignadas a ti", "violet"],[blocked.length,"Tareas bloqueadas","Lo que necesita ayuda", "coral"],[late.length,"Fuera de plazo","Para poner al día", "cyan"]].map(([n,l,d,c])=>`<div class="panel kpi"><small>${l}</small><span class="number ${c}">${n}</span><p class="tiny">${d}</p></div>`).join("")}</section>
       <section class="section home-schedule"><div class="home-upcoming"><div class="panel-head"><h2>Próximos bolos</h2></div><div class="grid cols3">${upcoming.slice(0,3).map(eventCard).join("") || empty("El siguiente escenario está por venir","Crea un bolo: su tablero aparecerá con todas las tareas de preparación.",btn("new-event","＋ Primer bolo","","primary"))}</div></div>${renderHomeCalendar()}</section>

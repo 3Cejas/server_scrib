@@ -68,7 +68,8 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
 `android-app/` contiene la app privada Android 8+, con el enfoque WebView de
 Impropios y firma de instalación independiente. Abre el gateway de `/scrib/`,
 mantiene la sesión, integra atrás, teclado, fotos/documentos y guardado de PDFs
-mediante el selector de Android. Materiales ofrece la APK firmada; el archivo y
+mediante el selector de Android. Inicio y el acceso fijo «Descargar app» del menú
+ofrecen la APK firmada para Android; Materiales mantiene también su enlace. El archivo y
 su información de versión requieren autenticación. No incorpora notificaciones
 ni conexiones en segundo plano. Ver `android-app/README.md` para compilar, proteger
 la clave de instalación y las pruebas necesarias en un dispositivo real.

@@ -221,6 +221,17 @@ test('home embeds a visual calendar instead of the old calendar button; empty st
   assert.match(empty,/Primer bolo/);assert.match(empty,/No hay bolos ni ensayos este día/);
   assert.equal((empty.match(/data-action="home-calendar-day"/g)||[]).length,42);
 });
+test('Android app download is prominent on Home and permanently in the sidebar for every role',()=>{
+  const {app,state}=client();const index=read('index.html');
+  assert.match(index,/<a class="sidebar-app" href="\/scrib\/backstage\/android\/scrib\.apk" download="SCRIB-Android.apk"/);
+  const sidebar=index.match(/<a class="sidebar-app"[\s\S]*?<\/a>/)[0];
+  assert.match(sidebar,/Descargar app/);assert.match(sidebar,/Android/);assert.match(sidebar,/<svg class="nav-icon"/);assert.doesNotMatch(sidebar,/data-admin|target=/);
+  for(const role of ['admin','user']){
+    state.user.role=role;const html=app.renderHome();balanced(html);
+    assert.match(html,/<a class="button app-download" href="\/scrib\/backstage\/android\/scrib\.apk" download="SCRIB-Android.apk"/);
+    assert.match(html,/Descargar app · Android/);
+  }
+});
 test('home month navigation and day selection are read-only and independent of full calendar',async()=>{
   const {app,nodes,calls}=client(),full=app.renderCalendar();
   app.setHomeCalendar('2026-12','2026-12-01');
