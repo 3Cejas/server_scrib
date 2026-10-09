@@ -1,8 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(__dirname+'/public/export.js','utf8');
-function client(response){
+function client(response,native={}){
  const calls=[],downloads=[],timers=[],revoked=[],button={innerHTML:'Exportar PDF',disabled:false,setAttribute(k,v){this[k]=v},removeAttribute(k){delete this[k]}};
- const context={window:{},AbortController,URL:{createObjectURL:()=> 'blob:private-pdf',revokeObjectURL:u=>revoked.push(u)},
+ const context={window:{ScribAndroid:native.bridge},AbortController,FileReader:class {
+   readAsDataURL(){if(native.readError)this.onerror();else {this.result='data:application/pdf;base64,JVBERi10ZXN0';this.onload();}}
+  },URL:{createObjectURL:()=> 'blob:private-pdf',revokeObjectURL:u=>revoked.push(u)},
   setTimeout:f=>{timers.push(f);return timers.length;},clearTimeout(){},
   fetch:async(u,o)=>{calls.push({u,o});return typeof response==='function'?await response():response;},
   document:{body:{append(){}},createElement:()=>({click(){downloads.push({href:this.href,name:this.download})},remove(){}})}};
@@ -26,4 +28,18 @@ test('double click cannot launch duplicate rendering while the button is generat
  assert.equal(c.button.disabled,true);assert.equal(c.button.textContent,'Generando PDF…');
  await c.run({csrf:'token'},{kind:'lighting'},c.button);assert.equal(c.calls.length,1);
  resolve(success);await run;assert.equal(c.downloads.length,1);
+});
+test('Android PDF export uses the limited native save bridge, not a blob URL',async()=>{
+ const saves=[],c=client(success,{bridge:{savePdf:(...args)=>{saves.push(args);return true;}}});
+ await c.run({csrf:'private-token'},{kind:'event'},c.button);
+ assert.deepEqual(saves,[['JVBERi10ZXN0','SCRIB-event.pdf']]);assert.equal(c.downloads.length,0);
+ assert.equal(c.button.innerHTML,'Exportar PDF');assert.equal(c.button.disabled,false);assert.equal(c.calls.length,1);
+});
+test('Android errors restore the button and never fall back to an unusable blob download',async()=>{
+ for(const native of [{bridge:{savePdf:()=>false}},{readError:true,bridge:{savePdf:()=>true}}]){
+  const c=client(success,native);await assert.rejects(c.run({csrf:'token'},{kind:'report'},c.button));
+  assert.equal(c.downloads.length,0);assert.equal(c.button.disabled,false);
+ }
+ const c=client({...success,blob:async()=>({size:16*1024*1024+1})},{bridge:{savePdf:()=>{throw Error('Do not pass oversized data');}}});
+ await assert.rejects(c.run({csrf:'token'},{kind:'report'},c.button),/16 MB/);assert.equal(c.downloads.length,0);
 });

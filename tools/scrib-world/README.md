@@ -3,7 +3,7 @@
 Aplicación independiente de producción y dramaturgia en `/scrib/`.
 Guardar datos aquí no modifica las partidas del videojuego. Python 3.10+, SQLite y
 JavaScript/CSS sin fuentes remotas ni animaciones continuas. El render de PDFs
-usa ReportLab (requirements.txt), instalado de forma aislada en
+usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 `SCRIB_WORLD_DATA/python-packages`; no cambia el Python del sistema.
 
 ## Producción y PDFs
@@ -16,8 +16,32 @@ usa ReportLab (requirements.txt), instalado de forma aislada en
   reemplaza fotos manuales. Fotografías de catálogo y URLs en
   `inventory_references.json`; las referencias no acreditan compras ni existencias.
 - `POST /scrib/backstage/api/pdf` requiere identidad y CSRF. Inventario, hoja de
-  llamada, luminotecnia y memoria llevan el logo; acuerdos/facturas requieren admin.
+  llamada, técnica y memoria llevan el logo; acuerdos/facturas requieren admin.
   El render nunca descarga URLs ni acepta rutas de archivo aportadas por clientes.
+- Todos los PDF generados tienen cabecera retro con el logo original, colores
+  azul/rojo, redes enlazadas `@scrib_show` y `@su.tu.ra`, marca de agua tenue,
+  referencia y aviso de uso interno/no distribución en cada página. La tipografía
+  del cuerpo sigue siendo legible al imprimir. Los PDF firmados que se suben no
+  se reescriben ni se alteran: este diseño no afecta a sus firmas existentes.
+- Trazabilidad privada: cada exportación se vincula al usuario autenticado mediante
+  una referencia aleatoria y un sello HMAC-SHA-256 en metadatos. El PDF no contiene
+  su nombre/usuario; el registro privado `document_exports` guarda identidad, fecha,
+  tipo y hashes. **Materiales → Comprobar PDF**, solo para administración, identifica
+  al exportador del original y comprueba sus bytes. Si se ha modificado, no atribuye
+  los cambios al exportador. No es una firma digital certificada ni un mecanismo
+  anticopia: imprimir, reexportar o borrar la marca puede impedir reconocerlo.
+- Respaldar juntos `world.sqlite3` y `document-trace.key` (32 bytes, modo 0600),
+  dentro de `SCRIB_WORLD_DATA`. El ZIP administrativo incluye el registro JSON y
+  la clave, no una DB SQLite; tratar ese ZIP como secreto y conservarlo cifrado.
+  Una copia diaria solo de SQLite no sustituye la clave. Al recuperar, copiar también la misma clave
+  privada, sin sustituirla por una nueva; una clave perdida no se regenera al
+  verificar. Los PDF antiguos no se presentan como documentos verificados.
+- La comprobación admite hasta 16 MiB de PDF (23 MiB en base64/JSON). Al desplegar,
+  aplicar `document_routes.py nginx ORIGEN CANDIDATO` y el equivalente
+  `gateway-nginx`, con copia previa y `nginx -t`, antes de activar la función.
+  Se añade una sola ruta exacta, con el mismo forward-auth/encendido que backstage;
+  ni los formularios públicos ni las demás mutaciones amplían su límite.
+  Publicar también `world_proxy.js` y reiniciar únicamente `DASHBOARD_AUTH`.
 - Reparto mínimo visible: escritura e interpretación por equipo, presentador,
   técnica y jurado. Se permiten borradores incompletos. Solo escritura e
   interpretación muestran selector de equipo; los demás roles son generales.
@@ -30,6 +54,16 @@ usa ReportLab (requirements.txt), instalado de forma aislada en
 Verificación: `python -m unittest discover -s tools/scrib-world`, con ReportLab y
 pypdf disponibles; `node --test --test-isolation=none tools/scrib-world/test_*.cjs`.
 Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
+
+## App Android
+
+`android-app/` contiene la app privada Android 8+, con el enfoque WebView de
+Impropios y firma de instalación independiente. Abre el gateway de `/scrib/`,
+mantiene la sesión, integra atrás, teclado, fotos/documentos y guardado de PDFs
+mediante el selector de Android. Materiales ofrece la APK firmada; el archivo y
+su información de versión requieren autenticación. No incorpora notificaciones
+ni conexiones en segundo plano. Ver `android-app/README.md` para compilar, proteger
+la clave de instalación y las pruebas necesarias en un dispositivo real.
 
 ## Qué incluye
 
@@ -330,8 +364,10 @@ un secreto de puente en un archivo 0600. El servicio solo escucha en loopback.
 No crea contraseñas, usuarios Authentik ni políticas de acceso nuevas.
 
 Los miembros autorizados de Sutura colaboran sobre todo el espacio SCRIB. La
-exportación ZIP completa está reservada a administradores. No se incluyen claves,
-cookies, hashes de contraseña ni secretos en el estado ni en la exportación.
+exportación ZIP completa está reservada a administradores. El estado compartido
+no incluye claves, cookies, hashes de contraseña ni secretos. El ZIP no incluye
+credenciales de acceso, pero sí la clave privada de trazabilidad de documentos:
+guardarlo cifrado y no distribuirlo.
 Las fichas del elenco NO son cuentas de acceso.
 
 Mutaciones: JSON y tamaño máximo 6 MB; origen permitido + token CSRF firmado,
@@ -487,4 +523,6 @@ portable; no contiene credenciales. La restauración operativa usa la copia SQLi
 parar SOLO `SCRIB_WORLD`, preservar la DB actual con su WAL/SHM, copiar la copia
 elegida como `world.sqlite3` (modo 0600), y volver a iniciar `SCRIB_WORLD`.
 Las fotos deben conservarse o recuperarse del ZIP. No mezclar un WAL viejo con una
-DB restaurada. Una restauración requiere elegir la copia y verificar su fecha.
+DB restaurada. Conservar también `document-trace.key` con permisos 0600 para la
+trazabilidad de los PDF; el JSON del ZIP incluye `documentExports`. Una restauración
+requiere elegir la copia y verificar su fecha.

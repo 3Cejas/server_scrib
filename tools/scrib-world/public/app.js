@@ -77,7 +77,9 @@
   const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
   const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
   const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage,dialog});
-  const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage});
+  const isAdmin=()=>state?.user.role==='admin';
+  const documents = window.ScribDocuments({esc,request,openDialog,isAdmin});
+  const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage,isAdmin});
   const lighting = window.ScribLighting({state:()=>state,esc,btn,pageHead,request,toast,refresh,renderPage});
   dialog.addEventListener('close', () => { if (state) renderPage(); });
 
@@ -568,6 +570,7 @@
     if(await polls.action(node))return;
     if(await inventory.action(node))return;
     if(await library.action(node))return;
+    if(await documents.action(node))return;
     if(a === "new-event")openEvent();
     else if(a === "new-event-day")openEvent("",id);
     else if(a === "edit-event")openEvent(id);
@@ -617,7 +620,7 @@
     }
   }
   document.addEventListener("click",event=>{const node=event.target.closest("[data-action]");if(node)action(node).catch(error=>toast(error.message));});
-  document.addEventListener("submit",event=>{if(event.target.matches("#inventory-export-form")){event.preventDefault();inventory.exportForm(event.target);}else if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
+  document.addEventListener("submit",event=>{if(event.target.matches("#document-check-form")){event.preventDefault();documents.submit(event.target);}else if(event.target.matches("#inventory-export-form")){event.preventDefault();inventory.exportForm(event.target);}else if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
     if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');updateCastReadiness();return;}

@@ -1,7 +1,8 @@
 """Authenticated, locally rendered SCRIB documents. Never fetch remote content."""
 import io
 import re
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -36,9 +37,11 @@ def generate(store, data, user):
     for face,file in [('ScribSans','LiberationSans-Regular.ttf'),('ScribSansBold','LiberationSans-Bold.ttf')]:
         if face not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont(face,str(ROOT/'assets'/file)))
+    if 'ScribRetro' not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont('ScribRetro',str(ROOT/'materials/shared/retro.ttf')))
     pdfmetrics.registerFontFamily('ScribSans',normal=font,bold='ScribSansBold',italic=font,boldItalic='ScribSansBold')
     ink, muted = colors.HexColor('#182032'), colors.HexColor('#5e6576')
-    gold = colors.HexColor('#d2a749')
+    gold = colors.HexColor('#b88b27')
     tones = {'blue': colors.HexColor('#087da4'), 'red': colors.HexColor('#c33250'),
              'general': gold}
     styles = getSampleStyleSheet()
@@ -59,6 +62,8 @@ def generate(store, data, user):
                               textColor=muted, spaceAfter=5))
     styles.add(ParagraphStyle('Object', fontName=font, fontSize=13, leading=18,
                               textColor=ink, spaceAfter=6))
+    styles.add(ParagraphStyle('Score',fontName='ScribSansBold',fontSize=27,leading=34,
+                              textColor=ink,spaceAfter=12))
     clean = lambda s: ''.join(c for c in str(s or '').replace('\u2014','-').replace('\u2013','-') if ord(c) < 0x1f000)
     def para(value, style='Normal'):
         return Paragraph(escape(clean(value)).replace('\n', '<br/>'), styles[style])
@@ -68,7 +73,9 @@ def generate(store, data, user):
         if note:
             story.extend([para(note, 'Small'), Spacer(1, 12)])
     def section(value, team='general'):
-        style = ParagraphStyle('section-'+team, parent=styles['Heading2'], textColor=tones[team])
+        style = ParagraphStyle('section-'+team, parent=styles['Heading2'], textColor=tones[team],
+                               borderColor=tones[team],borderWidth=0,borderPadding=7,
+                               backColor=colors.HexColor('#eef5f8' if team=='blue' else '#fff0f3' if team=='red' else '#f6f2e7'))
         gap=Spacer(1,5);gap.keepWithNext=True
         story.extend([Paragraph(escape(clean(value)), style), gap])
     def image(value):
@@ -201,7 +208,7 @@ def generate(store, data, user):
                 stats = players.get(key) or {}
                 total = (score.get('jugadores') or {}).get(key,{}).get('total')
                 if score.get('disponible'):
-                    story.append(para(str(total)+' puntos','Heading3'))
+                    story.append(para(str(total)+' puntos','Score'))
                 for label,value in [('Palabras',stats.get('palabrasTotal')),('Únicas',stats.get('palabrasUnicas')),
                                     ('PPM - pulsaciones/min',stats.get('ritmoPpm')),
                                     ('Inspiración',stats.get('valorInspiracion',(stats.get('vida') or {}).get('actual')))]:
@@ -246,25 +253,57 @@ def generate(store, data, user):
                 story.append(para(label+': '+f"{value/100:.2f} EUR",'Heading3'))
             story.append(para('Transferencia: '+str(invoice['issuer'].get('iban') or 'Cuenta pendiente de confirmar'),'Small'))
             story.append(para('No constituye una factura emitida, aceptación ni orden de pago.','Small'))
-    stamp = datetime.now(ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')
+    created=datetime.now(timezone.utc).isoformat(timespec='seconds')
+    stamp = datetime.fromisoformat(created).astimezone(ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')
+    reference='SC-'+uuid.uuid4().hex
+    labels={'inventory':'KIT DE ESCENA','event':'HOJA DE LLAMADA','lighting':'TÉCNICA',
+            'report':'MEMORIA DE PARTIDA','agreement':'COLABORACIÓN','invoice':'GESTIÓN'}
     buffer = io.BytesIO()
     def frame(canvas, doc):
         w,h = A4
-        canvas.setFillColor(colors.HexColor('#101521'))
-        canvas.rect(0,h-75,w,75,fill=1,stroke=0)
-        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),32,h-65,48,48,preserveAspectRatio=True,mask='auto')
-        canvas.setFont(font,14);canvas.setFillColor(colors.white)
-        canvas.drawString(94,h-37,'<SCRI> B')
-        canvas.setFont(font,8);canvas.setFillColor(colors.HexColor('#e8c96d'))
-        canvas.drawString(94,h-53,'PRODUCCIÓN - SUTURA TEATRO')
-        canvas.setFont(font,7);canvas.setFillColor(muted)
-        canvas.drawString(42,25,'<SCRI> B - '+stamp)
-        canvas.drawRightString(w-42,25,'Página '+str(doc.page))
+        canvas.saveState()
+        # A pale solid ink also prints consistently in PDF 1.3 viewers. Setting
+        # a color after fill alpha would reset transparency in ReportLab.
+        canvas.translate(w/2,h/2);canvas.rotate(28)
+        canvas.setFillColor(colors.HexColor('#edf0f4'));canvas.setFont('ScribSansBold',54)
+        canvas.drawCentredString(0,14,'<SCRI> B');canvas.setFont('ScribSansBold',14)
+        canvas.drawCentredString(0,-16,'MATERIAL INTERNO - SUTURA TEATRO')
+        canvas.restoreState()
+        canvas.saveState()
+        canvas.setFillColor(colors.HexColor('#080f1a'));canvas.rect(0,h-88,w,88,fill=1,stroke=0)
+        canvas.setStrokeColor(colors.HexColor('#172633'));canvas.setLineWidth(.35)
+        for x in range(0,int(w),18):canvas.line(x,h-88,x,h)
+        for y in range(int(h)-88,int(h),18):canvas.line(0,y,w,y)
+        cyan,red=colors.HexColor('#37ddeb'),colors.HexColor('#ff617d')
+        canvas.setFillColor(cyan);canvas.rect(0,h-91,w/2,3,fill=1,stroke=0)
+        canvas.setFillColor(red);canvas.rect(w/2,h-91,w/2,3,fill=1,stroke=0)
+        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),34,h-76,65,65,preserveAspectRatio=True,mask='auto')
+        canvas.setFont('ScribRetro',20);canvas.setFillColor(cyan);canvas.drawString(109,h-37,'<SCRI> B')
+        canvas.setFont('ScribSansBold',7.8);canvas.setFillColor(colors.HexColor('#f2d777'))
+        canvas.drawString(109,h-56,'PRODUCCIÓN / SUTURA TEATRO')
+        canvas.setFont('ScribSansBold',8);canvas.setFillColor(colors.white)
+        canvas.drawRightString(w-34,h-36,labels[kind])
+        canvas.setFont(font,7);canvas.setFillColor(colors.HexColor('#aebdce'))
+        canvas.drawRightString(w-34,h-55,'EL PRIMER VIDEOJUEGO-ESPECTÁCULO DE ESCRITURA EN VIVO')
+        canvas.setStrokeColor(colors.HexColor('#cbd5df'));canvas.line(42,66,w-42,66)
+        canvas.setFont('ScribSansBold',8);canvas.setFillColor(tones['blue'])
+        for x,label,url in [(42,'@scrib_show','https://www.instagram.com/scrib_show/'),
+                            (178,'@su.tu.ra','https://www.instagram.com/su.tu.ra/'),
+                            (305,'scribshow.es','https://scribshow.es/')]:
+            canvas.drawString(x,52,label)
+            canvas.linkURL(url,(x,50,x+pdfmetrics.stringWidth(label,'ScribSansBold',8),61),relative=0,thickness=0)
+        canvas.setFillColor(ink);canvas.setFont('ScribSansBold',7)
+        canvas.drawString(42,37,'USO INTERNO. NO DISTRIBUIR, REPRODUCIR NI PUBLICAR SIN AUTORIZACIÓN DE SUTURA TEATRO.')
+        canvas.setFont(font,6.5);canvas.setFillColor(muted)
+        canvas.drawString(42,23,'Ref. '+reference+'  |  '+stamp)
+        canvas.drawRightString(w-42,23,'Página '+str(doc.page))
+        canvas.restoreState()
     doc = SimpleDocTemplate(buffer,pagesize=A4,rightMargin=42,leftMargin=42,
-                           topMargin=97,bottomMargin=48,title=title or 'SCRIB - '+kind,
+                           topMargin=112,bottomMargin=82,title=title or 'SCRIB - '+kind,
                            author='SCRIB / Sutura Teatro')
     doc.build(story,onFirstPage=frame,onLaterPages=frame)
-    return buffer.getvalue()
+    from document_trace import seal_pdf
+    return seal_pdf(store,buffer.getvalue(),user,kind,data.get('id',''),reference,created)
 
 
 def StagePlan(plan,font='ScribSans'):

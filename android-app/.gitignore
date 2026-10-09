@@ -1,0 +1,6 @@
+build/
+.debug-signing/
+deploy/*.apk
+*.jks
+*.keystore
+*-password

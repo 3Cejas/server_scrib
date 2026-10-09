@@ -34,6 +34,7 @@ from presenter_assignment import apply_presenter_assignment
 from production import TEAM_ROLES, normalize_role
 from lighting import default_plan as default_lighting, normalize as normalize_lighting
 from dependencies import validate as validate_dependencies, block_dependents
+from document_trace import SCHEMA as DOCUMENT_TRACE_SCHEMA
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -173,6 +174,7 @@ class Store:
             """)
             db.executescript(AVAILABILITY_SCHEMA)
             db.executescript(BUSINESS_SCHEMA)
+            db.executescript(DOCUMENT_TRACE_SCHEMA)
             if not db.execute("SELECT 1 FROM items WHERE kind='template'").fetchone():
                 tasks = json.loads((ROOT / "default_tasks.json").read_text())
                 self.insert(db, "template", {"title": "Preparación de un bolo", "tasks": tasks}, "sistema", "default-template")
@@ -634,10 +636,14 @@ class Store:
                        "messageDrafts": [dict(r) for r in db.execute("SELECT * FROM message_drafts")], "messageDeliveries": [dict(r) for r in db.execute("SELECT * FROM message_deliveries")],
                        "availabilityLinks": [dict(r) for r in db.execute("SELECT * FROM availability_links")], "availabilityReplies": [dict(r) for r in db.execute("SELECT * FROM availability_replies")],
                        "businessRecords": [dict(r) for r in db.execute("SELECT * FROM business_records")], "matchReports": [dict(r) for r in db.execute("SELECT * FROM match_reports")],
-                       "agreements": [dict(r) for r in db.execute("SELECT * FROM agreements")], "agreementUploads": [dict(r) for r in db.execute("SELECT * FROM agreement_uploads")]}
+                       "agreements": [dict(r) for r in db.execute("SELECT * FROM agreements")], "agreementUploads": [dict(r) for r in db.execute("SELECT * FROM agreement_uploads")],
+                       "documentExports": [dict(r) for r in db.execute("SELECT * FROM document_exports")]}
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("mundo-scrib.json", json.dumps(payload, ensure_ascii=False, indent=2))
+            from document_trace import key as document_key, KEY_NAME
+            if (self.directory/KEY_NAME).exists():
+                z.writestr(KEY_NAME,document_key(self.directory))
             folder = self.directory / "images"
             if folder.exists():
                 for file in folder.iterdir():
@@ -997,6 +1003,12 @@ class Handler(BaseHTTPRequestHandler):
                     raise Problem('Archivo reservado al servidor del videojuego.',403)
                 return self.reply(200, store.business.archive_report(self.body(4*1024*1024)))
             if self.command in ("GET", "HEAD"):
+                if route in ('android/scrib.apk','android/version.json'):
+                    file=ROOT/'assets'/route
+                    if not file.is_file():raise Problem('La app aún no está publicada en este servidor.',404)
+                    if route.endswith('.apk'):
+                        return self.reply(200,file.read_bytes(),'application/vnd.android.package-archive',{'Content-Disposition':'attachment; filename="SCRIB-Android.apk"'})
+                    return self.reply(200,file.read_bytes(),'application/json; charset=utf-8')
                 if route == 'api/materials':
                     return self.reply(200,self.server.materials.list())
                 if route.startswith('materials/'):
@@ -1054,6 +1066,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
                 if route == 'export.js':
                     return self.reply(200, (ROOT / 'public' / 'export.js').read_bytes(), 'application/javascript; charset=utf-8')
+                if route == 'documents.js':
+                    return self.reply(200,(ROOT/'public/documents.js').read_bytes(),'application/javascript; charset=utf-8')
                 if route in ('lighting.js', 'lighting.css'):
                     mime = 'application/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     return self.reply(200, (ROOT / 'public' / route).read_bytes(), mime)
@@ -1063,6 +1077,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, (ROOT / "public" / file).read_bytes(), mime)
                 raise Problem("No encontrado.", 404)
             self.csrf_check(actor)
+            if route == 'api/pdf/verify':
+                if user['role'] != 'admin':raise Problem('La trazabilidad está reservada a administración.',403)
+                from document_trace import verify_pdf, MAX_PDF_BYTES
+                data=self.body(23*1024*1024)
+                encoded=data.get('pdf','')
+                if not isinstance(encoded,str) or len(encoded)>((MAX_PDF_BYTES+2)//3)*4:
+                    raise Problem('Selecciona un PDF de hasta 16 MB.')
+                try:raw=base64.b64decode(encoded,validate=True)
+                except ValueError:raise Problem('El PDF no es válido.') from None
+                return self.reply(200,verify_pdf(store,raw))
             data = self.body()
             if route == 'api/pdf':
                 # Isolated renderer packages, not global/system dependency changes.

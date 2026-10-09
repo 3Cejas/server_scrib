@@ -12,7 +12,10 @@ module.exports = function scribWorldProxy(req, res, session) {
     return;
   }
   const size = Number(req.headers["content-length"] || 0);
-  if (!Number.isFinite(size) || size < 0 || size > 6 * 1024 * 1024 || req.headers["transfer-encoding"]) {
+  // Only the authenticated provenance check accepts a 16 MiB PDF as base64.
+  // Keep ordinary mutations and uploads at their existing 6 MiB boundary.
+  const limit=req.url.split('?',1)[0] === '/scrib/backstage/api/pdf/verify' && req.method === 'POST' ? 23*1024*1024 : 6*1024*1024;
+  if (!Number.isFinite(size) || size < 0 || size > limit || req.headers["transfer-encoding"]) {
     res.writeHead(413, {"Content-Type":"application/json"});res.end(JSON.stringify({error:"Datos demasiado grandes."}));return;
   }
   let secret;
