@@ -25,7 +25,7 @@ class LightingTests(unittest.TestCase):
     def test_default_is_complete_with_correct_colors_and_independent_copies(self):
         plan = default_plan()
         nodes = {x['id']:x for x in plan['elements']}
-        self.assertEqual(len(nodes), 7)
+        self.assertEqual(len(nodes), 23)
         self.assertEqual(nodes['blue-street']['color'], 'blue')
         self.assertEqual(nodes['red-street']['color'], 'red')
         self.assertLess(nodes['presenter']['x'], 50)
@@ -35,6 +35,40 @@ class LightingTests(unittest.TestCase):
         plan['elements'][0]['label'] = 'Other'
         self.assertEqual(default_plan()['elements'][0]['label'], 'Calle azul')
         self.assertFalse(any(x['kind']=='lighting' for x in self.store.snapshot()['items']))
+
+    def test_technical_topology_checklist_and_old_plan_upgrade(self):
+        from lighting import LEGACY
+        plan = default_plan()
+        self.assertEqual(len(plan['connections']), 20)
+        self.assertEqual(len(plan['walkies']), 4)
+        self.assertEqual(len(plan['checklist']), 18)
+        connections={c['id']:c for c in plan['connections']}
+        self.assertEqual(connections['hdmi-projector']['from'], 'game-computer')
+        self.assertEqual(connections['hdmi-red']['from'], 'splitter')
+        self.assertEqual(connections['audio-interpretation']['from'], 'sound-computer')
+        self.assertEqual(connections['dmx-red']['type'], 'dmx')
+        old={'notes':'Conservar notas','elements':[e for e in plan['elements'] if e['id'] in LEGACY]}
+        old['elements'][0].update(x=18,label='Edición existente',channel='Circuito 4')
+        saved=self.save(old)
+        self.assertEqual(len(saved['elements']),23)
+        self.assertEqual(saved['elements'][0]['x'],18)
+        self.assertEqual(saved['elements'][0]['label'],'Edición existente')
+        self.assertEqual(saved['notes'],'Conservar notas')
+
+    def test_checklist_and_connection_notes_persist_and_cannot_rewire_devices(self):
+        plan=default_plan();plan['checklist'][0]['done']=True
+        plan['connections'][0].update(notes='Cable 15 m',to='sound-computer',type='audio')
+        saved=self.save(plan)
+        self.assertTrue(saved['checklist'][0]['done'])
+        self.assertEqual(saved['connections'][0]['notes'],'Cable 15 m')
+        self.assertEqual(saved['connections'][0]['to'],'projector')
+        self.assertEqual(saved['connections'][0]['type'],'hdmi')
+        for key,value in [('done',1),('done','true')]:
+            bad=default_plan();bad['checklist'][0][key]=value
+            with self.assertRaises(world.Problem):self.save(bad,version=1)
+        for field in ('connections','checklist'):
+            bad=default_plan();bad[field].pop()
+            with self.assertRaises(world.Problem):self.save(bad,version=1)
 
     def test_base_and_bolo_plans_are_independent_and_do_not_change_game_tasks(self):
         event = self.create('event', {'title':'León', 'start':'2026-11-07'})

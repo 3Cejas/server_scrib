@@ -33,7 +33,7 @@ function client() {
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -50,6 +50,19 @@ function balanced(html) {
   assert.deepEqual(stack,[]);
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('cross-board dependencies are visible at both ends, safe and reflect completion/deletion',()=>{
+  const {app,state}=client();
+  state.items.push({id:'bb',kind:'board',title:'Programación <juego>'},{id:'bc',kind:'board',title:'Producción'});
+  const source={id:'s',kind:'ticket',title:'Publicar & probar',boardId:'bb',status:'todo'};
+  const target={id:'t',kind:'ticket',title:'Preparar estreno',boardId:'bc',status:'blocked',blockedBy:['s']};
+  state.items.push(source,target);
+  let html=app.dependencyInfo(target);balanced(html);assert.match(html,/🔒 Publicar &amp; probar/);assert.match(html,/#board\/bb/);
+  html=app.dependencyInfo(source);assert.match(html,/Desbloquea: Preparar estreno/);assert.match(html,/#board\/bc/);
+  source.status='done';assert.match(app.dependencyInfo(target),/Dependencias resueltas/);
+  html=app.dependencyEditor(target);balanced(html);assert.match(html,/Programación &lt;juego&gt;/);assert.match(html,/name="blockedBy" value="s" checked/);
+  target.blockedBy=['missing'];assert.match(app.dependencyInfo(target),/Tarea eliminada/);assert.match(app.dependencyEditor(target),/desmarca para retirar/);
+});
 
 test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{
   const html=read('index.html'),nav=html.match(/<nav aria-label="Secciones">([\s\S]*?)<\/nav>/)[1];

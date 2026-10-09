@@ -33,6 +33,7 @@ from inventory_teams import apply_team_inventory
 from presenter_assignment import apply_presenter_assignment
 from production import TEAM_ROLES, normalize_role
 from lighting import default_plan as default_lighting, normalize as normalize_lighting
+from dependencies import validate as validate_dependencies, block_dependents
 
 ROOT = Path(__file__).resolve().parent
 WORLD_ROOT = "/scrib/"
@@ -345,6 +346,11 @@ class Store:
                         priority=choice(data.get("priority", "normal"), ("low", "normal", "high", "urgent")),
                         due=date_value(data.get("due", "")), labels=values(data.get("labels", []), 12, 60),
                         assignees=values(data.get("assignees", []), 30), blockedReason=text(data.get("blockedReason", ""), 2000))
+            body['blockedBy'] = values(data.get('blockedBy', (existing or {}).get('blockedBy', [])), 30, 100)
+            if validate_dependencies(self, db, body['blockedBy'], existing, Problem):
+                if body['status'] == 'done':
+                    raise Problem('Completa o retira las dependencias pendientes antes de completar esta tarea.')
+                body['status'] = 'blocked'
             usernames = {m["username"] for m in self.members(db)}
             if any(a not in usernames for a in body["assignees"]):
                 raise Problem("Selecciona responsables del directorio de Sutura.")
@@ -454,6 +460,8 @@ class Store:
             item = self.item(db, ident, active=True)
             self.check_version(item, expected)
             result = self.save(db, item, self.validate(db, item["kind"], data, item), actor)
+            if item['kind'] == 'ticket':
+                block_dependents(self, db, result, actor)
             if item["kind"] == "availability":
                 self.availability.sync_links(db, result)
             return result
@@ -464,6 +472,8 @@ class Store:
             item = self.item(db, ident, "ticket", True)
             self.item(db, item["boardId"], "board", True)
             self.check_version(item, expected)
+            if status != 'blocked' and validate_dependencies(self, db, item.get('blockedBy', []), item, Problem):
+                raise Problem('Esta tarea sigue bloqueada por dependencias pendientes. Abre la ficha para consultarlas.', 409)
             siblings = sorted((x for x in self.all(db, "ticket") if not x["archived"] and x["boardId"] == item["boardId"] and x["status"] == status and x["id"] != ident), key=lambda x: (x.get("position", 0), x["created"]))
             if before:
                 index = next((i for i, x in enumerate(siblings) if x["id"] == before), None)
@@ -475,7 +485,9 @@ class Store:
             for pos, sibling in enumerate(siblings):
                 if sibling["id"] == ident or sibling.get("position") != pos:
                     self.save(db, sibling, {"position": pos, "status": status}, actor, "movido a " + status if sibling["id"] == ident else "reordenado")
-            return self.item(db, ident)
+            result = self.item(db, ident)
+            block_dependents(self, db, result, actor)
+            return result
 
     def archive(self, ident, archived, actor, expected):
         with self.transaction() as db:

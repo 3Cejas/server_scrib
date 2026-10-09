@@ -20,6 +20,11 @@
 .ticket-top .ticket-delete{margin-left:auto;background:transparent;border-color:transparent}
 .ticket-top .ticket-delete:hover{background:#ff647b15;border-color:#ff647b66}
 .form-footer>.actions{flex-wrap:wrap}
+.ticket-dependencies{display:grid;gap:7px;min-width:0}.ticket-dependencies:empty{display:none}
+.dependency-link{display:block;background:#d6af5310;border:1px solid #d6af5344;border-radius:8px;padding:8px;font-size:.75rem;color:var(--gold);overflow-wrap:anywhere}
+.dependency-link small,.dependency-options small{display:block;color:var(--muted);font-size:.68rem;margin-top:4px}
+.dependency-editor{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}.dependency-editor summary{cursor:pointer;color:var(--gold)}
+.dependency-options{max-height:300px;overflow:auto;display:grid;gap:12px;margin-top:14px}.dependency-options fieldset{border:1px solid var(--line);border-radius:9px;padding:10px;min-width:0}.dependency-options legend{color:var(--cyan);font-size:.8rem}.dependency-options .check-option{display:flex;align-items:flex-start;margin:8px 0;overflow-wrap:anywhere}.dependency-options input{flex-shrink:0}
 #delete-confirmation{width:min(540px,calc(100vw - 24px))}
 .delete-content{padding:24px;display:grid;gap:20px}
 .delete-content strong{overflow-wrap:anywhere}

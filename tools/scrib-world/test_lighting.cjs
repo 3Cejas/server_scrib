@@ -104,3 +104,22 @@ test('successful save plus failed refresh remains a confirmed save with an offli
   const {app,toasts,setRefreshError}=setup();app.render();setRefreshError();await action(app,'lighting-save');
   assert.ok(!app.hasDraft());assert.match(toasts.at(-1),/Plano guardado.*pendiente de conexión/);
 });
+test('checklist and cable notes preserve caret and persist with the full topology',async()=>{
+  const {app,calls,nodes}=setup();const html=app.render();
+  for(const id of ['blue-monitor','red-monitor','game-computer','sound-computer','dmx-desk','actors-blue','actors-red'])assert.ok(html.includes(`data-lighting-node="${id}"`));
+  assert.match(html,/Walkies · cuatro unidades/);assert.match(html,/Checklist de montaje técnico/);
+  assert.ok(app.input({dataset:{lightingCheck:'room'},checked:true}));
+  assert.ok(app.input({dataset:{connectionNotes:'hdmi-projector'},value:'15 m'}));
+  await action(app,'lighting-save');
+  assert.equal(calls[0].data.plan.checklist[0].done,true);assert.equal(calls[0].data.plan.connections[0].notes,'15 m');
+  assert.match(app.render(),/value="15 m"/);assert.match(app.render(),/data-lighting-check="room"[^>]*checked/);
+});
+test('old seven-node plan upgrades and a new bolo resets the base checklist only',async()=>{
+  const {app,state,calls}=setup();const base=defaults();base.checklist[0].done=true;
+  base.elements=base.elements.slice(0,7);base.elements[0].x=18;
+  state.items.push({kind:'lighting',id:'lighting-base',eventId:'',version:3,...base});
+  assert.match(app.render(),/blue-monitor/);
+  await app.changeScope({id:'lighting-scope',value:'leon'});await action(app,'lighting-save');
+  assert.equal(calls[0].data.plan.elements.length,23);assert.equal(calls[0].data.plan.elements[0].x,18);
+  assert.ok(calls[0].data.plan.checklist.every(c=>!c.done));assert.equal(base.checklist[0].done,true);
+});

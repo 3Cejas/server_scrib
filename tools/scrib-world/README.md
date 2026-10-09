@@ -43,6 +43,14 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
   con ratón o asa táctil; selector de estado para teclado/móvil.
 - TO DO, EN PROGRESO, BLOQUEADA, COMPLETADAS; responsables, etiquetas, prioridad,
   fecha límite, motivo del bloqueo, checklist, comentarios e historial.
+- Dependencias explícitas entre tareas de cualquier tablero. La tarjeta muestra
+  quién la bloquea y, en el tablero de origen, qué tareas desbloquea, con enlaces.
+  Añadir un requisito pendiente coloca la tarea en BLOQUEADA; no se puede
+  comenzar/completar hasta resolverlo o retirarlo. Cuando se resuelve, aparece
+  «Puedes reanudar», sin borrar bloqueos manuales ni moverla automáticamente.
+  Reabrir un requisito bloquea los trabajos dependientes sin terminar. Se rechazan
+  círculos y ediciones obsoletas. Archivar/eliminar un requisito pendiente no
+  libera el bloqueo silenciosamente: hay que retirarlo.
 - Calendario mensual, agenda, exportación ICS (horario Europe/Madrid), ficha de bolo,
   convocatoria del elenco, lugar, horario, información y hoja de llamada imprimible.
 - Se pueden crear bolos con fecha y hora pendiente: se muestran como «Hora pendiente»,
@@ -87,6 +95,21 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
 
 ## Luminotecnia
 
+- Se añaden dos monitores laterales de proscenio, proyector, splitter 1→2,
+  alimentación de escritura y sala de intérpretes, dos PCs de técnica (juego y
+  sonidos de interpretación) con entradas separadas a mesa de sonido, control
+  DMX y dos máquinas de humo. Capas HDMI/audio/alimentación/DMX, recorridos que
+  siguen las posiciones al arrastrar y notas de cable por conexión.
+- Cuatro walkies: presentador canal 1, un equipo de intérpretes por canal 2 y
+  técnica alternando 1/2 (doble escucha solo si el modelo la admite).
+- Checklist de 18 pasos, compartida al guardar el plano y separada por bolo.
+  Crear una adaptación hereda posiciones/cableado pero no pasos completados.
+  Los antiguos planos de siete elementos se amplían sin sobreescribir posiciones,
+  nombres, circuitos ni notas. No hay reescritura al leer: se guardan explícitamente.
+  PDF con mapa numerado, leyenda, conexiones, walkies y checklist paginada.
+- El humo está orientado hacia público en el esquema solicitado; su dirección,
+  distancias, ventilación y uso deben validarse con sala/manual antes de utilizarlo.
+  No se controla DMX real ni se disparan efectos desde esta aplicación.
 - Plano interactivo SVG, visto desde el público y orientativo (sin escala): calle
   azul, calle roja, puntual izquierdo de presentador, dos mesas de escritura,
   pantalla de proyección al fondo y frontales de proscenio. Las calles/frontales

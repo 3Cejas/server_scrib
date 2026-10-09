@@ -45,6 +45,8 @@ def generate(store, data, user):
     for name in ('Normal', 'Title', 'Heading1', 'Heading2', 'Heading3'):
         styles[name].fontName = font if name=='Normal' else 'ScribSansBold'
         styles[name].textColor = ink
+        if name.startswith('Heading'):
+            styles[name].keepWithNext = True
     styles['Normal'].fontSize = 10
     styles['Normal'].leading = 15
     styles['Title'].fontSize = 23
@@ -67,7 +69,8 @@ def generate(store, data, user):
             story.extend([para(note, 'Small'), Spacer(1, 12)])
     def section(value, team='general'):
         style = ParagraphStyle('section-'+team, parent=styles['Heading2'], textColor=tones[team])
-        story.extend([Paragraph(escape(clean(value)), style), Spacer(1, 5)])
+        gap=Spacer(1,5);gap.keepWithNext=True
+        story.extend([Paragraph(escape(clean(value)), style), gap])
     def image(value):
         if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|webp)', str(value or '')):
             return None
@@ -146,25 +149,45 @@ def generate(store, data, user):
                 story.append(PageBreak())
                 inventory(objects)
         elif kind == 'lighting':
-            from lighting import normalize, default_plan
+            from lighting import normalize, default_plan, upgrade
             ident = data.get('id','')
             plans = [p for p in store.all(db,'lighting') if not p['archived']]
             plan = next((p for p in plans if p.get('eventId','') == ident), None)
             plan = plan or next((p for p in plans if not p.get('eventId')), None) or default_plan()
+            plan = upgrade(plan)
             if 'plan' in data:
                 from server import text
                 plan = normalize(data['plan'], problem, text)
-            heading(title or 'Plano de luminotecnia', 'Vista desde el público - plano de escenario')
+            heading(title or 'Plano de luminotecnia', 'Escenario, técnica y sala de intérpretes - vista desde el público')
             story.append(StagePlan(plan,font))
-            story.append(Spacer(1, 15))
-            for e in plan['elements']:
-                story.append(para(e['label'], 'Heading3'))
-                story.append(para('Circuito / canal: '+(e.get('channel') or 'Pendiente')+' | Intensidad: '+str(e.get('intensity',0))+'%', 'Small'))
+            story.append(PageBreak())
+            section('Leyenda del plano')
+            for number,e in enumerate(plan['elements'],1):
+                block=[para(str(number)+'. '+e['label'], 'Heading3')]
+                if e['type'] in ('street','spot','front','smoke','console'):
+                    block.append(para('Circuito / canal: '+(e.get('channel') or 'Pendiente'), 'Small'))
                 if e.get('notes'):
-                    story.append(para(e['notes']))
+                    block.append(para(e['notes']))
+                story.append(KeepTogether(block))
             if plan.get('notes'):
                 section('Notas para la sala')
                 story.append(para(plan['notes']))
+            section('Conexiones y cableado')
+            for c in plan['connections']:
+                nodes={e['id']:e for e in plan['elements']}
+                block=[para(c['label'], 'Heading3'),para(nodes[c['from']]['label']+' → '+nodes[c['to']]['label'])]
+                if c.get('notes'):block.append(para(c['notes'],'Small'))
+                story.append(KeepTogether(block))
+            section('Walkies - cuatro unidades')
+            for w in plan['walkies']:
+                story.append(para(w['label']+' - CANAL '+w['channel'], 'Heading3'))
+                if w.get('notes'):story.append(para(w['notes'],'Small'))
+            section('Checklist de montaje técnico')
+            for group in dict.fromkeys(c['category'] for c in plan['checklist']):
+                story.append(para(group,'Heading3'))
+                for check in plan['checklist']:
+                    if check['category']==group:
+                        story.append(para(('[OK] ' if check['done'] else '[ ] ')+check['text']))
         elif kind == 'report':
             report = store.business.report(data.get('id',''))
             date = datetime.fromtimestamp(report['endedAt']/1000,ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')
@@ -250,20 +273,38 @@ def StagePlan(plan,font='ScribSans'):
     class Drawing(Flowable):
         def __init__(self):
             super().__init__()
-            self.width,self.height = 511,325
+            self.width,self.height = 511,535
         def draw(self):
             c=self.canv
-            c.setFillColor(colors.HexColor('#f4f5f9'));c.roundRect(0,10,511,300,8,fill=1,stroke=0)
-            for e in plan['elements']:
-                x,y=30+4.5*e['x'],290-2.5*e['y']
+            from lighting import coordinates
+            c.setFillColor(colors.HexColor('#f4f5f9'));c.roundRect(0,10,511,520,8,fill=1,stroke=0)
+            c.setStrokeColor(colors.HexColor('#b7c1d0'))
+            c.rect(35,220,430,270,fill=0);c.rect(30,20,215,150,fill=0);c.rect(260,20,215,150,fill=0)
+            def point(e):
+                x,y=coordinates(e);return x/2,530-y/2
+            nodes={e['id']:e for e in plan['elements']}
+            # Numbered symbols avoid long labels colliding. Full names below the diagram.
+            for connection in plan['connections']:
+                if connection['type'] not in ('hdmi','dmx'):continue
+                a,b=point(nodes[connection['from']]),point(nodes[connection['to']])
+                c.setStrokeColor(colors.HexColor('#2389b0' if connection['type']=='hdmi' else '#369b65'))
+                c.setLineWidth(.7);c.setDash(3,2)
+                p=c.beginPath();p.moveTo(*a);p.lineTo(a[0],(a[1]+b[1])/2);p.lineTo(b[0],(a[1]+b[1])/2);p.lineTo(*b);c.drawPath(p)
+            c.setDash()
+            for index,e in enumerate(plan['elements'],1):
+                x,y=point(e)
                 color={'blue':'#1682ae','red':'#d3405c','warm':'#cda548','white':'#5b6380'}[e['color']]
                 c.setFillColor(colors.HexColor(color));c.setStrokeColor(colors.HexColor(color))
                 if e['type']=='screen':c.rect(x-65,y-9,130,18,fill=0)
-                elif e['type']=='desk':c.roundRect(x-34,y-13,68,26,4,fill=0)
+                elif e['type'] in ('desk','monitor','computer','console','projector','splitter'):c.roundRect(x-18,y-10,36,20,3,fill=0)
                 elif e['type']=='front':
                     for offset in (-45,0,45):c.circle(x+offset,y,8,fill=1)
                 else:c.circle(x,y,11,fill=1)
-                c.setFont(font,8);c.drawCentredString(x,y-25,''.join(c for c in e['label'][:65] if ord(c)<0x1f000))
+                c.setFont(font,8);c.drawCentredString(x,y-23,str(index))
+                if e['type']=='smoke':
+                    c.line(x,y-12,x,y-27);c.line(x,y-27,x-4,y-22);c.line(x,y-27,x+4,y-22)
             c.setFillColor(colors.HexColor('#5e6576'));c.setFont(font,8)
-            c.drawCentredString(255,0,'PÚBLICO / PROSCENIO')
+            c.drawCentredString(255,195,'PÚBLICO / PROSCENIO')
+            c.drawCentredString(137,177,'TÉCNICA');c.drawCentredString(367,177,'SALA DE INTÉRPRETES')
+            c.drawCentredString(255,515,'HDMI: azul - DMX: verde - detalles de todas las conexiones a continuación')
     return Drawing()
