@@ -17,6 +17,9 @@ class DynamicTechnicalTests(BoloCleanupTests):
         updated=upgrade(old);self.assertEqual(old['schemaVersion'],4)
         self.assertEqual(updated['schemaVersion'],5);self.assertEqual(updated['elements'][0]['x'],33)
         self.assertEqual(updated['elements'][0]['notes'],'Sala adaptada');self.assertTrue(updated['checklist'][0]['done'])
+        self.assertEqual(updated['notes'],default_plan()['notes'])
+        custom=copy.deepcopy(old);custom['notes']='Recorrido ajustado para esta sala'
+        self.assertEqual(upgrade(custom)['notes'],custom['notes'])
         self.assertNotIn('video-psu',[e['id'] for e in updated['elements']])
         links={c['id']:c for c in updated['connections']}
         self.assertEqual(links['power-video-card']['from'],'technical-power');self.assertEqual(links['data-video']['type'],'hdmi')

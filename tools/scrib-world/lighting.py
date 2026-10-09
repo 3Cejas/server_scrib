@@ -41,6 +41,8 @@ def upgrade(data):
     plan=copy.deepcopy(data)
     if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=5:
         return plan
+    if plan.get('notes')==PREVIOUS['notes']:
+        plan['notes']=DEFAULT['notes']
     elements=plan.get('elements',[])
     old_nodes={e['id']:e for e in PREVIOUS['elements']}
     if isinstance(elements,list) and all(isinstance(e,dict) and isinstance(e.get('id'),str) for e in elements):
