@@ -188,7 +188,7 @@ class TaskTests(unittest.TestCase):
     def test_sidebar_copy_uses_scrib_and_tasks_without_removed_shortcuts(self):
         html = (fixtures.ROOT/'public/index.html').read_text()
         self.assertIn('src="/scrib/backstage/logo.png"', html)
-        self.assertIn('data-nav="boards"><span aria-hidden="true">▤</span> Tareas', html)
+        self.assertRegex(html, r'data-nav="boards"><svg class="nav-icon"[^>]*>.*?</svg> Tareas')
         for removed in ('Acceso Sutura', 'Authentik', 'Mundo Sutura', 'Cambiar de mundo', 'Abrir videojuego', '/favicons/panel-32.png'):
             self.assertNotIn(removed, html)
         self.assertIn('href="/logout"', html)

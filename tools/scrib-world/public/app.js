@@ -29,7 +29,9 @@
   const colors = window.ScribPeopleColors;
   const personLabel = (id,label) => `<span class="person-label ${colors.className(item(id))}">${esc(label ?? item(id)?.name ?? 'Ficha archivada')}</span>`;
   const today = () => new Intl.DateTimeFormat("en-CA", {timeZone: "Europe/Madrid", year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-  const niceDate = (value, full = true) => value ? new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", day:"numeric", month:full?"long":"short", ...(full ? {year:"numeric"} : {})}).format(new Date(value.length === 10 ? value + "T12:00:00" : value)) : "Sin fecha";
+  // Civil dates, independent of the browser timezone and the full calendar view.
+  let homeMonth = today().slice(0,7), homeDay = today();
+  const niceDate = (value, full = true) => value ? new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", day:"numeric", month:full?"long":"short", ...(full ? {year:"numeric"} : {})}).format(new Date(value.length === 10 ? value + "T12:00:00Z" : value)) : "Sin fecha";
   const hour = value => value ? value.length === 10 ? "Hora pendiente" : new Intl.DateTimeFormat("es-ES", {timeZone:"Europe/Madrid", hour:"2-digit",minute:"2-digit"}).format(new Date(value)) : "";
   const dateTime = value => value ? niceDate(value, false) + " · " + hour(value) : "Sin indicar";
   const localInput = value => (value || "").slice(0, 16);
@@ -47,9 +49,9 @@
   };
   const icon = name => `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
   const btn = (action, label, id = "", css = "") => {
-    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next"})[action];
+    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next","home-month-prev":"prev","home-month-next":"next"})[action];
     const only = symbol && !["archive","restore"].includes(action);
-    const name = action === "month-prev" ? "Mes anterior" : action === "month-next" ? "Mes siguiente" : label;
+    const name = action.endsWith("month-prev") ? "Mes anterior" : action.endsWith("month-next") ? "Mes siguiente" : label;
     return `<button type="button" class="button ${css}${only ? " icon-only" : ""}" data-action="${esc(action)}" data-id="${esc(id)}"${symbol ? ` aria-label="${esc(name)}" title="${esc(name)}"` : ""}>${symbol ? icon(symbol) : ""}${only ? "" : label}</button>`;
   };
   const field = (label, content, hint = "") => `<label class="field">${label}${content}${hint ? `<small class="hint">${hint}</small>` : ""}</label>`;
@@ -157,8 +159,38 @@
   }
   function eventCard(event) {
     const p = progress(event.boardId);
-    if(event.eventType === "rehearsal") return `<article class="panel event-card"><p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p class="section">${esc(dateTime(event.start))} — ${hour(event.end)}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${EVENT_STATUS[event.status]}</p><a class="button section" href="#event/${event.id}">Ver ensayo ↗</a></article>`;
-    return `<article class="panel event-card"><div class="service-top"><span class="event-date">${esc(niceDate(event.start,false))} · ${hour(event.start)}</span>${badge(EVENT_STATUS[event.status],event.status === "confirmed" ? "green" : "gold")}</div><h3>${esc(event.title)}</h3><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<div class="actions"><a class="button small" href="#event/${event.id}">Ver bolo</a><a class="button small" href="#board/${event.boardId}">Abrir tareas ↗</a></div></article>`;
+    const link = `<a class="event-card-link" href="#event/${esc(event.id)}" aria-label="Abrir ${event.eventType === 'rehearsal' ? 'ensayo' : 'bolo'} ${esc(event.title)} · ${esc(niceDate(event.start))}">`;
+    if(event.eventType === "rehearsal") return `<article class="panel event-card">${link}<p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p>${esc(dateTime(event.start))} — ${esc(hour(event.end))}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${esc(EVENT_STATUS[event.status])}</p><span class="event-enter" aria-hidden="true">Ver ensayo ↗</span></a></article>`;
+    return `<article class="panel event-card">${link}<div class="service-top"><span class="event-date">${esc(niceDate(event.start,false))} · ${esc(hour(event.start))}</span>${badge(EVENT_STATUS[event.status],event.status === "confirmed" ? "green" : "gold")}</div><h3>${esc(event.title)}</h3><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
+  }
+  function homeCalendarDays(value) {
+    const first = new Date(value + "-01T12:00:00Z");
+    const offset = (first.getUTCDay()+6)%7;
+    return Array.from({length:42},(_,i)=>{
+      const date = new Date(first); date.setUTCDate(1-offset+i);
+      return date.toISOString().slice(0,10);
+    });
+  }
+  function renderHomeCalendar() {
+    const current = today(), groups = new Map();
+    for(const event of active("event").sort((a,b)=>a.start.localeCompare(b.start))) {
+      const key = event.start.slice(0,10);
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(event);
+    }
+    const title = new Intl.DateTimeFormat("es-ES",{timeZone:"Europe/Madrid",month:"long",year:"numeric"}).format(new Date(homeMonth+"-01T12:00:00Z"));
+    const cells = homeCalendarDays(homeMonth).map(day=>{
+      const events = groups.get(day) || [];
+      const label = niceDate(day) + (events.length ? ` · ${events.length} ${events.length === 1 ? 'evento' : 'eventos'}` : ' · Sin eventos');
+      const marks = events.slice(0,3).map(e=>`<i class="home-calendar-dot ${e.eventType === 'rehearsal' ? 'rehearsal' : 'show'}${e.status === 'cancelled' ? ' cancelled' : ''}" aria-hidden="true"></i>`).join("");
+      return `<button type="button" class="home-calendar-day${day.slice(0,7) !== homeMonth ? ' outside' : ''}${events.length ? ' has-events' : ''}${day === current ? ' today' : ''}" data-action="home-calendar-day" data-id="${day}" aria-label="${esc(label)}" aria-pressed="${day === homeDay}"><time datetime="${day}"${day === current ? ' aria-current="date"' : ''}>${Number(day.slice(8))}</time><span class="home-calendar-marks" aria-hidden="true">${marks}${events.length > 3 ? `<small>+${events.length-3}</small>` : ''}</span></button>`;
+    }).join("");
+    const selected = homeDay ? groups.get(homeDay) || [] : [];
+    return `<aside class="panel home-calendar" aria-label="Calendario compacto de bolos y ensayos"><div class="home-calendar-head"><p class="eyebrow">EN EL CALENDARIO</p><a class="tiny" href="#events">Ampliar ↗</a></div><h3>${esc(title)}</h3><div class="home-calendar-controls">${btn('home-month-prev','Mes anterior','','small')}${btn('home-month-today','Hoy','','small')}${btn('home-month-next','Mes siguiente','','small')}</div><div class="home-calendar-week" aria-hidden="true">${['L','M','X','J','V','S','D'].map(x=>`<span>${x}</span>`).join('')}</div><div class="home-calendar-grid">${cells}</div><div class="home-calendar-legend"><span><i class="home-calendar-dot show" aria-hidden="true"></i>Bolo</span><span><i class="home-calendar-dot rehearsal" aria-hidden="true"></i>Ensayo</span></div><div class="home-calendar-agenda" aria-live="polite">${homeDay ? `<p class="tiny">${esc(niceDate(homeDay))}</p>${selected.length ? selected.map(e=>`<a href="#event/${esc(e.id)}" class="home-calendar-entry${e.status === 'cancelled' ? ' cancelled' : ''}"><i class="home-calendar-dot ${e.eventType === 'rehearsal' ? 'rehearsal' : 'show'}" aria-hidden="true"></i><span><strong>${esc(e.title)}</strong><small>${esc(hour(e.start))} · ${e.eventType === 'rehearsal' ? 'Ensayo' : 'Bolo'} · ${esc(EVENT_STATUS[e.status])}</small></span></a>`).join('') : '<p class="muted tiny">No hay bolos ni ensayos este día.</p>'}` : '<p class="muted tiny">Toca un día para ver sus bolos y ensayos.</p>'}</div></aside>`;
+  }
+  function updateHomeCalendarFocus(action, id="") {
+    renderPage();
+    main.querySelector(`[data-action="${action}"][data-id="${id}"]`)?.focus({preventScroll:true});
   }
   function renderHome() {
     const upcoming = active("event").filter(x => x.start.slice(0,10) >= today() && !["cancelled","completed"].includes(x.status)).sort((a,b)=>a.start.localeCompare(b.start));
@@ -168,7 +200,7 @@
       `<section class="hero"><div><p class="eyebrow">DEL LABORATORIO AL ESCENARIO</p><h2>Escribir es un juego.<br>Prepararlo, un trabajo en equipo.</h2><p>Bolos, ideas, elenco y tareas en un mismo backstage. Sin perder lo que importa entre mensajes.</p></div><div class="hero-orbit" aria-hidden="true">✳</div></section>
       <article class="panel service home-game-service"><div class="service-top"><span class="service-icon" aria-hidden="true">▸</span><span id="server-health" class="badge">Comprobando servidor</span></div><div><h2>La web de &lt;SCRI&gt; B</h2><p class="muted">Visita la web pública del espectáculo y consulta el estado del servidor.</p></div><div class="actions"><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer" class="button">Abrir web ↗</a></div></article>
       <section class="grid cols4 section">${[[upcoming.length,"Bolos por venir","El siguiente acto", "gold"],[mine.length,"Mis tareas abiertas","Asignadas a ti", "violet"],[blocked.length,"Tareas bloqueadas","Lo que necesita ayuda", "coral"],[late.length,"Fuera de plazo","Para poner al día", "cyan"]].map(([n,l,d,c])=>`<div class="panel kpi"><small>${l}</small><span class="number ${c}">${n}</span><p class="tiny">${d}</p></div>`).join("")}</section>
-      <section class="section"><div class="panel-head"><h2>Próximos bolos</h2><a class="button small" href="#events">Ver calendario ↗</a></div><div class="grid cols3">${upcoming.slice(0,3).map(eventCard).join("") || empty("El siguiente escenario está por venir","Crea un bolo: su tablero aparecerá con todas las tareas de preparación.",btn("new-event","＋ Primer bolo","","primary"))}</div></section>
+      <section class="section home-schedule"><div class="home-upcoming"><div class="panel-head"><h2>Próximos bolos</h2></div><div class="grid cols3">${upcoming.slice(0,3).map(eventCard).join("") || empty("El siguiente escenario está por venir","Crea un bolo: su tablero aparecerá con todas las tareas de preparación.",btn("new-event","＋ Primer bolo","","primary"))}</div></div>${renderHomeCalendar()}</section>
       <section class="grid cols2 section"><div class="panel"><div class="panel-head"><h2>Tu siguiente paso</h2>${badge(mine.length + " pendientes","violet")}</div>${mine.slice(0,5).map(x=>`<div class="activity-row"><span class="activity-dot">✦</span><div><button class="ticket-title" data-action="edit-ticket" data-id="${x.id}">${esc(x.title)}</button><small>${esc(titleOf(item(x.boardId)))} · ${STATUS[x.status]}</small></div></div>`).join("") || `<p class="muted">No tienes tareas asignadas pendientes. Abre un tablero y elige tu próximo reto.</p>`}</div><div class="panel"><div class="panel-head"><h2>El pulso del equipo</h2>${badge("ACTIVIDAD","cyan")}</div>${state.activity.slice(0,5).map(activityRow).join("")}</div></section>`;
   }
   function activityRow(log) {
@@ -520,6 +552,15 @@
     else if(a === "events-calendar" || a === "events-agenda") {calendarMode=a === "events-calendar"?"calendar":"agenda";renderPage();}
     else if(a === "month-next" || a === "month-prev") {month=new Date(month.getFullYear(),month.getMonth()+(a === "month-next"?1:-1),1);renderPage();}
     else if(a === "month-today") {month=new Date();renderPage();}
+    else if(a === "home-month-next" || a === "home-month-prev") {
+      const next = new Date(homeMonth+"-01T12:00:00Z");
+      next.setUTCMonth(next.getUTCMonth()+(a === "home-month-next" ? 1 : -1));
+      homeMonth=next.toISOString().slice(0,7);homeDay="";updateHomeCalendarFocus(a);
+    }
+    else if(a === "home-month-today") {homeDay=today();homeMonth=homeDay.slice(0,7);updateHomeCalendarFocus(a);}
+    else if(a === "home-calendar-day" && homeCalendarDays(homeMonth).includes(id)) {
+      homeDay=id;updateHomeCalendarFocus(a,id);
+    }
   }
   document.addEventListener("click",event=>{const node=event.target.closest("[data-action]");if(node)action(node).catch(error=>toast(error.message));});
   document.addEventListener("submit",event=>{if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});

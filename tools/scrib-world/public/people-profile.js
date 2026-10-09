@@ -1,9 +1,9 @@
 "use strict";
 window.ScribPersonProfile = function(h) {
   const {esc}=h;
-  const catalog=['Escritura','Interpretación','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación'];
-  const icons={'Escritura':'✍️','Interpretación':'🎭','Dramaturgia':'📖','Técnica':'🎛️','Producción':'📋','Dirección':'🎬','Música':'🎵','Comunicación':'📣','Fotografía':'📷','Vídeo':'🎥','Diseño':'🎨','Coordinación':'🧭','Participación':'✨'};
-  const tones={'Escritura':'gold','Interpretación':'cyan','Dramaturgia':'violet','Técnica':'mint','Producción':'coral','Dirección':'pink','Música':'violet','Comunicación':'coral','Fotografía':'gold','Vídeo':'cyan','Diseño':'pink','Coordinación':'mint','Participación':'gold'};
+  const catalog=['Escritura','Interpretación','Presentador','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación'];
+  const icons={'Escritura':'✍️','Interpretación':'🎭','Presentador':'🎤','Dramaturgia':'📖','Técnica':'🎛️','Producción':'📋','Dirección':'🎬','Música':'🎵','Comunicación':'📣','Fotografía':'📷','Vídeo':'🎥','Diseño':'🎨','Coordinación':'🧭','Participación':'✨'};
+  const tones={'Escritura':'gold','Interpretación':'cyan','Presentador':'gold','Dramaturgia':'violet','Técnica':'mint','Producción':'coral','Dirección':'pink','Música':'violet','Comunicación':'coral','Fotografía':'gold','Vídeo':'cyan','Diseño':'pink','Coordinación':'mint','Participación':'gold'};
   const roles=()=>h.roles?.()||catalog;
   const canonical=r=>roles().find(x=>x.toLocaleLowerCase('es')===r.toLocaleLowerCase('es'))||r;
   const choices=selected=>[...new Set([...roles(),...(selected||[]).map(canonical)])];

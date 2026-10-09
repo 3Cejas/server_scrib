@@ -29,6 +29,7 @@ from game_config import normalize as normalize_game_config, profile as game_prof
 from business import Business, SCHEMA as BUSINESS_SCHEMA
 from materials import MaterialLibrary, POLICY as MATERIAL_POLICY
 from inventory_seed import apply_initial_inventory
+from presenter_assignment import apply_presenter_assignment
 from lighting import default_plan as default_lighting, normalize as normalize_lighting
 
 ROOT = Path(__file__).resolve().parent
@@ -40,7 +41,7 @@ LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
 KINDS = ("board", "ticket", "event", "person", "template", "availability", "inventory")
 PERSON_COLORS = ('auto','rose','peach','amber','gold','citron','pistachio','mint','jade','turquoise','cyan','sky','azure','periwinkle','violet','lilac','orchid','fuchsia','pink','salmon','lavender','ice','seafoam','sand','clay')
-PERSON_ROLES = ('Escritura','Interpretación','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación')
+PERSON_ROLES = ('Escritura','Interpretación','Presentador','Dramaturgia','Técnica','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación','Participación')
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -1122,6 +1123,11 @@ def main():
         seeded = apply_initial_inventory(store)
         if seeded['added']:
             LOG.info('Inventario solicitado: %s fichas añadidas', seeded['added'])
+        presenter = apply_presenter_assignment(store)
+        if presenter['status'] == 'assigned':
+            LOG.info('Rol solicitado de presentador añadido a David Viñas')
+        elif presenter['status'] in ('missing', 'ambiguous', 'archived'):
+            LOG.warning('Asignación de presentador pendiente: %s', presenter['status'])
     app = App(args.port, store, args.demo)
     LOG.info("Mundo SCRIB en localhost:%s (demo=%s)", args.port, args.demo)
     app.serve_forever()

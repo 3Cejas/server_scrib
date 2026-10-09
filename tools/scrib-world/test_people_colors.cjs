@@ -33,7 +33,7 @@ function client() {
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -50,6 +50,108 @@ function balanced(html) {
   assert.deepEqual(stack,[]);
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{
+  const html=read('index.html'),nav=html.match(/<nav aria-label="Secciones">([\s\S]*?)<\/nav>/)[1];
+  const entries=[...nav.matchAll(/<a\b[^>]*data-nav="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
+  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','messages','templates','finance','archive']);
+  for(const [,route,content] of entries){
+    assert.match(content,/<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">/);
+    assert.equal((content.match(/<svg/g)||[]).length,1,route);
+    assert.doesNotMatch(content,/<span|🎭|💶/);
+  }
+  assert.match(nav,/data-nav="finance" data-admin/);
+  assert.match(read('app.css'),/\.sidebar nav \.nav-icon\{width:20px;height:20px;flex:0 0 20px/);
+});
+test('presenter is available for person profiles and bolo casts',()=>{
+  const {app}=client();
+  assert.match(app.profile.roleEditor(['Presentador']),/value="Presentador" checked/);
+  assert.match(app.profile.roleTags(['Presentador']),/role-gold.*🎤.*Presentador/);
+  assert.match(app.castRow({personId:'p3',team:'general',role:'Presentador'}),/value="Presentador" selected/);
+});
+test('whole bolo card is a native link without nesting its independent task link',()=>{
+  const {app,event}=client(),html=app.eventCard(event);balanced(html);
+  assert.match(html,/<a class="event-card-link" href="#event\/e1" aria-label="Abrir bolo León · función/);
+  assert.equal((html.match(/href="#event\/e1"/g)||[]).length,1);
+  assert.match(html,/<\/a><a class="button small event-task-link" href="#board\/b1">Abrir tareas ↗<\/a>/);
+  const primary=html.match(/<a class="event-card-link"[^>]*>([\s\S]*?)<\/a>/)[1];
+  assert.doesNotMatch(primary,/<a\b|<button\b/);
+  assert.match(read('app.css'),/\.event-card-link::after\{content:"";position:absolute;inset:0/);
+  assert.match(read('app.css'),/\.event-task-link\{position:relative;z-index:1/);
+  event.eventType='rehearsal';balanced(app.eventCard(event));
+  assert.match(app.eventCard(event),/aria-label="Abrir ensayo/);
+  assert.equal((app.eventCard(event).match(/<a\b/g)||[]).length,1);
+  delete event.boardId;event.eventType='show';assert.doesNotMatch(app.eventCard(event),/#board\/undefined/);
+});
+test('mini calendar has six Monday-first weeks, including leap days and year boundaries',()=>{
+  const {app}=client();
+  assert.equal(app.homeCalendarDays('2024-02').length,42);
+  assert.equal(app.homeCalendarDays('2024-02')[0],'2024-01-29');
+  assert.ok(app.homeCalendarDays('2024-02').includes('2024-02-29'));
+  assert.ok(!app.homeCalendarDays('2025-02').includes('2025-02-29'));
+  assert.equal(app.homeCalendarDays('2026-11')[0],'2026-10-26');
+  assert.equal(app.homeCalendarDays('2027-01')[0],'2026-12-28');
+  app.setHomeCalendar('2026-11','2026-11-07');const html=app.renderHomeCalendar();balanced(html);
+  assert.equal((html.match(/data-action="home-calendar-day"/g)||[]).length,42);
+  assert.match(html,/noviembre de 2026/);
+  assert.match(html,/data-id="2026-11-07" aria-label="7 de noviembre de 2026 · 1 evento" aria-pressed="true"/);
+  assert.match(html,/href="#event\/e1" class="home-calendar-entry"/);
+  assert.match(html,/home-calendar-day outside/);
+});
+test('mini calendar shows bolos and rehearsals, all same-day events, cancellations and no archived records',()=>{
+  const {app,state,event}=client();
+  for(let i=2;i<=6;i++)state.items.push({...event,id:'e'+i,eventType:i===2?'rehearsal':'show',title:'Evento '+i,status:i===3?'cancelled':'confirmed'});
+  state.items.push({...event,id:'archive',title:'ARCHIVED',archived:true});
+  app.setHomeCalendar('2026-11','2026-11-07');const html=app.renderHomeCalendar();balanced(html);
+  assert.match(html,/7 de noviembre de 2026 · 6 eventos/);
+  assert.match(html,/home-calendar-dot rehearsal/);
+  assert.match(html,/home-calendar-dot show cancelled/);
+  assert.match(html,/<small>\+3<\/small>/);
+  assert.equal((html.match(/class="home-calendar-entry/g)||[]).length,6);
+  assert.match(html,/Evento 3<\/strong><small>[^<]*Bolo · Cancelado/);
+  assert.doesNotMatch(html,/ARCHIVED|#event\/archive/);
+});
+test('home embeds a visual calendar instead of the old calendar button; empty state remains usable',()=>{
+  const {app,state,event}=client();event.start=app.today()+'T19:00';
+  const html=app.renderHome();balanced(html);
+  assert.match(html,/home-schedule/);assert.match(html,/Calendario compacto de bolos y ensayos/);
+  assert.match(html,/class="event-card-link" href="#event\/e1"/);
+  assert.doesNotMatch(html,/Ver calendario ↗/);
+  state.items=state.items.filter(x=>x.kind!=='event');
+  app.setHomeCalendar('2026-11','2026-11-07');const empty=app.renderHome();balanced(empty);
+  assert.match(empty,/Primer bolo/);assert.match(empty,/No hay bolos ni ensayos este día/);
+  assert.equal((empty.match(/data-action="home-calendar-day"/g)||[]).length,42);
+});
+test('home month navigation and day selection are read-only and independent of full calendar',async()=>{
+  const {app,nodes,calls}=client(),full=app.renderCalendar();
+  app.setHomeCalendar('2026-12','2026-12-01');
+  await app.action({dataset:{action:'home-month-next',id:''}});
+  assert.match(app.renderHomeCalendar(),/enero de 2027/);
+  assert.match(app.renderHomeCalendar(),/Toca un día/);
+  await app.action({dataset:{action:'home-month-prev',id:''}});
+  assert.match(app.renderHomeCalendar(),/diciembre de 2026/);
+  await app.action({dataset:{action:'home-calendar-day',id:'2026-12-31'}});
+  assert.match(nodes.main.innerHTML,/data-id="2026-12-31"[^>]*aria-pressed="true"/);
+  const selected=app.renderHomeCalendar();
+  await app.action({dataset:{action:'home-calendar-day',id:'2026-05-20'}});
+  assert.equal(app.renderHomeCalendar(),selected);
+  assert.equal(app.renderCalendar(),full);assert.equal(calls.length,0);
+  await app.action({dataset:{action:'home-month-today',id:''}});
+  assert.match(app.renderHomeCalendar(),new RegExp('data-id="'+app.today()+'"[^>]*aria-pressed="true"'));
+  assert.match(app.renderHomeCalendar(),/aria-current="date"/);
+  assert.equal(calls.length,0);
+});
+test('calendar picks up collaboration changes while keeping the selected month/day and escaping titles',()=>{
+  const {app,state,event}=client();app.setHomeCalendar('2026-11','2026-11-07');
+  state.items.push({...event,id:'unsafe',title:'<img src=x onerror=alert(1)> '+ 'LONG '.repeat(80)});
+  const html=app.renderHomeCalendar();balanced(html);
+  assert.match(html,/noviembre de 2026/);
+  assert.match(html,/7 de noviembre de 2026 · 2 eventos" aria-pressed="true"/);
+  assert.match(html,/&lt;img src=x/);assert.doesNotMatch(html,/<img src=x/);
+  assert.match(read('app.css'),/\.home-calendar-agenda\{[^}]*max-height:185px;overflow:auto/);
+  const card=app.eventCard({...event,title:'<script>alert(1)</script>'});balanced(card);
+  assert.doesNotMatch(card,/<script>/);assert.match(card,/&lt;script&gt;/);
+});
 
 test('automatic colors stay stable on rename/team changes and unsafe color values never become CSS',()=>{
   const {colors}=client(),original=colors.key({id:'fixed-uuid',name:'Ana',team:'blue'});
