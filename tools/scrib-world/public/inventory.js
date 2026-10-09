@@ -12,7 +12,7 @@ window.ScribInventory = function(h) {
     return (!filters.team||o.team===filters.team)&&(!filters.category||o.category===filters.category)&&query.includes(filters.search.toLocaleLowerCase('es'));
   }
   function card(o) {
-    return `<article class="panel object-card ${esc(o.team)}" data-object="${esc(o.id)}">${o.image?`<img class="object-photo${o.imageReference?' reference-photo':''}" src="/scrib/backstage/images/${esc(o.image)}" alt="${esc(o.title)}" loading="lazy">`:`<div class="object-placeholder" aria-hidden="true">${o.category==='costume'?'👕':o.category==='technical'?'🔌':'🎭'}</div>`}<div class="object-body"><div class="panel-head"><h3>${esc(o.title)}</h3><span class="object-quantity" title="Cantidad">${esc(quantityLabel(o))}</span></div><div class="label-group">${badge(TEAMS[o.team]||'Asignar equipo',o.team==='red'?'coral':'cyan')}${badge(CATEGORIES[o.category])}</div>${o.description?`<p class="muted notes">${esc(o.description)}</p>`:''}${o.imageReference?'<p class="tiny muted">Imagen de catálogo orientativa</p>':''}${o.sourceUrl?`<a class="tiny" href="${esc(o.sourceUrl)}" target="_blank" rel="noopener noreferrer">Referencia del producto ↗</a>`:''}${btn('edit-object','Ver / editar objeto',o.id,'small')}</div></article>`;
+    return `<button type="button" class="panel object-card ${esc(o.team)}" data-object="${esc(o.id)}" data-action="edit-object" data-id="${esc(o.id)}" aria-label="Editar ${esc(o.title)}">${o.image?`<img class="object-photo${o.imageReference?' reference-photo':''}" src="/scrib/backstage/images/${esc(o.image)}" alt="" loading="lazy">`:`<span class="object-placeholder" aria-hidden="true">${o.category==='costume'?'👕':o.category==='technical'?'🔌':'🎭'}</span>`}<span class="object-body"><span class="panel-head"><strong class="object-title">${esc(o.title)}</strong><span class="object-quantity" title="Cantidad">${esc(quantityLabel(o))}</span></span><span class="label-group">${badge(TEAMS[o.team]||'Asignar equipo',o.team==='red'?'coral':'cyan')}${badge(CATEGORIES[o.category])}</span>${o.description?`<span class="muted notes">${esc(o.description)}</span>`:''}</span></button>`;
   }
   function list() {
     const objects=active('inventory');
@@ -34,10 +34,8 @@ window.ScribInventory = function(h) {
       `<div class="grid cols2">${field('Equipo',select('team',TEAMS,o.team))}${field('Cantidad',input('quantity',o.quantity??'','number','min="0" max="9999" step="1" placeholder="Sin especificar"'))}${field('Categoría',select('category',CATEGORIES,o.category))}</div>`+
       input('condition',o.condition||'good','hidden')+input('location',o.location||'','hidden')+input('custodianId',o.custodianId||'','hidden')+input('eventId',o.eventId||'','hidden')+
       field('Descripción / notas',area('description',o.description,'maxlength="15000"'))+
-      field('Referencia del producto',input('sourceUrl',o.sourceUrl||'','url','maxlength="2000" placeholder="https://…"'))+
       `${o.image?`<img class="object-form-photo" src="/scrib/backstage/images/${esc(o.image)}" alt="${esc(o.title)}">`:''}`+input('image',o.image||'','hidden')+
       field('Foto del objeto',input('photo','','file','accept="image/png,image/jpeg,image/webp"'),'Hasta 4 MB. Se guarda dentro del espacio protegido.')+
-      `<label class="check-option"><input type="checkbox" name="imageReference" ${o.imageReference?'checked':''}> Es una imagen de catálogo / referencia</label>`+
       (o.image?btn('remove-object-photo','Quitar foto','','small'):'')
     ));
   }

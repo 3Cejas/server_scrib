@@ -120,7 +120,18 @@ test('checklist and cable notes preserve caret and persist with the full topolog
   assert.ok(app.input({dataset:{connectionNotes:'hdmi-projector'},value:'15 m'}));
   await action(app,'lighting-save');
   assert.equal(calls[0].data.plan.checklist[0].done,true);assert.equal(calls[0].data.plan.connections[0].notes,'15 m');
-  assert.match(app.render(),/value="15 m"/);assert.match(app.render(),/data-lighting-check="room"[^>]*checked/);
+  assert.doesNotMatch(app.render(),/data-connection-notes/);assert.match(app.render(),/data-lighting-check="room"[^>]*checked/);
+});
+test('technical material counts replace connection editors and monitor colors are neutral even in saved old plans',()=>{
+  const {app,state}=setup();const legacy=defaults();legacy.elements.filter(e=>e.type==='monitor').forEach(e=>e.color=e.id==='blue-monitor'?'blue':'red');
+  state.items.push({...legacy,id:'lighting-base',kind:'lighting',eventId:'',version:1});
+  const html=app.render();
+  assert.match(html,/Material técnico del show/);assert.match(html,/28 cables \/ conexiones/);
+  for(const [number,label] of [[4,'Vídeo HDMI'],[6,'Ordenadores y portátiles'],[2,'Monitores de proscenio'],[4,'Walkies']])assert.ok(html.includes(`<strong>${number}</strong><span>${label}</span>`));
+  assert.match(html,/lumi-node lumi-white[^>]*data-lighting-node="blue-monitor"/);
+  assert.match(html,/lumi-node lumi-white[^>]*data-lighting-node="red-monitor"/);
+  assert.match(html,/class="lumi-audience"/);
+  assert.doesNotMatch(html,/Conexiones y cableado|Circuito \/ canal|data-lighting-field="channel"|Arrastra en el plano|id="lighting-elements"|IZQUIERDA ← → DERECHA/);
 });
 test('old seven-node plan upgrades and a new bolo resets the base checklist only',async()=>{
   const {app,state,calls}=setup();const base=defaults();base.checklist[0].done=true;
@@ -136,7 +147,7 @@ test('diagram shows correct video, controller, speaker endpoints and no redundan
   for(const id of ['game-controller','video-card','video-psu','left-speaker','right-speaker'])assert.match(html,new RegExp('data-lighting-node="'+id+'"'));
   assert.match(html,/data-from="video-card" data-to="splitter"/);assert.match(html,/data-from="splitter" data-to="blue-monitor"/);
   await action(app,'lighting-cables','data');assert.match(app.render(),/PC · tarjeta · mando/);
-  const labels=[...html.matchAll(/class="lumi-node-label"[^>]*>([^<]+)</g)].map(m=>m[1]);
+  const labels=[...html.matchAll(/class="lumi-node-label"[^>]*>([\s\S]*?)<\/text>/g)].map(m=>[...m[1].matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map(part=>part[1]).join(' · '));
   assert.ok(labels.includes('Calle'));assert.ok(labels.includes('Mesa · escritxr'));assert.ok(!labels.some(l=>/azul|rojo|roja/i.test(l)));
   assert.match(html,/data-lighting-node="blue-power"/);assert.doesNotMatch(html,/m5-16-13 20h10/);
 });

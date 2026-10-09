@@ -33,7 +33,7 @@ function client() {
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,renderHome,renderEvent,renderPeople,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,renderHome,renderEvent,renderPeople,renderPerson,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -430,12 +430,13 @@ test('palette has readable contrast on dark backgrounds and no continuous animat
   assert.match(styles,/@media\(max-width:700px\)/);assert.match(styles,/overflow-wrap:anywhere/);assert.match(styles,/@media print/);
   assert.doesNotMatch(read('people-colors.js'),/\.style\b|style=/);
 });
-test('visual profile shows the Instagram handle and formatted phone instead of generic links',()=>{
+test('cast cards link to detail, show Instagram with its logo and hide phone and duplicate history',()=>{
   const {app,people}=client();people[0].instagram='https://www.instagram.com/_anasempere/?igsh=test';
   const html=app.renderPeople();balanced(html);
-  assert.match(html,/@_anasempere ↗/);assert.match(html,/\+34 600 000 000/);
-  assert.match(html,/href="tel:\+34600000000"/);assert.match(html,/person-contact instagram/);
+  assert.match(html,/@_anasempere ↗/);assert.doesNotMatch(html,/\+34 600 000 000|href="tel:|participation-history|compose-person/);
+  assert.match(html,/href="#person\/p1"/);assert.match(html,/class="instagram-icon"/);assert.match(html,/person-contact instagram/);
   assert.match(html,/person-role role-cyan/);assert.doesNotMatch(html,/>Instagram ↗<|Teléfono privado/);
+  const contacts=app.profile.contacts(people[0]);assert.match(contacts,/\+34 600 000 000/);assert.match(contacts,/href="tel:\+34600000000"/);
   app.openPerson('p1');
 });
 test('Instagram handles update from URLs or at-signs and invalid legacy links never crash or execute',()=>{
@@ -445,6 +446,27 @@ test('Instagram handles update from URLs or at-signs and invalid legacy links ne
   const html=p.contacts({instagram:'javascript:alert(1)',website:'broken',otherSocial:'https://user:pass@example.com/'});
   balanced(html);assert.doesNotMatch(html,/href="javascript|href="https:\/\/user:pass/);
   assert.doesNotThrow(()=>p.contacts({}));
+});
+test('person detail keeps contact and history and simplified edits preserve hidden legacy links without archive',()=>{
+  const {app,people,nodes}=client();const p=people[0];
+  p.website='https://example.com/portfolio';p.otherSocial='https://example.com/social';
+  p.participationCount=1;p.participations=[{date:'2026-03-27',title:'Función',venue:'Sala',roles:[{role:'Interpretación',team:'blue'}],eventId:'e1'}];
+  const card=app.renderPeople();assert.doesNotMatch(card,/participation-history|Ver bolos|Web \/ portfolio|Otra red/);
+  const detail=app.renderPerson(p.id);balanced(detail);assert.match(detail,/participation-history|Ver bolo/);assert.match(detail,/href="tel:/);
+  assert.doesNotMatch(detail,/Web \/ portfolio|Otra red/);
+  app.openPerson(p.id);const form=nodes['dialog-content'].innerHTML;balanced(form);
+  assert.doesNotMatch(form,/data-action="archive"|Web \/ portfolio|Otra red social/);
+  assert.match(form,/name="website"[^>]*type="hidden"/);assert.match(form,/name="otherSocial"[^>]*type="hidden"/);
+});
+test('inventory is a native whole-card edit button and removed product fields do not erase stored references',async()=>{
+  const {app,state,nodes}=client();const o={id:'obj',kind:'inventory',title:'Gorra',team:'blue',quantity:1,category:'costume',description:'',image:'',sourceUrl:'https://example.com/product',imageReference:true,version:1};state.items.push(o);
+  const html=app.inventory.list();balanced(html);
+  assert.match(html,/<button type="button" class="panel object-card blue"[^>]*data-action="edit-object"/);
+  assert.doesNotMatch(html,/icon-only|Referencia del producto|Imagen de catálogo/);
+  app.inventory.action({dataset:{action:'edit-object',id:o.id}});
+  const form=nodes['dialog-content'].innerHTML;assert.doesNotMatch(form,/name="sourceUrl"|name="imageReference"|Referencia del producto|imagen de catálogo/);
+  const data=await app.formData({dataset:{kind:'inventory',id:o.id},entries:[['quantity','1']],querySelector:()=>null});
+  assert.equal(data.imageReference,true);
 });
 test('roles are checkbox tags, not a free text field, including cast selectors',()=>{
   const {app,nodes}=client();app.openPerson('p1');const html=nodes['dialog-content'].innerHTML;balanced(html);

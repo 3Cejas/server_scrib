@@ -1,5 +1,7 @@
 """Authenticated, locally rendered SCRIB documents. Never fetch remote content."""
 import io
+import base64
+import binascii
 import re
 import uuid
 from datetime import datetime, timezone
@@ -195,13 +197,11 @@ def generate(store, data, user):
                 from server import text
                 plan = normalize(data['plan'], problem, text)
             heading(title or 'Plano técnico', 'Escenario, vídeo, sonido y sala de intérpretes - vista desde el público')
-            story.append(StagePlan(plan,font))
+            story.append(PlanImage(data['planImage'],problem) if 'planImage' in data else StagePlan(plan,font))
             story.append(PageBreak())
             section('Leyenda del plano')
             for number,e in enumerate(plan['elements'],1):
                 block=[para(str(number)+'. '+e['label'], 'Heading3')]
-                if e['type'] in ('street','spot','front','smoke','console'):
-                    block.append(para('Circuito / canal: '+(e.get('channel') or 'Pendiente'), 'Small'))
                 if e.get('notes'):
                     block.append(para(e['notes']))
                 if number==1:
@@ -212,14 +212,16 @@ def generate(store, data, user):
             if plan.get('notes'):
                 section('Notas para la sala')
                 story.append(para(plan['notes']))
-            section('Conexiones y cableado')
-            for index,c in enumerate(plan['connections']):
-                nodes={e['id']:e for e in plan['elements']}
-                block=[para(c['label'], 'Heading3'),para(nodes[c['from']]['label']+' → '+nodes[c['to']]['label'])]
-                if c.get('notes'):block.append(para(c['notes'],'Small'))
-                if index==0:
-                    block=story[-2:]+block;del story[-2:]
-                story.append(KeepTogether(block))
+            from lighting import material_counts
+            section('Material técnico del show')
+            story.append(para('Mínimo del plano. Longitudes, conectores, adaptadores y número de focos por grupo: según la sala.','Small'))
+            for label,rows in [('Cables necesarios',material_counts(plan)['cables']),('Equipos y elementos',material_counts(plan)['equipment'])]:
+                story.append(para(label,'Heading3'));cards=[]
+                for name,count in rows:
+                    if not count:continue
+                    card=Table([[para(str(count),'Score'),para(name,'Check')]],colWidths=[64,182.5])
+                    card.setStyle(card_style());cards.append(card)
+                two_columns(cards)
             section('Walkies - cuatro unidades')
             for w in plan['walkies']:
                 story.append(para(w['label']+' - CANAL '+w['channel'], 'Heading3'))
@@ -380,6 +382,25 @@ def CheckBox(done,color):
     return Drawing()
 
 
+def PlanImage(encoded,problem):
+    # Decode a bounded local PNG only: never XML, a path or remote content.
+    from PIL import Image as PillowImage
+    from reportlab.platypus import Image
+    if not isinstance(encoded,str) or len(encoded)>3*1024*1024:
+        raise problem('La imagen del plano es demasiado grande o no es válida.')
+    try:
+        raw=base64.b64decode(encoded,validate=True)
+        with PillowImage.open(io.BytesIO(raw)) as image:
+            width,height=image.size
+            if image.format!='PNG' or not 1000<=width<=2000 or height*4!=width*5 or width*height>5_000_000:
+                raise ValueError('Invalid plan dimensions')
+            image.verify()
+    except (ValueError,binascii.Error,OSError,PillowImage.DecompressionBombError):
+        raise problem('No se pudo leer la imagen del plano. Vuelve a exportar desde Técnica.') from None
+    result=Image(io.BytesIO(raw),width=428,height=535);result.hAlign='CENTER'
+    return result
+
+
 def StagePlan(plan,font='ScribSans'):
     from reportlab.platypus import Flowable
     from reportlab.lib import colors
@@ -413,7 +434,7 @@ def StagePlan(plan,font='ScribSans'):
             c.setDash()
             for index,e in enumerate(plan['elements'],1):
                 x,y=point(e)
-                color={'blue':'#46f0ff','red':'#ff6b6b','warm':'#f2d777','white':'#bec7da'}[e['color']]
+                color='#bec7da' if e['type']=='monitor' else {'blue':'#46f0ff','red':'#ff6b6b','warm':'#f2d777','white':'#bec7da'}[e['color']]
                 c.setFillColor(colors.HexColor(color));c.setStrokeColor(colors.HexColor(color))
                 if e['type']=='screen':c.rect(x-65,y-9,130,18,fill=0)
                 elif e['type'] in ('desk','monitor','computer','console','projector','splitter','video-card','psu','controller'):c.roundRect(x-16,y-7,32,14,3,fill=0)

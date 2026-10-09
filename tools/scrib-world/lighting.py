@@ -68,6 +68,25 @@ def coordinates(element):
     return 100 + 8 * element['x'], 100 + 5 * element['y']
 
 
+def material_counts(plan):
+    labels={'hdmi':'Vídeo HDMI','data':'PC · tarjeta · mando','audio':'Audio','power':'Alimentación · tomas y cargadores','dmx':'DMX'}
+    cables=[(label,sum(c['type']==kind and c['id']!='power-video-card' for c in plan['connections'])) for kind,label in labels.items()]
+    cables.append(('Fuente → tarjeta de vídeo',sum(c['id']=='power-video-card' for c in plan['connections'])))
+    groups=[('Ordenadores y portátiles',lambda e:e['type'] in ('computer','desk')),
+            ('Mesas de escritura',lambda e:e['type']=='desk' and not e.get('zone')),
+            ('Monitores de proscenio',lambda e:e['type']=='monitor'),('Pantalla de proyección',lambda e:e['type']=='screen'),
+            ('Proyector',lambda e:e['type']=='projector'),('Splitter HDMI 1 → 2',lambda e:e['type']=='splitter'),
+            ('Tarjeta de vídeo',lambda e:e['type']=='video-card'),('Fuente de vídeo',lambda e:e['type']=='psu'),
+            ('Mando',lambda e:e['type']=='controller'),('Altavoces',lambda e:e['type']=='speaker'),
+            ('Mesa de sonido',lambda e:e['id']=='sound-desk'),('Control DMX',lambda e:e['id']=='dmx-desk'),
+            ('Máquinas de humo',lambda e:e['type']=='smoke'),('Puntos de alimentación / regletas',lambda e:e['type']=='power'),
+            ('Calles de luz',lambda e:e['type']=='street'),('Puntual de presentador',lambda e:e['type']=='spot'),
+            ('Grupo de frontales',lambda e:e['type']=='front')]
+    equipment=[(label,sum(test(e) for e in plan['elements'])) for label,test in groups]
+    equipment.append(('Walkies',len(plan['walkies'])))
+    return {'cables':cables,'equipment':equipment}
+
+
 def normalize(data, problem, text):
     if not isinstance(data, dict):
         raise problem('Plano no válido.')

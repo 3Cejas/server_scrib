@@ -122,6 +122,14 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   Solo se cuentan bolos realizados, no cancelados/archivados ni fechas futuras;
   el elenco del calendario prevalece sobre el historial antiguo. El mes se puede
   elegir directamente, sin recorrer todos los meses desde el presente.
+- Las tarjetas del elenco abren una ficha de detalle al pulsarlas. En el listado
+  aparece Instagram con su logo, pero no el teléfono ni el historial duplicado;
+  los contactos y las participaciones están dentro de la ficha. Se retiran los
+  botones de WhatsApp y Archivar de las personas, y los campos visibles de web y
+  otras redes, conservando esos enlaces guardados al editar.
+- Cada objeto del inventario es un botón accesible de edición de toda la tarjeta,
+  sin lápiz aparte. Se retiran del editor el enlace de producto y la casilla de
+  imagen de referencia; editar otros datos conserva las referencias existentes.
 - Plantilla inicial de 34 tareas transcritas de las tres capturas del usuario.
   Todas se crean en TO DO. Plantillas editables/duplicables; los cambios no alteran
   bolos anteriores ni reinician su progreso.
@@ -146,18 +154,27 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   alimentación de escritura y sala de intérpretes, dos PCs de técnica (juego y
   sonidos de interpretación) con entradas separadas a mesa de sonido, control
   DMX y dos máquinas de humo. Capas HDMI/audio/alimentación/DMX, recorridos que
-  siguen las posiciones al arrastrar y notas de cable por conexión.
+  siguen las posiciones al arrastrar. Las notas anteriores del cableado se conservan.
 - El plano abre con todas las conexiones visibles; los filtros permiten aislar
   alimentación, HDMI, audio, datos o DMX. Los cables llegan a conectores en el
   borde de cada equipo, también al moverlo; el splitter muestra una entrada y
   dos salidas. Las regletas representan los puntos de alimentación.
+- Monitores de proscenio neutros, público representado con figuras y selección
+  directa en el plano, sin el selector duplicado inferior ni campo de circuito.
+- **Material técnico del show** resume los cables por tipo y los equipos del plano,
+  separando el cable de la fuente de vídeo para no contarlo dos veces. El número
+  de focos de cada calle/grupo y las longitudes dependen de la sala.
 - Cuatro walkies: presentador canal 1, un equipo de intérpretes por canal 2 y
   técnica alternando 1/2 (doble escucha solo si el modelo la admite).
 - Checklist de 18 pasos, compartida al guardar el plano y separada por bolo.
   Crear una adaptación hereda posiciones/cableado pero no pasos completados.
   Los antiguos planos de siete elementos se amplían sin sobreescribir posiciones,
   nombres, circuitos ni notas. No hay reescritura al leer: se guardan explícitamente.
-  PDF con mapa numerado, leyenda, conexiones, walkies y checklist paginada.
+  El PDF generado desde la web incorpora el mismo dibujo visible, sus capas de
+  cableado, posiciones, colores y simulación. Captura local PNG de 1500×1875,
+  validada y limitada en el servidor; no acepta SVG, rutas ni recursos externos.
+  Incluye notas de los elementos, recuentos, walkies y checklist paginada. Se
+  conserva el render de servidor para exportaciones API sin captura del navegador.
 - El humo está orientado hacia público en el esquema solicitado; su dirección,
   distancias, ventilación y uso deben validarse con sala/manual antes de utilizarlo.
   No se controla DMX real ni se disparan efectos desde esta aplicación.
@@ -166,7 +183,7 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   pantalla de proyección al fondo y frontales de proscenio. Las calles/frontales
   representan grupos, no cantidades confirmadas del inventario de la sala.
 - Selección por clic o teclado, arrastre con ratón/táctil, posiciones numéricas,
-  simulación de encendido/intensidad, circuito/canal y notas. Vistas Todo, Azul,
+  simulación de encendido/intensidad y notas. Vistas Todo, Azul,
   Rojo, Presentador, Proscenio y Negro. No se conecta a DMX, sonido ni al videojuego.
 - Plano base compartido y adaptación independiente por bolo/ensayo. Guardado
   explícito, versiones y reintentos idempotentes; los conflictos conservan el

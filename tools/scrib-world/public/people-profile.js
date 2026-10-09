@@ -47,9 +47,10 @@ window.ScribPersonProfile = function(h) {
     const tag=url?'a':'div';
     return `<${tag} class="person-contact ${tone} ${url?'':'missing'}"${url?` href="${esc(url)}"${external?' target="_blank" rel="noopener noreferrer"':''}`:''}><span class="contact-icon" aria-hidden="true">${icon}</span><span class="contact-copy"><small>${label}</small><strong>${esc(value||'Sin añadir')}${url&&external?' ↗':''}</strong></span></${tag}>`;
   }
-  function contacts(person) {
+  const instagramIcon='<svg class="instagram-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>';
+  function contacts(person,compact=false) {
     const phone=person.phone||'',ig=person.instagram||'';
-    return `<div class="person-contacts">${contact('☎','Teléfono',displayPhone(phone),/^\+[0-9]{7,15}$/.test(phone)?'tel:'+phone:'','phone')}${contact('◎','Instagram',ig?(instagramHandle(ig)||'Ver perfil'):'',instagramUrl(ig),'instagram',true)}${person.website?contact('↗','Web / portfolio',hostLabel(person.website),person.website,'website',true):''}${person.otherSocial?contact('✦','Otra red',hostLabel(person.otherSocial),person.otherSocial,'other',true):''}</div>`;
+    return `<div class="person-contacts${compact?' compact':''}">${contact(instagramIcon,'Instagram',ig?(instagramHandle(ig)||'Ver perfil'):'',instagramUrl(ig),'instagram',true)}${compact?'':contact('☎','Teléfono',displayPhone(phone),/^\+[0-9]{7,15}$/.test(phone)?'tel:'+phone:'','phone')}</div>`;
   }
   return {catalog,roleTags,roleEditor,roleOptions,instagramHandle,displayPhone,contacts};
 };

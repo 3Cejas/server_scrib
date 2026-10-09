@@ -13,6 +13,14 @@
 .lumi-orientation{font:600 17px ui-monospace,monospace;letter-spacing:3px;fill:#bdc6d9}
 .lumi-zone-label{font:700 22px ui-monospace,monospace;letter-spacing:6px;fill:#d9c47744}
 .lumi-audience-line{stroke:#ccb77e66;stroke-width:2}.lumi-beams{pointer-events:none}
+.lumi-audience{fill:#bdc6d9;stroke:#bdc6d9;stroke-width:2;stroke-linecap:round;pointer-events:none}.lumi-audience path{fill:none}
+.lighting-material-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:24px;margin-top:22px}
+.lighting-material-columns h3{color:var(--gold);margin-bottom:14px}
+.lighting-material-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lighting-material{display:flex;align-items:center;gap:12px;min-width:0;border:1px solid var(--line);border-radius:10px;padding:12px;background:#171d2b}
+.lighting-material strong{font-size:1.65rem;color:var(--cyan);min-width:26px}.lighting-material span{font-size:.8rem;color:var(--text);overflow-wrap:anywhere}
+@media(max-width:1100px){.lighting-material-columns{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.lighting-material-list{grid-template-columns:minmax(0,1fr)}}
 .lumi-blue{--lumi-color:#39ccff}.lumi-red{--lumi-color:#ff708c}.lumi-warm{--lumi-color:#ffcf81}.lumi-white{--lumi-color:#e7e1ff}
 .lumi-node{cursor:grab;outline:none}.lumi-node:active{cursor:grabbing}.lumi-hit{fill:transparent}
 .lumi-body{fill:#171e2d;stroke:var(--lumi-color);stroke-width:2}.lumi-line{fill:none;stroke:var(--lumi-color);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}

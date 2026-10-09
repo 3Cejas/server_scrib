@@ -133,7 +133,7 @@
       columns:Object.fromEntries([...main.querySelectorAll(".column")].map(c=>[c.dataset.status,c.querySelector(".ticket-list").scrollTop]))
     } : null;
     const [page = "home", id] = route();
-    const nav = page === "archive" ? "boards" : page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
+    const nav = page === "person" ? "people" : page === "archive" ? "boards" : page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
     let content;
     if (page === "events") content = renderEvents();
@@ -143,6 +143,7 @@
     else if (page === "board") content = renderBoard(id);
     else if (page === "event") content = renderEvent(id);
     else if (page === "people") content = renderPeople();
+    else if (page === "person") content = renderPerson(id);
     else if (page === "inventory") content = inventory.list();
     else if (page === "lighting") content = lighting.render();
     else if (page === "materials") content = library.list();
@@ -158,10 +159,6 @@
     main.innerHTML = (state.demo ? `<div class="notice demo-notice">ENSAYO LOCAL · Datos ficticios, sin conexión con una partida ni con datos de producción.</div>` : "") + content;
     library.afterRender?.();
     if(page==='inventory')inventory.applyFilters();
-    if(page === "people")main.querySelectorAll('[data-person]').forEach(card=>{
-      const p=item(card.dataset.person);
-      card.querySelector('.person-body > .actions').insertAdjacentHTML('beforeend',btn("compose-person","◌ WhatsApp",p.id,"small"));
-    });
     if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;main.querySelectorAll(".column").forEach(c=>{c.querySelector(".ticket-list").scrollTop=keepScroll.columns[c.dataset.status] || 0;});}
     renderedRoute=location.hash;
     if (page === "board") applyFilters();
@@ -307,7 +304,16 @@
   }
   function renderPeople() {
     return pageHead("LAS PERSONAS QUE LO HACEN POSIBLE", "Elenco", "Una ficha por persona. Reutiliza sus datos y asigna un papel diferente en cada función.",btn("new-person","＋ Nueva persona","","primary")) +
-      `<div class="toolbar"><input type="search" id="people-search" aria-label="Buscar en el elenco" placeholder="Buscar nombre o especialidad…"></div><div class="grid cols3">${active("person").sort((a,b)=>a.name.localeCompare(b.name,"es")).map(p=>`<article class="panel person-card ${colors.className(p)}" data-person="${p.id}">${p.image?`<img class="person-photo" src="${BASE}images/${p.image}" alt="${esc(p.name)}" loading="lazy">`:`<div class="person-placeholder" aria-hidden="true">${esc(initials(p.name))}</div>`}<div class="person-body"><h3>${personLabel(p.id)}</h3>${badge(`${p.participationCount || 0} ${(p.participationCount || 0) === 1 ? "bolo realizado" : "bolos realizados"}`,"gold")}<div class="label-group">${profile.roleTags(p.roles)}</div><p class="bio">${esc(p.bio)}</p>${personHistory(p,true)}${profile.contacts(p)}<div class="actions">${btn("edit-person","Ver / editar ficha",p.id,"small")}</div></div></article>`).join("") || empty("Todo empieza por el equipo","Añade a las personas del elenco; podrás elegirlas al crear cada bolo.",btn("new-person","＋ Añadir persona","","primary"))}</div>`;
+      `<div class="toolbar"><input type="search" id="people-search" aria-label="Buscar en el elenco" placeholder="Buscar nombre o especialidad…"></div><div class="grid cols3">${active("person").sort((a,b)=>a.name.localeCompare(b.name,"es")).map(p=>`<article class="panel person-card ${colors.className(p)}" data-person="${esc(p.id)}"><a class="person-card-link" href="#person/${esc(p.id)}" aria-label="Ver ficha de ${esc(p.name)}">${personPhoto(p)}<div class="person-body"><h3>${personLabel(p.id)}</h3>${badge(`${p.participationCount || 0} ${(p.participationCount || 0) === 1 ? "bolo realizado" : "bolos realizados"}`,"gold")}${profile.roleTags(p.roles)}<p class="bio">${esc(p.bio)}</p><span class="person-enter">Ver ficha ↗</span></div></a>${profile.contacts(p,true)}</article>`).join("") || empty("Todo empieza por el equipo","Añade a las personas del elenco; podrás elegirlas al crear cada bolo.",btn("new-person","＋ Añadir persona","","primary"))}</div>`;
+  }
+  function personPhoto(p) {
+    return p.image?`<img class="person-photo" src="${BASE}images/${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:`<div class="person-placeholder" aria-hidden="true">${esc(initials(p.name))}</div>`;
+  }
+  function renderPerson(id) {
+    const p=item(id);
+    if(!p || p.kind!=='person' || p.archived)return empty('Ficha no disponible','Puedes volver al elenco.', '<a class="button" href="#people">← Elenco</a>');
+    return pageHead('ELENCO · FICHA PERSONAL',p.name,'',`<a class="button" href="#people">← Elenco</a>${btn('edit-person','Editar ficha',p.id)}`)+
+      `<article class="panel person-detail ${colors.className(p)}"><div class="person-detail-head">${personPhoto(p)}<div><h2>${personLabel(p.id)}</h2>${profile.roleTags(p.roles)}${badge(`${p.participationCount || 0} ${(p.participationCount || 0)===1?'bolo realizado':'bolos realizados'}`,'gold')}</div></div><div class="section">${profile.contacts(p)}</div>${p.bio?`<section class="section"><h2>Sobre ${esc(p.name.split(' ')[0])}</h2><p class="notes section">${esc(p.bio)}</p></section>`:''}<section class="section"><h2>Bolos y participaciones</h2>${personHistory(p)}</section>${business.personLink(p.id)}</article>`;
   }
   function renderTemplates() {
     return pageHead("NO VOLVER A EMPEZAR DE CERO","Plantillas de tareas","Al crear un bolo, se copian sus tareas en TO DO. Editar una plantilla no modifica funciones ya creadas.",btn("new-template","＋ Nueva plantilla","","primary")) +
@@ -394,7 +400,7 @@
     if (!dialog.open) dialog.showModal();
   }
   function formShell(kind, object, body, extra = "") {
-    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
+    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${kind!=='person' && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
   }
   function openBoard(id) {
     const b = id ? item(id) : {title:"", description:"", color:"violet"};
@@ -456,7 +462,7 @@
       personHistory(p) +
       business.personLink(p.id) +
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
-      `<div class="form-row">${field("Instagram",input("instagram",p.instagram,"text",'placeholder="@tu_usuario o https://instagram.com/…" maxlength="2000"'))}${field("Web / portfolio",input("website",p.website,"url",'placeholder="https://…" maxlength="2000"'))}</div>` + field("Otra red social",input("otherSocial",p.otherSocial,"url",'placeholder="https://…" maxlength="2000"')) +
+      field("Instagram",input("instagram",p.instagram,"text",'placeholder="@tu_usuario o https://instagram.com/…" maxlength="2000"')) + input('website',p.website||'','hidden') + input('otherSocial',p.otherSocial||'','hidden') +
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
     colors.decorate(dialog,p);
   }
@@ -482,7 +488,7 @@
       data.roles = [...form.querySelectorAll('[name=roles]:checked')].map(x=>x.value);
     } else if (form.dataset.kind === "inventory") {
       data.quantity = data.quantity === '' ? null : Number(data.quantity);
-      data.imageReference = form.querySelector('[name=imageReference]')?.checked || false;
+      data.imageReference = item(form.dataset.id)?.imageReference || false;
     } else if (form.dataset.kind === "event") {
       const gameConfig = window.ScribWorldGameConfig.read(form);
       if(gameConfig !== undefined)data.gameConfig = gameConfig;

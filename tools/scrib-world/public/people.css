@@ -60,5 +60,18 @@ a.person-contact:hover{border-color:var(--person-color,#64dee7);background:#2932
 .person-summary{display:grid;gap:16px;padding:16px;background:#202332;border:1px solid #4d526a;border-radius:14px}
 .person-body .label-group{width:100%}.person-body .person-contacts{margin:2px 0 4px}.person-body .person-contact{padding:10px;gap:8px}.person-body .contact-icon{font-size:1.25rem}
 .person-body .person-contact strong{font-size:.79rem}
+.instagram-icon{width:24px;height:24px;display:block}
+.person-contacts.compact{grid-template-columns:minmax(0,1fr)}
+.person-card{position:relative;display:block}
+.person-card-link{display:grid;gap:16px;margin-bottom:16px;border-radius:12px}
+.person-card-link::after{content:'';position:absolute;inset:0;border-radius:var(--radius)}
+.person-card>.person-contacts{position:relative;z-index:1}
+.person-card:hover{border-color:var(--person-color,var(--cyan))}
+.person-enter{color:var(--person-color,var(--cyan));font-size:.8rem;font-weight:700}
+.person-detail-head{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.person-detail-head>.person-photo,.person-detail-head>.person-placeholder{width:120px;height:120px;border-radius:18px;object-fit:cover}
+.person-detail-head>div:last-child{display:grid;gap:16px;min-width:0}
+.person-detail-head .badge{justify-self:start}
+.person-detail .notes{line-height:1.7}
 @media(max-width:520px){.person-contacts{grid-template-columns:minmax(0,1fr)}.person-role-picker{padding:14px}.person-summary{padding:12px}}
 @media print{.person-contact,.person-contact.instagram,.person-summary,.person-role,.role-option>span{background:white;color:#161b27}.person-contact strong,.person-contact.instagram strong,.person-contact small,.person-contact .contact-icon{color:#161b27}.role-options input{position:static;opacity:1;width:auto;height:auto}}
