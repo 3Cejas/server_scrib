@@ -32,7 +32,7 @@ from inventory_seed import apply_initial_inventory
 from inventory_teams import apply_team_inventory
 from presenter_assignment import apply_presenter_assignment
 from production import TEAM_ROLES, normalize_role
-from lighting import default_plan as default_lighting, normalize as normalize_lighting
+from lighting import default_plan as default_lighting, normalize as normalize_lighting, upgrade as upgrade_lighting
 from dependencies import validate as validate_dependencies, block_dependents
 from document_trace import SCHEMA as DOCUMENT_TRACE_SCHEMA
 
@@ -215,7 +215,9 @@ class Store:
         row = db.execute("SELECT * FROM items WHERE id=?", (ident,)).fetchone()
         if not row or (kind and row["kind"] != kind) or (active and row["archived"]):
             raise Problem("No encontrado o archivado.", 404)
-        return dict(json.loads(row["body"]), id=row["id"], kind=row["kind"], version=row["version"], archived=bool(row["archived"]))
+        body=json.loads(row['body'])
+        if row['kind']=='lighting':body=upgrade_lighting(body)
+        return dict(body, id=row["id"], kind=row["kind"], version=row["version"], archived=bool(row["archived"]))
 
     def insert(self, db, kind, body, actor, ident=None):
         ident = ident or str(uuid.uuid4())

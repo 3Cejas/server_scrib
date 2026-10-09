@@ -37,6 +37,18 @@ class DynamicTechnicalTests(BoloCleanupTests):
         empty=default_plan();empty['elements']=[];empty['connections']=[]
         self.assertEqual(normalize(empty,Problem,text)['elements'],[])
 
+    def test_saved_legacy_plan_is_upgraded_on_read_without_writing_user_data(self):
+        with self.store.connect() as db:
+            self.store.insert(db,'lighting',dict(PREVIOUS,eventId=''),'admin','lighting-base')
+            before=db.execute("SELECT body,version FROM items WHERE id='lighting-base'").fetchone()
+            original=tuple(before)
+        plan=next(i for i in self.store.snapshot()['items'] if i['kind']=='lighting')
+        self.assertEqual(plan['schemaVersion'],5);self.assertEqual(plan['notes'],default_plan()['notes'])
+        self.assertNotIn('video-psu',[e['id'] for e in plan['elements']])
+        self.assertEqual(next(c for c in plan['connections'] if c['id']=='power-video-card')['from'],'technical-power')
+        with self.store.connect() as db:
+            self.assertEqual(tuple(db.execute("SELECT body,version FROM items WHERE id='lighting-base'").fetchone()),original)
+
     def test_wiring_rejects_dangling_duplicate_self_links_and_unknown_types(self):
         for change in ({'to':'missing'},{'to':'video-card'},{'type':'malicious'},{'id':'bad id'}):
             plan=default_plan();plan['connections'][0].update(change)
