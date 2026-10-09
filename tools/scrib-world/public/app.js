@@ -13,8 +13,8 @@
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};
   const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto",lighting:"Plano técnico"};
   const TEAM_ROLES=new Set(['Escritura','Interpretación']);
-  const REQUIRED_CAST=[['Escritura','blue'],['Escritura','red'],['Interpretación','blue'],['Interpretación','red'],['Presentador','general'],['Técnica','general'],['Jurado','general']];
-  const CAST_SLOTS=[['Escritura','blue'],['Interpretación','blue'],['Interpretación','blue'],['Escritura','red'],['Interpretación','red'],['Interpretación','red'],['Presentador','general'],['Técnica','general'],['Jurado','general']];
+  const STAFF_ROLES=['Presentador','Jurado','Técnica videojuego','Técnica luminotecnia-sonido'];
+  const CAST_SLOTS=[['Escritura','blue'],['Interpretación','blue'],['Interpretación','blue'],['Escritura','red'],['Interpretación','red'],['Interpretación','red'],...STAFF_ROLES.map(role=>[role,'general'])];
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   const deleteDialog = document.querySelector("#delete-confirmation");
@@ -224,7 +224,7 @@
     main.querySelector(`[data-action="${action}"][data-id="${id}"]`)?.focus({preventScroll:true});
   }
   function renderHome() {
-    const upcoming = eventGroups().filter(g=>g.some(x => x.start.slice(0,10) >= today() && !["cancelled","completed"].includes(x.status))).map(g=>g[0]).sort((a,b)=>a.start.localeCompare(b.start));
+    const upcoming = eventGroups().filter(g=>g[0].eventType!=='rehearsal'&&g.some(x => x.start.slice(0,10) >= today() && !["cancelled","completed"].includes(x.status))).map(g=>g[0]).sort((a,b)=>a.start.localeCompare(b.start));
     const tasks = active("ticket").filter(x=>!item(x.boardId)?.eventId), mine = tasks.filter(x => x.status !== "done" && x.assignees.includes(state.user.username));
     const blocked = tasks.filter(x=>x.status === "blocked"), late = tasks.filter(x=>x.status !== "done" && x.due && x.due < today());
     return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",`<a class="button app-download" href="${BASE}android/scrib.apk" download="SCRIB-Android.apk" aria-label="Descargar la app de SCRIB para Android">${icon('phone')} Descargar app · Android</a>`+btn("new-event","＋ Crear bolo","","primary")) +
@@ -257,7 +257,7 @@
     const cells = Array.from({length:42},(_,i)=>{
       const date = new Date(start); date.setDate(date.getDate()+i);
       const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
-      return `<div class="calendar-day ${date.getMonth() !== m ? "outside" : ""} ${day === today()?"today":""}"><button type="button" class="icon-button day-number" data-action="new-event-day" data-id="${day}" aria-label="Crear bolo el ${esc(niceDate(day))}">${date.getDate()}</button>${events.filter(x=>x.start.slice(0,10) === day).sort((a,b)=>a.start.localeCompare(b.start)).map(x=>`<button type="button" class="calendar-event ${x.status}${eventInactive(x) ? ' is-completed' : ''}" data-action="open-event" data-id="${x.id}">${esc(x.title)}<small>${hour(x.start)} · ${esc(x.venue || "Lugar pendiente")}</small></button>`).join("")}</div>`;
+      return `<div class="calendar-day ${date.getMonth() !== m ? "outside" : ""} ${day === today()?"today":""}"><button type="button" class="icon-button day-number" data-action="new-event-day" data-id="${day}" aria-label="Crear bolo el ${esc(niceDate(day))}">${date.getDate()}</button>${events.filter(x=>x.start.slice(0,10) === day).sort((a,b)=>a.start.localeCompare(b.start)).map(x=>`<button type="button" class="calendar-event ${x.eventType==='rehearsal'?'rehearsal':'show'} ${x.status}${eventInactive(x) ? ' is-completed' : ''}" data-action="open-event" data-id="${x.id}">${x.eventType==='rehearsal'?'◷ Ensayo · ':''}${esc(x.title)}<small>${hour(x.start)} · ${esc(x.venue || "Lugar pendiente")}</small></button>`).join("")}</div>`;
     });
     return `<div class="calendar"><div class="calendar-controls"><h2>${esc(new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(month))}</h2><div class="actions"><label class="calendar-jump">Ir a mes <input type="month" id="calendar-month" value="${year}-${String(m+1).padStart(2,"0")}" aria-label="Elegir mes y año del calendario"></label>${btn("month-prev","←","","small")}${btn("month-today","Hoy","","small")}${btn("month-next","→","","small")}</div></div><div class="calendar-week">${["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></div>`;
   }
@@ -306,6 +306,7 @@
   function renderEvent(id) {
     const event = item(id);
     if (!event || event.archived) return empty("Este bolo está archivado o no existe","Puedes recuperarlo desde el archivo.",`<a class="button" href="#archive">Ir al archivo</a>`);
+    if(event.eventType==='rehearsal')return renderRehearsal(event);
     const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${castSlots(event.cast).filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
     return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",eventSeries(event)[0].title,`${seriesDates(event)} · ${EVENT_STATUS[event.status]}`,
       btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + btn("event-pdf","↓ Hoja de llamada PDF",event.id) + (event.eventType === "rehearsal" ? (event.sourcePollId ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : "") : btn("new-rehearsal","＋ Ensayo manual",event.id)+btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
@@ -315,13 +316,22 @@
       ${inventory.eventPanel(event)}
       ${event.eventType === 'rehearsal' ? '' : `<section class="panel event-game-section"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}
-      <section class="panel event-notes-section"><h2>📌 Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.address?`<p class="section notes">⌖ ${esc(event.address)}</p>`:""}${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">&lt;SCRI&gt; B · ${niceDate(today())} · Horario Europe/Madrid</p></section></div></div>`;
+      <section class="panel event-notes-section"><h2>📌 Todo lo que hay que saber</h2><div class="section notes">${esc(event.description || "Sin notas de producción todavía.")}</div>${event.ticketUrl?`<a class="button section" href="${esc(event.ticketUrl)}" target="_blank" rel="noopener noreferrer">Entradas / información ↗</a>`:""}<p class="print-only section">&lt;SCRI&gt; B · ${niceDate(today())} · Horario Europe/Madrid</p></section></div></div>`;
   }
   function rehearsalsPanel(event) {
     if(event.eventType==='rehearsal')return `<section class="panel event-prep-section"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>${event.sourcePollId?'Fecha acordada por disponibilidad':'Ensayo manual'}</h2><p class="muted section">Puedes editar la fecha, el horario y las personas asistentes.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>`;
     const ids=new Set(eventSeries(event).map(e=>e.id));
     const rehearsals=active('event').filter(e=>e.eventType==='rehearsal'&&ids.has(e.parentEventId)).sort((a,b)=>a.start.localeCompare(b.start));
     return `<section class="panel event-prep-section"><div class="panel-head"><h2>◷ Ensayos</h2>${btn('new-rehearsal','＋ Ensayo manual',event.id,'small')}</div><div class="report-list section">${rehearsals.map(e=>`<a class="button" href="#event/${esc(e.id)}">${esc(e.title)} · ${esc(dateTime(e.start))}${e.end?' — '+esc(hour(e.end)):''}${e.status==='cancelled'?' · Cancelado':''}</a>`).join('')||'<p class="muted">Todavía no hay ensayos. Añade uno directamente o busca fecha con una encuesta.</p>'}</div></section>`;
+  }
+  function renderRehearsal(e){
+    const people=[...new Set(e.cast.map(c=>c.personId))];
+    return pageHead('◷ ENSAYO',e.title,dateTime(e.start)+(e.end?' — '+hour(e.end):''),btn('edit-event','Editar ensayo',e.id)+btn('show-calendar','▦ Calendario',e.start.slice(0,10))+(e.parentEventId?`<a class="button" href="#event/${esc(e.parentEventId)}">← Bolo asociado</a>`:''))+
+      `<section class="panel rehearsal-detail"><div class="event-info"><div class="info-tile"><small>⌖ Lugar</small><strong>${esc(e.venue||'Por confirmar')}</strong><p class="muted">${esc(e.city)}</p></div><div class="info-tile"><small>◷ Horario del ensayo</small><strong>${esc(hour(e.start))}${e.end?' — '+esc(hour(e.end)):''}</strong><p>${esc(niceDate(e.start))}</p></div></div><h2 class="section">Personas convocadas · ${people.length}</h2><div class="rehearsal-people section">${people.map(id=>`<a href="#person/${esc(id)}" class="rehearsal-person">${personPhoto(item(id)||{name:'Ficha archivada'})}${personLabel(id)}</a>`).join('')||'<p class="muted">Aún no hay personas convocadas.</p>'}</div>${e.description?`<h2 class="section">Notas del ensayo</h2><p class="notes section">${esc(e.description)}</p>`:''}</section>`;
+  }
+  function rehearsalPeople(e){
+    const ids=new Set(e.cast.map(c=>c.personId));
+    return `<fieldset class="recipient-list"><legend>Personas convocadas</legend>${state.items.filter(p=>p.kind==='person'&&(!p.archived||ids.has(p.id))).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>`<label class="recipient-option"><input type="checkbox" name="attendees" value="${esc(p.id)}" ${ids.has(p.id)?'checked':''}><span>${personLabel(p.id)}</span></label>`).join('')}</fieldset>`;
   }
   function renderPeople() {
     return pageHead("LAS PERSONAS QUE LO HACEN POSIBLE", "Elenco", "Una ficha por persona. Reutiliza sus datos y asigna un papel diferente en cada función.",btn("new-person","＋ Nueva persona","","primary")) +
@@ -447,31 +457,31 @@
     if(saving){node.value=slot.personId;return;}
     const previous=slot.personId;slot.personId=node.value;
     saving=true;node.disabled=true;
-    try{const result=await request('update',{id:e.id,version:Number(node.dataset.castVersion),data:{...e,cast:slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team}))}});state.items[state.items.findIndex(x=>x.id===e.id)]=result.item;renderPage();toast('Puesto guardado.');}
+    try{const result=await request('update',{id:e.id,version:Number(node.dataset.castVersion),data:{...e,cast:[...slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team})),...e.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')]}});state.items[state.items.findIndex(x=>x.id===e.id)]=result.item;renderPage();toast('Puesto guardado.');}
     catch(error){node.value=previous;throw error;}finally{saving=false;node.disabled=false;}
   }
   function personChoices(id){return option('','Selecciona quién ocupa el puesto',id)+state.items.filter(p=>p.kind==='person'&&(!p.archived||p.id===id)).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>option(p.id,p.name+(p.archived?' (archivado)':''),id)).join('');}
-  function castSlots(cast=[]){const remaining=[...cast],rows=[];for(const [role,team] of CAST_SLOTS){const index=remaining.findIndex(c=>c.role===role&&(TEAM_ROLES.has(role)?c.team: 'general')===team);rows.push({...(index>=0?remaining.splice(index,1)[0]:{role,team,personId:''}),team,fixed:true});}return [...rows,...remaining.map(c=>({...c,team:TEAM_ROLES.has(c.role)?c.team:'general',fixed:true}))].map((c,slotIndex)=>({...c,slotIndex}));}
+  function castSlots(cast=[]){const remaining=cast.map(c=>({...c,role:c.role==='Técnica'?'Técnica videojuego':c.role})),rows=[];for(const [role,team] of CAST_SLOTS){const index=remaining.findIndex(c=>c.role===role&&(TEAM_ROLES.has(role)?c.team: 'general')===team);rows.push({...(index>=0?remaining.splice(index,1)[0]:{role,team,personId:''}),team,fixed:true});}return [...rows,...remaining.filter(c=>TEAM_ROLES.has(c.role)).map(c=>({...c,team:c.team,fixed:true}))].map((c,slotIndex)=>({...c,slotIndex}));}
   function castRow(c = {}) {
     const choices=state.items.filter(p=>p.kind === "person" && (!p.archived || p.id === c.personId));
     const teamRole=TEAM_ROLES.has(c.role),team=teamRole?c.team||'blue':'general';
     if(c.fixed)return `<div class="cast-editor-row cast-fixed ${team}"><div><strong>${esc(c.role)}</strong><small>${team==='blue'?'Equipo azul':team==='red'?'Equipo rojo':'Equipo del espectáculo'}</small></div><input class="cast-role" type="hidden" value="${esc(c.role)}"><input class="cast-team" type="hidden" value="${esc(team)}"><select class="cast-person" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId)}</select></div>`;
-    return `<div class="cast-editor-row${teamRole?'':' no-team'}"><select class="cast-person" aria-label="Persona del elenco">${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><select class="cast-role" aria-label="Papel en el bolo">${option("","Selecciona rol",c.role)}${profile.roleOptions(c.role)}</select><select class="cast-team" aria-label="Equipo" ${teamRole?'':'hidden disabled'}>${teamRole?option('blue','Azul',team)+option('red','Rojo',team):option('general','',team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
+    return `<div class="cast-editor-row${teamRole?'':' no-team'}"><select class="cast-person" aria-label="Persona del elenco">${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><select class="cast-role" aria-label="Papel en el bolo">${option("","Selecciona rol",c.role)}${[...TEAM_ROLES,...(STAFF_ROLES.includes(c.role)?[c.role]:[])].map(role=>option(role,role,c.role)).join('')}</select><select class="cast-team" aria-label="Equipo" ${teamRole?'':'hidden disabled'}>${teamRole?option('blue','Azul',team)+option('red','Rojo',team):option('general','',team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
   }
   function openEvent(id, day, parentId='') {
     const parent=parentId?item(parentId):null;
-    const e = id ? item(id) : {title:parent?'Ensayo · '+parent.title:"",eventType:parent?'rehearsal':'show',parentEventId:parentId,start:day || today(),end:"",arrival:"",status:"pending",venue:parent?.venue||"",city:parent?.city||"",address:parent?.address||"",description:"",ticketUrl:"",cast:parent?.cast||[]};
+    const e = id ? item(id) : {title:parent?'Ensayo · '+parent.title:"",eventType:parent?'rehearsal':'show',parentEventId:parentId,start:day || today(),end:"",arrival:"",status:"pending",venue:parent?.venue||"",city:parent?.city||"",address:"",description:"",ticketUrl:"",cast:[]};
     const rehearsal=e.eventType==='rehearsal';
     openDialog("event",rehearsal?(id?'Editar ensayo':'Crear ensayo manual'):id ? "Editar bolo" : "Un nuevo escenario",formShell("event",e,
       input('eventType',e.eventType||'show','hidden')+input('parentEventId',e.parentEventId||'','hidden')+
       field(rehearsal?"Nombre del ensayo":"Nombre del bolo",input("title",e.title,"text",'required maxlength="240" placeholder="SCRIB · sala / festival"')) +
       `<div class="form-row">${field(rehearsal?"Fecha del ensayo":"Fecha del bolo",input("start",e.start.slice(0,10),"date", "required"))}${field("Hora · horario Madrid",input("startTime",e.start.length > 10 ? e.start.slice(11,16) : "","time"),"Déjala vacía si todavía está pendiente.")}</div>` +
       field("Fin (opcional; requiere hora de inicio)",input("end",localInput(e.end),"datetime-local")) +
-      field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local"))+input('status',e.status,'hidden') +
-      `<div class="form-row">${field("Espacio / sala",input("venue",e.venue,"text",'maxlength="200"'))}${field("Ciudad",input("city",e.city,"text",'maxlength="120"'))}</div>` + field("Dirección / instrucciones de llegada",input("address",e.address,"text",'maxlength="1000"')) +
-      field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"')) + field("Notas de producción",area("description",e.description,'maxlength="15000"')) +
+      (rehearsal?'':field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local")))+input('status',e.status,'hidden') +
+      `<div class="form-row">${field("Espacio / sala",input("venue",e.venue,"text",'maxlength="200"'))}${field("Ciudad",input("city",e.city,"text",'maxlength="120"'))}</div>` +
+      (rehearsal?'':field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"'))) + field(rehearsal?"Notas del ensayo":"Notas de producción",area("description",e.description,'maxlength="15000"')) +
       (rehearsal?'':window.ScribWorldGameConfig.editor(e,state.gameConfigSchema)) +
-      `<div><div class="panel-head"><h3>${rehearsal?'Asistentes al ensayo':'Elenco de esta función'}</h3>${btn("add-cast","＋ Otro puesto","","small")}</div><p class="hint">Puedes guardar un borrador y completar después los puestos que faltan.</p><div class="cast-editor">${castSlots(e.cast).map(castRow).join("")}</div></div>`));
+      (rehearsal?rehearsalPeople(e):`<div><div class="panel-head"><h3>${rehearsal?'Asistentes al ensayo':'Elenco de esta función'}</h3>${btn("add-cast","＋ Elenco adicional","","small")}</div><p class="hint">Puedes guardar un borrador y completar después los puestos que faltan.</p><div class="cast-editor">${castSlots(e.cast).map(castRow).join("")}</div></div>`)));
   }
   function openPerson(id) {
     const p = id ? item(id) : {name:"",roles:[],bio:"",instagram:"",website:"",otherSocial:"",image:""};
@@ -510,6 +520,9 @@
       delete data.startTime;
       data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:TEAM_ROLES.has(row.querySelector('.cast-role').value)?row.querySelector(".cast-team").value:'general'})).filter(c=>c.personId);
       if(data.cast.some(c=>!c.role))throw new Error('Elige el rol de cada persona del elenco.');
+      if(data.eventType==='rehearsal')data.cast=[...form.querySelectorAll('[name=attendees]:checked')].map(n=>({personId:n.value,role:'Ensayo',team:'general'}));
+      else data.cast.push(...(item(form.dataset.id)?.cast||[]).filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica'));
+      data.address=item(form.dataset.id)?.address||'';
 
     }
     if(['person','inventory'].includes(form.dataset.kind)){

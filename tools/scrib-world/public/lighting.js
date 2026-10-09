@@ -3,39 +3,40 @@ window.ScribLighting = function(h) {
   const {esc,btn,pageHead,request,toast} = h;
   const clone = value => JSON.parse(JSON.stringify(value));
   const LIGHTS = new Set(['street','spot','front']);
+  const TYPES={computer:'Ordenador',desk:'Mesa con portátil','video-card':'Interfaz de vídeo',splitter:'Splitter HDMI',projector:'Proyector',monitor:'Monitor',screen:'Pantalla',console:'Mesa de control',power:'Alimentación',speaker:'Altavoz',controller:'Mando',smoke:'Máquina de humo',street:'Calle de luz',spot:'Puntual',front:'Frontales',psu:'Fuente de alimentación'};
   let scope='',loadedScope=null,draft=null,version=0,selected='blue-street',dirty=false,busy=false,drag=null,requestId='',cableView='all';
   let baseline='',past=[],future=[],editGroup=null;
   function upgraded(source) {
     const defaults=h.state().lightingDefaults;
-    const plan=clone({schemaVersion:defaults.schemaVersion,notes:source.notes || '',elements:source.elements});
-    const legacy=['blue-street','red-street','presenter','frontals','blue-desk','red-desk','screen'];
-    const additions=['game-controller','video-card','video-psu','left-speaker','right-speaker'];
+    const plan=clone({schemaVersion:defaults.schemaVersion,notes:source.notes||'',elements:source.elements,connections:source.connections||defaults.connections,walkies:source.walkies||defaults.walkies,checklist:source.checklist||defaults.checklist});
+    if(source.schemaVersion>=5)return plan;
+    const ids=plan.elements.map(e=>e.id);
+    const additions=['game-controller','video-card','left-speaker','right-speaker'];
     const v2=defaults.elements.map(e=>e.id).filter(id=>!additions.includes(id));
-    const ids=plan.elements.map(e=>e.id),old=[legacy,v2].some(keys=>ids.length===keys.length&&new Set(ids).size===ids.length&&keys.every(id=>ids.includes(id)));
-    if(old){
+    const legacy=['blue-street','red-street','presenter','frontals','blue-desk','red-desk','screen'];
+    const same=(a,b)=>new Set(a).size===a.length&&a.length===b.length&&b.every(id=>a.includes(id));
+    if([legacy,v2,[...defaults.elements.map(e=>e.id),'video-psu'],defaults.elements.map(e=>e.id)].some(keys=>same(ids,keys))){
       const positions={splitter:[50,34],'blue-power':[14,28],'red-power':[86,28],'game-computer':[25,25],'sound-computer':[75,25],'sound-desk':[75,65],'technical-power':[25,65],'dmx-desk':[50,90]};
-      const notes={projector:'HDMI directo desde PC principal; ajustar posición y óptica a la sala.',splitter:'Segunda salida del PC principal; señal a ambos monitores. Confirmar salidas/adaptadores y duplicado.','game-computer':'Videojuego, proyector y señal de monitores. Audio del juego a mesa de sonido.'};
-      plan.elements.forEach(e=>{const p=positions[e.id],d=defaults.elements.find(x=>x.id===e.id);if(p&&e.x===p[0]&&e.y===p[1]){e.x=d.x;e.y=d.y;}if(e.id==='splitter')e.zone='technical';if(e.notes&&e.notes===notes[e.id])e.notes=d.notes;});
+      for(const e of plan.elements){const d=defaults.elements.find(x=>x.id===e.id),p=positions[e.id];if(d&&[legacy,v2].some(keys=>same(ids,keys))&&p&&e.x===p[0]&&e.y===p[1]){e.x=d.x;e.y=d.y;}if(e.id==='splitter')e.zone='technical';}
       plan.elements.push(...clone(defaults.elements.filter(e=>!ids.includes(e.id))));
     }
-    plan.elements=plan.elements.map(e=>({...defaults.elements.find(x=>x.id===e.id),...e}));
-    const previousNotes={'game-computer':'Conectado a tarjeta de vídeo y mando. Audio del juego a mesa de sonido.','technical-power':'Tomas/cargadores para los dos ordenadores, la fuente de la tarjeta de vídeo y controles; validar distribución con sala.','video-card':'Conexión al PC principal y fuente propia. HDMI 1 al proyector, HDMI 2 al splitter. Validar interfaz y conectores del modelo disponible.'};
-    plan.elements.forEach(e=>{if(e.notes&&e.notes===previousNotes[e.id])e.notes=defaults.elements.find(d=>d.id===e.id).notes;});
-    for(const field of ['connections','walkies','checklist'])plan[field]=clone(source[field] || defaults[field]);
-    if(old)for(const [field,added] of [['connections',['data-video','data-controller','power-video-psu','power-video-card','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['video-card','controller','speakers']]]){
-      const keys=plan[field].map(r=>r.id),previous=defaults[field].filter(r=>!added.includes(r.id));
-      if(keys.length===previous.length&&new Set(keys).size===keys.length&&previous.every(r=>keys.includes(r.id)))plan[field]=defaults[field].map(d=>{const r=plan[field].find(r=>r.id===d.id);return {...clone(d),...(r?.notes!==undefined?{notes:r.notes}:{}),...(r?.done!==undefined?{done:r.done}:{})};});
-    }
-    for(const [field,retired,added] of [['connections',['power-game'],['data-video','data-controller','power-video-psu','power-video-card','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['room','cables','backup','sound-cues','speakers'],['video-card','controller','speakers']]]){
-      const rows=plan[field],keys=rows.map(r=>r.id),previous=[...new Set([...defaults[field].map(r=>r.id),...retired])];
-      if(new Set(keys).size===keys.length&&[previous,previous.filter(id=>!added.includes(id))].some(expected=>expected.length===keys.length&&expected.every(id=>keys.includes(id)))){
-        plan[field]=defaults[field].map(d=>{
-          const r=rows.find(r=>r.id===d.id),copy={...clone(d),...(r?.notes!==undefined?{notes:r.notes}:{}),...(r?.done!==undefined?{done:r.done}:{})};
-          const speakers=rows.find(r=>r.id==='speakers');
-          if(field==='checklist'&&d.id==='sound'&&speakers){copy.done=Boolean(r?.done&&speakers.done);copy.notes=[...new Set([r?.notes,speakers.notes].filter(Boolean))].join('\n');}
-          return copy;
-        });
-      }
+    const labels={'video-card':'Tarjeta de vídeo · 2 HDMI',splitter:'Splitter HDMI 1 → 2','dmx-desk':'Control DMX · humo'};
+    plan.elements=plan.elements.filter(e=>e.id!=='video-psu').map(e=>{
+      const d=defaults.elements.find(x=>x.id===e.id);if(!d)return e;
+      const row={...clone(d),...e};if(row.label===labels[e.id])row.label=d.label;
+      return row;
+    });
+    for(const [field,retired,added] of [['connections',['power-game','power-video-psu'],['data-video','data-controller','power-video-card','power-video-psu','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['room','cables','backup','sound-cues','speakers'],['video-card','controller','speakers']]]){
+      const rows=plan[field],keys=rows.map(r=>r.id),fixed=defaults[field].map(r=>r.id);
+      const previous=[...new Set([...fixed,...retired])];
+      const historical=[previous,previous.filter(id=>!added.includes(id)),previous.filter(id=>id!=='power-game'),previous.filter(id=>id!=='power-video-psu'),previous.filter(id=>id!=='power-game'&&!added.includes(id)),fixed];
+      if(!historical.some(ids=>same(keys,ids)))continue;
+      plan[field]=defaults[field].map(d=>{
+        const r=rows.find(r=>r.id===d.id),copy={...clone(d),...(r?.notes!==undefined?{notes:r.notes}:{}),...(r?.done!==undefined?{done:r.done}:{})};
+        const speakers=rows.find(r=>r.id==='speakers');
+        if(field==='checklist'&&d.id==='sound'&&speakers){copy.done=Boolean(r?.done&&speakers.done);copy.notes=[...new Set([r?.notes,speakers.notes].filter(Boolean))].join('\n');}
+        return copy;
+      });
     }
     return plan;
   }
@@ -50,7 +51,7 @@ window.ScribLighting = function(h) {
     if(!source && scope)draft.checklist.forEach(c=>{c.done=false;c.notes='';});
     version=source?.version || 0;loadedScope=scope;dirty=false;requestId='';
     baseline=JSON.stringify(draft);past=[];future=[];editGroup=null;
-    if(!draft.elements.some(e=>e.id===selected))selected=draft.elements[0].id;
+    if(!draft.elements.some(e=>e.id===selected))selected=draft.elements[0]?.id||'';
     return true;
   }
   const current = () => draft.elements.find(e=>e.id===selected);
@@ -58,6 +59,13 @@ window.ScribLighting = function(h) {
   const short = value => value.length>29?value.slice(0,28)+'…':value;
   const name = e => e.type==='monitor'?e.label.replace(/·\s*(azul|rojo)$/i,(_,team)=>'· '+(team.toLowerCase()==='azul'?'izquierdo':'derecho')):['blue','red'].includes(e.color)?e.label.replace(/(?:\s*·)?\s+(?:azul(?:es)?|roj[oa]s?)$/i,''):e.label;
   const at = e => e.zone==='technical'?({x:100+8*e.x,y:755+4.8*e.y}):e.zone==='actors'?({x:100+8*e.x,y:1290+2.5*e.y}):({x:100+8*e.x,y:100+5*e.y});
+  function freePosition(zone) {
+    const occupied=draft.elements.filter(e=>(e.zone||'stage')===zone).map(at);
+    const candidates=[20,50,80].flatMap(y=>[15,50,85].map(x=>({x,y,...(zone!=='stage'?{zone}:{})})));
+    const distance=p=>{const point=at(p);return occupied.length?Math.min(...occupied.map(q=>Math.hypot(point.x-q.x,point.y-q.y))):0;};
+    candidates.sort((a,b)=>distance(b)-distance(a));
+    return {x:candidates[0].x,y:candidates[0].y};
+  }
   const bounds = e => ['blue-power','red-power'].includes(e.id)?({min:0,max:100}):({min:['screen','front'].includes(e.type)?20:10,max:['screen','front'].includes(e.type)?80:90});
   const limited = (value,min,max) => Math.round(Math.max(min,Math.min(max,value))*100)/100;
   function beams(e) {
@@ -88,13 +96,13 @@ window.ScribLighting = function(h) {
     const yLabel=e.type==='desk'&&!e.zone?67:e.type==='screen'?62:e.type==='smoke'?-28:e.type==='spot'?-60:e.type==='street'?45:e.zone?(e.type==='power'?32:43):57;
     const edge=['blue-power','red-power'].includes(e.id),anchor=edge?(e.color==='blue'?'start':'end'):'middle';
     const label=name(e),parts=(e.zone||e.type==='spot')&&label.includes(' · ')?label.split(' · '):[label];
-    return `<g class="lumi-node lumi-${t}${selected===e.id?' is-selected':''}${!e.enabled?' is-off':''}" transform="translate(${x},${y})" data-lighting-node="${esc(e.id)}" data-action="lighting-select" data-id="${esc(e.id)}" tabindex="0" role="button" aria-pressed="${selected===e.id}" aria-label="${esc(e.label)}${['blue','red'].includes(t)?'. '+(t==='blue'?'Azul':'Rojo'):''}. ${LIGHTS.has(e.type)?e.enabled?'Simulación al '+e.intensity+' por ciento':'Apagado en la simulación':'Elemento de escenario'}. Pulsa para seleccionar; flechas para mover."><title>${esc(e.label)}</title><circle class="lumi-hit" r="42"/>${shape}<text class="lumi-node-label" text-anchor="${anchor}" y="${yLabel}">${parts.map((part,i)=>`<tspan x="0" dy="${i?18:0}">${esc(short(part))}</tspan>`).join('')}</text></g>`;
+    return `<g class="lumi-node lumi-${t}${selected===e.id?' is-selected':''}${!e.enabled?' is-off':''}" transform="translate(${x},${y})" data-lighting-node="${esc(e.id)}" data-action="lighting-select" data-id="${esc(e.id)}" tabindex="0" role="button" aria-pressed="${selected===e.id}" aria-label="${esc(e.label)}. ${LIGHTS.has(e.type)?e.enabled?'Intensidad '+e.intensity+' por ciento':'Apagado':'Elemento de escenario'}. Pulsa para seleccionar; flechas para mover."><title>${esc(e.label)}</title><circle class="lumi-hit" r="42"/>${shape}<text class="lumi-node-label" text-anchor="${anchor}" y="${yLabel}">${parts.map((part,i)=>`<tspan x="0" dy="${i?18:0}">${esc(short(part))}</tspan>`).join('')}</text></g>`;
   }
   function svg() {
     const palettes={blue:'#39ccff',red:'#ff5373',warm:'#ffcc75',white:'#f3efff'};
     return `<svg class="lighting-map" viewBox="0 0 1000 1600" role="group" aria-label="Plano interactivo del escenario, técnica y sala de intérpretes, visto desde el público"><defs><pattern id="lumi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="lumi-grid-line"/></pattern><clipPath id="lumi-stage-clip"><rect x="70" y="80" width="860" height="540" rx="18"/></clipPath>${Object.entries(palettes).map(([name,color])=>`<radialGradient id="lumi-${name}"><stop offset="0" stop-color="${color}" stop-opacity=".48"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></radialGradient>`).join('')}</defs><text class="lumi-orientation" text-anchor="middle" x="500" y="43">FONDO DEL ESCENARIO</text><rect class="lumi-stage" x="70" y="80" width="860" height="540" rx="18"/><rect x="70" y="80" width="860" height="540" rx="18" fill="url(#lumi-grid)"/><rect class="lumi-proscenium" x="72" y="462" width="856" height="155" rx="18"/><text class="lumi-zone-label" text-anchor="middle" x="500" y="490">PROSCENIO</text><rect class="lumi-stage" x="60" y="730" width="900" height="510" rx="18"/><rect class="lumi-stage" x="60" y="1280" width="900" height="300" rx="18"/><text class="lumi-orientation" text-anchor="middle" x="500" y="770">TÉCNICA</text><text class="lumi-orientation" text-anchor="middle" x="500" y="1310">SALA INTÉRPRETES</text><g class="lumi-beams" clip-path="url(#lumi-stage-clip)">${draft.elements.map(beams).join('')}</g><g class="lumi-cables">${cables()}</g><g class="lumi-markers">${draft.elements.map(marker).join('')}</g><g class="lumi-ports">${connectionPorts()}</g><g class="lumi-audience" aria-hidden="true">${[280,350,420,500,580,650,720].map(x=>`<g transform="translate(${x},660)"><circle cy="-10" r="7"/><path d="M-12 18v-6a12 12 0 0 1 24 0v6M-7 18v10M7 18v10"/></g>`).join('')}</g><text class="lumi-orientation" text-anchor="middle" x="500" y="714">PÚBLICO</text></svg>`;
   }
-  const cableLabels={hdmi:'Vídeo HDMI',data:'PC · tarjeta (vídeo y carga) · mando',audio:'Audio',power:'Alimentación',dmx:'DMX'};
+  const cableLabels={hdmi:'Vídeo',data:'Datos / USB',audio:'Audio',power:'Alimentación',dmx:'DMX'};
   function cables() {
     return draft.connections.filter(c=>cableView==='all'||c.type===cableView).map((c,i)=>{
       const source=draft.elements.find(e=>e.id===c.from),target=draft.elements.find(e=>e.id===c.to);if(!source||!target)return '';
@@ -117,30 +125,32 @@ window.ScribLighting = function(h) {
     }).join('')).join('');
   }
   function materialSummary() {
-    const cables=Object.entries(cableLabels).map(([type,label])=>({label:type==='power'?'Alimentación · tomas y cargadores':label,count:draft.connections.filter(c=>c.type===type && c.id!=='power-video-card').length}));
-    cables.push({label:'Fuente → tarjeta de vídeo',count:draft.connections.filter(c=>c.id==='power-video-card').length});
-    const equipment=[['Ordenadores y portátiles',e=>e.type==='computer'||e.type==='desk'],['Mesas de escritura',e=>e.type==='desk'&&!e.zone],['Monitores de proscenio',e=>e.type==='monitor'],['Pantalla de proyección',e=>e.type==='screen'],['Proyector',e=>e.type==='projector'],['Splitter HDMI 1 → 2',e=>e.type==='splitter'],['Tarjeta de vídeo',e=>e.type==='video-card'],['Fuente de vídeo',e=>e.type==='psu'],['Mando',e=>e.type==='controller'],['Altavoces',e=>e.type==='speaker'],['Mesa de sonido',e=>e.id==='sound-desk'],['Control DMX',e=>e.id==='dmx-desk'],['Máquinas de humo',e=>e.type==='smoke'],['Puntos de alimentación / regletas',e=>e.type==='power'],['Calles de luz',e=>e.type==='street'],['Puntual de presentador',e=>e.type==='spot'],['Grupo de frontales',e=>e.type==='front']].map(([label,test])=>({label,count:draft.elements.filter(test).length}));
-    equipment.push({label:'Walkies',count:draft.walkies.length});
-    const rows=items=>items.filter(x=>x.count).map(x=>`<div class="lighting-material"><strong>${x.count}</strong><span>${esc(x.label)}</span></div>`).join('');
-    return `<section class="panel lighting-materials"><div class="panel-head"><h2>Material técnico del show</h2><span class="badge gold">${draft.connections.length} cables / conexiones</span></div><p class="tiny">Mínimo previsto en este plano. Longitudes, conectores, adaptadores y número de focos por grupo: según la sala.</p><div class="lighting-material-columns"><section><h3>Cables necesarios</h3><div class="lighting-material-list">${rows(cables)}</div></section><section><h3>Equipos y elementos</h3><div class="lighting-material-list">${rows(equipment)}</div></section></div></section>`;
+    const cables=Object.entries(cableLabels).map(([type,label])=>({label,type,icon:{hdmi:'▣',data:'⌘',audio:'♫',power:'ϟ',dmx:'✦'}[type],count:draft.connections.filter(c=>c.type===type).length}));
+    const equipment=Object.entries(TYPES).map(([type,label])=>({label,icon:{computer:'💻',desk:'✍',monitor:'▣',screen:'▱',projector:'🎥',splitter:'⑂','video-card':'▤',controller:'🎮',speaker:'🔊',console:'🎛',smoke:'☁',power:'ϟ',street:'✦',spot:'◉',front:'☀',psu:'▰'}[type],count:draft.elements.filter(e=>e.type===type).length}));
+    equipment.push({label:'Walkies',icon:'📻',count:draft.walkies.length});
+    const rows=items=>items.filter(x=>x.count).map(x=>`<div class="lighting-material ${x.type?'cable-'+esc(x.type):''}"><span class="material-icon" aria-hidden="true">${x.icon}</span><strong>${x.count}</strong><span class="material-label">${esc(x.label)}</span></div>`).join('');
+    return `<section class="panel lighting-materials"><div class="panel-head"><div><p class="eyebrow">TODO LISTO PARA CONECTAR</p><h2>Material técnico del show</h2></div><span class="badge gold">${draft.connections.length} conexiones · ${draft.elements.length} elementos</span></div><div class="lighting-material-columns"><section><h3>ϟ Cableado</h3><div class="lighting-material-list">${rows(cables)}</div></section><section><h3>▣ Equipos</h3><div class="lighting-material-list">${rows(equipment)}</div></section></div></section>`;
   }
   function technicalSections() {
     const checks=draft.checklist,groups=[...new Set(checks.map(c=>c.category))];
     return materialSummary()+`<section class="panel"><h2>Walkies · cuatro unidades</h2><div class="lighting-walkies">${draft.walkies.map(w=>{const color=w.id==='actors-blue'?'blue':w.id==='actors-red'?'red':'warm';return `<div class="lighting-radio lumi-${color}"><span aria-hidden="true">📻</span><strong title="${esc(w.label)}">${esc(name({label:w.label,color}))}</strong><span class="badge gold">CANAL ${esc(w.channel)}</span>${w.notes?`<small>${esc(w.notes)}</small>`:''}</div>`;}).join('')}</div></section><section class="panel lighting-checklist"><div class="panel-head"><h2>Checklist de montaje técnico</h2><span id="lighting-check-progress" class="badge gold" role="status">${checks.filter(c=>c.done).length}/${checks.length}</span></div><p class="tiny">${scope?'Progreso independiente para este bolo.':'Plano base: los bolos nuevos empiezan con los pasos pendientes.'} Marca los pasos y guarda el plano para compartirlos.</p><div class="lighting-check-groups">${groups.map(group=>`<fieldset><legend>${esc(group)}</legend>${checks.filter(c=>c.category===group).map(c=>`<label class="lighting-check"><input type="checkbox" data-lighting-check="${esc(c.id)}" data-lighting-control ${c.done?'checked':''}><span>${esc(c.text)}</span></label>`).join('')}</fieldset>`).join('')}</div></section>`;
   }
   function inspector() {
-    const e=current(),b=bounds(e),light=LIGHTS.has(e.type);
+    const e=current();if(!e)return '<p class="muted">Añade un elemento para empezar el plano.</p>';
+    const b=bounds(e),light=LIGHTS.has(e.type),connections=draft.connections.filter(c=>c.from===e.id||c.to===e.id);
     return `<div class="lighting-inspector lumi-${tone(e)}"><p class="eyebrow">ELEMENTO SELECCIONADO</p><h2>${esc(name(e))}</h2>
       <label class="field">Nombre<input data-lighting-field="label" data-lighting-control value="${esc(e.label)}" maxlength="80" required></label>
       <div class="grid cols2"><label class="field">Horizontal (%)<input type="number" data-lighting-field="x" data-lighting-control value="${e.x}" min="${b.min}" max="${b.max}" step="1"></label><label class="field">${e.zone?'Vertical en su zona':'Fondo → proscenio'} (%)<input type="number" data-lighting-field="y" data-lighting-control value="${e.y}" min="10" max="90" step="1"></label></div>
-      ${light?`<label class="lighting-switch"><input type="checkbox" data-lighting-field="enabled" data-lighting-control ${e.enabled?'checked':''}> Encendido en la simulación</label><label class="field">Intensidad simulada <output id="lighting-intensity">${e.intensity}%</output><input type="range" data-lighting-field="intensity" data-lighting-control min="0" max="100" step="1" value="${e.intensity}"></label>`:''}
-      <label class="field">Notas de montaje<textarea data-lighting-field="notes" data-lighting-control maxlength="2000">${esc(e.notes)}</textarea></label></div>`;
+      ${light?`<label class="lighting-switch"><input type="checkbox" data-lighting-field="enabled" data-lighting-control ${e.enabled?'checked':''}> Encendido</label><label class="field">Intensidad <output id="lighting-intensity">${e.intensity}%</output><input type="range" data-lighting-field="intensity" data-lighting-control min="0" max="100" step="1" value="${e.intensity}"></label>`:''}
+      <label class="field">Notas de montaje<textarea data-lighting-field="notes" data-lighting-control maxlength="2000">${esc(e.notes)}</textarea></label>
+      <section class="lighting-link-editor"><h3>Conectar con…</h3><label class="field">Destino<select id="lighting-link-target" data-lighting-control>${draft.elements.filter(x=>x.id!==e.id).map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</select></label><label class="field">Tipo<select id="lighting-link-type" data-lighting-control>${Object.entries(cableLabels).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></label>${btn('lighting-connect','＋ Conectar','','small')}
+      <div class="lighting-link-list">${connections.map(c=>`<div class="lighting-link cable-${esc(c.type)}"><span><strong>${esc(cableLabels[c.type])}</strong><small>${esc(draft.elements.find(x=>x.id===(c.from===e.id?c.to:c.from))?.label||'Elemento eliminado')} ${c.from===e.id?'↗':'↙'}</small></span>${btn('lighting-disconnect','×',c.id,'icon-button')}</div>`).join('')}</div></section>${btn('lighting-remove','⌫ Eliminar elemento',e.id,'small danger')}</div>`;
   }
   function render() {
     if(!ensure())return pageHead('PREPARAR LA ESCENA','Técnica','El servidor debe actualizarse para cargar el plano de iluminación.');
     const events=h.state().items.filter(x=>x.kind==='event' && !x.archived).sort((a,b)=>b.start.localeCompare(a.start));
     return pageHead('EL SHOW, CON TODO CONECTADO','Técnica','Escenario, vídeo, técnica, sala de intérpretes y montaje: todo conectado en un mismo plano.',btn('lighting-pdf','↓ Exportar plano PDF'))+
-      `<section class="lighting-workspace"><div class="panel lighting-toolbar"><label class="field">Plano<select id="lighting-scope" data-lighting-control><option value=""${scope===''?' selected':''}>Plano base de &lt;SCRI&gt; B</option>${events.map(e=>`<option value="${esc(e.id)}"${scope===e.id?' selected':''}>${esc(e.title)} · ${esc(e.start.slice(0,10))}</option>`).join('')}</select></label><div class="actions"><span id="lighting-status" role="status">${dirty?'Cambios sin guardar':version?'Plano guardado · v'+version:scope?'Adaptación nueva a partir del plano base':'Plano inicial · aún sin guardar'}</span><button class="button small" type="button" data-action="lighting-undo" data-lighting-control title="Deshacer · Ctrl/Cmd+Z" ${busy||!past.length?'disabled':''}>↶ Deshacer</button><button class="button small" type="button" data-action="lighting-redo" data-lighting-control title="Rehacer · Ctrl/Cmd+Mayús+Z o Ctrl/Cmd+Y" ${busy||!future.length?'disabled':''}>↷ Rehacer</button><button class="button" type="button" data-action="lighting-revert" data-lighting-control>↺ Descartar cambios</button><button class="button primary" type="button" data-action="lighting-save" data-lighting-control ${busy?'disabled':''}>${busy?'Guardando…':'✓ Guardar plano'}</button></div></div><div class="lighting-layout"><section class="panel lighting-stage-panel"><div class="panel-head"><div><h2>Plano de escenario</h2><p class="muted">Vista desde el público · no está a escala</p></div><span class="badge gold">SIMULACIÓN</span></div><div class="lighting-cues" aria-label="Vistas de iluminación simulada">${[['all','✦ Todo'],['blue','🔵 Azul'],['red','🔴 Rojo'],['presenter','◉ Presentador'],['frontals','☀ Proscenio'],['black','● Negro']].map(([id,label])=>`<button type="button" class="button small" data-action="lighting-cue" data-id="${id}" data-lighting-control>${label}</button>`).join('')}</div><div class="lighting-cable-filters" aria-label="Capas de cableado">${Object.entries({none:'Sin cables',...cableLabels,all:'Todos'}).map(([id,label])=>`<button type="button" class="button small cable-${id}" data-action="lighting-cables" data-id="${id}" aria-pressed="${id===cableView}">${label}</button>`).join('')}</div><p class="lighting-signal-path"><strong>Vídeo</strong> PC → tarjeta de vídeo → proyector / splitter → monitores <span>Fuente propia · mando al PC · audio a altavoces</span></p><div class="lighting-map-scroll"><div id="lighting-svg">${svg()}</div></div></section><aside class="panel" id="lighting-inspector">${inspector()}</aside></div>${technicalSections()}<section class="panel lighting-notes"><label class="field">Notas generales para la sala<textarea id="lighting-notes" data-lighting-control maxlength="5000">${esc(draft.notes)}</textarea></label></section></section>`;
+      `<section class="lighting-workspace"><div class="panel lighting-toolbar"><label class="field">Plano<select id="lighting-scope" data-lighting-control><option value=""${scope===''?' selected':''}>Plano base de &lt;SCRI&gt; B</option>${events.map(e=>`<option value="${esc(e.id)}"${scope===e.id?' selected':''}>${esc(e.title)} · ${esc(e.start.slice(0,10))}</option>`).join('')}</select></label><div class="actions"><span id="lighting-status" role="status">${dirty?'Cambios sin guardar':version?'Plano guardado · v'+version:scope?'Adaptación nueva a partir del plano base':'Plano inicial · aún sin guardar'}</span><button class="button small" type="button" data-action="lighting-undo" data-lighting-control title="Deshacer · Ctrl/Cmd+Z" ${busy||!past.length?'disabled':''}>↶ Deshacer</button><button class="button small" type="button" data-action="lighting-redo" data-lighting-control title="Rehacer · Ctrl/Cmd+Mayús+Z o Ctrl/Cmd+Y" ${busy||!future.length?'disabled':''}>↷ Rehacer</button><button class="button" type="button" data-action="lighting-revert" data-lighting-control>↺ Descartar cambios</button><button class="button primary" type="button" data-action="lighting-save" data-lighting-control ${busy?'disabled':''}>${busy?'Guardando…':'✓ Guardar plano'}</button></div></div><div class="lighting-layout"><section class="panel lighting-stage-panel"><div class="panel-head"><div><h2>Plano de escenario</h2></div></div><div class="lighting-cues" aria-label="Vistas de iluminación">${[['all','✦ Todo'],['blue','🔵 Azul'],['red','🔴 Rojo'],['presenter','◉ Presentador'],['frontals','☀ Proscenio'],['black','● Negro']].map(([id,label])=>`<button type="button" class="button small" data-action="lighting-cue" data-id="${id}" data-lighting-control>${label}</button>`).join('')}</div><div class="lighting-cable-filters" aria-label="Capas de cableado">${Object.entries({none:'Sin cables',...cableLabels,all:'Todos'}).map(([id,label])=>`<button type="button" class="button small cable-${id}" data-action="lighting-cables" data-id="${id}" aria-pressed="${id===cableView}">${label}</button>`).join('')}</div><div class="lighting-add-element"><label class="field">Nuevo elemento<select id="lighting-new-type" data-lighting-control>${Object.entries(TYPES).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></label><label class="field">Zona<select id="lighting-new-zone" data-lighting-control><option value="stage">Escenario</option><option value="technical">Técnica</option><option value="actors">Sala de intérpretes</option></select></label><label class="field">Color<select id="lighting-new-color" data-lighting-control><option value="white">Neutro</option><option value="blue">Azul</option><option value="red">Rojo</option><option value="warm">Cálido</option></select></label>${btn('lighting-add','＋ Añadir','','small')}</div><div class="lighting-map-scroll"><div id="lighting-svg">${svg()}</div></div></section><aside class="panel" id="lighting-inspector">${inspector()}</aside></div>${technicalSections()}<section class="panel lighting-notes"><label class="field">Notas generales para la sala<textarea id="lighting-notes" data-lighting-control maxlength="5000">${esc(draft.notes)}</textarea></label></section></section>`;
   }
   function historyControls() {
     for(const [action,stack] of [['undo',past],['redo',future]]){const button=document.querySelector(`[data-action="lighting-${action}"]`);if(button)button.disabled=busy||!stack.length;}
@@ -282,6 +292,31 @@ window.ScribLighting = function(h) {
   }
   async function action(node) {
     const {action:a,id}=node.dataset;if(!a.startsWith('lighting-'))return false;
+    if(busy)return true;
+    if(a==='lighting-add'){
+      if(draft.elements.length>=100){toast('Máximo 100 elementos.');return true;}
+      const type=document.querySelector('#lighting-new-type')?.value,zone=document.querySelector('#lighting-new-zone')?.value,color=document.querySelector('#lighting-new-color')?.value;
+      if(!TYPES[type]||!['stage','technical','actors'].includes(zone)||!['white','blue','red','warm'].includes(color))return true;
+      const ident='node-'+crypto.randomUUID();
+      edit(()=>{draft.elements.push({id:ident,type,label:TYPES[type],color,...freePosition(zone),enabled:true,intensity:100,channel:'',notes:'',...(zone!=='stage'?{zone}: {})});});selected=ident;h.renderPage();
+      return true;
+    }
+    if(a==='lighting-remove'){
+      const e=current();if(!e)return true;
+      const count=draft.connections.filter(c=>c.from===e.id||c.to===e.id).length;
+      if(!window.confirm('¿Eliminar '+e.label+(count?' y sus '+count+' conexiones':'')+'? Puedes deshacerlo.'))return true;
+      edit(()=>{draft.elements=draft.elements.filter(x=>x.id!==e.id);draft.connections=draft.connections.filter(c=>c.from!==e.id&&c.to!==e.id);});selected=draft.elements[0]?.id||'';h.renderPage();return true;
+    }
+    if(a==='lighting-connect'){
+      const e=current(),target=document.querySelector('#lighting-link-target')?.value,type=document.querySelector('#lighting-link-type')?.value;
+      if(!e||e.id===target||!draft.elements.some(x=>x.id===target)||!cableLabels[type])return true;
+      if(draft.connections.length>=200){toast('Máximo 200 conexiones.');return true;}
+      if(draft.connections.some(c=>c.type===type&&c.from===e.id&&c.to===target)){toast('Esta conexión ya existe.');return true;}
+      edit(()=>{draft.connections.push({id:'link-'+crypto.randomUUID(),from:e.id,to:target,type,label:cableLabels[type],notes:''});});h.renderPage();return true;
+    }
+    if(a==='lighting-disconnect'){
+      if(draft.connections.some(c=>c.id===id)){edit(()=>{draft.connections=draft.connections.filter(c=>c.id!==id);});h.renderPage();}return true;
+    }
     if(a==='lighting-pdf'){
       if(node.disabled)return true;
       const label=node.innerHTML,plan=clone(draft);node.disabled=true;node.textContent='Preparando plano…';

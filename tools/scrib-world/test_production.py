@@ -60,7 +60,7 @@ class ProductionTests(unittest.TestCase):
         for role,team,expected in [('Técnica','red','general'),('Presentador','blue','general'),('Jurado','red','general'),('Escritora','red','red'),('Interpretación','blue','blue')]:
             e=self.create('event',title='Bolo',start='2026-11-07',cast=[dict(personId=p['id'],role=role,team=team)])
             self.assertEqual(e['cast'][0]['team'],expected)
-        self.assertEqual(len(cast_requirements([])),7);self.assertFalse(any(r['complete'] for r in cast_requirements([])))
+        self.assertEqual(len(cast_requirements([])),8);self.assertFalse(any(r['complete'] for r in cast_requirements([])))
         self.assertNotIn('Participación',world.PERSON_ROLES);self.assertIn('Jurado',world.PERSON_ROLES)
 
     def test_new_bolo_inventory_defaults_to_all_and_explicit_selection_is_validated(self):

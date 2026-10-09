@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from seasons import label as season_label, for_date as season_for_date
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS business_records (
@@ -80,7 +81,7 @@ class Business:
                 body['withholding'] = self.rate(data.get('withholding'))
             elif kind == 'settlement':
                 event = self.store.item(db, ident, 'event', True)
-                body = {'season': self.text(data.get('season',''),80,True), 'days': []}
+                body = {'season': season_label(self.text(data.get('season') or season_for_date(event['start']),80,True), self.problem), 'days': []}
                 days = data.get('days')
                 if not isinstance(days,list) or not 1 <= len(days) <= 60:
                     raise self.problem('Añade entre 1 y 60 días de función.')

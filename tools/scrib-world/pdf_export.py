@@ -176,26 +176,28 @@ def generate(store, data, user, *, agreement_token=None):
             inventory(objects)
         elif kind == 'event':
             event = store.item(db, data.get('id',''), 'event', True)
-            heading(title or event['title'], 'HOJA DE LLAMADA - '+event['start'][:10])
+            rehearsal=event.get('eventType')=='rehearsal'
+            heading(title or event['title'], ('ENSAYO - ' if rehearsal else 'HOJA DE LLAMADA - ')+event['start'][:10])
             for label, value in [('Espacio', ' - '.join(filter(None,[event['venue'],event['city']]))),
-                                  ('Dirección', event['address']), ('Función',event['start'].replace('T',' ')),
-                                  ('Convocatoria',event['arrival'].replace('T',' '))]:
+                                  ('Ensayo' if rehearsal else 'Función',event['start'].replace('T',' ')),
+                                  ('Fin',event['end'].replace('T',' ')),
+                                  *([] if rehearsal else [('Convocatoria',event['arrival'].replace('T',' '))])]:
                 story.extend([para(label, 'Heading3'), para(value or 'Pendiente'), Spacer(1, 8)])
             for team in ('blue','red','general'):
                 rows = [c for c in event['cast'] if (c['team'] if c['role'] in ('Escritura','Interpretación') else 'general') == team]
                 if not rows:
                     continue
-                section(TEAMS.get(team,'EQUIPO DEL ESPECTÁCULO'), team)
+                section('PERSONAS CONVOCADAS' if rehearsal else TEAMS.get(team,'EQUIPO DEL ESPECTÁCULO'), team)
                 for row in rows:
                     person = store.item(db,row['personId'],'person')
-                    story.append(para(person['name']+' - '+row['role']))
+                    story.append(para(person['name'] if rehearsal else person['name']+' - '+row['role']))
                 story.append(Spacer(1, 15))
             if event['description']:
                 section('Notas de producción')
                 story.append(para(event['description']))
             allowed = event.get('inventoryIds')
             objects = [o for o in all_objects if allowed is None or o['id'] in allowed]
-            if objects:
+            if objects and not rehearsal:
                 story.append(PageBreak())
                 inventory(objects)
         elif kind == 'lighting':
@@ -208,7 +210,7 @@ def generate(store, data, user, *, agreement_token=None):
             if 'plan' in data:
                 from server import text
                 plan = normalize(data['plan'], problem, text)
-            heading(title or 'Plano técnico', 'Escenario, vídeo, sonido y sala de intérpretes - vista desde el público')
+            heading(title or 'Plano técnico', 'Escenario, vídeo, sonido y sala de intérpretes')
             story.append(PlanImage(data['planImage'],problem) if 'planImage' in data else StagePlan(plan,font))
             story.append(PageBreak())
             section('Leyenda del plano')

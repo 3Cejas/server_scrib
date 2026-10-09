@@ -45,7 +45,7 @@ LEGACY_PREFIX = "/mundo-scrib/"
 STATUSES = ("todo", "progress", "blocked", "done")
 KINDS = ("board", "ticket", "event", "person", "template", "availability", "inventory")
 PERSON_COLORS = ('auto','rose','peach','amber','gold','citron','pistachio','mint','jade','turquoise','cyan','sky','azure','periwinkle','violet','lilac','orchid','fuchsia','pink','salmon','lavender','ice','seafoam','sand','clay')
-PERSON_ROLES = ('Escritura','Interpretación','Presentador','Técnica','Jurado','Dramaturgia','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación')
+PERSON_ROLES = ('Escritura','Interpretación','Presentador','Técnica','Técnica videojuego','Técnica luminotecnia-sonido','Jurado','Dramaturgia','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación')
 MAX_BODY = 6 * 1024 * 1024
 TZ = ZoneInfo("Europe/Madrid")
 LOG = logging.getLogger("scrib-world")
@@ -373,7 +373,7 @@ class Store:
             body.update(start=date_value(start_input, not date_only), end=date_value(data.get("end", ""), True),
                         eventType=choice(data.get("eventType", (existing or {}).get("eventType", "show")), ("show", "rehearsal")),
                         venue=text(data.get("venue", ""), 200), city=text(data.get("city", ""), 120),
-                        address=text(data.get("address", ""), 1000), arrival=date_value(data.get("arrival", ""), True),
+                        address=text(data.get('address',(existing or {}).get("address", "")), 1000), arrival=date_value(data.get("arrival", ""), True),
                         status=choice(data.get("status", "pending"), ("pending", "confirmed", "completed", "cancelled")),
                         ticketUrl=link(data.get("ticketUrl", "")), cast=[])
             if not body["start"]:
@@ -389,10 +389,10 @@ class Store:
                 if not isinstance(entry, dict):
                     raise Problem("Ficha de elenco no válida.")
                 person = self.item(db, entry.get("personId", ""), "person")
-                role = normalize_role(text(entry.get("role", ""), 100, True))
+                role = 'Ensayo' if body['eventType']=='rehearsal' else normalize_role(text(entry.get("role", ""), 100, True))
                 team = choice(entry.get("team", "general"), ("general", "blue", "red")) if role in TEAM_ROLES else 'general'
                 cast_entry = {"personId": person["id"], "role": role, "team": team}
-                if person["archived"] and not any(c['personId']==person['id'] and normalize_role(c['role'])==role and (c['team']==team or role not in TEAM_ROLES) for c in (existing or {}).get('cast', [])):
+                if person["archived"] and not any(c['personId']==person['id'] and (body['eventType']=='rehearsal' or normalize_role(c['role'])==role and (c['team']==team or role not in TEAM_ROLES)) for c in (existing or {}).get('cast', [])):
                     raise Problem("Recupera primero la ficha de esta persona para asignarle un nuevo papel.")
                 body["cast"].append(cast_entry)
             if 'inventoryIds' in data or existing and 'inventoryIds' in existing:
@@ -414,6 +414,8 @@ class Store:
                 if parent.get('eventType', 'show') != 'show' or parent['id'] == (existing or {}).get('id'):
                     raise Problem('Elige un bolo válido para este ensayo.')
                 body['parentEventId'] = parent['id']
+            if body['eventType']=='rehearsal':
+                body['ticketUrl']='';body['gameConfig']=None;body['arrival']=''
         return body
 
     def all(self, db, kind=None):

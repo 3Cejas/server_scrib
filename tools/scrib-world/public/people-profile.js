@@ -1,10 +1,10 @@
 "use strict";
 window.ScribPersonProfile = function(h) {
   const {esc}=h;
-  const catalog=['Escritura','Interpretación','Presentador','Técnica','Jurado','Dramaturgia','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación'];
+  const catalog=['Escritura','Interpretación','Presentador','Técnica','Técnica videojuego','Técnica luminotecnia-sonido','Jurado','Dramaturgia','Producción','Dirección','Música','Comunicación','Fotografía','Vídeo','Diseño','Coordinación'];
   const icons={'Escritura':'✍️','Interpretación':'🎭','Presentador':'🎤','Dramaturgia':'📖','Técnica':'🎛️','Producción':'📋','Dirección':'🎬','Música':'🎵','Comunicación':'📣','Fotografía':'📷','Vídeo':'🎥','Diseño':'🎨','Coordinación':'🧭','Participación':'✨'};
   const tones={'Escritura':'gold','Interpretación':'cyan','Presentador':'gold','Dramaturgia':'violet','Técnica':'mint','Producción':'coral','Dirección':'pink','Música':'violet','Comunicación':'coral','Fotografía':'gold','Vídeo':'cyan','Diseño':'pink','Coordinación':'mint','Participación':'gold'};
-  icons.Jurado='⚖️';tones.Jurado='violet';
+  icons['Técnica videojuego']='🎮';icons['Técnica luminotecnia-sonido']='🎛️';tones['Técnica videojuego']='mint';tones['Técnica luminotecnia-sonido']='violet';icons.Jurado='⚖️';tones.Jurado='violet';
   const roles=()=>h.roles?.()||catalog;
   const canonical=r=>roles().find(x=>x.toLocaleLowerCase('es')===r.toLocaleLowerCase('es'))||r;
   const choices=selected=>[...new Set([...roles(),...(selected||[]).map(canonical)])].filter(r=>r!=='Participación');

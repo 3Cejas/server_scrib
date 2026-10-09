@@ -94,7 +94,7 @@ test('management uses full-card show links with actual financial totals, calenda
   const {app,state,event,responses}=client();
   responses['/scrib/backstage/api/business/overview']={records:[{type:'settlement',id:event.id,season:'2026 / 2027',days:[{income:100000,expenses:5000,allocations:[{personId:'p1',amount:20000,paid:false},{personId:'p2',amount:30000,paid:true}]},{income:20000,expenses:0,allocations:[{personId:'p1',amount:10000,paid:false}]}]}]};
   app.business.overview();await flush();let html=app.business.overview();balanced(html);
-  assert.match(html,/<a class="production-card" href="#production\/e1">/);assert.match(html,/2026 \/ 2027/);
+  assert.match(html,/<a class="production-card" href="#production\/e1">/);assert.match(html,/26-27/);
   assert.match(html,/Teatro · León/);assert.match(html,/3 personas/);assert.match(html,/2 días liquidados/);
   assert.match(html,/1\.?200,00/);assert.match(html,/300,00/);assert.match(html,/>07<\/strong>/);
   assert.match(html,/noviembre/);const card=html.match(/<a class="production-card"[^>]*>([\s\S]*?)<\/a>/)[1];assert.doesNotMatch(card,/<a\b|<button\b/);
@@ -104,7 +104,7 @@ test('management uses full-card show links with actual financial totals, calenda
 test('management empty and unliquidated cards never invent amounts or lose admin boundaries',async()=>{
   const {app,state,responses}=client();responses['/scrib/backstage/api/business/overview']={records:[]};
   app.business.overview();await flush();const html=app.business.overview();balanced(html);
-  assert.match(html,/Liquidación pendiente/);assert.match(html,/Temporada por asignar/);assert.match(html,/Ingresos registrados<\/small><strong>—/);
+  assert.match(html,/Liquidación pendiente/);assert.match(html,/26-27/);assert.match(html,/Ingresos registrados<\/small><strong>—/);
   state.items=state.items.filter(e=>e.kind!=='event');assert.match(app.business.overview(),/Todavía no hay bolos/);
   state.user.role='member';assert.doesNotMatch(app.business.overview(),/production-card/);
   assert.doesNotMatch(read('app.js'),/La lista incluye preparar el acceso/);
@@ -385,9 +385,8 @@ test('empty, rehearsal, historical and archived roadmap cases retain proper stru
   const {app,event}=client();event.cast=[];
   for(const changes of [{},{eventType:'rehearsal',sourcePollId:'poll'},{eventType:'show',historical:true}]){
     Object.assign(event,changes);const html=app.renderEvent('e1');balanced(html);
-    assert.match(html,/Puesto pendiente/);assert.match(html,/cast-group general/);
-    assert.equal((html.match(/data-cast-slot=/g)||[]).length,9);
-    if(event.eventType==='rehearsal')assert.doesNotMatch(html,/event-game-section|event-reports-section/);
+    if(event.eventType==='rehearsal'){assert.doesNotMatch(html,/cast-group|data-cast-slot|event-game-section|event-reports-section|event-inventory/);assert.match(html,/Personas convocadas/);}
+    else{assert.match(html,/Puesto pendiente/);assert.match(html,/cast-group general/);assert.equal((html.match(/data-cast-slot=/g)||[]).length,10);}
   }
   event.archived=true;assert.doesNotMatch(app.renderEvent('e1'),/event-roadmap/);
 });
@@ -638,18 +637,18 @@ test('a grouped bolo keeps every day on the calendar and separate casts inside i
   let html=app.renderEvent('e1');balanced(html);assert.match(html,/data-cast-event="e1"/);
   html=app.renderEvent('e2');balanced(html);assert.match(html,/data-cast-event="e2"/);assert.match(html,/value="p2" selected/);
   app.openEvent('e2');html=nodes['dialog-content'].innerHTML;balanced(html);
-  assert.equal((html.match(/class="cast-person"/g)||[]).length,9);
+  assert.equal((html.match(/class="cast-person"/g)||[]).length,10);
   assert.match(html,/value="p2" selected/);
 });
 test('role slots are present in new drafts and preserve existing extra roles and archived cast',()=>{
   const {app,nodes,event,people}=client();app.openEvent();
   const html=nodes['dialog-content'].innerHTML;balanced(html);
-  assert.equal((html.match(/class="cast-person"/g)||[]).length,9);
-  for(const role of ['Escritura','Interpretación','Presentador','Técnica','Jurado'])assert.match(html,new RegExp('<strong>'+role+'</strong>'));
+  assert.equal((html.match(/class="cast-person"/g)||[]).length,10);
+  for(const role of ['Escritura','Interpretación','Presentador','Técnica videojuego','Técnica luminotecnia-sonido','Jurado'])assert.match(html,new RegExp('<strong>'+role+'</strong>'));
   assert.match(html,/Puedes guardar un borrador/);
   people[0].archived=true;event.cast.push({personId:'p3',role:'Dramaturgia',team:'general'});
   const before=JSON.stringify(event.cast),slots=app.castSlots(event.cast);
-  assert.equal(slots.length,10);assert.equal(slots.at(-1).role,'Dramaturgia');assert.equal(JSON.stringify(event.cast),before);
+  assert.equal(slots.length,10);assert.ok(!slots.some(s=>s.role==='Dramaturgia'));assert.equal(JSON.stringify(event.cast),before);
   app.openEvent('e1');assert.match(nodes['dialog-content'].innerHTML,/value="p1" selected>ÁNGELA HARRIS BUENO \(archivado\)/);
 });
 test('assigning and clearing a role slot save only its original date with optimistic concurrency',async()=>{
@@ -701,4 +700,17 @@ test('bolos support linked manual rehearsals with no templates or required-cast 
   assert.ok(html.includes('#event/rehearsal'));assert.match(html,/Ensayo manual/);
   assert.doesNotMatch(html,/Reparto obligatorio|Abrir tareas|tareas completadas/);
   assert.ok(!app.renderEvent('rehearsal').includes('#poll/undefined'));
+});
+
+test('staff has exactly four roles while rehearsals have only chosen attendees and calendar markers',()=>{
+  const {app,event,state,nodes}=client();event.cast.push({personId:'p3',role:'Papel pendiente de confirmar',team:'general'});
+  let html=app.renderEvent(event.id),general=html.split('cast-group general')[1].split('</section>')[0];
+  for(const role of ['Presentador','Jurado','Técnica videojuego','Técnica luminotecnia-sonido'])assert.ok(general.includes(role));
+  assert.doesNotMatch(general,/Papel pendiente de confirmar/);assert.equal((general.match(/data-cast-slot/g)||[]).length,4);
+  app.openEvent('',undefined,event.id);html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.match(html,/name="attendees"/);assert.doesNotMatch(html,/Entradas \/ información|Dirección \/ instrucciones|cast-person|cast-role|Notas de producción|Convocatoria del elenco/);
+  for(let i=1;i<=2;i++)state.items.push({...event,id:'rehearsal-'+i,title:'Lectura '+i,eventType:'rehearsal',parentEventId:event.id,cast:[{personId:'p'+i,role:'Ensayo',team:'general'}]});
+  html=app.renderEvent(event.id);assert.ok(html.includes('Lectura 1')&&html.includes('Lectura 2'));
+  html=app.renderEvent('rehearsal-1');balanced(html);assert.match(html,/Personas convocadas · 1/);assert.doesNotMatch(html,/cast-slot|Puesto pendiente|Entradas|Función ·|Objetos para este bolo/);
+  assert.match(app.renderCalendar(),/calendar-event rehearsal/);
 });

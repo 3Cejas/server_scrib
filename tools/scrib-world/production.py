@@ -9,10 +9,13 @@ def normalize_role(role):
         return 'Escritura'
     if key.startswith(('interpret','actor','actriz')):
         return 'Interpretación'
+    if key == 'tecnica':
+        return 'Técnica videojuego'
     return role
 REQUIRED = (('Escritura', 'blue'), ('Escritura', 'red'),
             ('Interpretación', 'blue'), ('Interpretación', 'red'),
-            ('Presentador', 'general'), ('Técnica', 'general'), ('Jurado', 'general'))
+            ('Presentador', 'general'), ('Jurado', 'general'),
+            ('Técnica videojuego', 'general'), ('Técnica luminotecnia-sonido', 'general'))
 
 
 def cast_requirements(cast):

@@ -25,7 +25,7 @@ class LightingTests(unittest.TestCase):
     def test_default_is_complete_with_correct_colors_and_independent_copies(self):
         plan = default_plan()
         nodes = {x['id']:x for x in plan['elements']}
-        self.assertEqual(len(nodes), 28)
+        self.assertEqual(len(nodes), 27)
         self.assertEqual(nodes['blue-street']['color'], 'blue')
         self.assertEqual(nodes['red-street']['color'], 'red')
         self.assertLess(nodes['presenter']['x'], 50)
@@ -39,7 +39,7 @@ class LightingTests(unittest.TestCase):
     def test_technical_topology_checklist_and_old_plan_upgrade(self):
         from lighting import LEGACY
         plan = default_plan()
-        self.assertEqual(len(plan['connections']), 27)
+        self.assertEqual(len(plan['connections']), 26)
         self.assertEqual(len(plan['walkies']), 4)
         self.assertEqual(len(plan['checklist']), 16)
         connections={c['id']:c for c in plan['connections']}
@@ -51,14 +51,14 @@ class LightingTests(unittest.TestCase):
         old={'notes':'Conservar notas','elements':[e for e in plan['elements'] if e['id'] in LEGACY]}
         old['elements'][0].update(x=18,label='Edición existente',channel='Circuito 4')
         saved=self.save(old)
-        self.assertEqual(len(saved['elements']),28)
+        self.assertEqual(len(saved['elements']),27)
         self.assertEqual(saved['elements'][0]['x'],18)
         self.assertEqual(saved['elements'][0]['label'],'Edición existente')
         self.assertEqual(saved['notes'],'Conservar notas')
 
     def test_v2_migration_preserves_edits_progress_and_notes_without_mutating_source(self):
-        from lighting import upgrade, V2, NEW_CONNECTIONS, NEW_CHECKS
-        plan=default_plan();plan.pop('schemaVersion')
+        from lighting import upgrade, V2, NEW_CONNECTIONS, NEW_CHECKS, PREVIOUS
+        plan=copy.deepcopy(PREVIOUS);plan.pop('schemaVersion')
         plan['elements']=[e for e in plan['elements'] if e['id'] in V2]
         plan['connections']=[c for c in plan['connections'] if c['id'] not in NEW_CONNECTIONS]
         plan['checklist']=[c for c in plan['checklist'] if c['id'] not in NEW_CHECKS]
@@ -67,12 +67,12 @@ class LightingTests(unittest.TestCase):
         plan['connections'][0].update(notes='15 metros',**{'from':'game-computer'})
         plan['checklist'][0].update(done=True,notes='Validado con sala')
         source=copy.deepcopy(plan);updated=upgrade(plan);self.assertEqual(source,plan)
-        self.assertEqual(len(updated['elements']),28);self.assertEqual(updated['elements'][0]['x'],18)
+        self.assertEqual(len(updated['elements']),27);self.assertEqual(updated['elements'][0]['x'],18)
         self.assertEqual(updated['elements'][0]['label'],'Luz personalizada')
         self.assertEqual(updated['checklist'][0]['notes'],'Validado con sala');self.assertTrue(updated['checklist'][0]['done'])
         self.assertTrue(all(not c['done'] for c in updated['checklist'] if c['id'] in NEW_CHECKS))
         self.assertEqual(updated['connections'][0]['from'],'video-card');self.assertEqual(updated['connections'][0]['notes'],'15 metros')
-        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],4)
+        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],5)
         self.assertEqual(next(e for e in saved['elements'] if e['id']=='splitter')['zone'],'technical')
 
     def test_video_controller_speakers_and_margin_power_topology(self):
@@ -82,7 +82,7 @@ class LightingTests(unittest.TestCase):
             self.assertEqual((links[ident]['from'],links[ident]['to']),('splitter',target))
         self.assertEqual(links['data-controller']['to'],'game-computer')
         self.assertEqual(links['data-video']['to'],'video-card')
-        self.assertEqual(links['power-video-card']['from'],'video-psu')
+        self.assertEqual(links['power-video-card']['from'],'technical-power')
         self.assertEqual(links['audio-left']['to'],'left-speaker');self.assertEqual(links['audio-right']['to'],'right-speaker')
         self.save(plan)
 
@@ -107,7 +107,7 @@ class LightingTests(unittest.TestCase):
         video=[c['id'] for c in updated['checklist'] if c['category']=='Vídeo']
         self.assertEqual(video,['video-card','projection','monitors','displays'])
         self.assertNotIn('power-game',{c['id'] for c in updated['connections']})
-        self.assertEqual(self.save(plan)['schemaVersion'],4)
+        self.assertEqual(self.save(plan)['schemaVersion'],5)
 
     def test_checklist_and_connection_notes_persist_and_cannot_rewire_devices(self):
         plan=default_plan();plan['checklist'][0]['done']=True
@@ -115,12 +115,12 @@ class LightingTests(unittest.TestCase):
         saved=self.save(plan)
         self.assertTrue(saved['checklist'][0]['done'])
         self.assertEqual(saved['connections'][0]['notes'],'Cable 15 m')
-        self.assertEqual(saved['connections'][0]['to'],'projector')
-        self.assertEqual(saved['connections'][0]['type'],'hdmi')
+        self.assertEqual(saved['connections'][0]['to'],'sound-computer')
+        self.assertEqual(saved['connections'][0]['type'],'audio')
         for key,value in [('done',1),('done','true')]:
             bad=default_plan();bad['checklist'][0][key]=value
             with self.assertRaises(world.Problem):self.save(bad,version=1)
-        for field in ('connections','checklist'):
+        for field in ('checklist',):
             bad=default_plan();bad[field].pop()
             with self.assertRaises(world.Problem):self.save(bad,version=1)
 
@@ -163,15 +163,16 @@ class LightingTests(unittest.TestCase):
 
     def test_fixed_identity_color_and_type_cannot_be_changed_by_client(self):
         plan=default_plan();plan['elements'][0].update(type='<script>',color='red injected',arbitrary='ignored')
+        with self.assertRaises(world.Problem):self.save(plan)
+        plan=default_plan();plan['elements'][0].update(color='red',arbitrary='ignored')
         element=self.save(plan)['elements'][0]
-        self.assertEqual(element['type'],'street');self.assertEqual(element['color'],'blue')
-        self.assertNotIn('arbitrary',element)
+        self.assertEqual(element['color'],'red');self.assertNotIn('arbitrary',element)
 
     def test_missing_duplicate_unknown_and_invalid_elements_rejected(self):
         bad=[]
         plan=default_plan();plan['elements'].pop();bad.append(plan)
         plan=default_plan();plan['elements'][1]=copy.deepcopy(plan['elements'][0]);bad.append(plan)
-        plan=default_plan();plan['elements'][0]['id']='extra';bad.append(plan)
+        plan=default_plan();plan['elements'][0]['id']='bad id <script>';bad.append(plan)
         plan=default_plan();plan['elements'][0]=None;bad.append(plan)
         for plan in bad:
             with self.subTest(plan=plan),self.assertRaises(world.Problem):self.save(plan)

@@ -223,7 +223,7 @@ class Availability:
             event_id = str(uuid.uuid4())
             body.update(boardId='', sourcePollId=poll['id'], sourceSlotId=slot['id'], parentEventId=poll['eventId'])
             event = self.store.insert(db, 'event', body, actor, event_id)
-            close = data.get('close', True)
+            close = data.get('close', False)
             if type(close) is not bool:
                 raise self.problem('Estado de cierre no válido.')
             self.store.save(db, poll, dict(confirmed=dict(poll['confirmed'], **{slot['id']: event_id}), status='closed' if close else poll['status']), actor, 'ensayo añadido al calendario')

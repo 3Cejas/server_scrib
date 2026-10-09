@@ -4,10 +4,10 @@ const defaults=()=>JSON.parse(read('lighting_plan.json'));
 function historical(){const plan=defaults();plan.schemaVersion=3;plan.connections.push({id:'power-game',from:'technical-power',to:'game-computer',type:'power',label:'PC'});for(const id of ['room','cables','backup','sound-cues','speakers'])plan.checklist.push({id,category:'Anterior',text:id,done:false});return plan;}
 function setup() {
   const calls=[],toasts=[],nodes={},state={lightingDefaults:defaults(),items:[{kind:'event',id:'leon',title:'León <7 noviembre>',start:'2026-11-07'}]};
-  let updates=0,answer=true,saveReply=null,refreshError=false;
+  let updates=0,answer=true,saveReply=null,refreshError=false,uuid=0;
   const element=()=>({innerHTML:'',textContent:'',dataset:{},querySelectorAll:()=>[],querySelector:()=>null});
   for(const id of ['.lighting-workspace','#lighting-svg','#lighting-elements','#lighting-inspector','#lighting-inspector h2','#lighting-intensity','#lighting-status'])nodes[id]=element();
-  const context={window:{confirm:()=>answer},document:{querySelector:s=>nodes[s]||null},crypto:{randomUUID:()=> 'test-request-identifier-unique'}};
+  const context={window:{confirm:()=>answer},document:{querySelector:s=>nodes[s]||null},crypto:{randomUUID:()=> 'test-request-identifier-unique-'+(++uuid)}};
   vm.createContext(context);vm.runInContext(read('public/lighting.js'),context);
   const app=context.window.ScribLighting({state:()=>state,
     esc:v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
@@ -29,7 +29,7 @@ test('power cables are visible by default, attach to equipment ports and splitte
 test('complete stage with blue/red streets, tables, screen, presenter and frontals is safe and responsive',()=>{
   const {app}=setup(),html=app.render();
   for(const id of defaults().elements.map(e=>e.id))assert.ok(html.includes(`data-lighting-node="${id}"`));
-  assert.match(html,/Vista desde el público/);assert.match(html,/no está a escala/);assert.doesNotMatch(html,/no controla focos reales/);assert.match(html,/data-action="lighting-pdf"/);
+  assert.doesNotMatch(html,/Vista desde el público|no está a escala|SIMULACIÓN/);assert.doesNotMatch(html,/no controla focos reales/);assert.match(html,/data-action="lighting-pdf"/);
   assert.match(html,/León &lt;7 noviembre&gt;/);assert.match(html,/role="button" aria-pressed="true"/);
   assert.match(read('public/lighting.css'),/grid-template-columns:minmax\(0,1fr\)/);
   assert.doesNotMatch(html,/style="|on(?:click|change|input)=/);assert.doesNotMatch(read('public/lighting.css'),/animation:|filter:blur/);
@@ -128,8 +128,8 @@ test('technical material counts replace connection editors and monitor colors ar
   const {app,state}=setup();const legacy=defaults();legacy.elements.filter(e=>e.type==='monitor').forEach(e=>e.color=e.id==='blue-monitor'?'blue':'red');
   state.items.push({...legacy,id:'lighting-base',kind:'lighting',eventId:'',version:1});
   const html=app.render();
-  assert.match(html,/Material técnico del show/);assert.match(html,/27 cables \/ conexiones/);
-  for(const [number,label] of [[4,'Vídeo HDMI'],[6,'Ordenadores y portátiles'],[2,'Monitores de proscenio'],[4,'Walkies']])assert.ok(html.includes(`<strong>${number}</strong><span>${label}</span>`));
+  assert.match(html,/Material técnico del show/);assert.match(html,/26 conexiones · 27 elementos/);
+  for(const [number,label] of [[5,'Vídeo'],[2,'Ordenador'],[2,'Monitor'],[4,'Walkies']])assert.ok(html.includes(`<strong>${number}</strong><span class="material-label">${label}</span>`));
   assert.match(html,/lumi-node lumi-white[^>]*data-lighting-node="blue-monitor"/);
   assert.match(html,/lumi-node lumi-white[^>]*data-lighting-node="red-monitor"/);
   assert.match(html,/class="lumi-audience"/);
@@ -137,18 +137,18 @@ test('technical material counts replace connection editors and monitor colors ar
 });
 test('old seven-node plan upgrades and a new bolo resets the base checklist only',async()=>{
   const {app,state,calls}=setup();const base=defaults();base.checklist[0].done=true;
-  base.elements=base.elements.slice(0,7);base.elements[0].x=18;
+  base.schemaVersion=1;base.elements=base.elements.slice(0,7);base.elements[0].x=18;
   state.items.push({kind:'lighting',id:'lighting-base',eventId:'',version:3,...base});
   assert.match(app.render(),/blue-monitor/);
   await app.changeScope({id:'lighting-scope',value:'leon'});await action(app,'lighting-save');
-  assert.equal(calls[0].data.plan.elements.length,28);assert.equal(calls[0].data.plan.elements[0].x,18);
+  assert.equal(calls[0].data.plan.elements.length,27);assert.equal(calls[0].data.plan.elements[0].x,18);
   assert.ok(calls[0].data.plan.checklist.every(c=>!c.done));assert.equal(base.checklist[0].done,true);
 });
 test('diagram shows correct video, controller, speaker endpoints and no redundant color words',async()=>{
   const {app}=setup();const html=app.render();assert.match(html,/<h1>Técnica<\/h1>/);
-  for(const id of ['game-controller','video-card','video-psu','left-speaker','right-speaker'])assert.match(html,new RegExp('data-lighting-node="'+id+'"'));
+  for(const id of ['game-controller','video-card','left-speaker','right-speaker'])assert.match(html,new RegExp('data-lighting-node="'+id+'"'));
   assert.match(html,/data-from="video-card" data-to="splitter"/);assert.match(html,/data-from="splitter" data-to="blue-monitor"/);
-  await action(app,'lighting-cables','data');assert.match(app.render(),/PC · tarjeta \(vídeo y carga\) · mando/);
+  await action(app,'lighting-cables','data');assert.match(app.render(),/Datos \/ USB/);
   const labels=[...html.matchAll(/class="lumi-node-label"[^>]*>([\s\S]*?)<\/text>/g)].map(m=>[...m[1].matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map(part=>part[1]).join(' · '));
   assert.ok(labels.includes('Calle'));assert.ok(labels.includes('Mesa · escritxr'));assert.ok(!labels.some(l=>/azul|rojo|roja/i.test(l)));
   assert.match(html,/data-lighting-node="blue-power"/);assert.doesNotMatch(html,/m5-16-13 20h10/);
@@ -189,13 +189,13 @@ test('scope switches and hidden workspace do not replay another bolo history',as
   assert.match(app.render(),/Solo León/);
 });
 test('v2 UI migration keeps connection notes and completed checks and never mutates saved plan',async()=>{
-  const {app,state,calls}=setup();const old=historical(),added=['game-controller','video-card','video-psu','left-speaker','right-speaker'];
+  const {app,state,calls}=setup();const old=historical(),added=['game-controller','video-card','left-speaker','right-speaker'];
   old.elements=old.elements.filter(e=>!added.includes(e.id));delete old.schemaVersion;
   old.connections=old.connections.filter(c=>!['data-video','data-controller','power-video-psu','power-video-card','audio-left','audio-right','power-left-speaker','power-right-speaker'].includes(c.id));old.connections[0].from='game-computer';old.connections[0].notes='Mantener';
   old.checklist=old.checklist.filter(c=>!['video-card','controller','speakers'].includes(c.id));old.checklist[0].done=true;old.elements[0].x=18;
   state.items.push({kind:'lighting',id:'lighting-base',eventId:'',version:2,...old});const snapshot=JSON.stringify(old);
   app.render();await action(app,'lighting-save');assert.equal(JSON.stringify(old),snapshot);
-  const p=calls[0].data.plan;assert.equal(p.elements.length,28);assert.equal(p.elements[0].x,18);assert.equal(p.connections[0].from,'video-card');
+  const p=calls[0].data.plan;assert.equal(p.elements.length,27);assert.equal(p.elements[0].x,18);assert.equal(p.connections[0].from,'video-card');
   assert.equal(p.connections[0].notes,'Mantener');assert.ok(p.checklist[0].done);assert.ok(p.checklist.filter(c=>['controller','video-card'].includes(c.id)).every(c=>!c.done));
 });
 test('v3 checklist simplifies and reorders without mutating saved data or losing remaining progress',async()=>{
@@ -205,9 +205,9 @@ test('v3 checklist simplifies and reorders without mutating saved data or losing
   state.items.push({...old,id:'lighting-base',kind:'lighting',eventId:'',version:3});const before=JSON.stringify(old);
   const html=app.render();assert.doesNotMatch(html,/Sala y seguridad|Validar permiso|Preparar red de respaldo|sound-cues/);
   assert.ok(html.indexOf('data-lighting-check="video-card"')<html.indexOf('data-lighting-check="projection"'));
-  await action(app,'lighting-save');const p=calls[0].data.plan;assert.equal(p.schemaVersion,4);assert.equal(p.checklist.length,16);
+  await action(app,'lighting-save');const p=calls[0].data.plan;assert.equal(p.schemaVersion,5);assert.equal(p.checklist.length,16);
   assert.equal(p.checklist[0].done,true);const sound=p.checklist.find(c=>c.id==='sound');assert.equal(sound.done,false);assert.equal(sound.notes,'Entrada\nSalida');
-  assert.equal(JSON.stringify(old),before);assert.equal(p.connections.length,27);
+  assert.equal(JSON.stringify(old),before);assert.equal(p.connections.length,26);
 });
 
 test('technical area spans full width and actors room is below, preserving equipment positions',()=>{
@@ -219,4 +219,24 @@ test('technical area spans full width and actors room is below, preserving equip
   const [techX,techY]=translation('game-computer'),[actorsX,actorsY]=translation('actors-blue');
   assert.ok(actorsY>techY+100);
   assert.equal(techX,100+8*defaults().elements.find(e=>e.id==='game-computer').x);
+});
+
+test('adding connecting deleting and undo restore custom topology through save and reload',async()=>{
+  const {app,nodes,calls,state}=setup();app.render();
+  nodes['#lighting-new-type']={value:'monitor'};nodes['#lighting-new-zone']={value:'actors'};nodes['#lighting-new-color']={value:'white'};
+  await action(app,'lighting-add');assert.match(app.render(),/value="Monitor"/);
+  nodes['#lighting-link-target']={value:'actors-power'};nodes['#lighting-link-type']={value:'power'};
+  await action(app,'lighting-connect');await action(app,'lighting-save');
+  const saved=calls[0].data.plan,extra=saved.elements.at(-1);assert.equal(extra.type,'monitor');assert.equal(extra.zone,'actors');
+  assert.equal(saved.connections.at(-1).from,extra.id);assert.equal(saved.connections.at(-1).to,'actors-power');
+  await action(app,'lighting-connect');assert.equal(calls.length,1);
+  await action(app,'lighting-remove');assert.doesNotMatch(app.render(),new RegExp('data-lighting-node="'+extra.id+'"'));
+  await action(app,'lighting-undo');await action(app,'lighting-save');assert.equal(calls[1].data.plan.connections.length,saved.connections.length);
+  await action(app,'lighting-disconnect',saved.connections.at(-1).id);await action(app,'lighting-save');assert.equal(calls[2].data.plan.connections.length,saved.connections.length-1);
+  state.items.find(i=>i.kind==='lighting').elements=state.items.find(i=>i.kind==='lighting').elements.filter(e=>e.id!=='red-street');
+  app.changeScope({id:'lighting-scope',value:''});assert.doesNotMatch(app.render(),/data-lighting-node="red-street"/);
+});
+test('empty plans remain usable and no deleted elements are auto-restored',async()=>{
+  const {app,state}=setup();state.items.push({...defaults(),elements:[],connections:[],kind:'lighting',id:'lighting-base',eventId:'',version:1});
+  assert.match(app.render(),/Añade un elemento/);assert.doesNotThrow(()=>app.render());
 });

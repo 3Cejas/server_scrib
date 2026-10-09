@@ -16,9 +16,9 @@ class PlanImageTests(unittest.TestCase):
     def test_material_counts_are_based_on_topology_without_double_counting_source_cables(self):
         plan=default_plan();summary=material_counts(plan)
         self.assertEqual(sum(n for _,n in summary['cables']),len(plan['connections']))
-        self.assertEqual(dict(summary['cables'])['Vídeo HDMI'],4)
+        self.assertEqual(dict(summary['cables'])['Vídeo'],5)
         self.assertEqual(dict(summary['equipment'])['Ordenadores y portátiles'],6)
-        self.assertEqual(dict(summary['equipment'])['Monitores de proscenio'],2)
+        self.assertEqual(dict(summary['equipment'])['Monitores'],2)
         self.assertEqual(dict(summary['equipment'])['Walkies'],4)
         self.assertTrue(all(e['color']=='white' for e in plan['elements'] if e['type']=='monitor'))
 
