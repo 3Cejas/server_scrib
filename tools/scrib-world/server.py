@@ -1070,6 +1070,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, (ROOT / 'public' / 'export.js').read_bytes(), 'application/javascript; charset=utf-8')
                 if route == 'documents.js':
                     return self.reply(200,(ROOT/'public/documents.js').read_bytes(),'application/javascript; charset=utf-8')
+                if route in ('instagram-report.js','report-social.js'):
+                    return self.reply(200,(ROOT/'public'/route).read_bytes(),'application/javascript; charset=utf-8')
                 if route in ('lighting.js', 'lighting.css'):
                     mime = 'application/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     return self.reply(200, (ROOT / 'public' / route).read_bytes(), mime)

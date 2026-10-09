@@ -279,6 +279,18 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertLess(body.index(b"activity.js"), body.index(b"app.js"))
 
+    def test_saved_match_instagram_assets_require_identity_and_load_before_business(self):
+        for path in ['instagram-report.js', 'report-social.js']:
+            self.assertEqual(self.req(path, headers={'X-Scrib-Bridge':''})[0], 401)
+            status, body, headers = self.req(path, raw=True)
+            self.assertEqual(status, 200)
+            self.assertIn('application/javascript', headers['Content-Type'])
+            self.assertIn(b'Scrib', body)
+        status, body, _ = self.req('', raw=True)
+        self.assertEqual(status, 200)
+        self.assertLess(body.index(b'instagram-report.js'), body.index(b'report-social.js'))
+        self.assertLess(body.index(b'report-social.js'), body.index(b'business.js'))
+
     def test_csrf_required_and_cross_origin_blocked(self):
         payload={"kind":"person","data":{"name":"Persona"},"requestId":str(uuid.uuid4())}
         status,_,_=self.req("api/create",payload);self.assertEqual(status,403)

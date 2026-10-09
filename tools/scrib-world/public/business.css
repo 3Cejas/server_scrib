@@ -66,3 +66,6 @@
 .production-card-money{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:12px}.production-card-money small{display:block;color:var(--muted);font-size:.66rem;line-height:1.5}.production-card-money strong{display:block;margin-top:4px;font-size:.95rem;color:var(--cyan)}.production-card-money div+div strong{color:var(--gold)}.production-card-open{display:flex;justify-content:space-between;gap:8px;font-size:.75rem;color:var(--gold);margin-top:16px}
 @media(max-width:450px){.production-card{grid-template-columns:53px minmax(0,1fr);padding:14px;gap:12px}.production-date strong{font-size:1.5rem}.production-card-money{grid-template-columns:1fr;gap:8px}}
 @media(prefers-reduced-motion:reduce){.production-card{transition:none}.production-card:hover{transform:none}}
+@font-face{font-family:"Retro-gaming";src:url('/scrib/backstage/materials/shared/retro.ttf') format('truetype');font-display:swap}
+.saved-match-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
+.saved-match-card>a{white-space:normal;justify-content:flex-start;text-align:left;flex:1;min-width:0}

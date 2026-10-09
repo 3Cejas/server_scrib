@@ -14,6 +14,7 @@
   const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto",lighting:"Plano técnico"};
   const TEAM_ROLES=new Set(['Escritura','Interpretación']);
   const REQUIRED_CAST=[['Escritura','blue'],['Escritura','red'],['Interpretación','blue'],['Interpretación','red'],['Presentador','general'],['Técnica','general'],['Jurado','general']];
+  const CAST_SLOTS=[['Escritura','blue'],['Interpretación','blue'],['Interpretación','blue'],['Escritura','red'],['Interpretación','red'],['Interpretación','red'],['Presentador','general'],['Técnica','general'],['Jurado','general']];
   const main = document.querySelector("#main");
   const dialog = document.querySelector("#editor");
   const deleteDialog = document.querySelector("#delete-confirmation");
@@ -28,6 +29,25 @@
   const member = username => state.members.find(x => x.username === username)?.name || username;
   const item = id => state.items.find(x => x.id === id);
   const active = kind => state.items.filter(x => x.kind === kind && !x.archived);
+  // A bolo is a run of consecutive performances in the same room. Keep each
+  // source performance intact: cast, contracts, reports and boards are per day.
+  function eventGroups() {
+    const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    const buckets=new Map(),groups=[];
+    for(const e of active('event')){
+      if(e.eventType==='rehearsal'||e.status==='cancelled'||!normalize(e.venue)){groups.push([e]);continue;}
+      const key=normalize(e.venue)+'|'+normalize(e.city);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(e);
+    }
+    for(const events of buckets.values()){
+      events.sort((a,b)=>a.start.localeCompare(b.start)||a.id.localeCompare(b.id));let run=[];
+      for(const e of events){const gap=run.length?(Date.parse(e.start.slice(0,10))-Date.parse(run.at(-1).start.slice(0,10)))/86400000:0;
+        if(run.length && (gap<0||gap>1)){groups.push(run);run=[];}run.push(e);
+      }if(run.length)groups.push(run);
+    }return groups;
+  }
+  function eventSeries(e){return eventGroups().find(g=>g.some(x=>x.id===e.id&&x.start===e.start&&x.venue===e.venue&&x.city===e.city&&x.status===e.status&&x.archived===e.archived&&x.eventType===e.eventType))||[e];}
+  function seriesDates(e){const g=eventSeries(e);return niceDate(g[0].start)+(g.length>1?' — '+niceDate(g.at(-1).start):'');}
+  function seriesLinks(e,section='event') {const g=eventSeries(e);return g.length<2?'':`<section class="panel series-functions"><h2>${g.length} funciones · un bolo</h2><p class="muted">Cada fecha conserva su reparto, horarios, tareas, configuración y documentos.</p><div class="actions section">${g.map(f=>`<a class="button${e.id===f.id?' primary':''}" href="#${section}/${esc(f.id)}" ${e.id===f.id?'aria-current="page"':''}>${esc(niceDate(f.start,false))} · ${esc(hour(f.start))}</a>`).join('')}</div></section>`;}
   const colors = window.ScribPeopleColors;
   const personLabel = (id,label) => `<span class="person-label ${colors.className(item(id))}">${esc(label ?? item(id)?.name ?? 'Ficha archivada')}</span>`;
   const today = () => new Intl.DateTimeFormat("en-CA", {timeZone: "Europe/Madrid", year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
@@ -82,7 +102,7 @@
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
   const profile = window.ScribPersonProfile({esc,roles:()=>state?.personRoles});
   const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
-  const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage,niceDate,hour,eventInactive});
+  const business = window.ScribBusiness({state:()=>state,item,active,eventGroups,eventSeries,seriesLinks,seriesDates,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage,niceDate,hour,eventInactive});
   const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage,dialog});
   const isAdmin=()=>state?.user.role==='admin';
   const documents = window.ScribDocuments({esc,request,openDialog,isAdmin});
@@ -170,10 +190,10 @@
     const completed = eventInactive(event) ? ' is-completed' : '';
     const link = `<a class="event-card-link" href="#event/${esc(event.id)}" aria-label="Abrir ${event.eventType === 'rehearsal' ? 'ensayo' : 'bolo'} ${esc(event.title)} · ${esc(niceDate(event.start))}">`;
     if(event.eventType === "rehearsal") return `<article class="panel event-card${completed}">${link}<p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p>${esc(dateTime(event.start))} — ${esc(hour(event.end))}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${esc(EVENT_STATUS[event.status])}</p><span class="event-enter" aria-hidden="true">Ver ensayo ↗</span></a></article>`;
-    return `<article class="panel event-card${completed}">${link}<div class="event-card-heading"><h3>${esc(event.title)}</h3>${badge(EVENT_STATUS[event.status],completed ? 'inactive' : event.status === "confirmed" ? "green" : "gold")}</div><p class="event-date"><time datetime="${esc(event.start)}">${esc(niceDate(event.start))} · ${esc(hour(event.start))}</time></p><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
+    return `<article class="panel event-card${completed}">${link}<div class="event-card-heading"><h3>${esc(event.title)}</h3>${badge(EVENT_STATUS[event.status],completed ? 'inactive' : event.status === "confirmed" ? "green" : "gold")}</div><p class="event-date"><time datetime="${esc(event.start)}">${esc(seriesDates(event))} · ${esc(hour(event.start))}</time>${eventSeries(event).length>1?badge(eventSeries(event).length+' funciones','violet'):''}</p><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
   }
   function eventInactive(event) {
-    return ['completed','cancelled'].includes(event.status) || event.start.slice(0,10) < today();
+    return eventSeries(event).every(e=>['completed','cancelled'].includes(e.status)||e.start.slice(0,10)<today());
   }
   function homeCalendarDays(value) {
     const first = new Date(value + "-01T12:00:00Z");
@@ -205,7 +225,7 @@
     main.querySelector(`[data-action="${action}"][data-id="${id}"]`)?.focus({preventScroll:true});
   }
   function renderHome() {
-    const upcoming = active("event").filter(x => x.start.slice(0,10) >= today() && !["cancelled","completed"].includes(x.status)).sort((a,b)=>a.start.localeCompare(b.start));
+    const upcoming = eventGroups().filter(g=>g.some(x => x.start.slice(0,10) >= today() && !["cancelled","completed"].includes(x.status))).map(g=>g[0]).sort((a,b)=>a.start.localeCompare(b.start));
     const tasks = active("ticket"), mine = tasks.filter(x => x.status !== "done" && x.assignees.includes(state.user.username));
     const blocked = tasks.filter(x=>x.status === "blocked"), late = tasks.filter(x=>x.status !== "done" && x.due && x.due < today());
     return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",`<a class="button app-download" href="${BASE}android/scrib.apk" download="SCRIB-Android.apk" aria-label="Descargar la app de SCRIB para Android">${icon('phone')} Descargar app · Android</a>`+btn("new-event","＋ Crear bolo","","primary")) +
@@ -220,8 +240,8 @@
   }
   function agendaEvents() {
     const current=today();
-    const upcoming=e=>!['completed','cancelled'].includes(e.status)&&e.start.slice(0,10)>=current;
-    return active('event').sort((a,b)=>{
+    const upcoming=e=>eventSeries(e).some(f=>!['completed','cancelled'].includes(f.status)&&f.start.slice(0,10)>=current);
+    return eventGroups().map(g=>g[0]).sort((a,b)=>{
       const first=upcoming(a),second=upcoming(b);
       if(first!==second)return first?-1:1;
       return (first?a.start.localeCompare(b.start):b.start.localeCompare(a.start))||a.id.localeCompare(b.id);
@@ -288,16 +308,12 @@
     const event = item(id);
     if (!event || event.archived) return empty("Este bolo está archivado o no existe","Puedes recuperarlo junto con sus tareas desde el archivo.",`<a class="button" href="#archive">Ir al archivo</a>`);
     const p = progress(event.boardId), tasks = tasksFor(event.boardId), blocks = tasks.filter(x=>x.status === "blocked");
-    const casts = ['blue','red','general'].map(team=>{
-      const rows=event.cast.filter(c=>(TEAM_ROLES.has(c.role)?c.team:'general')===team);
-      if(team==='general'&&!rows.length)return '';
-      return `<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="team-row">${rows.map(c=>{const p=item(c.personId);return `<button type="button" class="cast-chip ${team} ${colors.className(p)}" data-action="edit-person" data-id="${esc(c.personId)}"><span class="cast-person-name"><span class="avatar" aria-hidden="true">${esc(initials(p?.name))}</span>${personLabel(c.personId,' '+(p?.name||'Ficha no disponible'))}</span><small>${esc(c.role)}</small></button>`;}).join('')||'<p class="muted">Elenco pendiente de asignar.</p>'}</div></div>`;
-    }).join('');
-    return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",event.title,`${niceDate(event.start)} · ${hour(event.start)} · ${EVENT_STATUS[event.status]}`,
+    const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${castSlots(event.cast).filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
+    return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",eventSeries(event)[0].title,`${seriesDates(event)} · ${EVENT_STATUS[event.status]}`,
       btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + btn("event-pdf","↓ Hoja de llamada PDF",event.id) + (event.historical ? "" : `<a class="button primary" href="#board/${event.boardId}">Abrir tareas ↗</a>`) + (event.eventType === "rehearsal" ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
-      `<div class="event-sheet"><section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
+      `<div class="event-sheet">${seriesLinks(event)}<section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${event.eventType === "rehearsal" ? `<section class="panel event-prep-section"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>Una fecha elegida entre todos</h2><p class="muted section">Añadido desde la encuesta de disponibilidad. Puedes editar el horario o cancelar el ensayo desde esta ficha. No se han creado tareas de producción.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>` : event.historical ? `<section class="panel event-prep-section"><p class="eyebrow">MEMORIA DEL SHOW</p><h2>✦ Bolo realizado</h2><p class="muted section">El elenco y sus participaciones quedan registrados aquí. Sin tareas de preparación pendientes.</p></section>` : `<section class="panel event-prep-section"><div class="panel-head"><h2>Preparación</h2>${badge(p.percent + "% listo",p.percent === 100?"green":"gold")}</div><div class="summary muted">${p.done} de ${p.total} tareas completadas · ${blocks.length} bloqueadas</div>${progressHtml(p,"progress-gold")}${blocks.length?`<div class="section"><h3>Necesita ayuda</h3>${blocks.map(x=>`<div class="activity-row"><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${x.id}">⚑ ${esc(x.title)}</button></div>`).join("")}</div>`:""}</section>`}
-      <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.eventType==='rehearsal'||event.historical?'':castReadiness(event.cast)}${event.cast.length?'':`<p class="muted section">Añade el elenco desde Editar bolo. Las fichas se reutilizan en todas las funciones.</p>`}</section>
+      <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.eventType==='rehearsal'||event.historical?'':castReadiness(event.cast)}${event.cast.length?'':`<p class="muted section">Elige quién ocupa cada puesto. Puedes dejar huecos pendientes y completarlos después.</p>`}</section>
       ${inventory.eventPanel(event)}
       ${event.eventType === 'rehearsal' ? '' : `<section class="panel event-game-section"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}
@@ -426,9 +442,20 @@
     openDialog("ticket",id ? "Dentro de la tarea" : "Nueva tarea",`<div class="editor-grid"><div>${form}</div><aside class="discussion"><h3>Conversación del equipo</h3><div id="comments">${id?commentsHtml(details.comments):`<p class="muted">Guarda la tarea para añadir comentarios.</p>`}</div>${id?`<form class="comment-form" data-id="${id}" data-request="${crypto.randomUUID()}">${field("Tu comentario",area("comment","",'required maxlength="10000" placeholder="Añade contexto, una decisión o un bloqueo…"'))}<p class="form-error" role="alert"></p><button type="submit" class="button">Enviar comentario</button></form><details><summary>Historial de la tarea</summary>${details.activity.map(activityRow).join("")}</details>`:""}</aside></div>`);
   }
   function commentsHtml(comments) {return comments.map(c=>`<div class="comment"><small><strong>${esc(member(c.author))}</strong> · ${dateTime(c.created)}</small>${esc(c.body)}</div>`).join("") || `<p class="muted">Aquí empieza la conversación.</p>`;}
+  async function assignCastSlot(node){
+    const e=item(node.dataset.castEvent),slots=castSlots(e.cast),slot=slots[Number(node.dataset.castSlot)];if(!slot)return;
+    if(saving){node.value=slot.personId;return;}
+    const previous=slot.personId;slot.personId=node.value;
+    saving=true;node.disabled=true;
+    try{const result=await request('update',{id:e.id,version:Number(node.dataset.castVersion),data:{...e,cast:slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team}))}});state.items[state.items.findIndex(x=>x.id===e.id)]=result.item;renderPage();toast('Puesto guardado.');}
+    catch(error){node.value=previous;throw error;}finally{saving=false;node.disabled=false;}
+  }
+  function personChoices(id){return option('','Selecciona quién ocupa el puesto',id)+state.items.filter(p=>p.kind==='person'&&(!p.archived||p.id===id)).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>option(p.id,p.name+(p.archived?' (archivado)':''),id)).join('');}
+  function castSlots(cast=[]){const remaining=[...cast],rows=[];for(const [role,team] of CAST_SLOTS){const index=remaining.findIndex(c=>c.role===role&&(TEAM_ROLES.has(role)?c.team: 'general')===team);rows.push({...(index>=0?remaining.splice(index,1)[0]:{role,team,personId:''}),team,fixed:true});}return [...rows,...remaining.map(c=>({...c,team:TEAM_ROLES.has(c.role)?c.team:'general',fixed:true}))].map((c,slotIndex)=>({...c,slotIndex}));}
   function castRow(c = {}) {
     const choices=state.items.filter(p=>p.kind === "person" && (!p.archived || p.id === c.personId));
     const teamRole=TEAM_ROLES.has(c.role),team=teamRole?c.team||'blue':'general';
+    if(c.fixed)return `<div class="cast-editor-row cast-fixed ${team}"><div><strong>${esc(c.role)}</strong><small>${team==='blue'?'Equipo azul':team==='red'?'Equipo rojo':'Equipo del espectáculo'}</small></div><input class="cast-role" type="hidden" value="${esc(c.role)}"><input class="cast-team" type="hidden" value="${esc(team)}"><select class="cast-person" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId)}</select></div>`;
     return `<div class="cast-editor-row${teamRole?'':' no-team'}"><select class="cast-person" aria-label="Persona del elenco">${option("","Selecciona persona",c.personId)}${choices.map(p=>option(p.id,p.name+(p.archived?" (archivado)":""),c.personId)).join("")}</select><select class="cast-role" aria-label="Papel en el bolo">${option("","Selecciona rol",c.role)}${profile.roleOptions(c.role)}</select><select class="cast-team" aria-label="Equipo" ${teamRole?'':'hidden disabled'}>${teamRole?option('blue','Azul',team)+option('red','Rojo',team):option('general','',team)}</select><button type="button" class="icon-button cast-remove" data-action="remove-row" aria-label="Quitar persona del bolo">×</button></div>`;
   }
   function castReadiness(cast) {
@@ -450,7 +477,7 @@
       field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"')) + field("Notas de producción",area("description",e.description,'maxlength="15000" placeholder="Acceso, necesidades de sala, contactos profesionales, ensayo…"')) +
       window.ScribWorldGameConfig.editor(e,state.gameConfigSchema) +
       (id ? '' : field("Plantilla de tareas iniciales",select("templateId",Object.fromEntries(active("template").map(t=>[t.id,`${t.title} · ${t.tasks.length} tareas`])),"default-template"),"Se copiarán automáticamente en TO DO al guardar.")) +
-      `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Persona","","small")}</div><div id="cast-readiness">${castReadiness(e.cast)}</div><p class="hint">Puedes guardar un borrador y completar después los puestos que faltan.</p><div class="cast-editor">${e.cast.map(castRow).join("")}</div></div>`));
+      `<div><div class="panel-head"><h3>Elenco de esta función</h3>${btn("add-cast","＋ Otro puesto","","small")}</div><div id="cast-readiness">${castReadiness(e.cast)}</div><p class="hint">Puedes guardar un borrador y completar después los puestos que faltan.</p><div class="cast-editor">${castSlots(e.cast).map(castRow).join("")}</div></div>`));
   }
   function openPerson(id) {
     const p = id ? item(id) : {name:"",roles:[],bio:"",instagram:"",website:"",otherSocial:"",image:""};
@@ -651,6 +678,7 @@
   document.addEventListener("submit",event=>{if(event.target.matches("#document-check-form")){event.preventDefault();documents.submit(event.target);}else if(event.target.matches("#inventory-export-form")){event.preventDefault();inventory.exportForm(event.target);}else if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
+    if(node.dataset.castEvent){assignCastSlot(node).catch(error=>toast(error.message));return;}
     if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');updateCastReadiness();return;}
     if(node.matches('.cast-person,.cast-team')){updateCastReadiness();return;}
     if(node.id==='lighting-scope'){lighting.changeScope(node).catch(error=>toast(error.message));return;}

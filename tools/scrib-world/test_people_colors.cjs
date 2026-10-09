@@ -30,12 +30,12 @@ function client() {
   vm.createContext(context);
   for(const file of ['people-colors.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
-  context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>'};
+  context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,renderHome,renderEvent,renderPeople,renderPerson,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,eventGroups,eventSeries,seriesDates,seriesLinks,castSlots,openEvent,assignCastSlot,renderHome,renderEvent,renderPeople,renderPerson,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
-  const event={id:'e1',kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
+  const event={id:'e1',version:1,kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
   context.window.tests.setState(state);
   return {app:context.window.tests,colors:context.window.ScribPeopleColors,state,event,people,nodes,listeners,calls,responses};
@@ -374,15 +374,19 @@ test('roadmap groups blue/red/general teams and keeps each person color',()=>{
   const {app,people}=client(),html=app.renderEvent('e1');balanced(html);
   for(const css of ['event-roadmap','event-prep-section','event-cast-section','event-inventory-section','event-game-section','event-reports-section','event-notes-section','cast-group blue','cast-group red','cast-group general'])assert.ok(html.includes(css),css);
   for(const person of people)assert.ok(html.includes(app.personLabel(person.id))||html.includes(app.personLabel(person.id,' '+person.name)));
-  assert.match(html,/cast-chip blue person-colored person-tone-orchid/);
-  assert.match(html,/cast-chip red person-colored person-tone-cyan/);
-  assert.match(html,/data-action="edit-person" data-id="p1"/);
+  assert.match(html,/cast-slot blue/);
+  assert.match(html,/cast-slot red/);
+  assert.match(html,/data-cast-event="e1"/);
+  assert.match(html,/href="#person\/p1"/);
+  assert.match(html,/<option value="p1" selected/);
+  assert.match(html,/<option value="p2" selected/);
 });
 test('empty, rehearsal, historical and archived roadmap cases retain proper structure',()=>{
   const {app,event}=client();event.cast=[];
   for(const changes of [{},{eventType:'rehearsal',sourcePollId:'poll'},{eventType:'show',historical:true}]){
     Object.assign(event,changes);const html=app.renderEvent('e1');balanced(html);
-    assert.match(html,/Elenco pendiente de asignar/);assert.doesNotMatch(html,/cast-group general/);
+    assert.match(html,/Puesto pendiente/);assert.match(html,/cast-group general/);
+    assert.equal((html.match(/data-cast-slot=/g)||[]).length,9);
     if(event.eventType==='rehearsal')assert.doesNotMatch(html,/event-game-section|event-reports-section/);
   }
   event.archived=true;assert.doesNotMatch(app.renderEvent('e1'),/event-roadmap/);
@@ -602,6 +606,79 @@ test('delete button drag cannot accidentally move a ticket',()=>{
   const {listeners}=taskFixture();let prevented=false;
   listeners.dragstart({target:{closest:selector=>selector==='.ticket'?{dataset:{ticket:'ticket-1'}}:{}},preventDefault:()=>{prevented=true;}});
   assert.ok(prevented);
+});
+test('consecutive shows group by room and city without modifying performances or rehearsals',()=>{
+  const {app,state,event}=client();
+  state.items=state.items.filter(e=>e.kind!=='event');
+  const dates=[['a','2026-12-31'],['b','2027-01-01'],['c','2027-01-02'],['d','2027-01-04']];
+  state.items.push(...dates.map(([id,start])=>({...event,id,start,venue:id==='b'?' TEÁTRO ':'Teatro',city:'León',cast:[],boardId:id})));
+  state.items.push({...event,id:'other-city',start:'2027-01-03',city:'Madrid'},
+    {...event,id:'other-room',start:'2027-01-03',venue:'Teatro 2'},
+    {...event,id:'rehearsal',start:'2027-01-03',eventType:'rehearsal'},
+    {...event,id:'cancelled',start:'2027-01-03',status:'cancelled'},
+    {...event,id:'archived',start:'2027-01-03',archived:true},
+    {...event,id:'unknown-room',start:'2027-01-03',venue:''});
+  const before=JSON.stringify(state.items),groups=app.eventGroups().map(g=>Array.from(g,e=>e.id));
+  assert.ok(groups.some(g=>JSON.stringify(g)==='["a","b","c"]'));
+  for(const id of ['d','other-city','other-room','rehearsal','cancelled','unknown-room'])assert.ok(groups.some(g=>g.length===1&&g[0]===id),id);
+  assert.ok(!groups.flat().includes('archived'));assert.equal(JSON.stringify(state.items),before);
+  assert.match(app.seriesDates(state.items.find(e=>e.id==='b')),/31 de diciembre de 2026 — 2 de enero de 2027/);
+  const links=app.seriesLinks(state.items.find(e=>e.id==='b'));balanced(links);
+  assert.match(links,/href="#event\/b" aria-current="page"/);assert.match(links,/href="#event\/a"/);assert.match(links,/href="#event\/c"/);
+});
+test('a grouped bolo keeps every day on the calendar and separate casts inside its tabs',()=>{
+  const {app,state,event,nodes}=client();
+  const next={...event,id:'e2',start:'2026-11-08T20:30',cast:[{personId:'p2',role:'Escritura',team:'blue'}],boardId:'b2'};
+  state.items.push(next);
+  assert.equal(app.agendaEvents().filter(e=>e.kind==='event').length,1);
+  assert.match(app.eventCard(event),/7 de noviembre de 2026 — 8 de noviembre de 2026/);
+  app.setHomeCalendar('2026-11','2026-11-08');
+  const calendar=app.renderHomeCalendar();assert.match(calendar,/href="#event\/e2"/);
+  let html=app.renderEvent('e1');balanced(html);assert.match(html,/data-cast-event="e1"/);
+  html=app.renderEvent('e2');balanced(html);assert.match(html,/data-cast-event="e2"/);assert.match(html,/value="p2" selected/);
+  app.openEvent('e2');html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.equal((html.match(/class="cast-person"/g)||[]).length,9);
+  assert.match(html,/value="p2" selected/);
+});
+test('role slots are present in new drafts and preserve existing extra roles and archived cast',()=>{
+  const {app,nodes,event,people}=client();app.openEvent();
+  const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.equal((html.match(/class="cast-person"/g)||[]).length,9);
+  for(const role of ['Escritura','Interpretación','Presentador','Técnica','Jurado'])assert.match(html,new RegExp('<strong>'+role+'</strong>'));
+  assert.match(html,/Puedes guardar un borrador/);
+  people[0].archived=true;event.cast.push({personId:'p3',role:'Dramaturgia',team:'general'});
+  const before=JSON.stringify(event.cast),slots=app.castSlots(event.cast);
+  assert.equal(slots.length,10);assert.equal(slots.at(-1).role,'Dramaturgia');assert.equal(JSON.stringify(event.cast),before);
+  app.openEvent('e1');assert.match(nodes['dialog-content'].innerHTML,/value="p1" selected>ÁNGELA HARRIS BUENO \(archivado\)/);
+});
+test('assigning and clearing a role slot save only its original date with optimistic concurrency',async()=>{
+  const {app,event,state,responses,calls}=client();
+  const next={...event,id:'e2',start:'2026-11-08T19:00',cast:[]};state.items.push(next);
+  responses['/scrib/backstage/api/update']=options=>{const payload=JSON.parse(options.body);return {item:{...payload.data,version:payload.version+1}};};
+  const node={dataset:{castEvent:'e2',castSlot:'6',castVersion:'1'},value:'p3',disabled:false};
+  await app.assignCastSlot(node);assert.equal(node.disabled,false);
+  const payload=JSON.parse(calls.find(c=>c.options.method==='POST').options.body);
+  assert.equal(payload.id,'e2');assert.equal(payload.version,1);
+  assert.deepEqual(payload.data.cast,[{personId:'p3',role:'Presentador',team:'general'}]);
+  assert.equal(event.cast.length,3);assert.equal(state.items.find(e=>e.id==='e2').cast.length,1);
+  node.value='';node.dataset.castVersion='2';await app.assignCastSlot(node);
+  assert.equal(state.items.find(e=>e.id==='e2').cast.length,0);
+  node.value='p1';responses['/scrib/backstage/api/update']={__status:409,__body:{error:'Actualizado por otra persona'}};
+  await assert.rejects(app.assignCastSlot(node),/Actualizado por otra persona/);
+  assert.equal(node.value,'');assert.equal(node.disabled,false);assert.equal(event.cast.length,3);
+});
+test('grouped saved matches list all dates with Instagram export and never export the live match',async()=>{
+  const {app,state,event,responses,calls}=client();
+  state.items.push({...event,id:'e2',start:'2026-11-08T19:00'});
+  const report=(id,endedAt)=>({id,endedAt,writers:{1:{name:'Ángela'},2:{name:'Pablo'}}});
+  responses['/scrib/backstage/api/reports/event/e1']={reports:[report('old',1000)]};
+  responses['/scrib/backstage/api/reports/event/e2']={reports:[report('recent',2000)]};
+  app.business.eventPanel(event);await flush();const html=app.business.eventPanel(event);balanced(html);
+  assert.equal((html.match(/saved-match-card/g)||[]).length,2);
+  assert.ok(html.indexOf('#report/recent')<html.indexOf('#report/old'));
+  assert.match(html,/data-action="business-instagram" data-id="recent"/);
+  assert.match(html,/data-action="business-instagram" data-id="old"/);
+  assert.ok(calls.every(c=>c.options.method==='GET'));
 });
 test('an unexpected successful HTTP response cannot falsely confirm a deletion',async()=>{
   const {app,nodes,state,responses,ticket}=taskFixture();

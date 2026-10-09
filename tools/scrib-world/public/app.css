@@ -30,6 +30,17 @@
 .sidebar-app strong{font-size:.8rem}.sidebar-app strong>span{color:var(--violet);margin-left:6px}
 .sidebar-app small{font-size:.65rem;color:var(--muted)}
 .app-download{border-color:#bda1ff66;color:var(--violet)}
+.cast-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+.cast-slot{display:grid;gap:10px;padding:16px;border:1px dashed var(--line);border-radius:12px;background:#ffffff03;min-width:0}
+.cast-slot.blue,.cast-fixed.blue{border-color:#64e7e250}.cast-slot.red,.cast-fixed.red{border-color:#ff849550}
+.cast-slot strong{font-size:.8rem;color:var(--gold)}.cast-slot.blue strong{color:var(--cyan)}.cast-slot.red strong{color:var(--coral)}
+.cast-slot select{width:100%;min-width:0;font-size:.8rem}
+.cast-slot label{display:grid;gap:10px;min-width:0}
+.cast-editor-row.cast-fixed{grid-template-columns:minmax(120px,1fr) minmax(0,2fr);padding:12px;border:1px solid var(--line);border-radius:12px}
+.cast-fixed>div{display:grid;gap:4px}.cast-fixed small{font-size:.65rem;color:var(--muted)}
+.series-functions{grid-column:1/-1}.series-functions p{font-size:.8rem;margin-top:8px}
+.event-date .badge{margin-left:8px}
+@media(max-width:760px){.cast-slot-grid{grid-template-columns:1fr}.cast-editor-row.cast-fixed{grid-template-columns:1fr}.cast-fixed .cast-person{grid-column:auto}}
 @media(max-width:760px){.sidebar-web{margin-top:12px;padding:10px 12px}.sidebar-web-copy{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}.sidebar-web>.nav-icon{width:20px;height:20px;flex-basis:20px}}
 /* The main link covers the entire card; the task link remains independent. */
 .event-card{position:relative;min-width:0}
