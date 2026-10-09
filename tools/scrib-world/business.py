@@ -12,6 +12,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 SCHEMA = '''
@@ -187,6 +188,40 @@ class Business:
                                    link=PUBLIC_ORIGIN+'/scrib-disponibilidad/'+row['token'],uploads=uploads))
             return {'agreements':result}
 
+    def render_agreement(self, event, person, billing, settings, preview=False):
+        dates=self.event_date(event['start'],event.get('timePending',False))
+        if event.get('end') and event['end'][:10] != event['start'][:10]:
+            dates += ' — '+self.event_date(event['end'],event.get('timePending',False))
+        roles=' / '.join(dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person.get('id')))
+        fields={'persona':(billing.get('legalName') or person['name']) if billing.get('verified') else person['name'],
+                'documento':(billing.get('taxId') or '________________') if billing.get('verified') else '________________',
+                'entidad':settings.get('name',''),'cif':settings.get('taxId',''),'domicilio':settings.get('address',''),
+                'representante':settings.get('representative',''),'bolo':event['title'],'fecha':dates,
+                'lugar':' · '.join(filter(None,[event['venue'],event['city'],event['address']])),
+                'papel':roles,'fecha_firma':self.now()[:10]}
+        rendered=settings.get('template') or ((Path(__file__).parent/'agreement_template.txt').read_text() if preview else '')
+        for key,value in fields.items():
+            rendered=rendered.replace('{'+key+'}',value or ('['+key.replace('_',' ').capitalize()+' pendiente]' if preview else ''))
+        if re.search(r'\{[a-z_]+\}',rendered):
+            raise self.problem('La plantilla tiene un campo desconocido. Revisa sus variables.')
+        return rendered
+
+    def agreement_preview(self, event_id):
+        # Read only: no links, documents, signatures or activity are created.
+        with self.store.connect() as db:
+            db.execute('BEGIN')
+            event=self.store.item(db,event_id,'event',True)
+            settings=self.record(db,'settings','organizer')
+            people=list(dict.fromkeys(c['personId'] for c in event['cast']))
+            previews=[]
+            for ident in people:
+                person=self.store.item(db,ident,'person')
+                previews.append({'personId':ident,'name':person['name'],'text':self.render_agreement(event,person,self.record(db,'billing',ident),settings,True)})
+            if not previews:
+                previews.append({'personId':'','name':'Ejemplo sin elenco asignado','text':self.render_agreement(event,{'name':'[Persona pendiente]'}, {},settings,True)})
+            return {'eventTitle':event['title'],'previews':previews,'templateVersion':settings['version'],'eventVersion':event['version'],
+                    'pending':not settings.get('confirmed') or not event['venue']}
+
     def generate(self, data, actor):
         event_id=self.text(data.get('eventId',''),100,True)
         selected=data.get('people')
@@ -196,7 +231,7 @@ class Business:
             event=self.store.item(db,event_id,'event',True)
             settings=self.record(db,'settings','organizer')
             if not settings.get('confirmed'):
-                raise self.problem('Revisa primero los datos de Sutura y la plantilla en Gestión.')
+                raise self.problem('Completa primero la entidad y la plantilla en Producción y cuentas.')
             if type(data.get('eventVersion')) is not int or data['eventVersion'] != event['version'] or data.get('settingsVersion') != settings['version']:
                 raise self.problem('El bolo o la plantilla han cambiado. Revisa de nuevo.',409)
             if event.get('eventType') == 'rehearsal' or event['status'] == 'cancelled' or not event['venue']:
@@ -212,18 +247,7 @@ class Business:
                 if old:
                     generated.append(old['id']);continue
                 billing=self.record(db,'billing',person_id)
-                dates=self.event_date(event['start'],event.get('timePending',False))
-                if event.get('end') and event['end'][:10] != event['start'][:10]:
-                    dates += ' — '+self.event_date(event['end'],event.get('timePending',False))
-                fields={'persona':billing.get('legalName') if billing.get('verified') else person['name'],'documento':billing.get('taxId') if billing.get('verified') else '________________',
-                        'entidad':settings['name'],'cif':settings['taxId'],'domicilio':settings['address'],'representante':settings['representative'],
-                        'bolo':event['title'],'fecha':dates,'lugar':' · '.join(filter(None,[event['venue'],event['city'],event['address']])),
-                        'papel':roles,'fecha_firma':self.now()[:10]}
-                rendered=settings['template']
-                for key,value in fields.items():
-                    rendered=rendered.replace('{'+key+'}',value)
-                if re.search(r'\{[a-z_]+\}',rendered):
-                    raise self.problem('La plantilla tiene un campo desconocido. Revisa sus variables.')
+                rendered=self.render_agreement(event,person,billing,settings)
                 ident=str(uuid.uuid4());token=self.store.availability.new_token()
                 body={'name':person['name'],'eventTitle':event['title'],'text':rendered,'created':self.now(),'templateVersion':settings['version'],'eventVersion':event['version']}
                 db.execute('INSERT INTO agreements VALUES(?,?,?,?,?,?,?,?)', (ident,event_id,person_id,hashlib.sha256(token.encode()).hexdigest(),token,json.dumps(body,ensure_ascii=False),'generated',time.time()+90*86400))

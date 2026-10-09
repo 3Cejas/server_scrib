@@ -25,6 +25,22 @@
 .ticket-top .ticket-title{flex:1;min-width:0;overflow-wrap:anywhere}
 .ticket-top .ticket-delete{margin-left:auto;background:transparent;border-color:transparent}
 .ticket-top .ticket-delete:hover{background:#ff647b15;border-color:#ff647b66}
+.column[data-status=todo],.ticket[data-status=todo]{--task-color:#bda1ff;--task-fill:#28223e;--task-border:#74599d}
+.column[data-status=progress],.ticket[data-status=progress]{--task-color:#f1d28a;--task-fill:#332c20;--task-border:#8a743d}
+.column[data-status=blocked],.ticket[data-status=blocked]{--task-color:#ff8495;--task-fill:#38212d;--task-border:#954659}
+.column[data-status=done],.ticket[data-status=done]{--task-color:#8bde9c;--task-fill:#20332b;--task-border:#4a805c}
+.column{border-color:var(--task-border)}
+.column-head{color:var(--task-color)}
+.column .status-dot{background:var(--task-color)}
+.ticket{background:var(--task-fill);border-color:var(--task-border);border-left:3px solid var(--task-color)}
+.ticket:hover{border-color:var(--task-color)}
+.ticket.urgent{border-left-color:var(--task-color)}
+.ticket-assignees{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.ticket-assignee{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--task-border);background:#ffffff08;border-radius:8px;font-size:.7rem;color:var(--task-color);overflow-wrap:anywhere;max-width:100%;min-width:0}
+.ticket-assignee>span{flex-shrink:0;font-size:.55rem;font-weight:800;padding:3px;border-radius:4px;background:#ffffff10}
+.ticket-moves{display:flex;gap:5px;flex-shrink:0}
+.ticket-move{display:grid;place-items:center;width:36px;min-height:36px;border-radius:8px;border:1px solid var(--task-border);background:#ffffff08;color:var(--task-color);font-size:1.2rem}
+.ticket-move:hover{background:#ffffff18}
 .form-footer>.actions{flex-wrap:wrap}
 .ticket-dependencies{display:grid;gap:7px;min-width:0}.ticket-dependencies:empty{display:none}
 .dependency-link{display:block;background:#d6af5310;border:1px solid #d6af5344;border-radius:8px;padding:8px;font-size:.75rem;color:var(--gold);overflow-wrap:anywhere}

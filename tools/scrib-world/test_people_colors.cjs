@@ -51,6 +51,31 @@ function balanced(html) {
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 
+test('tickets show named chips, column colors and arrows without status dropdowns or assignee counts',()=>{
+  const {app,state}=client();state.members=[{username:'pablop',name:'Pablo Pineño'},{username:'abueno',name:'Ángela <Bueno>'}];
+  const task={id:'task',kind:'ticket',boardId:'board',title:'Tertulia',priority:'normal',labels:[],checklist:[],assignees:['pablop','abueno'],due:'',blockedBy:[]};
+  for(const status of ['todo','progress','blocked','done']){
+    const html=app.ticketCard({...task,status});balanced(html);
+    assert.match(html,new RegExp('data-status="'+status+'"'));
+    assert.match(html,/ticket-assignee/);assert.match(html,/Pablo Pineño/);assert.match(html,/Ángela &lt;Bueno&gt;/);
+    assert.doesNotMatch(html,/<select|responsable\(s\)/);
+    assert.equal(html.includes('ticket-move-prev'),status!=='todo');assert.equal(html.includes('ticket-move-next'),status!=='done');
+    assert.match(read('tasks.css'),new RegExp('ticket\\[data-status='+status+'\\]'));
+  }
+  assert.doesNotMatch(read('app.js'),/select\("status",STATUS/);
+  assert.match(read('app.js'),/input\("status",t.status,"hidden"\)/);
+});
+
+test('production naming, clickable cards and generation are simplified while actual agreement viewing remains',async()=>{
+  const {app,event,responses}=client();responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.business.overview();await flush();const html=app.business.overview();balanced(html);
+  assert.match(html,/Producción y cuentas/);assert.match(html,/href="#production\/e1"/);
+  assert.doesNotMatch(html,/Gestionar bolo|Gestionar por bolo|Gestión · temporadas/);
+  assert.doesNotMatch(read('business.js'),/He revisado el bolo, el elenco y la plantilla|Revisa la plantilla y el bolo/);
+  assert.match(read('business.js'),/business-agreement-preview/);assert.match(read('business.js'),/business-agreement-view/);
+  assert.match(read('resources.css'),/\.event-objects\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+});
+
 test('one logo/status header keeps connection updates and section rendering without a breadcrumb node',async()=>{
   const {app,nodes,state,responses}=client();
   const html=read('index.html');balanced(html);
@@ -256,7 +281,8 @@ test('past shows and rehearsals are subdued without disabling their links or cha
   assert.match(read('app.css'),/\.calendar-event\.is-completed\{[^}]*color:#a8adba/);
   assert.doesNotMatch(read('app.css'),/\.event-card\.is-completed\{[^}]*pointer-events:none/);
   assert.match(app.eventCard(event),/<h3>León · función<\/h3>[\s\S]*?<p class="event-date"><time/);
-  assert.match(read('app.css'),/\.home-schedule\{[^}]*minmax\(380px,1fr\)/);
+  assert.match(read('app.css'),/\.home-schedule\{[^}]*grid-template-columns:minmax\(0,1fr\)/);
+  assert.match(read('app.css'),/\.home-calendar\{grid-row:1/);
 });
 test('event inventory shows private object photo thumbnails and preserves selection and team boundaries',()=>{
   const {app,state,event}=client(),image='a'.repeat(64)+'.png';

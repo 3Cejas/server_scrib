@@ -19,6 +19,9 @@
 .lumi-laptop{fill:#090e18;stroke:var(--lumi-color);stroke-width:2}.lumi-person{fill:var(--lumi-color)}
 .lumi-node-label{fill:var(--lumi-color);font:600 16px system-ui,sans-serif;paint-order:stroke;stroke:#0c101b;stroke-width:5;stroke-linejoin:round}
 .lumi-screen-word{fill:#f1f3ff;font:700 22px ui-monospace,monospace;letter-spacing:5px}
+.lumi-port-label{fill:var(--lumi-color);font:700 11px ui-monospace,monospace}
+.lumi-ports{pointer-events:none}
+.lumi-ports .lumi-cable-end{fill:var(--cable-color);stroke:#0c101b;stroke-width:1.5}
 .lumi-node.is-selected .lumi-body,.lumi-node:focus-visible .lumi-body{fill:#313e57;stroke-width:4}
 .lumi-node:focus-visible .lumi-hit{stroke:#fff;stroke-width:3;stroke-dasharray:5 4}
 .lumi-node.is-off .lumi-body{stroke-dasharray:5 4;fill:#101522}.lumi-node.is-off .lumi-line{opacity:.45}

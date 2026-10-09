@@ -78,14 +78,16 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 - Menú lateral: acceso a `scribshow.es` e indicador del servidor del videojuego,
   independiente del testigo de conexión del backstage. Permanece accesible también
   en móvil; Inicio ya no repite esta tarjeta.
-- Inicio: calendario ampliado junto a próximos bolos,
+- Inicio: calendario a todo el ancho disponible y próximos bolos debajo,
   mis tareas, bloqueos, vencimientos y actividad del equipo.
 - **Tareas** reúne los tableros de dramaturgia, programación y producción, con
   tarjetas clicables y lápiz de edición independiente. Logo original de SCRIB
   en cabecera y favicon; sin los accesos a Mundo Sutura, cambiar mundo o videojuego.
   La autenticación sigue siendo la misma, aunque se retira su texto de la interfaz.
 - Kanban de tareas y un tablero por bolo. Arrastre y reordenación de tarjetas
-  con ratón o asa táctil; selector de estado para teclado/móvil.
+  con ratón o asa táctil; flechas entre columnas para teclado/móvil, sin
+  desplegables de estado. Editar conserva la columna actual. Las tarjetas toman
+  el color de su columna y muestran cada responsable con un chip de nombre.
 - TO DO, EN PROGRESO, BLOQUEADA, COMPLETADAS; responsables, etiquetas, prioridad,
   fecha límite, motivo del bloqueo, checklist, comentarios e historial.
 - Dependencias explícitas entre tareas de cualquier tablero. La tarjeta muestra
@@ -138,13 +140,17 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 - Actualización compartida cada 15 segundos sin regenerar formularios mientras se
   escribe; conflictos de edición devuelven 409, nunca sobrescriben a otra persona.
 
-## Luminotecnia
+## Técnica
 
 - Se añaden dos monitores laterales de proscenio, proyector, splitter 1→2,
   alimentación de escritura y sala de intérpretes, dos PCs de técnica (juego y
   sonidos de interpretación) con entradas separadas a mesa de sonido, control
   DMX y dos máquinas de humo. Capas HDMI/audio/alimentación/DMX, recorridos que
   siguen las posiciones al arrastrar y notas de cable por conexión.
+- El plano abre con todas las conexiones visibles; los filtros permiten aislar
+  alimentación, HDMI, audio, datos o DMX. Los cables llegan a conectores en el
+  borde de cada equipo, también al moverlo; el splitter muestra una entrada y
+  dos salidas. Las regletas representan los puntos de alimentación.
 - Cuatro walkies: presentador canal 1, un equipo de intérpretes por canal 2 y
   técnica alternando 1/2 (doble escucha solo si el modelo la admite).
 - Checklist de 18 pasos, compartida al guardar el plano y separada por bolo.
@@ -204,11 +210,13 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 - La agenda prioriza bolos y ensayos por realizar, del más cercano al más lejano;
   después muestra el historial del más reciente al más antiguo. Los realizados
   tienen fondo, bordes e indicadores apagados tanto en las tarjetas como en el
-  calendario y Gestión, sin desactivar sus enlaces ni cambiar sus datos. También
+  calendario y Producción y cuentas, sin desactivar sus enlaces ni cambiar sus datos. También
   se atenúan las fechas pasadas, aunque todavía no se haya editado su estado.
   Las tarjetas muestran fecha y hora inmediatamente debajo del título.
 - Editar una persona conserva su color guardado, pero ya no muestra un selector
   de color ni el mensaje auxiliar de selección de varios roles.
+- Los objetos de cada bolo se muestran a dos columnas por equipo, con su foto;
+  en pantallas estrechas pasan a una sola columna.
 
 ## Configuración del videojuego por bolo
 
@@ -235,9 +243,17 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 
 - **Ficha de bolo → Acuerdos y liquidación** permite preparar un acuerdo por
   persona, con el lugar, fechas (incluido un rango de varios días) y sus papeles.
-  Antes, administración debe revisar **Gestión → Entidad y plantilla**. La
+  Antes, administración debe revisar **Producción y cuentas → Entidad y plantilla**. La
   plantilla conserva las 14 cláusulas del modelo Imparables 2026 de Drive, con
   variables; no se confirman automáticamente los datos fiscales ni el reparto.
+- **Ver modelo de acuerdo** muestra el texto actual con los datos de cada persona
+  y del bolo antes de generarlo; usa el mismo renderizado que el documento real.
+  Consultarlo no crea acuerdos, enlaces ni actividad, ni envía mensajes. Si faltan
+  datos, aparecen como pendientes. Acceso reservado a administración.
+- La sección económica se llama **Producción y cuentas**. Cada tarjeta de bolo
+  se abre al pulsarla, sin un botón redundante de «Gestionar bolo». Preparar
+  acuerdos no exige la antigua casilla de revisión del bolo; mantiene versiones,
+  revisión de entidad/plantilla y conservación de documentos ya firmados.
 - Liquidación muestra fotos privadas (o iniciales si falta foto), papeles,
   importes asignados/pendientes y acciones con icono y texto por persona. No cambia
   el cálculo ni los registros de varios días; solo se elimina esa coletilla del

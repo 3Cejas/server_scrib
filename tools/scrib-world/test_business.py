@@ -66,6 +66,24 @@ class BusinessTests(unittest.TestCase):
         with self.assertRaises(world.Problem):self.b.archive_report(r)
     def test_settings_require_review(self):
         with self.assertRaises(world.Problem):self.b.save('settings',{'id':'organizer','version':0},'admin')
+    def test_agreement_preview_uses_actual_renderer_without_creating_links_or_activity(self):
+        s=self.settings()
+        before=self.store.snapshot()['revision']
+        preview=self.b.agreement_preview(self.event['id'])
+        self.assertFalse(preview['pending'])
+        self.assertEqual(preview['previews'][0]['name'],self.person['name'])
+        self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+        self.assertEqual(self.store.snapshot()['revision'],before)
+        self.b.generate({'eventId':self.event['id'],'eventVersion':self.event['version'],'settingsVersion':s['version'],'people':[self.person['id']]},'admin')
+        self.assertEqual(preview['previews'][0]['text'],self.b.agreements(self.event['id'])['agreements'][0]['text'])
+    def test_agreement_preview_is_available_before_configuration_and_does_not_invent_details(self):
+        preview=self.b.agreement_preview(self.event['id'])
+        self.assertTrue(preview['pending'])
+        self.assertIn('[Entidad pendiente]',preview['previews'][0]['text'])
+        self.assertIn(self.person['name'],preview['previews'][0]['text'])
+        self.assertNotIn('token',json.dumps(preview))
+        self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+        with self.assertRaises(world.Problem):self.b.agreement_preview('missing')
     def test_generation_requires_current_template_and_event(self):
         s=self.settings()
         for version in (0,'1'):
@@ -147,5 +165,12 @@ class BusinessHttpTests(BusinessTests):
     def test_documents_admin_only_and_unknown_tokens(self):
         self.assertEqual(self.call('/scrib/backstage/api/business/document/missing')[0],403)
         self.assertEqual(self.call('/scrib-disponibilidad/api/'+'A'*43)[0],404)
+    def test_agreement_preview_requires_admin_and_preserves_empty_agreements(self):
+        path='/scrib/backstage/api/business/agreement-preview/'+self.event['id']
+        self.assertEqual(self.call(path)[0],403)
+        status,headers,preview=self.call(path,headers={'X-Scrib-Role':'admin'})
+        self.assertEqual(status,200)
+        self.assertIn(self.person['name'],preview['previews'][0]['text'])
+        self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
 
 if __name__=='__main__':unittest.main()

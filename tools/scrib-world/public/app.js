@@ -255,11 +255,18 @@
     return pageHead(board.eventId ? "PREPARACIÓN DEL BOLO" : "TABLERO DE TAREAS",boardTitle(board.title),`${p.done}/${p.total} tareas completadas · ${p.percent}% listo${board.description ? " · " + board.description : ""}`,
       (board.eventId ? `<a class="button" href="#event/${board.eventId}">Ficha del bolo</a>` : btn("edit-board","Editar tablero",id)) + btn("new-ticket","＋ Añadir tarea",id,"primary")) +
       `<div class="toolbar"><input type="search" id="board-search" aria-label="Buscar tareas" placeholder="Buscar título, descripción o etiqueta…" value="${esc(filters.search)}"><select id="board-mine" aria-label="Filtrar responsables">${option("","Todo el equipo",filters.mine)}${option("mine","Mis tareas",filters.mine)}${option("unassigned","Sin responsable",filters.mine)}</select><select id="board-label" aria-label="Filtrar etiquetas">${option("","Todas las etiquetas",filters.label)}${labels.map(x=>option(x,x,filters.label)).join("")}</select><select id="board-due" aria-label="Filtrar vencimiento">${option("","Todos los plazos",filters.due)}${option("late","Fuera de plazo",filters.due)}${option("urgent","Alta / urgente",filters.due)}</select></div>
-      <div class="kanban" aria-label="Tablero de tareas: arrastra desde el asa o utiliza el selector de estado">${Object.entries(STATUS).map(([s,l])=>`<section class="column" data-status="${s}" aria-label="${l}"><div class="column-head"><span><i class="status-dot" aria-hidden="true"></i>${l}<span class="count">${tasks.filter(x=>x.status === s).length}</span></span><button type="button" class="icon-button" data-action="new-ticket-status" data-id="${id}" data-status="${s}" aria-label="Añadir tarea a ${l}">＋</button></div><div class="ticket-list">${tasks.filter(x=>x.status === s).sort((a,b)=>(a.position-b.position)||a.created.localeCompare(b.created)).map(ticketCard).join("")}</div><button type="button" class="add-ticket" data-action="new-ticket-status" data-id="${id}" data-status="${s}">＋ Añadir tarea</button></section>`).join("")}</div>`;
+      <div class="kanban" aria-label="Tablero de tareas: arrastra desde el asa o utiliza las flechas para mover entre columnas">${Object.entries(STATUS).map(([s,l])=>`<section class="column" data-status="${s}" aria-label="${l}"><div class="column-head"><span><i class="status-dot" aria-hidden="true"></i>${l}<span class="count">${tasks.filter(x=>x.status === s).length}</span></span><button type="button" class="icon-button" data-action="new-ticket-status" data-id="${id}" data-status="${s}" aria-label="Añadir tarea a ${l}">＋</button></div><div class="ticket-list">${tasks.filter(x=>x.status === s).sort((a,b)=>(a.position-b.position)||a.created.localeCompare(b.created)).map(ticketCard).join("")}</div><button type="button" class="add-ticket" data-action="new-ticket-status" data-id="${id}" data-status="${s}">＋ Añadir tarea</button></section>`).join("")}</div>`;
   }
   function ticketCard(ticket) {
     const checks = ticket.checklist?.length || 0;
-    return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-ticket="${ticket.id}" draggable="true"><div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${ticket.id}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div><div class="ticket-tags">${ticket.labels.map(x=>badge(x,labelColor(x))).join("")}${["high","urgent"].includes(ticket.priority)?badge(PRIORITY[ticket.priority],"coral"):""}</div>${ticket.status === "blocked" && ticket.blockedReason?`<p class="muted">⚑ ${esc(ticket.blockedReason.slice(0,120))}</p>`:""}${dependencyInfo(ticket)}<div class="ticket-footer"><span class="avatars">${ticket.assignees.map(x=>`<span class="avatar" title="${esc(member(x))}">${esc(initials(member(x)))}</span>`).join("")}</span><span class="due ${ticket.due && ticket.due < today() && ticket.status !== "done" ? "overdue" : ""}">${ticket.due?"◷ " + esc(niceDate(ticket.due,false)):""}${checks ? ` · ☑ ${ticket.checklist.filter(x=>x.done).length}/${checks}` : ""}</span></div><div class="ticket-footer"><small>${ticket.assignees.length?ticket.assignees.length + " responsable(s)":"Sin responsable"}</small><select class="quick-status" data-ticket-status="${ticket.id}" aria-label="Cambiar estado de ${esc(ticket.title)}">${Object.entries(STATUS).map(([s,l])=>option(s,l,ticket.status)).join("")}</select></div></article>`;
+    const statuses=Object.keys(STATUS),index=statuses.indexOf(ticket.status);
+    const arrow=(target,direction)=>target?`<button type="button" class="ticket-move" data-action="ticket-move-${direction}" data-id="${esc(ticket.id)}" aria-label="Mover ${esc(ticket.title)} a ${STATUS[target]}" title="Mover a ${STATUS[target]}">${direction==='prev'?'←':'→'}</button>`:'';
+    return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-status="${esc(ticket.status)}" data-ticket="${esc(ticket.id)}" draggable="true">
+      <div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${esc(ticket.id)}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div>
+      <div class="ticket-tags">${ticket.labels.map(x=>badge(x,labelColor(x))).join("")}${["high","urgent"].includes(ticket.priority)?badge(PRIORITY[ticket.priority],"coral"):""}</div>
+      ${ticket.status === "blocked" && ticket.blockedReason?`<p class="muted">⚑ ${esc(ticket.blockedReason.slice(0,120))}</p>`:""}${dependencyInfo(ticket)}
+      <div class="ticket-assignees">${ticket.assignees.map(x=>`<span class="ticket-assignee"><span aria-hidden="true">${esc(initials(member(x)))}</span>${esc(member(x))}</span>`).join("")||'<span class="muted tiny">Sin responsable</span>'}</div>
+      <div class="ticket-footer"><span class="due ${ticket.due && ticket.due < today() && ticket.status !== "done" ? "overdue" : ""}">${ticket.due?"◷ " + esc(niceDate(ticket.due,false)):""}${checks ? ` · ☑ ${ticket.checklist.filter(x=>x.done).length}/${checks}` : ""}</span><span class="ticket-moves">${arrow(statuses[index-1],'prev')}${arrow(statuses[index+1],'next')}</span></div></article>`;
   }
   function dependencyInfo(task) {
     const dependencies=(task.blockedBy || []).map(id=>item(id)), pending=dependencies.filter(t=>!t || t.status!=='done');
@@ -403,7 +410,7 @@
     if (details) {const index = state.items.findIndex(x=>x.id === id); if(index>=0)state.items[index]=t;}
     const form = formShell("ticket",t,
       input("boardId",t.boardId,"hidden") + field("Título de la tarea",input("title",t.title,"text",'required maxlength="240"')) + field("Descripción",area("description",t.description,'maxlength="15000"')) +
-      `<div class="form-row">${field("Estado",select("status",STATUS,t.status))}${field("Prioridad",select("priority",PRIORITY,t.priority))}</div>` +
+      input("status",t.status,"hidden") + `<div class="form-row"><div class="field"><span>Columna</span>${badge(STATUS[t.status])}<small class="hint">Mueve la tarjeta en el tablero para cambiarla de columna.</small></div>${field("Prioridad",select("priority",PRIORITY,t.priority))}</div>` +
       `<div class="form-row">${field("Fecha límite",input("due",t.due,"date"))}${field("Etiquetas",input("labels",t.labels.join(", "),"text",'maxlength="800"'),"Separadas por comas")}</div>` +
       field("Si está bloqueada, ¿qué necesita?",area("blockedReason",t.blockedReason,'maxlength="2000"')) +
       dependencyInfo(t) + dependencyEditor(t) +
@@ -610,6 +617,13 @@
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
     else if(a === "delete-ticket")askDelete(id);
+    else if(a === "ticket-move-prev" || a === "ticket-move-next") {
+      const task=item(id),statuses=Object.keys(STATUS),target=statuses[statuses.indexOf(task?.status)+(a.endsWith('prev')?-1:1)];
+      if(task&&target) {
+        await moveTicket(id,target);
+        main.querySelector(`[data-ticket="${CSS.escape(id)}"] .ticket-title`)?.focus({preventScroll:true});
+      }
+    }
     else if(a === "confirm-delete")await confirmDelete();
     else if(a === "cancel-delete") {if(!saving)deleteDialog.close();}
     else if(a === "print")window.print();
@@ -636,7 +650,6 @@
     if(lighting.input(node)){if(['x','y'].includes(node.dataset.lightingField)){const value=Number(node.value);if(Number.isFinite(value) && node.value!=='')node.value=String(Math.max(Number(node.min),Math.min(Number(node.max),value)));}return;}
     if(inventory.filter(node))return;
     if(node.matches("#calendar-month") && /^\d{4}-\d{2}$/.test(node.value)){month=new Date(Number(node.value.slice(0,4)),Number(node.value.slice(5,7))-1,1);renderPage();return;}
-    if(node.matches("[data-ticket-status]")) moveTicket(node.dataset.ticketStatus,node.value);
     if(node.id === "board-mine")filters.mine=node.value;
     if(node.id === "board-label")filters.label=node.value;
     if(node.id === "board-due")filters.due=node.value;

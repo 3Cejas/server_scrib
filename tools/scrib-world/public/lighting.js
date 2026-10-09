@@ -3,7 +3,7 @@ window.ScribLighting = function(h) {
   const {esc,btn,pageHead,request,toast} = h;
   const clone = value => JSON.parse(JSON.stringify(value));
   const LIGHTS = new Set(['street','spot','front']);
-  let scope='',loadedScope=null,draft=null,version=0,selected='blue-street',dirty=false,busy=false,drag=null,requestId='',cableView='hdmi';
+  let scope='',loadedScope=null,draft=null,version=0,selected='blue-street',dirty=false,busy=false,drag=null,requestId='',cableView='all';
   let baseline='',past=[],future=[],editGroup=null;
   function upgraded(source) {
     const defaults=h.state().lightingDefaults;
@@ -63,8 +63,8 @@ window.ScribLighting = function(h) {
     else if(e.type==='spot')shape='<circle class="lumi-body" r="34"/><circle class="lumi-person" cy="-9" r="8"/><path class="lumi-line" d="M-14 17v-2a14 14 0 0 1 28 0v2"/>';
     else if(['monitor','computer'].includes(e.type))shape='<rect class="lumi-body" x="-35" y="-24" width="70" height="43" rx="5"/><path class="lumi-line" d="M0 19v10M-22 29h44"/>';
     else if(e.type==='projector')shape='<rect class="lumi-body" x="-38" y="-20" width="76" height="40" rx="6"/><circle class="lumi-line" cx="18" r="12"/><path class="lumi-line" d="M-28-6h20M-28 6h20"/>';
-    else if(e.type==='splitter')shape='<rect class="lumi-body" x="-39" y="-17" width="78" height="34" rx="5"/><path class="lumi-line" d="M-48 0h15M0-5v10M0 0h24M24-10v20M24-10h22M24 10h22"/>';
-    else if(e.type==='power')shape='<rect class="lumi-body" x="-13" y="-12" width="26" height="27" rx="6"/><path class="lumi-line" d="M-6-12v-11M6-12v-11M0 15v10q0 12 16 12h16"/>';
+    else if(e.type==='splitter')shape='<rect class="lumi-body" x="-45" y="-25" width="90" height="50" rx="7"/><path class="lumi-line" d="M-45 0h15m-9-5 5 5-5 5M-16 0H5M5 0v-11h40M5 0v11h40"/><text class="lumi-port-label" x="-25" y="-10" text-anchor="middle">IN</text><text class="lumi-port-label" x="24" y="-15" text-anchor="middle">1</text><text class="lumi-port-label" x="24" y="22" text-anchor="middle">2</text>';
+    else if(e.type==='power')shape='<rect class="lumi-body" x="-13" y="-22" width="26" height="44" rx="6"/><circle class="lumi-line" cy="-10" r="5"/><circle class="lumi-line" cy="10" r="5"/><text class="lumi-port-label" x="0" y="-30" text-anchor="middle">230 V</text>';
     else if(e.type==='psu')shape='<rect class="lumi-body" x="-29" y="-18" width="58" height="36" rx="5"/><path class="lumi-line" d="M-45 0h16M29 0h16M-8-6h16M-8 6h16"/>';
     else if(e.type==='video-card')shape='<rect class="lumi-body" x="-38" y="-21" width="76" height="42" rx="5"/><path class="lumi-line" d="M-25-10h25v20h-25zM14-11h15v8H14zM14 3h15v8H14zM-46 0h8M38-7h12M38 7h12"/>';
     else if(e.type==='controller')shape='<path class="lumi-body" d="M-23-16h46q12 0 15 20l2 14q-2 13-16 2l-8-7h-32l-8 7q-14 11-16-2l2-14q3-20 15-20Z"/><path class="lumi-line" d="M-24-4h16M-16-12V4"/><circle class="lumi-line" cx="20" cy="-8" r="3"/><circle class="lumi-line" cx="28" cy="0" r="3"/>';
@@ -78,16 +78,29 @@ window.ScribLighting = function(h) {
   }
   function svg() {
     const palettes={blue:'#39ccff',red:'#ff5373',warm:'#ffcc75',white:'#f3efff'};
-    return `<svg class="lighting-map" viewBox="0 0 1000 1250" role="group" aria-label="Plano interactivo del escenario, técnica y sala de intérpretes, visto desde el público"><defs><pattern id="lumi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="lumi-grid-line"/></pattern><clipPath id="lumi-stage-clip"><rect x="70" y="80" width="860" height="540" rx="18"/></clipPath>${Object.entries(palettes).map(([name,color])=>`<radialGradient id="lumi-${name}"><stop offset="0" stop-color="${color}" stop-opacity=".48"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></radialGradient>`).join('')}</defs><text class="lumi-orientation" text-anchor="middle" x="500" y="43">FONDO DEL ESCENARIO</text><rect class="lumi-stage" x="70" y="80" width="860" height="540" rx="18"/><rect x="70" y="80" width="860" height="540" rx="18" fill="url(#lumi-grid)"/><rect class="lumi-proscenium" x="72" y="462" width="856" height="155" rx="18"/><text class="lumi-zone-label" text-anchor="middle" x="500" y="490">PROSCENIO</text><rect class="lumi-stage" x="60" y="720" width="430" height="510" rx="18"/><rect class="lumi-stage" x="520" y="720" width="430" height="510" rx="18"/><text class="lumi-orientation" text-anchor="middle" x="275" y="750">TÉCNICA</text><text class="lumi-orientation" text-anchor="middle" x="735" y="750">SALA INTÉRPRETES</text><g class="lumi-beams" clip-path="url(#lumi-stage-clip)">${draft.elements.map(beams).join('')}</g><g class="lumi-cables">${cables()}</g><g class="lumi-markers">${draft.elements.map(marker).join('')}</g><path class="lumi-audience-line" d="M220 654h560"/><text class="lumi-orientation" text-anchor="middle" x="500" y="684">PÚBLICO · IZQUIERDA ← → DERECHA</text></svg>`;
+    return `<svg class="lighting-map" viewBox="0 0 1000 1250" role="group" aria-label="Plano interactivo del escenario, técnica y sala de intérpretes, visto desde el público"><defs><pattern id="lumi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="lumi-grid-line"/></pattern><clipPath id="lumi-stage-clip"><rect x="70" y="80" width="860" height="540" rx="18"/></clipPath>${Object.entries(palettes).map(([name,color])=>`<radialGradient id="lumi-${name}"><stop offset="0" stop-color="${color}" stop-opacity=".48"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></radialGradient>`).join('')}</defs><text class="lumi-orientation" text-anchor="middle" x="500" y="43">FONDO DEL ESCENARIO</text><rect class="lumi-stage" x="70" y="80" width="860" height="540" rx="18"/><rect x="70" y="80" width="860" height="540" rx="18" fill="url(#lumi-grid)"/><rect class="lumi-proscenium" x="72" y="462" width="856" height="155" rx="18"/><text class="lumi-zone-label" text-anchor="middle" x="500" y="490">PROSCENIO</text><rect class="lumi-stage" x="60" y="720" width="430" height="510" rx="18"/><rect class="lumi-stage" x="520" y="720" width="430" height="510" rx="18"/><text class="lumi-orientation" text-anchor="middle" x="275" y="750">TÉCNICA</text><text class="lumi-orientation" text-anchor="middle" x="735" y="750">SALA INTÉRPRETES</text><g class="lumi-beams" clip-path="url(#lumi-stage-clip)">${draft.elements.map(beams).join('')}</g><g class="lumi-cables">${cables()}</g><g class="lumi-markers">${draft.elements.map(marker).join('')}</g><g class="lumi-ports">${connectionPorts()}</g><path class="lumi-audience-line" d="M220 654h560"/><text class="lumi-orientation" text-anchor="middle" x="500" y="684">PÚBLICO · IZQUIERDA ← → DERECHA</text></svg>`;
   }
   const cableLabels={hdmi:'Vídeo HDMI',data:'PC · tarjeta · mando',audio:'Audio',power:'Alimentación',dmx:'DMX'};
   function cables() {
     return draft.connections.filter(c=>cableView==='all'||c.type===cableView).map((c,i)=>{
       const source=draft.elements.find(e=>e.id===c.from),target=draft.elements.find(e=>e.id===c.to);if(!source||!target)return '';
-      const a=at(source),b=at(target),side=source.zone!==target.zone?(target.x>50?965-i*3:35+i*3):null;
+      const a=port(source,c,true),b=port(target,c,false),side=source.zone!==target.zone?(target.x>50?965-i*3:35+i*3):null;
       const path=side!==null?`M${a.x} ${a.y}H${side}V${b.y}H${b.x}`:c.type==='power'&&!source.zone?`M${a.x} ${a.y}V${b.y}H${b.x}`:`M${a.x} ${a.y}V${(a.y+b.y)/2}H${b.x}V${b.y}`;
-      return `<g class="lumi-route cable-${esc(c.type)}" data-connection="${esc(c.id)}" data-from="${esc(c.from)}" data-to="${esc(c.to)}"><title>${esc(c.label)} · ${esc(source.label)} → ${esc(target.label)}</title><path class="lumi-cable cable-${esc(c.type)}" d="${path}"/><circle class="lumi-cable-end" cx="${b.x}" cy="${b.y}" r="5"/></g>`;
+      return `<g class="lumi-route cable-${esc(c.type)}" data-connection="${esc(c.id)}" data-from="${esc(c.from)}" data-to="${esc(c.to)}"><title>${esc(c.label)} · ${esc(source.label)} → ${esc(target.label)}</title><path class="lumi-cable cable-${esc(c.type)}" d="${path}"/></g>`;
     }).join('');
+  }
+  function port(e,connection,source) {
+    const point=at(e);
+    if(e.type==='splitter')return {...point,x:point.x+(source?45:connection.type==='power'?0:-45),y:point.y+(connection.type==='power'?25:source?(connection.to==='blue-monitor'?-11:11):0)};
+    const widths={desk:80,computer:35,monitor:35,projector:38,console:38,'video-card':38,psu:29,power:13,speaker:23,smoke:28,controller:42};
+    return {...point,x:point.x+(source?1:-1)*(widths[e.type]||0)};
+  }
+  function connectionPorts() {
+    return draft.connections.filter(c=>cableView==='all'||c.type===cableView).map(c=>[c.from,c.to].map((id,i)=>{
+      const e=draft.elements.find(e=>e.id===id);if(!e)return '';
+      const p=port(e,c,i===0);
+      return `<circle class="lumi-cable-end cable-${esc(c.type)}" data-port-for="${esc(id)}" cx="${p.x}" cy="${p.y}" r="4"><title>${esc(c.label)} · ${esc(e.label)}</title></circle>`;
+    }).join('')).join('');
   }
   function technicalSections() {
     const checks=draft.checklist,groups=[...new Set(checks.map(c=>c.category))];
@@ -199,6 +212,7 @@ window.ScribLighting = function(h) {
     node?.setAttribute('transform',`translate(${pos.x},${pos.y})`);
     const beamGroup=drag.svg.querySelector('.lumi-beams');if(beamGroup)beamGroup.innerHTML=draft.elements.map(beams).join('');
     const cableGroup=drag.svg.querySelector('.lumi-cables');if(cableGroup)cableGroup.innerHTML=cables();
+    const ports=drag.svg.querySelector('.lumi-ports');if(ports)ports.innerHTML=connectionPorts();
     event.preventDefault();
   }
   function pointerUp(event) {

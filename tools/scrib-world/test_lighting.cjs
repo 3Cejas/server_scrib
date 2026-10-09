@@ -16,6 +16,14 @@ function setup() {
   return {app,state,nodes,calls,toasts,setAnswer:v=>{answer=v;},setReply:v=>{saveReply=v;},setRefreshError:()=>{refreshError=true;},updates:()=>updates};
 }
 const action=(app,a,id='')=>app.action({dataset:{action:a,id}});
+test('power cables are visible by default, attach to equipment ports and splitter has one input and two outputs',async()=>{
+  const {app}=setup(),html=app.render();
+  for(const id of ['power-blue','power-red','power-game','power-sound','power-actors-blue','power-actors-red','power-splitter'])assert.match(html,new RegExp('data-connection="'+id+'"'));
+  for(const id of ['blue-desk','red-desk','actors-blue','actors-red','game-computer','sound-computer'])assert.match(html,new RegExp('data-port-for="'+id+'"'));
+  assert.match(html,/class="lumi-ports"/);assert.match(html,/>IN<\/text>/);
+  await action(app,'lighting-cables','power');
+  const power=app.render();assert.match(power,/data-connection="power-blue"/);assert.doesNotMatch(power,/data-connection="hdmi-blue"/);
+});
 test('complete stage with blue/red streets, tables, screen, presenter and frontals is safe and responsive',()=>{
   const {app}=setup(),html=app.render();
   for(const id of defaults().elements.map(e=>e.id))assert.ok(html.includes(`data-lighting-node="${id}"`));
