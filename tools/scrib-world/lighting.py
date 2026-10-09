@@ -14,6 +14,7 @@ V2 = LEGACY | V2_ADDITIONS
 NEW_CONNECTIONS = {'data-video', 'data-controller', 'power-video-psu', 'power-video-card',
                    'audio-left', 'audio-right', 'power-left-speaker', 'power-right-speaker'}
 NEW_CHECKS = {'video-card', 'controller', 'speakers'}
+RETIRED_CHECKS = {'room', 'cables', 'backup', 'sound-cues', 'speakers'}
 OLD_POSITIONS = {'splitter': (50, 34), 'blue-power': (14, 28), 'red-power': (86, 28),
                  'game-computer': (25, 25), 'sound-computer': (75, 25), 'sound-desk': (75, 65),
                  'technical-power': (25, 65), 'dmx-desk': (50, 90)}
@@ -21,6 +22,10 @@ OLD_NOTES = {
     'projector': 'HDMI directo desde PC principal; ajustar posición y óptica a la sala.',
     'splitter': 'Segunda salida del PC principal; señal a ambos monitores. Confirmar salidas/adaptadores y duplicado.',
     'game-computer': 'Videojuego, proyector y señal de monitores. Audio del juego a mesa de sonido.'}
+V3_NOTES = {
+    'game-computer':'Conectado a tarjeta de vídeo y mando. Audio del juego a mesa de sonido.',
+    'technical-power':'Tomas/cargadores para los dos ordenadores, la fuente de la tarjeta de vídeo y controles; validar distribución con sala.',
+    'video-card':'Conexión al PC principal y fuente propia. HDMI 1 al proyector, HDMI 2 al splitter. Validar interfaz y conectores del modelo disponible.'}
 
 
 def default_plan():
@@ -53,6 +58,29 @@ def upgrade(data):
                         plan[field] = [dict(copy.deepcopy(fixed[r['id']]),
                                             **{k:r[k] for k in ('notes', 'done') if k in r}) for r in rows]
                         plan[field].extend(copy.deepcopy(fixed[k]) for k in fixed if k in additions)
+        for e in elements:
+            if e.get('notes') and e['notes'] == V3_NOTES.get(e.get('id')):
+                e['notes'] = BLUEPRINT[e['id']]['notes']
+    # Recognize only complete historical lists, never repair a malformed client
+    # payload silently. Saved v2/v3 plans retain coordinates, notes and progress.
+    for field, retired, added in (('connections', {'power-game'}, NEW_CONNECTIONS),
+                                  ('checklist', RETIRED_CHECKS, NEW_CHECKS)):
+        rows = plan.get(field)
+        fixed = {r['id']: r for r in DEFAULT[field]}
+        if isinstance(rows, list) and all(isinstance(r, dict) for r in rows):
+            keys = [r.get('id') for r in rows]
+            previous = set(fixed) | retired
+            if len(keys) == len(set(keys)) and set(keys) in (previous, previous - added):
+                existing = {r['id']: r for r in rows}
+                updated = []
+                for ident, default in fixed.items():
+                    old = existing.get(ident, {})
+                    row = dict(copy.deepcopy(default), **{k:old[k] for k in ('notes', 'done') if k in old})
+                    if field == 'checklist' and ident == 'sound' and 'speakers' in existing:
+                        row['done'] = old.get('done', False) and existing['speakers'].get('done', False)
+                        row['notes'] = '\n'.join(dict.fromkeys(r.get('notes', '') for r in (old, existing['speakers']) if r.get('notes')))
+                    updated.append(row)
+                plan[field] = updated
     for field in ('connections', 'walkies', 'checklist'):
         plan.setdefault(field, copy.deepcopy(DEFAULT[field]))
     plan['schemaVersion'] = DEFAULT['schemaVersion']
@@ -69,7 +97,7 @@ def coordinates(element):
 
 
 def material_counts(plan):
-    labels={'hdmi':'Vídeo HDMI','data':'PC · tarjeta · mando','audio':'Audio','power':'Alimentación · tomas y cargadores','dmx':'DMX'}
+    labels={'hdmi':'Vídeo HDMI','data':'PC · tarjeta (vídeo y carga) · mando','audio':'Audio','power':'Alimentación · tomas y cargadores','dmx':'DMX'}
     cables=[(label,sum(c['type']==kind and c['id']!='power-video-card' for c in plan['connections'])) for kind,label in labels.items()]
     cables.append(('Fuente → tarjeta de vídeo',sum(c['id']=='power-video-card' for c in plan['connections'])))
     groups=[('Ordenadores y portátiles',lambda e:e['type'] in ('computer','desk')),
@@ -137,7 +165,7 @@ def normalize(data, problem, text):
                 if type(row.get('done')) is not bool:
                     raise problem('Estado de checklist no válido.')
                 body['done'] = row['done']
-            body['notes'] = text(row.get('notes', ''), 1000)
+            body['notes'] = text(row.get('notes', ''), 2001 if checklist else 1000)
             result[row['id']] = body
         return [result[k] for k in fixed]
     return {'schemaVersion': DEFAULT['schemaVersion'], 'notes': text(data.get('notes', ''), 5000), 'elements': [normalized[k] for k in BLUEPRINT],

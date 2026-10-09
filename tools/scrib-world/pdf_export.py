@@ -42,9 +42,10 @@ def generate(store, data, user, *, agreement_token=None):
     if 'ScribRetro' not in pdfmetrics.getRegisteredFontNames():
         pdfmetrics.registerFont(TTFont('ScribRetro',str(ROOT/'materials/shared/retro.ttf')))
     pdfmetrics.registerFontFamily('ScribSans',normal=font,bold='ScribSansBold',italic=font,boldItalic='ScribSansBold')
-    ink, muted = colors.HexColor('#f4f4f6'), colors.HexColor('#b0b8c7')
-    gold = colors.HexColor('#f2d777')
-    tones = {'blue': colors.HexColor('#46f0ff'), 'red': colors.HexColor('#ff6b6b'),
+    paper = kind in ('invoice', 'agreement')
+    ink, muted = (colors.HexColor('#182331'), colors.HexColor('#596577')) if paper else (colors.HexColor('#f4f4f6'), colors.HexColor('#b0b8c7'))
+    gold = colors.HexColor('#73521e' if paper else '#f2d777')
+    tones = {'blue': colors.HexColor('#14737f' if paper else '#46f0ff'), 'red': colors.HexColor('#ac3449' if paper else '#ff6b6b'),
              'general': gold}
     styles = getSampleStyleSheet()
     for name in ('Normal', 'Title', 'Heading1', 'Heading2', 'Heading3'):
@@ -67,13 +68,21 @@ def generate(store, data, user, *, agreement_token=None):
     styles.add(ParagraphStyle('Score',fontName='ScribSansBold',fontSize=27,leading=34,
                               textColor=ink,spaceAfter=12))
     styles.add(ParagraphStyle('Check',fontName=font,fontSize=9,leading=13,textColor=ink))
-    styles.add(ParagraphStyle('AgreementBody', parent=styles['Normal'], fontSize=10.5, leading=15))
+    styles.add(ParagraphStyle('AgreementBody', parent=styles['Normal'], fontSize=10.5, leading=14))
+    styles.add(ParagraphStyle('Money', parent=styles['Normal'], alignment=2))
+    styles.add(ParagraphStyle('TotalMoney', parent=styles['Heading3'], alignment=2))
     styles.add(ParagraphStyle('AgreementClause', parent=styles['Heading3'], fontSize=10.5,
-                              leading=16, spaceBefore=7, spaceAfter=5, textColor=gold))
+                              leading=15, spaceBefore=6, spaceAfter=3, textColor=gold))
     clean = lambda s: ''.join(c for c in str(s or '').replace('\u2014','-').replace('\u2013','-') if ord(c) < 0x1f000)
     def para(value, style='Normal'):
         return Paragraph(escape(clean(value)).replace('\n', '<br/>'), styles[style])
     story = []
+    choice_number = 0
+    def choice(line):
+        nonlocal choice_number
+        choice_number += 1
+        match = re.fullmatch(r'\[([X ])\] (.+)', line)
+        return AgreementChoice('participacion_'+str(choice_number), match[2], match[1]=='X', styles['AgreementBody'], ink)
     def heading(value, note=''):
         story.extend([para(value, 'Title')])
         if note:
@@ -81,7 +90,7 @@ def generate(store, data, user, *, agreement_token=None):
     def section(value, team='general'):
         style = ParagraphStyle('section-'+team, parent=styles['Heading2'], textColor=tones[team],
                                borderColor=tones[team],borderWidth=0,borderPadding=7,
-                               backColor=colors.HexColor('#102329' if team=='blue' else '#291417' if team=='red' else '#242116'))
+                               backColor=colors.HexColor('#f1f4f6' if paper else '#102329' if team=='blue' else '#291417' if team=='red' else '#242116'))
         gap=Spacer(1,5);gap.keepWithNext=True
         story.extend([Paragraph(escape(clean(value)), style), gap])
     def image(value, size=56):
@@ -99,11 +108,11 @@ def generate(store, data, user, *, agreement_token=None):
             return None
     def card_style(team='general'):
         return TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
-            ('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#101d22' if team=='blue' else '#241316' if team=='red' else '#1b1a15')),
+            ('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f7f8fa' if paper else '#101d22' if team=='blue' else '#241316' if team=='red' else '#1b1a15')),
             ('BOX',(0,0),(-1,-1),.5,tones[team]),
             ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
             ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)])
-    def two_columns(cards):
+    def two_columns(cards, gap=10):
         # Individual rows can move to the next page, without shrinking text or
         # splitting a material's photo away from its name. The gutter stays empty.
         for start in range(0,len(cards),2):
@@ -112,7 +121,7 @@ def generate(store, data, user, *, agreement_token=None):
             row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
                 ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
                 ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
-            story.extend([row,Spacer(1,10)])
+            story.extend([row,Spacer(1,gap)])
     def inventory(objects):
         for team in ('blue', 'red'):
             chosen = sorted([o for o in objects if o['team'] == team], key=lambda o: o['title'].casefold())
@@ -288,17 +297,27 @@ def generate(store, data, user, *, agreement_token=None):
             if standard:
                 lines = lines[2:]
             acceptance_index = None
+            choice_lines = []
+            def flush_choices():
+                if choice_lines:
+                    two_columns([choice(line) for line in choice_lines], gap=3)
+                    choice_lines.clear()
             for line in lines:
+                if re.fullmatch(r'\[[X ]\] .+', line):
+                    choice_lines.append(line)
+                    continue
+                flush_choices()
                 if line.startswith('Fdo. LA COMPAÑÍA'):
                     break
                 if not line.strip():
-                    story.append(Spacer(1, 6))
+                    story.append(Spacer(1, 4))
                 elif line == 'CLÁUSULAS' or re.match(r'^[A-ZÁÉÍÓÚÑ]+\. ', line):
                     if line.startswith('DECIMOCUARTA.'):
                         acceptance_index = len(story)
                     story.append(para(line, 'AgreementClause'))
                 else:
                     story.append(para(line, 'AgreementBody'))
+            flush_choices()
             if any(line.startswith('Fdo. LA COMPAÑÍA') for line in lines):
                 names = lines[-1].split('                         ', 1)
                 signatures = Table([[
@@ -317,22 +336,40 @@ def generate(store, data, user, *, agreement_token=None):
             invoice = next((r for r in records if r['type']=='invoice' and r['id']==data.get('id')),None)
             if not invoice:
                 raise problem('Borrador no encontrado.',404)
-            heading('Borrador de factura', 'NO EMITIDO - pendiente de aceptación')
-            story.append(para('Serie: '+str(invoice.get('series',''))+' | Número: '+str(invoice.get('number') or 'Pendiente'),'Small'))
-            story.append(para('Fecha: '+str(invoice.get('date',''))+' | Bolo: '+str(invoice.get('eventTitle','')),'Small'))
-            for label, party in [('Emisor',invoice['issuer']),('Destinatario',invoice['recipient'])]:
-                section(label)
-                story.append(para('\n'.join(str(party.get(k,'')) for k in ('legalName','name','taxId','address'))))
+            heading('Factura', 'BORRADOR - NO EMITIDO')
+            story.append(para('N.º '+str(invoice.get('series',''))+' / '+str(invoice.get('number') or 'Pendiente')+
+                              '  |  Fecha: '+str(invoice.get('date','')),'Small'))
+            parties=[]
+            for label, party, name in [('EMISOR',invoice['issuer'],invoice['issuer'].get('legalName','')),
+                                       ('DESTINATARIO',invoice['recipient'],invoice['recipient'].get('name',''))]:
+                parties.append([para(label,'AgreementClause'),para(name,'Heading3'),
+                                para('NIF / CIF: '+str(party.get('taxId',''))),para(party.get('address',''))])
+            party_table=Table([[parties[0],parties[1]]],colWidths=[255.5,255.5])
+            party_table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
+                ('RIGHTPADDING',(0,0),(-1,-1),16),('BOTTOMPADDING',(0,0),(-1,-1),18)]))
+            story.append(party_table)
             section('Concepto')
             story.append(para(invoice.get('concept') or 'Participación en <SCRI> B · '+invoice['eventTitle']))
             story.append(Spacer(1, 12))
-            for line in invoice['lines']:
-                story.append(para(str(line.get('concept') or line['date'])+' - '+f"{line['amount']/100:.2f} EUR"))
-            for label,key in [('Base imponible','base'),('IVA','vat'),('Retención','withholding'),('Total','total')]:
+            amounts=[[para('DÍA DE FUNCIÓN','Small'),para('HONORARIOS','Small')]]
+            amounts.extend([[para(store.business.event_date(line['date'],True)),para(f"{line['amount']/100:.2f} EUR",'Money')]
+                            for line in invoice['lines']])
+            amounts_table=Table(amounts,colWidths=[380,131],hAlign='LEFT')
+            amounts_table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(1,0),(1,-1),'RIGHT'),
+                ('LINEBELOW',(0,0),(-1,-1),.4,colors.HexColor('#dbe0e6')),('LEFTPADDING',(0,0),(-1,-1),8),
+                ('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+            story.extend([amounts_table,Spacer(1,16)])
+            totals=[]
+            for label,key in [('Base imponible','base'),('IVA '+str(invoice['issuer'].get('vat',''))+' %','vat'),
+                              ('IRPF '+str(invoice['issuer'].get('withholding',''))+' %','withholding'),('TOTAL A PERCIBIR','total')]:
                 value = -invoice[key] if key=='withholding' else invoice[key]
-                story.append(para(label+': '+f"{value/100:.2f} EUR",'Heading3'))
+                totals.append([para(label,'Heading3' if key=='total' else 'Normal'),
+                               para(f"{value/100:.2f} EUR",'TotalMoney' if key=='total' else 'Money')])
+            totals_table=Table(totals,colWidths=[210,100],hAlign='RIGHT')
+            totals_table.setStyle(TableStyle([('ALIGN',(1,0),(1,-1),'RIGHT'),('TOPPADDING',(0,0),(-1,-1),8),
+                ('BACKGROUND',(0,-1),(-1,-1),colors.HexColor('#edf4f5')),('LINEABOVE',(0,-1),(-1,-1),.8,tones['blue'])]))
+            story.extend([totals_table,Spacer(1,14)])
             story.append(para('Transferencia: '+str(invoice['issuer'].get('iban') or 'Cuenta pendiente de confirmar'),'Small'))
-            story.append(para('No constituye una factura emitida, aceptación ni orden de pago.','Small'))
     created=datetime.now(timezone.utc).isoformat(timespec='seconds')
     stamp = datetime.fromisoformat(created).astimezone(ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')
     reference='SC-'+uuid.uuid4().hex
@@ -342,25 +379,31 @@ def generate(store, data, user, *, agreement_token=None):
     def frame(canvas, doc):
         w,h = A4
         canvas.saveState()
-        canvas.setFillColor(colors.HexColor('#050505'));canvas.rect(0,0,w,h,fill=1,stroke=0)
+        canvas.setFillColor(colors.white if paper else colors.HexColor('#050505'));canvas.rect(0,0,w,h,fill=1,stroke=0)
         # Reuse the actual brackets-and-pen logo, softly behind the document.
         # Set alpha after the color, and restore before drawing foreground ink.
-        canvas.saveState()
-        canvas.setFillAlpha(.055)
-        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),w/2-190,h/2-190,380,380,mask='auto')
-        canvas.restoreState()
+        if not paper:
+            canvas.saveState()
+            canvas.setFillAlpha(.055)
+            canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),w/2-190,h/2-190,380,380,mask='auto')
+            canvas.restoreState()
         # Same visual language as the videogame's report: black page, logos at
         # either end of a dark header, white heading and a cyan/red rule.
-        canvas.setFillColor(colors.HexColor('#0c0c0c'));canvas.rect(0,h-82,w,82,fill=1,stroke=0)
+        canvas.setFillColor(colors.white if paper else colors.HexColor('#0c0c0c'));canvas.rect(0,h-82,w,82,fill=1,stroke=0)
+        if paper:
+            canvas.setFillColor(colors.HexColor('#182331'));canvas.roundRect(36,h-73,62,62,10,fill=1,stroke=0)
         canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),36,h-73,62,62,mask='auto')
-        canvas.drawImage(str(ROOT/'materials/shared/logo_sutura.png'),w-89,h-66,47,47,preserveAspectRatio=True,mask='auto')
+        if paper:
+            canvas.drawImage(str(ROOT/'assets/sutura-document-logo.png'),w-195,h-58,155,36,preserveAspectRatio=True,mask='auto')
+        else:
+            canvas.drawImage(str(ROOT/'materials/shared/logo_sutura.png'),w-89,h-66,47,47,preserveAspectRatio=True,mask='auto')
         canvas.setFont('ScribSansBold',16);canvas.setFillColor(ink)
         canvas.drawString(111,h-38,labels[kind])
         canvas.setFont('ScribSansBold',7.8);canvas.setFillColor(muted)
         canvas.drawString(111,h-57,'PRODUCCIÓN / SUTURA TEATRO')
         canvas.setFillColor(tones['blue']);canvas.rect(36,h-85,(w-72)/2,3,fill=1,stroke=0)
         canvas.setFillColor(tones['red']);canvas.rect(w/2,h-85,(w-72)/2,3,fill=1,stroke=0)
-        canvas.setStrokeColor(colors.HexColor('#383838'));canvas.setLineWidth(.5);canvas.line(42,82,w-42,82)
+        canvas.setStrokeColor(colors.HexColor('#dbe0e6' if paper else '#383838'));canvas.setLineWidth(.5);canvas.line(42,82,w-42,82)
         canvas.setFont('ScribSansBold',7);canvas.setFillColor(ink)
         for x,icon,label,url in [(42,'instagram','@scrib_show','https://www.instagram.com/scrib_show/'),
                                  (154,'instagram','@su.tu.ra','https://www.instagram.com/su.tu.ra/'),
@@ -372,10 +415,11 @@ def generate(store, data, user, *, agreement_token=None):
         draw_icon(canvas,'lock',42,46,9,gold)
         canvas.setFillColor(muted);canvas.setFont('ScribSansBold',6.5)
         canvas.drawString(57,48,'MATERIAL INTERNO. NO DISTRIBUIR, REPRODUCIR NI PUBLICAR SIN AUTORIZACIÓN DE SUTURA TEATRO.')
-        draw_icon(canvas,'document',42,29,9,muted)
-        canvas.setFont(font,6.2);canvas.setFillColor(muted);canvas.drawString(57,31,'Ref. '+reference)
-        draw_icon(canvas,'clock',351,29,9,muted)
-        canvas.drawString(365,31,stamp)
+        if not paper:
+            draw_icon(canvas,'document',42,29,9,muted)
+            canvas.setFont(font,6.2);canvas.setFillColor(muted);canvas.drawString(57,31,'Ref. '+reference)
+            draw_icon(canvas,'clock',351,29,9,muted)
+            canvas.drawString(365,31,stamp)
         canvas.setFont('ScribSansBold',9);canvas.setFillColor(ink)
         canvas.drawRightString(w-42,31,str(doc.page))
         canvas.restoreState()
@@ -419,6 +463,27 @@ def CheckBox(done,color):
             if done:
                 c.setLineWidth(1.8);p=c.beginPath();p.moveTo(3,7);p.lineTo(5.5,4.5);p.lineTo(10,10);c.drawPath(p)
     return Drawing()
+
+
+def AgreementChoice(name, label, checked, style, color):
+    """Real editable AcroForm checkbox, preserved by the export trace wrapper."""
+    from reportlab.platypus import Flowable, Paragraph
+    class Choice(Flowable):
+        def __init__(self):
+            super().__init__()
+            self.label = Paragraph(escape(label), style)
+        def wrap(self, width, height):
+            self.width = width
+            _, self.label_height = self.label.wrap(max(30, width-22), height)
+            self.height = max(16, self.label_height)
+            return width, self.height
+        def draw(self):
+            self.canv.acroForm.checkbox(name=name, tooltip=label, checked=checked, relative=True,
+                x=0, y=self.height-13, size=12, borderWidth=.8, borderColor=color,
+                fillColor=__import__('reportlab.lib.colors',fromlist=['white']).white,
+                textColor=color, buttonStyle='check', fieldFlags=0, forceBorder=True)
+            self.label.drawOn(self.canv,22,self.height-self.label_height)
+    return Choice()
 
 
 def PlanImage(encoded,problem):

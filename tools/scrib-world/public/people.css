@@ -63,11 +63,10 @@ a.person-contact:hover{border-color:var(--person-color,#64dee7);background:#2932
 .instagram-icon{width:24px;height:24px;display:block}
 .person-contacts.compact{grid-template-columns:minmax(0,1fr)}
 .person-card{position:relative;display:block}
-.person-card-link{display:grid;gap:16px;margin-bottom:16px;border-radius:12px}
+.person-card-link{display:grid;gap:16px;border-radius:12px}
 .person-card-link::after{content:'';position:absolute;inset:0;border-radius:var(--radius)}
 .person-card>.person-contacts{position:relative;z-index:1}
 .person-card:hover{border-color:var(--person-color,var(--cyan))}
-.person-enter{color:var(--person-color,var(--cyan));font-size:.8rem;font-weight:700}
 .person-detail-head{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
 .person-detail-head>.person-photo,.person-detail-head>.person-placeholder{width:120px;height:120px;border-radius:18px;object-fit:cover}
 .person-detail-head>div:last-child{display:grid;gap:16px;min-width:0}

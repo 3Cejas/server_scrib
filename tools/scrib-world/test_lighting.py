@@ -39,9 +39,9 @@ class LightingTests(unittest.TestCase):
     def test_technical_topology_checklist_and_old_plan_upgrade(self):
         from lighting import LEGACY
         plan = default_plan()
-        self.assertEqual(len(plan['connections']), 28)
+        self.assertEqual(len(plan['connections']), 27)
         self.assertEqual(len(plan['walkies']), 4)
-        self.assertEqual(len(plan['checklist']), 21)
+        self.assertEqual(len(plan['checklist']), 16)
         connections={c['id']:c for c in plan['connections']}
         self.assertEqual(connections['hdmi-projector']['from'], 'video-card')
         self.assertEqual(connections['hdmi-splitter']['from'], 'video-card')
@@ -72,7 +72,7 @@ class LightingTests(unittest.TestCase):
         self.assertEqual(updated['checklist'][0]['notes'],'Validado con sala');self.assertTrue(updated['checklist'][0]['done'])
         self.assertTrue(all(not c['done'] for c in updated['checklist'] if c['id'] in NEW_CHECKS))
         self.assertEqual(updated['connections'][0]['from'],'video-card');self.assertEqual(updated['connections'][0]['notes'],'15 metros')
-        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],3)
+        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],4)
         self.assertEqual(next(e for e in saved['elements'] if e['id']=='splitter')['zone'],'technical')
 
     def test_video_controller_speakers_and_margin_power_topology(self):
@@ -85,6 +85,29 @@ class LightingTests(unittest.TestCase):
         self.assertEqual(links['power-video-card']['from'],'video-psu')
         self.assertEqual(links['audio-left']['to'],'left-speaker');self.assertEqual(links['audio-right']['to'],'right-speaker')
         self.save(plan)
+
+    def test_v3_checklist_retires_requested_items_and_merges_sound_without_false_completion(self):
+        from lighting import upgrade, RETIRED_CHECKS
+        plan=default_plan();plan['schemaVersion']=3
+        plan['connections'].append(dict(id='power-game',type='power',label='PC principal',
+            **{'from':'technical-power','to':'game-computer'}))
+        for ident in RETIRED_CHECKS:
+            plan['checklist'].append(dict(id=ident,text=ident,category='Anterior',done=False))
+        checks={c['id']:c for c in plan['checklist']}
+        checks['writers'].update(done=True,notes='Cargadores listos')
+        checks['sound'].update(done=True,notes='Entradas listas')
+        checks['speakers'].update(done=False,notes='Salida por probar')
+        source=copy.deepcopy(plan);updated=upgrade(plan)
+        self.assertEqual(source,plan)
+        self.assertEqual(len(updated['checklist']),16)
+        self.assertFalse(RETIRED_CHECKS & {c['id'] for c in updated['checklist']})
+        self.assertEqual(updated['checklist'][0]['id'],'writers');self.assertTrue(updated['checklist'][0]['done'])
+        sound=next(c for c in updated['checklist'] if c['id']=='sound')
+        self.assertFalse(sound['done']);self.assertEqual(sound['notes'],'Entradas listas\nSalida por probar')
+        video=[c['id'] for c in updated['checklist'] if c['category']=='Vídeo']
+        self.assertEqual(video,['video-card','projection','monitors','displays'])
+        self.assertNotIn('power-game',{c['id'] for c in updated['connections']})
+        self.assertEqual(self.save(plan)['schemaVersion'],4)
 
     def test_checklist_and_connection_notes_persist_and_cannot_rewire_devices(self):
         plan=default_plan();plan['checklist'][0]['done']=True

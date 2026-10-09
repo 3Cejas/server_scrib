@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const read=file=>fs.readFileSync(path.join(__dirname,file),'utf8');
 const defaults=()=>JSON.parse(read('lighting_plan.json'));
+function historical(){const plan=defaults();plan.schemaVersion=3;plan.connections.push({id:'power-game',from:'technical-power',to:'game-computer',type:'power',label:'PC'});for(const id of ['room','cables','backup','sound-cues','speakers'])plan.checklist.push({id,category:'Anterior',text:id,done:false});return plan;}
 function setup() {
   const calls=[],toasts=[],nodes={},state={lightingDefaults:defaults(),items:[{kind:'event',id:'leon',title:'León <7 noviembre>',start:'2026-11-07'}]};
   let updates=0,answer=true,saveReply=null,refreshError=false;
@@ -18,7 +19,8 @@ function setup() {
 const action=(app,a,id='')=>app.action({dataset:{action:a,id}});
 test('power cables are visible by default, attach to equipment ports and splitter has one input and two outputs',async()=>{
   const {app}=setup(),html=app.render();
-  for(const id of ['power-blue','power-red','power-game','power-sound','power-actors-blue','power-actors-red','power-splitter'])assert.match(html,new RegExp('data-connection="'+id+'"'));
+  for(const id of ['power-blue','power-red','power-sound','power-actors-blue','power-actors-red','power-splitter'])assert.match(html,new RegExp('data-connection="'+id+'"'));
+  assert.doesNotMatch(html,/data-connection="power-game"/);assert.match(html,/data-connection="data-video"/);
   for(const id of ['blue-desk','red-desk','actors-blue','actors-red','game-computer','sound-computer'])assert.match(html,new RegExp('data-port-for="'+id+'"'));
   assert.match(html,/class="lumi-ports"/);assert.match(html,/>IN<\/text>/);
   await action(app,'lighting-cables','power');
@@ -116,17 +118,17 @@ test('checklist and cable notes preserve caret and persist with the full topolog
   const {app,calls,nodes}=setup();const html=app.render();
   for(const id of ['blue-monitor','red-monitor','game-computer','sound-computer','dmx-desk','actors-blue','actors-red'])assert.ok(html.includes(`data-lighting-node="${id}"`));
   assert.match(html,/Walkies · cuatro unidades/);assert.match(html,/Checklist de montaje técnico/);
-  assert.ok(app.input({dataset:{lightingCheck:'room'},checked:true}));
+  assert.ok(app.input({dataset:{lightingCheck:'writers'},checked:true}));
   assert.ok(app.input({dataset:{connectionNotes:'hdmi-projector'},value:'15 m'}));
   await action(app,'lighting-save');
   assert.equal(calls[0].data.plan.checklist[0].done,true);assert.equal(calls[0].data.plan.connections[0].notes,'15 m');
-  assert.doesNotMatch(app.render(),/data-connection-notes/);assert.match(app.render(),/data-lighting-check="room"[^>]*checked/);
+  assert.doesNotMatch(app.render(),/data-connection-notes/);assert.match(app.render(),/data-lighting-check="writers"[^>]*checked/);
 });
 test('technical material counts replace connection editors and monitor colors are neutral even in saved old plans',()=>{
   const {app,state}=setup();const legacy=defaults();legacy.elements.filter(e=>e.type==='monitor').forEach(e=>e.color=e.id==='blue-monitor'?'blue':'red');
   state.items.push({...legacy,id:'lighting-base',kind:'lighting',eventId:'',version:1});
   const html=app.render();
-  assert.match(html,/Material técnico del show/);assert.match(html,/28 cables \/ conexiones/);
+  assert.match(html,/Material técnico del show/);assert.match(html,/27 cables \/ conexiones/);
   for(const [number,label] of [[4,'Vídeo HDMI'],[6,'Ordenadores y portátiles'],[2,'Monitores de proscenio'],[4,'Walkies']])assert.ok(html.includes(`<strong>${number}</strong><span>${label}</span>`));
   assert.match(html,/lumi-node lumi-white[^>]*data-lighting-node="blue-monitor"/);
   assert.match(html,/lumi-node lumi-white[^>]*data-lighting-node="red-monitor"/);
@@ -146,14 +148,14 @@ test('diagram shows correct video, controller, speaker endpoints and no redundan
   const {app}=setup();const html=app.render();assert.match(html,/<h1>Técnica<\/h1>/);
   for(const id of ['game-controller','video-card','video-psu','left-speaker','right-speaker'])assert.match(html,new RegExp('data-lighting-node="'+id+'"'));
   assert.match(html,/data-from="video-card" data-to="splitter"/);assert.match(html,/data-from="splitter" data-to="blue-monitor"/);
-  await action(app,'lighting-cables','data');assert.match(app.render(),/PC · tarjeta · mando/);
+  await action(app,'lighting-cables','data');assert.match(app.render(),/PC · tarjeta \(vídeo y carga\) · mando/);
   const labels=[...html.matchAll(/class="lumi-node-label"[^>]*>([\s\S]*?)<\/text>/g)].map(m=>[...m[1].matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map(part=>part[1]).join(' · '));
   assert.ok(labels.includes('Calle'));assert.ok(labels.includes('Mesa · escritxr'));assert.ok(!labels.some(l=>/azul|rojo|roja/i.test(l)));
   assert.match(html,/data-lighting-node="blue-power"/);assert.doesNotMatch(html,/m5-16-13 20h10/);
 });
 test('undo and redo restore a whole cue, checklist, positions and connection notes without writes',async()=>{
   const {app,calls}=setup();app.render();await action(app,'lighting-cue','black');
-  app.input({dataset:{lightingCheck:'room'},checked:true});
+  app.input({dataset:{lightingCheck:'writers'},checked:true});
   app.input({dataset:{connectionNotes:'hdmi-projector'},value:'Cable 20m'});
   app.input({dataset:{lightingField:'x'},value:'24'});
   for(let i=0;i<4;i++)await action(app,'lighting-undo');assert.ok(!app.hasDraft());assert.equal(calls.length,0);
@@ -187,14 +189,25 @@ test('scope switches and hidden workspace do not replay another bolo history',as
   assert.match(app.render(),/Solo León/);
 });
 test('v2 UI migration keeps connection notes and completed checks and never mutates saved plan',async()=>{
-  const {app,state,calls}=setup();const old=defaults(),added=['game-controller','video-card','video-psu','left-speaker','right-speaker'];
+  const {app,state,calls}=setup();const old=historical(),added=['game-controller','video-card','video-psu','left-speaker','right-speaker'];
   old.elements=old.elements.filter(e=>!added.includes(e.id));delete old.schemaVersion;
-  old.connections=old.connections.slice(0,20);old.connections[0].from='game-computer';old.connections[0].notes='Mantener';
-  old.checklist=old.checklist.slice(0,18);old.checklist[0].done=true;old.elements[0].x=18;
+  old.connections=old.connections.filter(c=>!['data-video','data-controller','power-video-psu','power-video-card','audio-left','audio-right','power-left-speaker','power-right-speaker'].includes(c.id));old.connections[0].from='game-computer';old.connections[0].notes='Mantener';
+  old.checklist=old.checklist.filter(c=>!['video-card','controller','speakers'].includes(c.id));old.checklist[0].done=true;old.elements[0].x=18;
   state.items.push({kind:'lighting',id:'lighting-base',eventId:'',version:2,...old});const snapshot=JSON.stringify(old);
   app.render();await action(app,'lighting-save');assert.equal(JSON.stringify(old),snapshot);
   const p=calls[0].data.plan;assert.equal(p.elements.length,28);assert.equal(p.elements[0].x,18);assert.equal(p.connections[0].from,'video-card');
-  assert.equal(p.connections[0].notes,'Mantener');assert.ok(p.checklist[0].done);assert.ok(p.checklist.slice(18).every(c=>!c.done));
+  assert.equal(p.connections[0].notes,'Mantener');assert.ok(p.checklist[0].done);assert.ok(p.checklist.filter(c=>['controller','video-card'].includes(c.id)).every(c=>!c.done));
+});
+test('v3 checklist simplifies and reorders without mutating saved data or losing remaining progress',async()=>{
+  const {app,state,calls}=setup(),old=historical();old.checklist[0].done=true;
+  old.checklist.find(c=>c.id==='sound').done=true;old.checklist.find(c=>c.id==='sound').notes='Entrada';
+  old.checklist.find(c=>c.id==='speakers').notes='Salida';
+  state.items.push({...old,id:'lighting-base',kind:'lighting',eventId:'',version:3});const before=JSON.stringify(old);
+  const html=app.render();assert.doesNotMatch(html,/Sala y seguridad|Validar permiso|Preparar red de respaldo|sound-cues/);
+  assert.ok(html.indexOf('data-lighting-check="video-card"')<html.indexOf('data-lighting-check="projection"'));
+  await action(app,'lighting-save');const p=calls[0].data.plan;assert.equal(p.schemaVersion,4);assert.equal(p.checklist.length,16);
+  assert.equal(p.checklist[0].done,true);const sound=p.checklist.find(c=>c.id==='sound');assert.equal(sound.done,false);assert.equal(sound.notes,'Entrada\nSalida');
+  assert.equal(JSON.stringify(old),before);assert.equal(p.connections.length,27);
 });
 
 test('technical area spans full width and actors room is below, preserving equipment positions',()=>{

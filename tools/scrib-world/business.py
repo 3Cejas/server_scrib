@@ -196,12 +196,23 @@ class Business:
         if event.get('end') and event['end'][:10] != event['start'][:10]:
             dates += ' — '+self.event_date(event['end'],event.get('timePending',False))
         roles=' / '.join(dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person.get('id')))
+        assigned = roles.split(' / ') if roles else []
+        choices = list(dict.fromkeys(['Escritura', 'Interpretación', 'Presentador', 'Técnica', 'Jurado',
+            'Dirección', 'Dramaturgia', 'Música', 'Comunicación', 'Montaje y desmontaje técnico'] + assigned))
+        roles_checks = '\n'.join(('['+('X' if role in assigned else ' ')+'] '+role) for role in choices)
+        first = datetime.fromisoformat(event['start'][:10])
+        last = datetime.fromisoformat((event.get('end') or event['start'])[:10])
+        count = (last-first).days+1
+        dates_checks = '\n'.join('[X] '+self.event_date((first+timedelta(days=i)).date().isoformat(), True)
+                                 for i in range(count)) if 1 <= count <= 60 else '[X] '+dates
         fields={'persona':(billing.get('legalName') or person['name']) if billing.get('verified') else person['name'],
                 'documento':(billing.get('taxId') or '________________') if billing.get('verified') else '________________',
                 'entidad':settings.get('name',''),'cif':settings.get('taxId',''),'domicilio':settings.get('address',''),
                 'representante':settings.get('representative',''),'bolo':event['title'],'fecha':dates,
                 'lugar':' · '.join(filter(None,[event['venue'],event['city'],event['address']])),
-                'papel':roles,'fecha_firma':self.event_date(self.now()[:10], True)}
+                'papel':roles,'roles_checks':roles_checks,'fechas_checks':dates_checks,
+                'horario':event['start'][11:16] if not event.get('timePending') and len(event['start'])>10 else 'Por confirmar',
+                'fecha_firma':self.event_date(self.now()[:10], True)}
         rendered=settings.get('template') or ((Path(__file__).parent/'agreement_template.txt').read_text() if preview else '')
         for key,value in fields.items():
             rendered=rendered.replace('{'+key+'}',value or ('['+key.replace('_',' ').capitalize()+' pendiente]' if preview else ''))

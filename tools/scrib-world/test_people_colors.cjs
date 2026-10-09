@@ -445,11 +445,12 @@ test('palette has readable contrast on dark backgrounds and no continuous animat
   assert.match(styles,/@media\(max-width:700px\)/);assert.match(styles,/overflow-wrap:anywhere/);assert.match(styles,/@media print/);
   assert.doesNotMatch(read('people-colors.js'),/\.style\b|style=/);
 });
-test('cast cards link to detail, show Instagram with its logo and hide phone and duplicate history',()=>{
+test('cast cards only link to detail: Instagram and its logo appear inside, without Ver ficha text',()=>{
   const {app,people}=client();people[0].instagram='https://www.instagram.com/_anasempere/?igsh=test';
   const html=app.renderPeople();balanced(html);
-  assert.match(html,/@_anasempere ↗/);assert.doesNotMatch(html,/\+34 600 000 000|href="tel:|participation-history|compose-person/);
-  assert.match(html,/href="#person\/p1"/);assert.match(html,/class="instagram-icon"/);assert.match(html,/person-contact instagram/);
+  assert.doesNotMatch(html,/@_anasempere|instagram-icon|person-contact|Ver ficha|\+34 600 000 000|href="tel:|participation-history|compose-person/);
+  assert.match(html,/href="#person\/p1"/);
+  const detail=app.renderPerson('p1');assert.match(detail,/@_anasempere ↗/);assert.match(detail,/class="instagram-icon"/);assert.match(detail,/person-contact instagram/);
   assert.match(html,/person-role role-cyan/);assert.doesNotMatch(html,/>Instagram ↗<|Teléfono privado/);
   const contacts=app.profile.contacts(people[0]);assert.match(contacts,/\+34 600 000 000/);assert.match(contacts,/href="tel:\+34600000000"/);
   app.openPerson('p1');

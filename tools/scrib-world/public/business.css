@@ -59,8 +59,13 @@
 .settlement-panel .panel-head{flex-wrap:wrap}
 .agreement-preview-head{display:grid;gap:14px;margin-bottom:24px}
 .agreement-preview-head>.badge{justify-self:start}
-.agreement-preview{padding:24px;border:1px solid #f1d28a55;border-radius:14px;background:#171c28}
-.agreement-preview .notes{line-height:1.9;font-size:.95rem;color:#e7e9f0}
+.agreement-preview{padding:24px;border:1px solid #dbe0e6;border-radius:14px;background:#fff}
+.agreement-preview .notes{line-height:1.9;font-size:.95rem;color:#182331}
+.invoice-document,.agreement-document{background:#fff;color:#182331;--line:#dbe0e6;--muted:#596577;--gold:#73521e}
+.invoice-document .eyebrow,.invoice-document .hint{color:#596577}
+.invoice-document .notes,.agreement-document .notes{color:#182331}
+.invoice-document .invoice-totals{background:#edf4f5;padding:8px 16px;border-radius:10px}
+.agreement-document{padding:24px;border-radius:14px;overflow-wrap:anywhere}
 @media(max-width:600px){.agreement-preview{padding:16px}.agreement-preview .notes{font-size:.85rem}}
 @media(max-width:600px){.settlement-summary{grid-template-columns:1fr}.settlement-person-card{padding:18px}.agreement-card .service-top{flex-wrap:wrap}.finance-person{gap:12px}.finance-avatar{width:56px;height:56px;flex-basis:56px}}
 .production-card-money{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:12px}.production-card-money small{display:block;color:var(--muted);font-size:.66rem;line-height:1.5}.production-card-money strong{display:block;margin-top:4px;font-size:.95rem;color:var(--cyan)}.production-card-money div+div strong{color:var(--gold)}.production-card-open{display:flex;justify-content:space-between;gap:8px;font-size:.75rem;color:var(--gold);margin-top:16px}

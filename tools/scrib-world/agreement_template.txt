@@ -7,10 +7,14 @@ Y de otra, {persona}, con DNI/NIE/Pasaporte {documento}, en adelante LA PERSONA 
 CLÁUSULAS
 PRIMERA. OBJETO
 El presente acuerdo regula la participación artística puntual de LA PERSONA COLABORADORA en <SCRI>B, proyecto escénico organizado por {entidad}, con motivo de su participación en {bolo}.
-LA PERSONA COLABORADORA participará en calidad de {papel}, desarrollando las funciones propias de dicho rol dentro del formato.
+LA PERSONA COLABORADORA ejercerá los roles marcados. Revisar y marcar los que correspondan antes de firmar:
+{roles_checks}
 
 SEGUNDA. FECHAS, LUGAR Y HORARIO
-Las representaciones objeto de este acuerdo se celebrarán en {lugar}, en las siguientes fechas: {fecha}.
+Lugar: {lugar}.
+Horario de la función: {horario}.
+Marcar las fechas en las que se participa:
+{fechas_checks}
 Los horarios de convocatoria previa, preparación, ensayo, montaje, calentamiento o coordinación serán comunicados por LA COMPAÑÍA atendiendo a la programación y disponibilidad del espacio.
 
 TERCERA. CARÁCTER PUNTUAL DE LA COLABORACIÓN

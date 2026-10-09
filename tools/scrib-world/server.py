@@ -1038,7 +1038,7 @@ class Handler(BaseHTTPRequestHandler):
                     if route == 'api/business/overview':
                         return self.reply(200,store.business.overview())
                     if route == 'api/business/template':
-                        return self.reply(200,{'text':(ROOT/'agreement_template.txt').read_text(),'source':'Modelo SCRIB Imparables 2026 · Drive','url':'https://drive.google.com/file/d/1ciafKCpO6H6jgw6uVvO75C9xb2ZRkaCy/view'})
+                        return self.reply(200,{'text':(ROOT/'agreement_template.txt').read_text(),'source':'Modelo SCRIB · casillas de Exlímite y condiciones de Imparables · Drive','url':'https://drive.google.com/file/d/1zOnQsaqi6SdBe7UK41wWcoy5A2r-yOeT/view'})
                     if route.startswith('api/business/agreement-preview/'):
                         return self.reply(200,store.business.agreement_preview(route.split('/')[-1]))
                     if route.startswith('api/business/agreements/'):

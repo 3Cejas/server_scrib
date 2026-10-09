@@ -139,3 +139,48 @@ class DocumentCleanupTests(unittest.TestCase):
         self.business.agreement_state(dict(id=agreement['id'],status='revoked'),'admin')
         with self.assertRaises(world.Problem):
             generate(self.store,dict(kind='agreement',id=agreement['id']),dict(role='public',username='otro'),agreement_token=token)
+
+    def test_agreement_white_paper_role_date_fields_are_interactive_and_have_matching_widgets(self):
+        from pypdf import PdfReader
+        from pypdf.generic import ContentStream
+        settings=self.fixture.settings()
+        settings=self.business.save('settings',dict(settings,id='organizer',
+            template=(Path(__file__).parent/'agreement_template.txt').read_text(),confirmed=True),'admin')
+        event=self.fixture.event
+        event=self.store.update(event['id'],dict(event,end='2026-11-09T22:00'),'admin',event['version'])
+        self.business.generate(dict(eventId=event['id'],eventVersion=event['version'],settingsVersion=settings['version'],
+            people=[self.fixture.person['id']]),'admin')
+        agreement=self.business.agreements(event['id'])['agreements'][0]
+        reader=PdfReader(io.BytesIO(generate(self.store,dict(kind='agreement',id=agreement['id']),
+            dict(role='admin',username='ensayo'))))
+        fields=reader.get_fields();self.assertEqual(len(fields),13)
+        self.assertEqual(str(fields['participacion_1']['/V']),'/Yes')
+        self.assertEqual(str(fields['participacion_2']['/V']),'/Off')
+        self.assertTrue(all(str(fields['participacion_'+str(i)]['/V'])=='/Yes' for i in (11,12,13)))
+        widgets=[a.get_object() for p in reader.pages for a in p.get('/Annots',[]) if a.get_object().get('/Subtype')=='/Widget']
+        self.assertEqual(len(widgets),13)
+        for widget in widgets:
+            self.assertEqual(widget['/V'],fields[widget['/T']]['/V'])
+            self.assertIn(widget['/V'],widget['/AP']['/N'])
+        text='\n'.join(p.extract_text() for p in reader.pages)
+        self.assertIn('Marcar las fechas',text);self.assertIn('9 de noviembre de 2026',text)
+        for page in reader.pages:
+            ops=ContentStream(page.get_contents(),reader).operations
+            self.assertEqual(next(args for args,op in ops if op==b'rg'),[1,1,1])
+
+    def test_invoice_paper_summary_does_not_repeat_roles_dates_or_draft_warning(self):
+        from pypdf import PdfReader
+        from pypdf.generic import ContentStream
+        self.fixture.settings()
+        self.business.save('billing',dict(id=self.fixture.person['id'],version=0,legalName='EMISOR FICTICIO',
+            taxId='PRUEBA',address='Domicilio de prueba',vat='10',withholding='15',verified=True),'admin')
+        self.fixture.settlement()
+        invoice=self.business.invoice(dict(eventId=self.fixture.event['id'],personId=self.fixture.person['id'],date='2026-11-09'),'admin')
+        reader=PdfReader(io.BytesIO(generate(self.store,dict(kind='invoice',id=invoice['id']),dict(role='admin',username='ensayo'))))
+        text='\n'.join(p.extract_text() for p in reader.pages)
+        self.assertEqual(text.count('Remuneración por los roles'),1)
+        self.assertEqual(text.count('BORRADOR - NO EMITIDO'),1)
+        self.assertIn('IRPF 15 %',text);self.assertIn('IVA 10 %',text)
+        self.assertIn('TOTAL A PERCIBIR',text);self.assertEqual(len(reader.pages),1)
+        ops=ContentStream(reader.pages[0].get_contents(),reader).operations
+        self.assertEqual(next(args for args,op in ops if op==b'rg'),[1,1,1])

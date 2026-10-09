@@ -19,10 +19,23 @@ window.ScribLighting = function(h) {
       plan.elements.push(...clone(defaults.elements.filter(e=>!ids.includes(e.id))));
     }
     plan.elements=plan.elements.map(e=>({...defaults.elements.find(x=>x.id===e.id),...e}));
+    const previousNotes={'game-computer':'Conectado a tarjeta de vídeo y mando. Audio del juego a mesa de sonido.','technical-power':'Tomas/cargadores para los dos ordenadores, la fuente de la tarjeta de vídeo y controles; validar distribución con sala.','video-card':'Conexión al PC principal y fuente propia. HDMI 1 al proyector, HDMI 2 al splitter. Validar interfaz y conectores del modelo disponible.'};
+    plan.elements.forEach(e=>{if(e.notes&&e.notes===previousNotes[e.id])e.notes=defaults.elements.find(d=>d.id===e.id).notes;});
     for(const field of ['connections','walkies','checklist'])plan[field]=clone(source[field] || defaults[field]);
     if(old)for(const [field,added] of [['connections',['data-video','data-controller','power-video-psu','power-video-card','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['video-card','controller','speakers']]]){
       const keys=plan[field].map(r=>r.id),previous=defaults[field].filter(r=>!added.includes(r.id));
       if(keys.length===previous.length&&new Set(keys).size===keys.length&&previous.every(r=>keys.includes(r.id)))plan[field]=defaults[field].map(d=>{const r=plan[field].find(r=>r.id===d.id);return {...clone(d),...(r?.notes!==undefined?{notes:r.notes}:{}),...(r?.done!==undefined?{done:r.done}:{})};});
+    }
+    for(const [field,retired,added] of [['connections',['power-game'],['data-video','data-controller','power-video-psu','power-video-card','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['room','cables','backup','sound-cues','speakers'],['video-card','controller','speakers']]]){
+      const rows=plan[field],keys=rows.map(r=>r.id),previous=[...new Set([...defaults[field].map(r=>r.id),...retired])];
+      if(new Set(keys).size===keys.length&&[previous,previous.filter(id=>!added.includes(id))].some(expected=>expected.length===keys.length&&expected.every(id=>keys.includes(id)))){
+        plan[field]=defaults[field].map(d=>{
+          const r=rows.find(r=>r.id===d.id),copy={...clone(d),...(r?.notes!==undefined?{notes:r.notes}:{}),...(r?.done!==undefined?{done:r.done}:{})};
+          const speakers=rows.find(r=>r.id==='speakers');
+          if(field==='checklist'&&d.id==='sound'&&speakers){copy.done=Boolean(r?.done&&speakers.done);copy.notes=[...new Set([r?.notes,speakers.notes].filter(Boolean))].join('\n');}
+          return copy;
+        });
+      }
     }
     return plan;
   }
@@ -81,7 +94,7 @@ window.ScribLighting = function(h) {
     const palettes={blue:'#39ccff',red:'#ff5373',warm:'#ffcc75',white:'#f3efff'};
     return `<svg class="lighting-map" viewBox="0 0 1000 1600" role="group" aria-label="Plano interactivo del escenario, técnica y sala de intérpretes, visto desde el público"><defs><pattern id="lumi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="lumi-grid-line"/></pattern><clipPath id="lumi-stage-clip"><rect x="70" y="80" width="860" height="540" rx="18"/></clipPath>${Object.entries(palettes).map(([name,color])=>`<radialGradient id="lumi-${name}"><stop offset="0" stop-color="${color}" stop-opacity=".48"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></radialGradient>`).join('')}</defs><text class="lumi-orientation" text-anchor="middle" x="500" y="43">FONDO DEL ESCENARIO</text><rect class="lumi-stage" x="70" y="80" width="860" height="540" rx="18"/><rect x="70" y="80" width="860" height="540" rx="18" fill="url(#lumi-grid)"/><rect class="lumi-proscenium" x="72" y="462" width="856" height="155" rx="18"/><text class="lumi-zone-label" text-anchor="middle" x="500" y="490">PROSCENIO</text><rect class="lumi-stage" x="60" y="730" width="900" height="510" rx="18"/><rect class="lumi-stage" x="60" y="1280" width="900" height="300" rx="18"/><text class="lumi-orientation" text-anchor="middle" x="500" y="770">TÉCNICA</text><text class="lumi-orientation" text-anchor="middle" x="500" y="1310">SALA INTÉRPRETES</text><g class="lumi-beams" clip-path="url(#lumi-stage-clip)">${draft.elements.map(beams).join('')}</g><g class="lumi-cables">${cables()}</g><g class="lumi-markers">${draft.elements.map(marker).join('')}</g><g class="lumi-ports">${connectionPorts()}</g><g class="lumi-audience" aria-hidden="true">${[280,350,420,500,580,650,720].map(x=>`<g transform="translate(${x},660)"><circle cy="-10" r="7"/><path d="M-12 18v-6a12 12 0 0 1 24 0v6M-7 18v10M7 18v10"/></g>`).join('')}</g><text class="lumi-orientation" text-anchor="middle" x="500" y="714">PÚBLICO</text></svg>`;
   }
-  const cableLabels={hdmi:'Vídeo HDMI',data:'PC · tarjeta · mando',audio:'Audio',power:'Alimentación',dmx:'DMX'};
+  const cableLabels={hdmi:'Vídeo HDMI',data:'PC · tarjeta (vídeo y carga) · mando',audio:'Audio',power:'Alimentación',dmx:'DMX'};
   function cables() {
     return draft.connections.filter(c=>cableView==='all'||c.type===cableView).map((c,i)=>{
       const source=draft.elements.find(e=>e.id===c.from),target=draft.elements.find(e=>e.id===c.to);if(!source||!target)return '';
