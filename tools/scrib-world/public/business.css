@@ -31,6 +31,33 @@
 .production-date span{text-transform:uppercase;font-size:.75rem;letter-spacing:.08em}.production-date strong{font-size:1.9rem;line-height:1.2}.production-date small{font-size:.7rem;color:var(--muted)}
 .production-card-body{min-width:0}.production-card-top{display:flex;justify-content:space-between;gap:10px;align-items:center}.production-season{color:var(--gold);font-size:.72rem;letter-spacing:.04em}.production-card-arrow{color:var(--cyan);font-size:1.25rem}
 .production-card h3{font-size:1.1rem;line-height:1.45;margin:10px 0 7px;overflow-wrap:anywhere}.production-venue{color:var(--muted);font-size:.8rem;line-height:1.6;overflow-wrap:anywhere}.production-card-tags{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.production-card-tags span{padding:4px 8px;border-radius:6px;background:#ffffff09;color:var(--muted);font-size:.7rem}
+.production-datetime{font-size:.76rem;color:var(--gold);margin:0 0 10px;overflow-wrap:anywhere}
+.production-card.is-completed{background:#13151d;border-color:#292d39;color:#a8adba;box-shadow:inset 0 0 24px #0005}
+.production-card.is-completed .production-date{background:#20222b;border-color:#363a47;color:#a8adba}
+.production-card.is-completed .production-season,.production-card.is-completed .production-datetime,.production-card.is-completed .production-card-arrow,.production-card.is-completed .production-card-open,.production-card.is-completed .production-card-money strong{color:#a8adba}
+.production-card.is-completed:hover{border-color:#626a7b;transform:none}
+.settlement-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px;border:1px solid #f1d28a30;border-radius:13px;background:#f1d28a08}
+.settlement-summary small,.settlement-person-money small{display:block;color:var(--muted);font-size:.7rem;margin-bottom:5px}
+.settlement-summary strong{color:var(--gold);overflow-wrap:anywhere}
+.settlement-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+.settlement-person-card{min-width:0;padding:22px;border:1px solid #64e7e22b;border-radius:16px;background:linear-gradient(135deg,#1d2934,#171a25 75%);display:flex;flex-direction:column;gap:22px}
+.finance-person{display:flex;align-items:center;gap:14px;min-width:0}
+.finance-person>div{min-width:0}
+.finance-person h3{font-size:1.02rem;overflow-wrap:anywhere;line-height:1.45}
+.finance-person p{font-size:.73rem;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}
+.finance-avatar{width:64px;height:64px;flex:0 0 64px;border-radius:18px;object-fit:cover;background:#283443;border:1px solid #64e7e244}
+.finance-initials{display:grid;place-items:center;font-size:1.25rem;font-weight:800;color:var(--cyan);background:linear-gradient(135deg,#254248,#323048)}
+.settlement-person-money{display:grid;grid-template-columns:1fr 1fr;gap:14px;border-top:1px solid var(--line);padding-top:16px}
+.settlement-person-money strong{font-size:1.15rem;color:var(--cyan);font-variant-numeric:tabular-nums}
+.settlement-person-money>div+div strong{color:var(--gold)}
+.settlement-person-card>.actions{margin-top:auto;display:grid;grid-template-columns:1fr;gap:9px}
+.finance-action{min-height:44px;padding:11px 14px;background:#233740;border-color:#64e7e23d;color:var(--cyan);white-space:normal;text-align:center}
+.finance-action:hover{background:#2b454d;border-color:var(--cyan)}
+.invoice-action{background:#332d3f;border-color:#bda1ff44;color:var(--violet)}
+.invoice-action:hover{background:#433753;border-color:var(--violet)}
+.agreement-card .finance-avatar{width:48px;height:48px;flex-basis:48px;border-radius:14px}
+.settlement-panel .panel-head{flex-wrap:wrap}
+@media(max-width:600px){.settlement-summary{grid-template-columns:1fr}.settlement-person-card{padding:18px}.agreement-card .service-top{flex-wrap:wrap}.finance-person{gap:12px}.finance-avatar{width:56px;height:56px;flex-basis:56px}}
 .production-card-money{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:12px}.production-card-money small{display:block;color:var(--muted);font-size:.66rem;line-height:1.5}.production-card-money strong{display:block;margin-top:4px;font-size:.95rem;color:var(--cyan)}.production-card-money div+div strong{color:var(--gold)}.production-card-open{display:flex;justify-content:space-between;gap:8px;font-size:.75rem;color:var(--gold);margin-top:16px}
 @media(max-width:450px){.production-card{grid-template-columns:53px minmax(0,1fr);padding:14px;gap:12px}.production-date strong{font-size:1.5rem}.production-card-money{grid-template-columns:1fr;gap:8px}}
 @media(prefers-reduced-motion:reduce){.production-card{transition:none}.production-card:hover{transform:none}}

@@ -75,7 +75,10 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 
 ## Qué incluye
 
-- Inicio: acceso a la web pública, salud del servidor, próximos bolos,
+- Menú lateral: acceso a `scribshow.es` e indicador del servidor del videojuego,
+  independiente del testigo de conexión del backstage. Permanece accesible también
+  en móvil; Inicio ya no repite esta tarjeta.
+- Inicio: calendario ampliado junto a próximos bolos,
   mis tareas, bloqueos, vencimientos y actividad del equipo.
 - **Tareas** reúne los tableros de dramaturgia, programación y producción, con
   tarjetas clicables y lápiz de edición independiente. Logo original de SCRIB
@@ -200,7 +203,10 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   las carpetas públicas de players_scrib; sus enlaces antiguos redirigen a Sutura.
 - La agenda prioriza bolos y ensayos por realizar, del más cercano al más lejano;
   después muestra el historial del más reciente al más antiguo. Los realizados
-  tienen una sombra distintiva tanto en las tarjetas como en el calendario.
+  tienen fondo, bordes e indicadores apagados tanto en las tarjetas como en el
+  calendario y Gestión, sin desactivar sus enlaces ni cambiar sus datos. También
+  se atenúan las fechas pasadas, aunque todavía no se haya editado su estado.
+  Las tarjetas muestran fecha y hora inmediatamente debajo del título.
 - Editar una persona conserva su color guardado, pero ya no muestra un selector
   de color ni el mensaje auxiliar de selección de varios roles.
 
@@ -232,6 +238,16 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   Antes, administración debe revisar **Gestión → Entidad y plantilla**. La
   plantilla conserva las 14 cláusulas del modelo Imparables 2026 de Drive, con
   variables; no se confirman automáticamente los datos fiscales ni el reparto.
+- Liquidación muestra fotos privadas (o iniciales si falta foto), papeles,
+  importes asignados/pendientes y acciones con icono y texto por persona. No cambia
+  el cálculo ni los registros de varios días; solo se elimina esa coletilla del
+  título. Personas con importes ya asignados siguen visibles aunque hayan salido
+  del elenco del bolo. Sin asignación se muestra «—», no un ingreso inventado.
+- La tarjeta del selector de mundos conserva el logo original, con escenario
+  neón azul/rojo, subtítulo de terminal y animación breve al pasar el ratón o enfocar.
+  Sin animaciones continuas; respeta movimiento reducido. `integrate.py selector`
+  actualiza únicamente las variantes conocidas de SCRIB y aborta ante cambios
+  no reconocidos, preservando los demás mundos y la autenticación.
 - Enlaces personales públicos de 90 días, revocables, con CSRF por capacidad.
   Descarga/impresión en PDF y subida de PDF firmado de hasta 3 MiB. Estados
   preparado, enviado, subido y revisado son distintos: subir no verifica firma.

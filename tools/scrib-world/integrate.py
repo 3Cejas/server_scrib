@@ -20,15 +20,39 @@ RELATIVE_CARD = '''      <a class="world world--scrib" href="/mundo-scrib/" aria
 PREVIOUS_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/mundo-scrib/"')
 LOGO_ONLY_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/scrib/"')
 SUBTITLE = "el primer videojuego- espectáculo de escritura en vivo"
-CARD = LOGO_ONLY_CARD.replace('      </a>', '        <span class="world-scrib-copy">' + SUBTITLE + '</span>\n      </a>')
+SUBTITLE_CARD = LOGO_ONLY_CARD.replace('      </a>', '        <span class="world-scrib-copy">' + SUBTITLE + '</span>\n      </a>')
+CARD = '''      <a class="world world--scrib" href="https://sutura-gateway.ddns.net/scrib/" aria-label="Entrar en SCRIB">
+        <span class="world-scrib-stage"><img class="world-logo world-scrib-logo" src="/favicons/scrib-world-logo.png?v=1" width="500" height="500" alt="&lt;SCRI&gt; B"></span>
+        <span class="world-scrib-kicker" aria-hidden="true">ESCRITURA × JUEGO × ESCENA</span>
+        <span class="world-scrib-copy">''' + SUBTITLE + '''</span>
+        <span class="world-scrib-enter" aria-hidden="true">ENTRAR AL BACKSTAGE <span>↗</span></span>
+      </a>
+'''
 LOGO_ONLY_CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
     .world--scrib { --accent: #64e7e2; background: linear-gradient(120deg, #152f36, #20162b 55%, #40212b); border-color: #71506b; gap: 0; }
     .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; }
 '''
-CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
+SUBTITLE_CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
     .world--scrib { --accent: #64e7e2; background: linear-gradient(120deg, #152f36, #20162b 55%, #40212b); border-color: #71506b; gap: 12px; }
     .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; }
     .world--scrib .world-scrib-copy { color: #e1e9f1; font: 600 clamp(.85rem, 1.5vw, 1rem)/1.5 ui-sans-serif, system-ui, sans-serif; max-width: 32ch; text-align: center; text-wrap: balance; }
+'''
+CSS = '''    /* Mundo SCRIB: static neon scenery, one-shot motion on interaction. */
+    .world--scrib { --accent: #64e7e2; background: radial-gradient(ellipse at 12% 22%, #14505a88, transparent 58%), radial-gradient(ellipse at 90% 70%, #6c233c77, transparent 58%), #101521; border-color: #43515e; gap: 14px; }
+    .world--scrib::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 3px, #ffffff04 3px 4px); pointer-events: none; z-index: -1; }
+    .world--scrib::after { background: linear-gradient(90deg, #64e7e2 0 48%, #fff 49% 51%, #ff8495 52%); }
+    .world-scrib-stage { position: relative; display: grid; place-items: center; width: min(240px, 88%); border: 1px solid #64e7e236; border-radius: 24px; background: linear-gradient(140deg, #64e7e208, #ff849508); }
+    .world-scrib-stage::before, .world-scrib-stage::after { position: absolute; top: 50%; content: ""; height: 1px; width: 32px; background: #64e7e2; }
+    .world-scrib-stage::before { right: 100%; } .world-scrib-stage::after { left: 100%; background: #ff8495; }
+    .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; transition: transform .3s ease; }
+    .world--scrib .world-scrib-kicker { color: #64e7e2; font: 700 .6rem/1.6 ui-monospace, Consolas, monospace; letter-spacing: .18em; }
+    .world--scrib .world-scrib-copy { color: #f4f5fa; font: 800 clamp(.84rem, 1.5vw, 1rem)/1.55 ui-monospace, Consolas, monospace; text-transform: uppercase; letter-spacing: .04em; max-width: 33ch; text-align: center; text-wrap: balance; text-shadow: -1px 0 #64e7e266, 1px 0 #ff849566; }
+    .world-scrib-enter { display: flex; align-items: center; gap: 12px; color: #f1d28a; font: 700 .6rem/1.5 ui-monospace, Consolas, monospace; letter-spacing: .1em; }
+    .world-scrib-enter span { font-size: 1rem; transition: transform .2s ease; }
+    .world--scrib:hover .world-scrib-logo, .world--scrib:focus-visible .world-scrib-logo { transform: translateY(-3px) scale(1.035); animation: scrib-world-reveal .5s ease-out 1; }
+    .world--scrib:hover .world-scrib-enter span, .world--scrib:focus-visible .world-scrib-enter span { transform: translate(3px, -3px); }
+    @keyframes scrib-world-reveal { 0% { opacity: .65; transform: translateY(4px) scale(.98); } 55% { opacity: 1; transform: translateY(-5px) scale(1.04); } 100% { opacity: 1; transform: translateY(-3px) scale(1.035); } }
+    @media (prefers-reduced-motion: reduce) { .world--scrib, .world--scrib *, .world--scrib::before, .world--scrib::after { animation: none !important; transition: none !important; } .world--scrib:hover, .world--scrib:focus-visible, .world--scrib:hover .world-scrib-logo, .world--scrib:focus-visible .world-scrib-logo, .world--scrib:hover .world-scrib-enter span, .world--scrib:focus-visible .world-scrib-enter span { transform: none; } }
 '''
 BRIDGE = '''  // BEGIN SCRIB WORLD BRIDGE (independent from live game)
   if (url.pathname === "/mundo-scrib") {
@@ -240,8 +264,8 @@ def update_selector(source):
         raise ValueError("La tarjeta SCRIB ha cambiado: revisar manualmente.")
     if source.count(CARD) == 1 and source.count(CSS) == 1:
         return source
-    for old_card in (LOGO_ONLY_CARD, RELATIVE_CARD, PREVIOUS_CARD):
-        for old_css in (LOGO_ONLY_CSS, CSS):
+    for old_card in (SUBTITLE_CARD, LOGO_ONLY_CARD, RELATIVE_CARD, PREVIOUS_CARD):
+        for old_css in (SUBTITLE_CSS, LOGO_ONLY_CSS, CSS):
             if source.count(old_card) == 1 and source.count(old_css) == 1:
                 return source.replace(old_card, CARD, 1).replace(old_css, CSS, 1)
     if source.count(LEGACY_CARD) != 1 or source.count(LEGACY_CSS) != 1:

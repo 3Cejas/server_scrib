@@ -179,7 +179,7 @@ test('mini calendar shows bolos and rehearsals, all same-day events, cancellatio
   app.setHomeCalendar('2026-11','2026-11-07');const html=app.renderHomeCalendar();balanced(html);
   assert.match(html,/7 de noviembre de 2026 · 6 eventos/);
   assert.match(html,/home-calendar-dot rehearsal/);
-  assert.match(html,/home-calendar-dot show cancelled/);
+  assert.match(html,/home-calendar-dot show inactive cancelled/);
   assert.match(html,/<small>\+3<\/small>/);
   assert.equal((html.match(/class="home-calendar-entry/g)||[]).length,6);
   assert.match(html,/Evento 3<\/strong><small>[^<]*Bolo · Cancelado/);
@@ -188,7 +188,7 @@ test('mini calendar shows bolos and rehearsals, all same-day events, cancellatio
 test('home embeds a visual calendar instead of the old calendar button; empty state remains usable',()=>{
   const {app,state,event}=client();event.start=app.today()+'T19:00';
   const html=app.renderHome();balanced(html);
-  assert.match(html,/home-schedule/);assert.match(html,/Calendario compacto de bolos y ensayos/);
+  assert.match(html,/home-schedule/);assert.match(html,/Calendario de bolos y ensayos/);
   assert.match(html,/class="event-card-link" href="#event\/e1"/);
   assert.doesNotMatch(html,/Ver calendario ↗/);
   state.items=state.items.filter(x=>x.kind!=='event');
@@ -241,15 +241,22 @@ test('agenda lists nearest upcoming events first, then history newest first with
   rows.find(e=>e.id==='near').status='completed';
   assert.deepEqual(Array.from(app.agendaEvents(),e=>e.id),['today','far','near','recent','cancelled','old']);
 });
-test('completed shows and rehearsals have a shadow, upcoming ones are unchanged',()=>{
+test('past shows and rehearsals are subdued without disabling their links or changing status',()=>{
   const {app,event}=client();
   for(const eventType of ['show','rehearsal']){
     const html=app.eventCard({...event,eventType,status:'completed'});balanced(html);
     assert.match(html,/class="panel event-card is-completed"/);
   }
   assert.doesNotMatch(app.eventCard(event),/is-completed/);
+  const past={...event,start:'2000-01-01',status:'confirmed'};
+  assert.match(app.eventCard(past),/event-card is-completed/);
+  assert.equal(past.status,'confirmed');
+  assert.match(app.eventCard(past),/href="#event\/e1"/);
   assert.match(read('app.css'),/\.event-card\.is-completed\{[^}]*box-shadow:/);
-  assert.match(read('app.css'),/\.calendar-event\.completed\{[^}]*box-shadow:/);
+  assert.match(read('app.css'),/\.calendar-event\.is-completed\{[^}]*color:#a8adba/);
+  assert.doesNotMatch(read('app.css'),/\.event-card\.is-completed\{[^}]*pointer-events:none/);
+  assert.match(app.eventCard(event),/<h3>León · función<\/h3>[\s\S]*?<p class="event-date"><time/);
+  assert.match(read('app.css'),/\.home-schedule\{[^}]*minmax\(380px,1fr\)/);
 });
 test('event inventory shows private object photo thumbnails and preserves selection and team boundaries',()=>{
   const {app,state,event}=client(),image='a'.repeat(64)+'.png';
@@ -277,12 +284,15 @@ test('automatic colors stay stable on rename/team changes and unsafe color value
   const n=element();n.classList.add('keep','person-tone-mint');colors.decorate(n,{color:'orchid'});colors.decorate(n,{color:'cyan'});
   assert.deepEqual([...n.classList].sort(),['keep','person-colored','person-tone-cyan']);
 });
-test('public website link and health remain without the removed game shortcut',()=>{
+test('website link and server status move to the sidebar, without duplicated Home content',()=>{
   const html=client().app.renderHome();balanced(html);
-  assert.match(html,/<a href="https:\/\/scribshow\.es\/"[^>]*rel="noopener noreferrer"[^>]*>Abrir web ↗<\/a>/);
+  const index=read('index.html');
+  assert.match(index,/<a class="sidebar-web" href="https:\/\/scribshow\.es\/"[^>]*rel="noopener noreferrer"/);
+  assert.match(index,/sidebar-web-copy[\s\S]*?id="server-health" class="server-health" role="status"/);
   assert.doesNotMatch(html,/Abrir videojuego|href="\/scrib\/game\/"/);
   assert.doesNotMatch(html,/Producción anterior|Producción antes|scribshow\.es ↗|El escaparate|web-health/);
-  assert.equal((html.match(/>Abrir web ↗</g)||[]).length,1);
+  assert.doesNotMatch(html,/server-health|home-game-service|scribshow\.es/);
+  assert.equal((index.match(/id="server-health"/g)||[]).length,1);
 });
 test('health indicator keeps the server check without the removed duplicate web probe',async()=>{
   const {app,state,responses,calls,nodes}=client();
@@ -292,6 +302,36 @@ test('health indicator keeps the server check without the removed duplicate web 
   assert.match(nodes['server-health'].textContent,/Servidor activo/);
   responses['/api/scrib-health']={ok:false};await app.checkHealth();
   assert.match(nodes['server-health'].textContent,/no disponible/);
+});
+test('settlement has photos, initials, role labels, accurate amounts and visual actions, not the multi-day heading',async()=>{
+  const {app,people,event,responses}=client();
+  people[0].image='a'.repeat(64)+'.jpg';people[1].name='<Persona & dos>';
+  responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};
+  responses['/scrib/backstage/api/business/overview']={records:[{type:'settlement',id:'e1',season:'2026 / 2027',days:[{income:100000,expenses:5000,allocations:[{personId:'p1',amount:20000,paid:false},{personId:'p2',amount:30000,paid:true},{personId:'previous',amount:5000,paid:false}]}]}]};
+  app.business.production('e1');await flush();const html=app.business.production('e1');balanced(html);
+  assert.match(html,/<h2>💶 Liquidación<\/h2>/);assert.doesNotMatch(html,/varios días/);
+  assert.match(html,new RegExp('src="/scrib/backstage/images/'+people[0].image+'"'));
+  assert.match(html,/finance-initials/);assert.match(html,/&lt;Persona &amp; dos&gt;/);
+  assert.equal((html.match(/class="settlement-person-card"/g)||[]).length,4);
+  assert.match(html,/Asignado · base<\/small><strong>200,00/);
+  assert.match(html,/Pendiente · base<\/small><strong>0,00/);
+  assert.match(html,/data-action="business-invoice" data-id="e1\|previous"/);
+  assert.match(html,/data-action="business-person" data-id="p1"/);
+  assert.match(html,/noviembre de 2026/);assert.match(html,/19:00/);
+  for(const [action,label] of [['business-person','Ficha económica'],['business-invoice','Borrador de factura'],['business-settlement','Ingresos y reparto']]){
+    const button=app.btn(action,label,'p1');balanced(button);
+    assert.match(button,/<svg class="action-icon"/);assert.match(button,new RegExp('>'+label+'<'));
+    assert.doesNotMatch(button,/icon-only/);
+  }
+  people[0].image='" onerror="alert(1)';assert.doesNotMatch(app.business.production(event.id),/onerror=/);
+});
+test('empty settlement never invents earnings and financial views remain admin-only',async()=>{
+  const {app,state,responses}=client();
+  responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};
+  responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.business.production('e1');await flush();let html=app.business.production('e1');balanced(html);
+  assert.match(html,/Aún no hay liquidación/);assert.match(html,/Asignado · base<\/small><strong>—/);
+  state.user.role='member';html=app.business.production('e1');assert.doesNotMatch(html,/settlement-person-card|Ingresos y reparto/);
 });
 test('roadmap groups blue/red/general teams and keeps each person color',()=>{
   const {app,people}=client(),html=app.renderEvent('e1');balanced(html);

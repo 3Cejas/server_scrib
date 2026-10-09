@@ -533,6 +533,21 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(changed, integrate.CSS + integrate.CARD + integrate.BRIDGE + "other worlds preserved")
         self.assertEqual(changed, integrate.update_selector(changed))
 
+    def test_subtitle_selector_upgrades_atomically_and_keeps_other_worlds(self):
+        surrounding = '<a href="/sutura/">Sutura</a>' + integrate.BRIDGE
+        source = integrate.SUBTITLE_CSS + integrate.SUBTITLE_CARD + surrounding
+        changed = integrate.update_selector(source)
+        self.assertEqual(changed, integrate.CSS + integrate.CARD + surrounding)
+        self.assertEqual(changed, integrate.update_selector(changed))
+        self.assertIn('world-scrib-stage', integrate.CARD)
+        self.assertIn('prefers-reduced-motion: reduce', integrate.CSS)
+        self.assertIn('scrib-world-reveal .5s ease-out 1', integrate.CSS)
+        self.assertNotIn('infinite', integrate.CSS)
+        self.assertNotIn('filter: blur', integrate.CSS)
+        for drift in (source.replace('gap: 12px', 'gap: 13px'), source + integrate.SUBTITLE_CARD):
+            with self.assertRaises(ValueError):
+                integrate.update_selector(drift)
+
     def test_drift_fails_closed(self):
         with self.assertRaises(ValueError):integrate.entry_html("changed portal")
 

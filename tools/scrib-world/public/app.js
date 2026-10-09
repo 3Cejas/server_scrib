@@ -47,12 +47,18 @@
     restore:'<path d="M3 10a9 9 0 1 1 2 9M3 4v6h6M12 7v5l3 2"/>',
     copy:'<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>',
     print:'<path d="M6 8V3h12v5M6 17H3V8h18v9h-3M6 14h12v7H6Z"/>',
-    prev:'<path d="m15 5-7 7 7 7"/>', next:'<path d="m9 5 7 7-7 7"/>'
+    prev:'<path d="m15 5-7 7 7 7"/>', next:'<path d="m9 5 7 7-7 7"/>',
+    wallet:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M16 13h5v4h-5Z"/>',
+    document:'<path d="M14 2H5v20h14V7ZM14 2v5h5M8 12h8M8 16h8"/>',
+    check:'<path d="m4 12 5 5L20 6"/>',
+    close:'<path d="m6 6 12 12M18 6 6 18"/>',
+    send:'<path d="m22 2-7 20-4-9-9-4 20-7ZM11 13 22 2"/>',
+    refresh:'<path d="M20 8a9 9 0 0 0-15-3L2 8M2 2v6h6M4 16a9 9 0 0 0 15 3l3-3M22 22v-6h-6"/>'
   };
   const icon = name => `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
   const btn = (action, label, id = "", css = "") => {
-    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next","home-month-prev":"prev","home-month-next":"next"})[action];
-    const only = symbol && !["archive","restore"].includes(action);
+    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next","home-month-prev":"prev","home-month-next":"next","business-settlement":"edit","business-person":"wallet","business-billing":"edit","business-invoice":"document","business-agreement-view":"document","business-copy":"copy","business-review":"check","business-revoke":"close","business-send-links":"send","business-refresh":"refresh"})[action];
+    const only = symbol && !["archive","restore"].includes(action) && !action.startsWith('business-');
     const name = action.endsWith("month-prev") ? "Mes anterior" : action.endsWith("month-next") ? "Mes siguiente" : label;
     return `<button type="button" class="button ${css}${only ? " icon-only" : ""}" data-action="${esc(action)}" data-id="${esc(id)}"${symbol ? ` aria-label="${esc(name)}" title="${esc(name)}"` : ""}>${symbol ? icon(symbol) : ""}${only ? "" : label}</button>`;
   };
@@ -75,7 +81,7 @@
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
   const profile = window.ScribPersonProfile({esc,roles:()=>state?.personRoles});
   const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
-  const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage});
+  const business = window.ScribBusiness({state:()=>state,item,active,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage,niceDate,hour,eventInactive});
   const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage,dialog});
   const isAdmin=()=>state?.user.role==='admin';
   const documents = window.ScribDocuments({esc,request,openDialog,isAdmin});
@@ -163,10 +169,13 @@
   }
   function eventCard(event) {
     const p = progress(event.boardId);
-    const completed = event.status === 'completed' ? ' is-completed' : '';
+    const completed = eventInactive(event) ? ' is-completed' : '';
     const link = `<a class="event-card-link" href="#event/${esc(event.id)}" aria-label="Abrir ${event.eventType === 'rehearsal' ? 'ensayo' : 'bolo'} ${esc(event.title)} · ${esc(niceDate(event.start))}">`;
     if(event.eventType === "rehearsal") return `<article class="panel event-card${completed}">${link}<p class="eyebrow">◷ ENSAYO</p><h3>${esc(event.title)}</h3><p>${esc(dateTime(event.start))} — ${esc(hour(event.end))}</p><p class="muted">⌖ ${esc(event.venue || "Lugar pendiente")} · ${esc(EVENT_STATUS[event.status])}</p><span class="event-enter" aria-hidden="true">Ver ensayo ↗</span></a></article>`;
-    return `<article class="panel event-card${completed}">${link}<div class="service-top"><span class="event-date">${esc(niceDate(event.start,false))} · ${esc(hour(event.start))}</span>${badge(EVENT_STATUS[event.status],event.status === "confirmed" ? "green" : "gold")}</div><h3>${esc(event.title)}</h3><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
+    return `<article class="panel event-card${completed}">${link}<div class="event-card-heading"><h3>${esc(event.title)}</h3>${badge(EVENT_STATUS[event.status],completed ? 'inactive' : event.status === "confirmed" ? "green" : "gold")}</div><p class="event-date"><time datetime="${esc(event.start)}">${esc(niceDate(event.start))} · ${esc(hour(event.start))}</time></p><p class="venue">⌖ ${esc([event.venue,event.city].filter(Boolean).join(" · ") || "Lugar pendiente")}</p><div class="summary"><span>Preparación</span><strong>${p.done}/${p.total} · ${p.percent}%</strong></div>${progressHtml(p,"progress-gold")}<span class="event-enter" aria-hidden="true">Ver bolo ↗</span></a>${event.boardId ? `<a class="button small event-task-link" href="#board/${esc(event.boardId)}">Abrir tareas ↗</a>` : ""}</article>`;
+  }
+  function eventInactive(event) {
+    return ['completed','cancelled'].includes(event.status) || event.start.slice(0,10) < today();
   }
   function homeCalendarDays(value) {
     const first = new Date(value + "-01T12:00:00Z");
@@ -187,11 +196,11 @@
     const cells = homeCalendarDays(homeMonth).map(day=>{
       const events = groups.get(day) || [];
       const label = niceDate(day) + (events.length ? ` · ${events.length} ${events.length === 1 ? 'evento' : 'eventos'}` : ' · Sin eventos');
-      const marks = events.slice(0,3).map(e=>`<i class="home-calendar-dot ${e.eventType === 'rehearsal' ? 'rehearsal' : 'show'}${e.status === 'cancelled' ? ' cancelled' : ''}" aria-hidden="true"></i>`).join("");
+      const marks = events.slice(0,3).map(e=>`<i class="home-calendar-dot ${e.eventType === 'rehearsal' ? 'rehearsal' : 'show'}${eventInactive(e) ? ' inactive' : ''}${e.status === 'cancelled' ? ' cancelled' : ''}" aria-hidden="true"></i>`).join("");
       return `<button type="button" class="home-calendar-day${day.slice(0,7) !== homeMonth ? ' outside' : ''}${events.length ? ' has-events' : ''}${day === current ? ' today' : ''}" data-action="home-calendar-day" data-id="${day}" aria-label="${esc(label)}" aria-pressed="${day === homeDay}"><time datetime="${day}"${day === current ? ' aria-current="date"' : ''}>${Number(day.slice(8))}</time><span class="home-calendar-marks" aria-hidden="true">${marks}${events.length > 3 ? `<small>+${events.length-3}</small>` : ''}</span></button>`;
     }).join("");
     const selected = homeDay ? groups.get(homeDay) || [] : [];
-    return `<aside class="panel home-calendar" aria-label="Calendario compacto de bolos y ensayos"><div class="home-calendar-head"><p class="eyebrow">EN EL CALENDARIO</p><a class="tiny" href="#events">Ampliar ↗</a></div><h3>${esc(title)}</h3><div class="home-calendar-controls">${btn('home-month-prev','Mes anterior','','small')}${btn('home-month-today','Hoy','','small')}${btn('home-month-next','Mes siguiente','','small')}</div><div class="home-calendar-week" aria-hidden="true">${['L','M','X','J','V','S','D'].map(x=>`<span>${x}</span>`).join('')}</div><div class="home-calendar-grid">${cells}</div><div class="home-calendar-legend"><span><i class="home-calendar-dot show" aria-hidden="true"></i>Bolo</span><span><i class="home-calendar-dot rehearsal" aria-hidden="true"></i>Ensayo</span></div><div class="home-calendar-agenda" aria-live="polite">${homeDay ? `<p class="tiny">${esc(niceDate(homeDay))}</p>${selected.length ? selected.map(e=>`<a href="#event/${esc(e.id)}" class="home-calendar-entry${e.status === 'cancelled' ? ' cancelled' : ''}"><i class="home-calendar-dot ${e.eventType === 'rehearsal' ? 'rehearsal' : 'show'}" aria-hidden="true"></i><span><strong>${esc(e.title)}</strong><small>${esc(hour(e.start))} · ${e.eventType === 'rehearsal' ? 'Ensayo' : 'Bolo'} · ${esc(EVENT_STATUS[e.status])}</small></span></a>`).join('') : '<p class="muted tiny">No hay bolos ni ensayos este día.</p>'}` : '<p class="muted tiny">Toca un día para ver sus bolos y ensayos.</p>'}</div></aside>`;
+    return `<aside class="panel home-calendar" aria-label="Calendario de bolos y ensayos"><div class="home-calendar-head"><p class="eyebrow">EN EL CALENDARIO</p><a class="tiny" href="#events">Ampliar ↗</a></div><h3>${esc(title)}</h3><div class="home-calendar-controls">${btn('home-month-prev','Mes anterior','','small')}${btn('home-month-today','Hoy','','small')}${btn('home-month-next','Mes siguiente','','small')}</div><div class="home-calendar-week" aria-hidden="true">${['L','M','X','J','V','S','D'].map(x=>`<span>${x}</span>`).join('')}</div><div class="home-calendar-grid">${cells}</div><div class="home-calendar-legend"><span><i class="home-calendar-dot show" aria-hidden="true"></i>Bolo</span><span><i class="home-calendar-dot rehearsal" aria-hidden="true"></i>Ensayo</span></div><div class="home-calendar-agenda" aria-live="polite">${homeDay ? `<p class="tiny">${esc(niceDate(homeDay))}</p>${selected.length ? selected.map(e=>`<a href="#event/${esc(e.id)}" class="home-calendar-entry${eventInactive(e) ? ' is-completed' : ''}${e.status === 'cancelled' ? ' cancelled' : ''}"><i class="home-calendar-dot ${e.eventType === 'rehearsal' ? 'rehearsal' : 'show'}" aria-hidden="true"></i><span><strong>${esc(e.title)}</strong><small>${esc(hour(e.start))} · ${e.eventType === 'rehearsal' ? 'Ensayo' : 'Bolo'} · ${esc(EVENT_STATUS[e.status])}</small></span></a>`).join('') : '<p class="muted tiny">No hay bolos ni ensayos este día.</p>'}` : '<p class="muted tiny">Toca un día para ver sus bolos y ensayos.</p>'}</div></aside>`;
   }
   function updateHomeCalendarFocus(action, id="") {
     renderPage();
@@ -203,7 +212,6 @@
     const blocked = tasks.filter(x=>x.status === "blocked"), late = tasks.filter(x=>x.status !== "done" && x.due && x.due < today());
     return pageHead("TU EQUIPO. TU ESCENARIO.", `Hola, ${state.user.name.split(" ")[0]}.`, "Aquí se prepara todo lo que luego parece magia.",btn("new-event","＋ Crear bolo","","primary")) +
       `<section class="hero"><div><p class="eyebrow">DEL LABORATORIO AL ESCENARIO</p><h2>Escribir es un juego.<br>Prepararlo, un trabajo en equipo.</h2><p>Bolos, ideas, elenco y tareas en un mismo backstage. Sin perder lo que importa entre mensajes.</p></div><div class="hero-orbit" aria-hidden="true">✳</div></section>
-      <article class="panel service home-game-service"><div class="service-top"><span class="service-icon" aria-hidden="true">▸</span><span id="server-health" class="badge">Comprobando servidor</span></div><div><h2>La web de &lt;SCRI&gt; B</h2><p class="muted">Visita la web pública del espectáculo y consulta el estado del servidor.</p></div><div class="actions"><a href="https://scribshow.es/" target="_blank" rel="noopener noreferrer" class="button">Abrir web ↗</a></div></article>
       <section class="grid cols4 section">${[[upcoming.length,"Bolos por venir","El siguiente acto", "gold"],[mine.length,"Mis tareas abiertas","Asignadas a ti", "violet"],[blocked.length,"Tareas bloqueadas","Lo que necesita ayuda", "coral"],[late.length,"Fuera de plazo","Para poner al día", "cyan"]].map(([n,l,d,c])=>`<div class="panel kpi"><small>${l}</small><span class="number ${c}">${n}</span><p class="tiny">${d}</p></div>`).join("")}</section>
       <section class="section home-schedule"><div class="home-upcoming"><div class="panel-head"><h2>Próximos bolos</h2></div><div class="grid cols3">${upcoming.slice(0,3).map(eventCard).join("") || empty("El siguiente escenario está por venir","Crea un bolo: su tablero aparecerá con todas las tareas de preparación.",btn("new-event","＋ Primer bolo","","primary"))}</div></div>${renderHomeCalendar()}</section>
       <section class="grid cols2 section"><div class="panel"><div class="panel-head"><h2>Tu siguiente paso</h2>${badge(mine.length + " pendientes","violet")}</div>${mine.slice(0,5).map(x=>`<div class="activity-row"><span class="activity-dot">✦</span><div><button class="ticket-title" data-action="edit-ticket" data-id="${x.id}">${esc(x.title)}</button><small>${esc(titleOf(item(x.boardId)))} · ${STATUS[x.status]}</small></div></div>`).join("") || `<p class="muted">No tienes tareas asignadas pendientes. Abre un tablero y elige tu próximo reto.</p>`}</div><div class="panel"><div class="panel-head"><h2>El pulso del equipo</h2>${badge("ACTIVIDAD","cyan")}</div>${state.activity.slice(0,5).map(activityRow).join("")}</div></section>`;
@@ -232,7 +240,7 @@
     const cells = Array.from({length:42},(_,i)=>{
       const date = new Date(start); date.setDate(date.getDate()+i);
       const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
-      return `<div class="calendar-day ${date.getMonth() !== m ? "outside" : ""} ${day === today()?"today":""}"><button type="button" class="icon-button day-number" data-action="new-event-day" data-id="${day}" aria-label="Crear bolo el ${esc(niceDate(day))}">${date.getDate()}</button>${events.filter(x=>x.start.slice(0,10) === day).sort((a,b)=>a.start.localeCompare(b.start)).map(x=>`<button type="button" class="calendar-event ${x.status}" data-action="open-event" data-id="${x.id}">${esc(x.title)}<small>${hour(x.start)} · ${esc(x.venue || "Lugar pendiente")}</small></button>`).join("")}</div>`;
+      return `<div class="calendar-day ${date.getMonth() !== m ? "outside" : ""} ${day === today()?"today":""}"><button type="button" class="icon-button day-number" data-action="new-event-day" data-id="${day}" aria-label="Crear bolo el ${esc(niceDate(day))}">${date.getDate()}</button>${events.filter(x=>x.start.slice(0,10) === day).sort((a,b)=>a.start.localeCompare(b.start)).map(x=>`<button type="button" class="calendar-event ${x.status}${eventInactive(x) ? ' is-completed' : ''}" data-action="open-event" data-id="${x.id}">${esc(x.title)}<small>${hour(x.start)} · ${esc(x.venue || "Lugar pendiente")}</small></button>`).join("")}</div>`;
     });
     return `<div class="calendar"><div class="calendar-controls"><h2>${esc(new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(month))}</h2><div class="actions"><label class="calendar-jump">Ir a mes <input type="month" id="calendar-month" value="${year}-${String(m+1).padStart(2,"0")}" aria-label="Elegir mes y año del calendario"></label>${btn("month-prev","←","","small")}${btn("month-today","Hoy","","small")}${btn("month-next","→","","small")}</div></div><div class="calendar-week">${["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></div>`;
   }
@@ -717,7 +725,7 @@
   function updateHealthUI() {
     for(const [id,value,label] of [["server-health",health.server,"Servidor"]]){
       const node=document.getElementById(id);if(!node)continue;
-      node.className="badge " + (value===null?"":value?"green":"coral");
+      node.className="server-health " + (value===null?"is-checking":value?"is-online":"is-offline");
       node.textContent=state?.demo ? label + " · no consultado" : value===null ? "Comprobando " + label.toLowerCase() : value ? "● " + label + " activo" : "○ " + label + " no disponible";
     }
   }
