@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 3,
   "notes": "Plano orientativo de SCRIB, visto desde público y sin escala. Adaptar circuitos y recorridos a cada sala. Humo hacia público: confirmar dirección, distancias, ventilación y autorización con sala/manual antes de utilizarlo. No se envían órdenes a equipos reales.",
   "elements": [
     {"id":"blue-street","type":"street","label":"Calle azul","color":"blue","x":10,"y":52,"enabled":true,"intensity":75,"channel":"","notes":"Baño lateral azul para la zona del equipo azul."},
@@ -10,24 +11,29 @@
     {"id":"screen","type":"screen","label":"Pantalla de proyección","color":"white","x":50,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Pantalla al fondo. Evitar luz directa sobre la superficie de proyección."},
     {"id":"blue-monitor","type":"monitor","label":"Monitor · azul","color":"blue","x":13,"y":90,"enabled":true,"intensity":100,"channel":"","notes":"Vídeo en el lateral del proscenio, alimentado y conectado al splitter HDMI."},
     {"id":"red-monitor","type":"monitor","label":"Monitor · rojo","color":"red","x":87,"y":90,"enabled":true,"intensity":100,"channel":"","notes":"Vídeo en el lateral del proscenio, alimentado y conectado al splitter HDMI."},
-    {"id":"projector","type":"projector","label":"Proyector","color":"white","x":50,"y":58,"enabled":true,"intensity":100,"channel":"","notes":"HDMI directo desde PC principal; ajustar posición y óptica a la sala."},
-    {"id":"splitter","type":"splitter","label":"Splitter HDMI 1 → 2","color":"warm","x":50,"y":34,"enabled":true,"intensity":100,"channel":"","notes":"Segunda salida del PC principal; señal a ambos monitores. Confirmar salidas/adaptadores y duplicado."},
+    {"id":"projector","type":"projector","label":"Proyector","color":"white","x":50,"y":58,"enabled":true,"intensity":100,"channel":"","notes":"HDMI 1 desde tarjeta de vídeo; ajustar posición y óptica a la sala."},
+    {"id":"splitter","type":"splitter","zone":"technical","label":"Splitter HDMI 1 → 2","color":"warm","x":75,"y":54,"enabled":true,"intensity":100,"channel":"","notes":"Recibe HDMI 2 de la tarjeta de vídeo. Sus dos salidas van exclusivamente a los monitores del proscenio, no a los ordenadores."},
     {"id":"blue-smoke","type":"smoke","label":"Humo · azul","color":"blue","x":12,"y":72,"enabled":true,"intensity":100,"channel":"","notes":"Hacia público, sujeto a validación de sala/manual. Control DMX; canal/dirección por asignar. No dispara humo real."},
     {"id":"red-smoke","type":"smoke","label":"Humo · rojo","color":"red","x":88,"y":72,"enabled":true,"intensity":100,"channel":"","notes":"Hacia público, sujeto a validación de sala/manual. Control DMX; canal/dirección por asignar. No dispara humo real."},
-    {"id":"blue-power","type":"power","label":"Alimentación · azul","color":"blue","x":14,"y":28,"enabled":true,"intensity":100,"channel":"","notes":"Toma/regleta para cargador del portátil y equipos azules. Validar circuito con sala."},
-    {"id":"red-power","type":"power","label":"Alimentación · roja","color":"red","x":86,"y":28,"enabled":true,"intensity":100,"channel":"","notes":"Toma/regleta para cargador del portátil y equipos rojos. Validar circuito con sala."},
-    {"id":"game-computer","type":"computer","zone":"technical","label":"PC principal · videojuego","color":"blue","x":25,"y":25,"enabled":true,"intensity":100,"channel":"","notes":"Videojuego, proyector y señal de monitores. Audio del juego a mesa de sonido."},
-    {"id":"sound-computer","type":"computer","zone":"technical","label":"PC secundario · sonidos","color":"red","x":75,"y":25,"enabled":true,"intensity":100,"channel":"","notes":"Solo sonidos de interpretación; audio independiente a mesa de sonido."},
-    {"id":"sound-desk","type":"console","zone":"technical","label":"Mesa de sonido","color":"warm","x":75,"y":65,"enabled":true,"intensity":100,"channel":"","notes":"Entradas independientes para videojuego e interpretación; confirmar conectores/interfaces."},
-    {"id":"technical-power","type":"power","zone":"technical","label":"Alimentación · técnica","color":"white","x":25,"y":65,"enabled":true,"intensity":100,"channel":"","notes":"Tomas/cargadores para los dos ordenadores y controles; validar distribución con sala."},
-    {"id":"dmx-desk","type":"console","zone":"technical","label":"Control DMX · humo","color":"white","x":50,"y":90,"enabled":true,"intensity":100,"channel":"","notes":"Línea DMX a ambas máquinas; asignación y terminación según equipos. Plano sin disparo real."},
+    {"id":"blue-power","type":"power","label":"Cable de alimentación","color":"blue","x":0,"y":28,"enabled":true,"intensity":100,"channel":"","notes":"Entrada de alimentación por el margen izquierdo. Cable al cargador del portátil y equipos de ese lateral. Validar circuito con sala."},
+    {"id":"red-power","type":"power","label":"Cable de alimentación","color":"red","x":100,"y":28,"enabled":true,"intensity":100,"channel":"","notes":"Entrada de alimentación por el margen derecho. Cable al cargador del portátil y equipos de ese lateral. Validar circuito con sala."},
+    {"id":"game-computer","type":"computer","zone":"technical","label":"PC principal · videojuego","color":"blue","x":25,"y":18,"enabled":true,"intensity":100,"channel":"","notes":"Conectado a tarjeta de vídeo y mando. Audio del juego a mesa de sonido."},
+    {"id":"sound-computer","type":"computer","zone":"technical","label":"PC secundario · sonidos","color":"red","x":75,"y":18,"enabled":true,"intensity":100,"channel":"","notes":"Solo sonidos de interpretación; audio independiente a mesa de sonido."},
+    {"id":"sound-desk","type":"console","zone":"technical","label":"Mesa de sonido","color":"warm","x":75,"y":36,"enabled":true,"intensity":100,"channel":"","notes":"Entradas independientes para videojuego e interpretación. Salidas a los dos altavoces; confirmar conectores e interfaces con la sala."},
+    {"id":"technical-power","type":"power","zone":"technical","label":"Alimentación · técnica","color":"white","x":50,"y":90,"enabled":true,"intensity":100,"channel":"","notes":"Tomas/cargadores para los dos ordenadores, la fuente de la tarjeta de vídeo y controles; validar distribución con sala."},
+    {"id":"dmx-desk","type":"console","zone":"technical","label":"Control DMX · humo","color":"white","x":75,"y":72,"enabled":true,"intensity":100,"channel":"","notes":"Línea DMX a ambas máquinas; asignación y terminación según equipos. Plano sin disparo real."},
     {"id":"actors-blue","type":"desk","zone":"actors","label":"PC · intérpretes azul","color":"blue","x":25,"y":30,"enabled":true,"intensity":100,"channel":"","notes":"Sala de intérpretes, alimentación y red; walkie del equipo en canal 2."},
     {"id":"actors-red","type":"desk","zone":"actors","label":"PC · intérpretes rojo","color":"red","x":75,"y":30,"enabled":true,"intensity":100,"channel":"","notes":"Sala de intérpretes, alimentación y red; walkie del equipo en canal 2."},
-    {"id":"actors-power","type":"power","zone":"actors","label":"Alimentación · intérpretes","color":"white","x":50,"y":75,"enabled":true,"intensity":100,"channel":"","notes":"Tomas/regleta y cargadores para ambos ordenadores de intérpretes."}
+    {"id":"actors-power","type":"power","zone":"actors","label":"Alimentación · intérpretes","color":"white","x":50,"y":75,"enabled":true,"intensity":100,"channel":"","notes":"Tomas/regleta y cargadores para ambos ordenadores de intérpretes."},
+    {"id":"game-controller","type":"controller","zone":"technical","label":"Mando · videojuego","color":"white","x":25,"y":36,"enabled":true,"intensity":100,"channel":"","notes":"Conectar y probar el mando en el PC principal antes de comenzar."},
+    {"id":"video-card","type":"video-card","zone":"technical","label":"Tarjeta de vídeo · 2 HDMI","color":"white","x":25,"y":54,"enabled":true,"intensity":100,"channel":"","notes":"Conexión al PC principal y fuente propia. HDMI 1 al proyector, HDMI 2 al splitter. Validar interfaz y conectores del modelo disponible."},
+    {"id":"video-psu","type":"psu","zone":"technical","label":"Fuente · tarjeta de vídeo","color":"white","x":25,"y":72,"enabled":true,"intensity":100,"channel":"","notes":"Fuente independiente de la tarjeta de vídeo; confirmar tensión y polaridad con el fabricante."},
+    {"id":"left-speaker","type":"speaker","label":"Altavoz · izquierdo","color":"white","x":10,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Salida izquierda de mesa de sonido. Alimentación dibujada para altavoz activo; si la sala usa pasivos, adaptar a amplificación de la sala."},
+    {"id":"right-speaker","type":"speaker","label":"Altavoz · derecho","color":"white","x":90,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Salida derecha de mesa de sonido. Alimentación dibujada para altavoz activo; si la sala usa pasivos, adaptar a amplificación de la sala."}
   ],
   "connections": [
-    {"id":"hdmi-projector","from":"game-computer","to":"projector","type":"hdmi","label":"HDMI 1 · proyector"},
-    {"id":"hdmi-splitter","from":"game-computer","to":"splitter","type":"hdmi","label":"HDMI 2 · splitter"},
+    {"id":"hdmi-projector","from":"video-card","to":"projector","type":"hdmi","label":"HDMI 1 · proyector"},
+    {"id":"hdmi-splitter","from":"video-card","to":"splitter","type":"hdmi","label":"HDMI 2 · splitter"},
     {"id":"hdmi-blue","from":"splitter","to":"blue-monitor","type":"hdmi","label":"HDMI · monitor azul"},
     {"id":"hdmi-red","from":"splitter","to":"red-monitor","type":"hdmi","label":"HDMI · monitor rojo"},
     {"id":"audio-game","from":"game-computer","to":"sound-desk","type":"audio","label":"Audio · videojuego"},
@@ -45,7 +51,15 @@
     {"id":"power-blue-monitor","from":"blue-power","to":"blue-monitor","type":"power","label":"Alimentación · monitor azul"},
     {"id":"power-red-monitor","from":"red-power","to":"red-monitor","type":"power","label":"Alimentación · monitor rojo"},
     {"id":"power-blue-smoke","from":"blue-power","to":"blue-smoke","type":"power","label":"Alimentación · humo azul"},
-    {"id":"power-red-smoke","from":"red-power","to":"red-smoke","type":"power","label":"Alimentación · humo rojo"}
+    {"id":"power-red-smoke","from":"red-power","to":"red-smoke","type":"power","label":"Alimentación · humo rojo"},
+    {"id":"data-video","from":"game-computer","to":"video-card","type":"data","label":"PC principal → tarjeta de vídeo"},
+    {"id":"data-controller","from":"game-controller","to":"game-computer","type":"data","label":"Mando → PC principal"},
+    {"id":"power-video-psu","from":"technical-power","to":"video-psu","type":"power","label":"Alimentación · fuente de vídeo"},
+    {"id":"power-video-card","from":"video-psu","to":"video-card","type":"power","label":"Fuente → tarjeta de vídeo"},
+    {"id":"audio-left","from":"sound-desk","to":"left-speaker","type":"audio","label":"Audio · altavoz izquierdo"},
+    {"id":"audio-right","from":"sound-desk","to":"right-speaker","type":"audio","label":"Audio · altavoz derecho"},
+    {"id":"power-left-speaker","from":"blue-power","to":"left-speaker","type":"power","label":"Alimentación · altavoz izquierdo"},
+    {"id":"power-right-speaker","from":"red-power","to":"right-speaker","type":"power","label":"Alimentación · altavoz derecho"}
   ],
   "walkies": [
     {"id":"presenter","label":"Presentador","channel":"1"},
@@ -61,7 +75,7 @@
     {"id":"actors","category":"Ordenadores","text":"Preparar sala de intérpretes: dos ordenadores, alimentación y red","done":false},
     {"id":"sleep","category":"Ordenadores","text":"Desactivar suspensión, notificaciones y sonidos ajenos al show","done":false},
     {"id":"roles","category":"Videojuego","text":"Abrir roles, comprobar servidor/red, parámetros y nombres del elenco","done":false},
-    {"id":"projection","category":"Vídeo","text":"Conectar HDMI principal a proyector; enfocar y comprobar pantalla","done":false},
+    {"id":"projection","category":"Vídeo","text":"Conectar HDMI 1 de tarjeta de vídeo al proyector; enfocar y comprobar pantalla","done":false},
     {"id":"monitors","category":"Vídeo","text":"Conectar segunda salida al splitter y sus salidas a ambos monitores laterales","done":false},
     {"id":"displays","category":"Vídeo","text":"Verificar adaptadores, alimentación, resolución y duplicado de monitores","done":false},
     {"id":"sound","category":"Sonido","text":"Conectar ambos PCs a entradas independientes de mesa y probar niveles","done":false},
@@ -71,6 +85,9 @@
     {"id":"walkies","category":"Comunicación","text":"Cargar y repartir 4 walkies: presentador canal 1, equipos canal 2, técnica coordina 1/2","done":false},
     {"id":"cables","category":"Sala y seguridad","text":"Asegurar cableado y confirmar que no obstaculiza pasos","done":false},
     {"id":"backup","category":"Videojuego","text":"Preparar red de respaldo, cargadores/adaptadores y copias recuperables","done":false},
-    {"id":"run","category":"Prueba final","text":"Ensayar inicio, musas, fin de juego, resultados, temporizador y teleprompter","done":false}
+    {"id":"run","category":"Prueba final","text":"Ensayar inicio, musas, fin de juego, resultados, temporizador y teleprompter","done":false},
+    {"id":"video-card","category":"Vídeo","text":"Conectar tarjeta de vídeo al PC principal y a su fuente de alimentación independiente","done":false},
+    {"id":"controller","category":"Videojuego","text":"Conectar y probar el mando en el PC principal","done":false},
+    {"id":"speakers","category":"Sonido","text":"Conectar mesa a altavoces y comprobar amplificación, alimentación y niveles con sala","done":false}
   ]
 }

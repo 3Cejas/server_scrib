@@ -23,3 +23,14 @@
   #dialog-content{padding:0!important;overflow:visible!important;height:auto!important}
   .agreement-document{color:#000;font-size:11pt;line-height:1.45}
 }
+.production-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+.production-card{display:grid;grid-template-columns:70px minmax(0,1fr);gap:18px;padding:20px;color:var(--text);text-decoration:none;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,#13212b,#12151e 75%);transition:border-color .15s,transform .15s}
+.production-card:hover{border-color:var(--gold);transform:translateY(-2px)}
+.production-card:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+.production-date{align-self:start;display:grid;justify-items:center;border:1px solid #d5b45b55;background:#e4bc6514;border-radius:12px;padding:12px 5px;color:var(--gold);gap:2px}
+.production-date span{text-transform:uppercase;font-size:.75rem;letter-spacing:.08em}.production-date strong{font-size:1.9rem;line-height:1.2}.production-date small{font-size:.7rem;color:var(--muted)}
+.production-card-body{min-width:0}.production-card-top{display:flex;justify-content:space-between;gap:10px;align-items:center}.production-season{color:var(--gold);font-size:.72rem;letter-spacing:.04em}.production-card-arrow{color:var(--cyan);font-size:1.25rem}
+.production-card h3{font-size:1.1rem;line-height:1.45;margin:10px 0 7px;overflow-wrap:anywhere}.production-venue{color:var(--muted);font-size:.8rem;line-height:1.6;overflow-wrap:anywhere}.production-card-tags{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.production-card-tags span{padding:4px 8px;border-radius:6px;background:#ffffff09;color:var(--muted);font-size:.7rem}
+.production-card-money{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid var(--line);padding-top:12px}.production-card-money small{display:block;color:var(--muted);font-size:.66rem;line-height:1.5}.production-card-money strong{display:block;margin-top:4px;font-size:.95rem;color:var(--cyan)}.production-card-money div+div strong{color:var(--gold)}.production-card-open{display:flex;justify-content:space-between;gap:8px;font-size:.75rem;color:var(--gold);margin-top:16px}
+@media(max-width:450px){.production-card{grid-template-columns:53px minmax(0,1fr);padding:14px;gap:12px}.production-date strong{font-size:1.5rem}.production-card-money{grid-template-columns:1fr;gap:8px}}
+@media(prefers-reduced-motion:reduce){.production-card{transition:none}.production-card:hover{transform:none}}

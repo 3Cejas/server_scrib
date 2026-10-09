@@ -580,11 +580,11 @@ class Store:
                 return json.loads(prior['response'])
             event = self.item(db, event_id, 'event', True) if event_id else None
             row = db.execute('SELECT 1 FROM items WHERE id=?', (ident,)).fetchone()
-            body = dict(plan, eventId=event_id, title='Luminotecnia · ' + (event['title'] if event else 'Plano base'))
+            body = dict(plan, eventId=event_id, title='Técnica · ' + (event['title'] if event else 'Plano base'))
             if row:
                 existing = self.item(db, ident, 'lighting', True)
                 self.check_version(existing, expected)
-                result = self.save(db, existing, body, actor, 'plano de luminotecnia actualizado')
+                result = self.save(db, existing, body, actor, 'plano técnico actualizado')
             else:
                 if expected != 0:
                     raise Problem('El plano ha cambiado. Recarga antes de guardar; tu borrador se conserva.', 409)

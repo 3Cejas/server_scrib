@@ -25,7 +25,7 @@ class LightingTests(unittest.TestCase):
     def test_default_is_complete_with_correct_colors_and_independent_copies(self):
         plan = default_plan()
         nodes = {x['id']:x for x in plan['elements']}
-        self.assertEqual(len(nodes), 23)
+        self.assertEqual(len(nodes), 28)
         self.assertEqual(nodes['blue-street']['color'], 'blue')
         self.assertEqual(nodes['red-street']['color'], 'red')
         self.assertLess(nodes['presenter']['x'], 50)
@@ -39,21 +39,52 @@ class LightingTests(unittest.TestCase):
     def test_technical_topology_checklist_and_old_plan_upgrade(self):
         from lighting import LEGACY
         plan = default_plan()
-        self.assertEqual(len(plan['connections']), 20)
+        self.assertEqual(len(plan['connections']), 28)
         self.assertEqual(len(plan['walkies']), 4)
-        self.assertEqual(len(plan['checklist']), 18)
+        self.assertEqual(len(plan['checklist']), 21)
         connections={c['id']:c for c in plan['connections']}
-        self.assertEqual(connections['hdmi-projector']['from'], 'game-computer')
+        self.assertEqual(connections['hdmi-projector']['from'], 'video-card')
+        self.assertEqual(connections['hdmi-splitter']['from'], 'video-card')
         self.assertEqual(connections['hdmi-red']['from'], 'splitter')
         self.assertEqual(connections['audio-interpretation']['from'], 'sound-computer')
         self.assertEqual(connections['dmx-red']['type'], 'dmx')
         old={'notes':'Conservar notas','elements':[e for e in plan['elements'] if e['id'] in LEGACY]}
         old['elements'][0].update(x=18,label='Edición existente',channel='Circuito 4')
         saved=self.save(old)
-        self.assertEqual(len(saved['elements']),23)
+        self.assertEqual(len(saved['elements']),28)
         self.assertEqual(saved['elements'][0]['x'],18)
         self.assertEqual(saved['elements'][0]['label'],'Edición existente')
         self.assertEqual(saved['notes'],'Conservar notas')
+
+    def test_v2_migration_preserves_edits_progress_and_notes_without_mutating_source(self):
+        from lighting import upgrade, V2, NEW_CONNECTIONS, NEW_CHECKS
+        plan=default_plan();plan.pop('schemaVersion')
+        plan['elements']=[e for e in plan['elements'] if e['id'] in V2]
+        plan['connections']=[c for c in plan['connections'] if c['id'] not in NEW_CONNECTIONS]
+        plan['checklist']=[c for c in plan['checklist'] if c['id'] not in NEW_CHECKS]
+        plan['elements'][0].update(x=18,notes='Adaptación existente',label='Luz personalizada')
+        next(e for e in plan['elements'] if e['id']=='splitter').update(x=50,y=34)
+        plan['connections'][0].update(notes='15 metros',**{'from':'game-computer'})
+        plan['checklist'][0].update(done=True,notes='Validado con sala')
+        source=copy.deepcopy(plan);updated=upgrade(plan);self.assertEqual(source,plan)
+        self.assertEqual(len(updated['elements']),28);self.assertEqual(updated['elements'][0]['x'],18)
+        self.assertEqual(updated['elements'][0]['label'],'Luz personalizada')
+        self.assertEqual(updated['checklist'][0]['notes'],'Validado con sala');self.assertTrue(updated['checklist'][0]['done'])
+        self.assertTrue(all(not c['done'] for c in updated['checklist'] if c['id'] in NEW_CHECKS))
+        self.assertEqual(updated['connections'][0]['from'],'video-card');self.assertEqual(updated['connections'][0]['notes'],'15 metros')
+        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],3)
+        self.assertEqual(next(e for e in saved['elements'] if e['id']=='splitter')['zone'],'technical')
+
+    def test_video_controller_speakers_and_margin_power_topology(self):
+        plan=default_plan();nodes={e['id']:e for e in plan['elements']};links={c['id']:c for c in plan['connections']}
+        self.assertEqual(nodes['blue-power']['x'],0);self.assertEqual(nodes['red-power']['x'],100)
+        for ident,target in [('hdmi-blue','blue-monitor'),('hdmi-red','red-monitor')]:
+            self.assertEqual((links[ident]['from'],links[ident]['to']),('splitter',target))
+        self.assertEqual(links['data-controller']['to'],'game-computer')
+        self.assertEqual(links['data-video']['to'],'video-card')
+        self.assertEqual(links['power-video-card']['from'],'video-psu')
+        self.assertEqual(links['audio-left']['to'],'left-speaker');self.assertEqual(links['audio-right']['to'],'right-speaker')
+        self.save(plan)
 
     def test_checklist_and_connection_notes_persist_and_cannot_rewire_devices(self):
         plan=default_plan();plan['checklist'][0]['done']=True

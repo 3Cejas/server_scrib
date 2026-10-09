@@ -11,7 +11,7 @@
   const STATUS = {todo: "TO DO", progress: "EN PROGRESO", blocked: "BLOQUEADA", done: "COMPLETADAS"};
   const PRIORITY = {low: "Baja", normal: "Normal", high: "Alta", urgent: "Urgente"};
   const EVENT_STATUS = {pending: "Por confirmar", confirmed: "Confirmado", completed: "Realizado", cancelled: "Cancelado"};
-  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto",lighting:"Plano de luminotecnia"};
+  const KIND = {ticket: "Tarea", board: "Tablero", event: "Bolo", person: "Elenco", template: "Plantilla", availability: "Encuesta", inventory:"Objeto",lighting:"Plano técnico"};
   const TEAM_ROLES=new Set(['Escritura','Interpretación']);
   const REQUIRED_CAST=[['Escritura','blue'],['Escritura','red'],['Interpretación','blue'],['Interpretación','red'],['Presentador','general'],['Técnica','general'],['Jurado','general']];
   const main = document.querySelector("#main");
@@ -127,7 +127,7 @@
     const [page = "home", id] = route();
     const nav = page === "archive" ? "boards" : page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
-    document.querySelector("#breadcrumb").textContent = ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",lighting:"LUMINOTECNIA",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"COMUNICACIÓN",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
+    document.querySelector("#breadcrumb").textContent = ({home:"INICIO", events:"BOLOS Y CALENDARIO",availability:"DISPONIBILIDAD",poll:titleOf(item(id)), boards:"TAREAS", board:titleOf(item(id)),event:titleOf(item(id)),people:"ELENCO",inventory:"INVENTARIO",lighting:"TÉCNICA",materials:"MATERIALES",material:"MATERIALES",finance:"GESTIÓN Y TEMPORADAS",messages:"COMUNICACIÓN",templates:"PLANTILLAS",archive:"ARCHIVO"}[page] || "INICIO").toUpperCase();
     let content;
     if (page === "events") content = renderEvents();
     else if (page === "availability") content = polls.list();
@@ -284,7 +284,7 @@
   }
   function renderTemplates() {
     return pageHead("NO VOLVER A EMPEZAR DE CERO","Plantillas de tareas","Al crear un bolo, se copian sus tareas en TO DO. Editar una plantilla no modifica funciones ya creadas.",btn("new-template","＋ Nueva plantilla","","primary")) +
-      `<div class="grid cols3">${active("template").map(t=>`<article class="panel template-card"><p class="eyebrow">${t.id === "default-template" ? "TU LISTA ORIGINAL" : "LISTA PERSONALIZADA"}</p><h2>${esc(t.title)}</h2><p class="muted">${t.tasks.length} tareas · ${[...new Set(t.tasks.flatMap(x=>x.labels))].map(x=>esc(x)).join(" / ")}</p><div class="actions">${btn("edit-template","Ver / editar tareas",t.id)}${btn("duplicate-template","Duplicar",t.id,"small")}</div></article>`).join("")}</div><div class="notice section">La lista incluye preparar el acceso a los ordenadores. No guardes contraseñas reales en tickets ni comentarios.</div>`;
+      `<div class="grid cols3">${active("template").map(t=>`<article class="panel template-card"><p class="eyebrow">${t.id === "default-template" ? "TU LISTA ORIGINAL" : "LISTA PERSONALIZADA"}</p><h2>${esc(t.title)}</h2><p class="muted">${t.tasks.length} tareas · ${[...new Set(t.tasks.flatMap(x=>x.labels))].map(x=>esc(x)).join(" / ")}</p><div class="actions">${btn("edit-template","Ver / editar tareas",t.id)}${btn("duplicate-template","Duplicar",t.id,"small")}</div></article>`).join("")}</div>`;
   }
   function personHistory(p, compact=false) {
     const shows=p.participations || [];
@@ -638,6 +638,7 @@
   document.addEventListener('pointercancel',event=>lighting.pointerUp(event));
   document.addEventListener('lostpointercapture',event=>lighting.pointerUp(event));
   document.addEventListener('keydown',event=>lighting.keydown(event));
+  document.addEventListener('focusout',event=>lighting.focusout(event));
   window.addEventListener('beforeunload',event=>{if(lighting.hasDraft()){event.preventDefault();event.returnValue='';}});
   window.addEventListener("hashchange",()=>{polls.invalidate();filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
 

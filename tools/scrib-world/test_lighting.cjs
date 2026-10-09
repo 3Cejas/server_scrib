@@ -5,7 +5,7 @@ function setup() {
   const calls=[],toasts=[],nodes={},state={lightingDefaults:defaults(),items:[{kind:'event',id:'leon',title:'León <7 noviembre>',start:'2026-11-07'}]};
   let updates=0,answer=true,saveReply=null,refreshError=false;
   const element=()=>({innerHTML:'',textContent:'',dataset:{},querySelectorAll:()=>[],querySelector:()=>null});
-  for(const id of ['#lighting-svg','#lighting-elements','#lighting-inspector','#lighting-inspector h2','#lighting-intensity','#lighting-status'])nodes[id]=element();
+  for(const id of ['.lighting-workspace','#lighting-svg','#lighting-elements','#lighting-inspector','#lighting-inspector h2','#lighting-intensity','#lighting-status'])nodes[id]=element();
   const context={window:{confirm:()=>answer},document:{querySelector:s=>nodes[s]||null},crypto:{randomUUID:()=> 'test-request-identifier-unique'}};
   vm.createContext(context);vm.runInContext(read('public/lighting.js'),context);
   const app=context.window.ScribLighting({state:()=>state,
@@ -120,6 +120,60 @@ test('old seven-node plan upgrades and a new bolo resets the base checklist only
   state.items.push({kind:'lighting',id:'lighting-base',eventId:'',version:3,...base});
   assert.match(app.render(),/blue-monitor/);
   await app.changeScope({id:'lighting-scope',value:'leon'});await action(app,'lighting-save');
-  assert.equal(calls[0].data.plan.elements.length,23);assert.equal(calls[0].data.plan.elements[0].x,18);
+  assert.equal(calls[0].data.plan.elements.length,28);assert.equal(calls[0].data.plan.elements[0].x,18);
   assert.ok(calls[0].data.plan.checklist.every(c=>!c.done));assert.equal(base.checklist[0].done,true);
+});
+test('diagram shows correct video, controller, speaker endpoints and no redundant color words',async()=>{
+  const {app}=setup();const html=app.render();assert.match(html,/<h1>Técnica<\/h1>/);
+  for(const id of ['game-controller','video-card','video-psu','left-speaker','right-speaker'])assert.match(html,new RegExp('data-lighting-node="'+id+'"'));
+  assert.match(html,/data-from="video-card" data-to="splitter"/);assert.match(html,/data-from="splitter" data-to="blue-monitor"/);
+  await action(app,'lighting-cables','data');assert.match(app.render(),/PC · tarjeta · mando/);
+  const labels=[...html.matchAll(/class="lumi-node-label"[^>]*>([^<]+)</g)].map(m=>m[1]);
+  assert.ok(labels.includes('Calle'));assert.ok(labels.includes('Mesa · escritxr'));assert.ok(!labels.some(l=>/azul|rojo|roja/i.test(l)));
+  assert.match(html,/data-lighting-node="blue-power"/);assert.doesNotMatch(html,/m5-16-13 20h10/);
+});
+test('undo and redo restore a whole cue, checklist, positions and connection notes without writes',async()=>{
+  const {app,calls}=setup();app.render();await action(app,'lighting-cue','black');
+  app.input({dataset:{lightingCheck:'room'},checked:true});
+  app.input({dataset:{connectionNotes:'hdmi-projector'},value:'Cable 20m'});
+  app.input({dataset:{lightingField:'x'},value:'24'});
+  for(let i=0;i<4;i++)await action(app,'lighting-undo');assert.ok(!app.hasDraft());assert.equal(calls.length,0);
+  for(let i=0;i<4;i++)await action(app,'lighting-redo');await action(app,'lighting-save');
+  const plan=calls[0].data.plan;assert.equal(plan.elements[0].x,24);assert.ok(plan.checklist[0].done);
+  assert.equal(plan.connections[0].notes,'Cable 20m');assert.ok(plan.elements.filter(e=>['street','spot','front'].includes(e.type)).every(e=>!e.enabled));
+});
+test('continuous field edits group until blur, new edits invalidate redo and saving keeps undo',async()=>{
+  const {app,calls}=setup();app.render();const node={dataset:{lightingField:'label'},value:'C'};
+  app.input(node);node.value='Calle nueva';app.input(node);
+  await action(app,'lighting-undo');assert.ok(!app.hasDraft());await action(app,'lighting-redo');
+  await action(app,'lighting-save');assert.ok(!app.hasDraft());await action(app,'lighting-undo');assert.ok(app.hasDraft());
+  assert.match(app.render(),/value="Calle azul"/);await action(app,'lighting-redo');assert.ok(!app.hasDraft());
+  app.focusout({target:{matches:()=>true}});node.value='Otra';app.input(node);await action(app,'lighting-undo');
+  app.input({id:'lighting-notes',value:'Edición después de deshacer'});await action(app,'lighting-redo');
+  assert.doesNotMatch(app.render(),/value="Otra"/);await action(app,'lighting-save');assert.equal(calls[1].data.plan.elements[0].label,'Calle nueva');
+});
+test('Ctrl/Cmd undo, Shift-Z and Y redo work on the plan but never steal native field undo',async()=>{
+  for(const [modifier,key,shift] of [['ctrlKey','z',true],['metaKey','z',true],['ctrlKey','y',false],['metaKey','y',false]]){
+    const {app,calls}=setup();app.render();app.input({id:'lighting-notes',value:'Cambio'});let prevented=0;
+    const event={target:{closest:()=>null,matches:()=>false},key:'z',[modifier]:true,preventDefault:()=>{prevented++;}};
+    app.keydown(event);assert.ok(!app.hasDraft());app.keydown({...event,key,shiftKey:shift});assert.ok(app.hasDraft());assert.equal(prevented,2);
+    app.keydown({...event,target:{closest:()=>null,matches:()=>true}});assert.equal(prevented,2);assert.equal(calls.length,0);
+  }
+});
+test('scope switches and hidden workspace do not replay another bolo history',async()=>{
+  const {app,nodes}=setup();app.render();app.input({id:'lighting-notes',value:'Solo base'});
+  await app.changeScope({id:'lighting-scope',value:'leon'});await action(app,'lighting-undo');assert.doesNotMatch(app.render(),/Solo base/);
+  app.input({id:'lighting-notes',value:'Solo León'});delete nodes['.lighting-workspace'];
+  app.keydown({target:{matches:()=>false,closest:()=>null},key:'z',ctrlKey:true,preventDefault:()=>assert.fail('Hidden shortcut')});
+  assert.match(app.render(),/Solo León/);
+});
+test('v2 UI migration keeps connection notes and completed checks and never mutates saved plan',async()=>{
+  const {app,state,calls}=setup();const old=defaults(),added=['game-controller','video-card','video-psu','left-speaker','right-speaker'];
+  old.elements=old.elements.filter(e=>!added.includes(e.id));delete old.schemaVersion;
+  old.connections=old.connections.slice(0,20);old.connections[0].from='game-computer';old.connections[0].notes='Mantener';
+  old.checklist=old.checklist.slice(0,18);old.checklist[0].done=true;old.elements[0].x=18;
+  state.items.push({kind:'lighting',id:'lighting-base',eventId:'',version:2,...old});const snapshot=JSON.stringify(old);
+  app.render();await action(app,'lighting-save');assert.equal(JSON.stringify(old),snapshot);
+  const p=calls[0].data.plan;assert.equal(p.elements.length,28);assert.equal(p.elements[0].x,18);assert.equal(p.connections[0].from,'video-card');
+  assert.equal(p.connections[0].notes,'Mantener');assert.ok(p.checklist[0].done);assert.ok(p.checklist.slice(18).every(c=>!c.done));
 });

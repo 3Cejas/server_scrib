@@ -51,6 +51,27 @@ function balanced(html) {
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 
+test('management uses full-card show links with actual financial totals, calendar date and venue',async()=>{
+  const {app,state,event,responses}=client();
+  responses['/scrib/backstage/api/business/overview']={records:[{type:'settlement',id:event.id,season:'2026 / 2027',days:[{income:100000,expenses:5000,allocations:[{personId:'p1',amount:20000,paid:false},{personId:'p2',amount:30000,paid:true}]},{income:20000,expenses:0,allocations:[{personId:'p1',amount:10000,paid:false}]}]}]};
+  app.business.overview();await flush();let html=app.business.overview();balanced(html);
+  assert.match(html,/<a class="production-card" href="#production\/e1">/);assert.match(html,/2026 \/ 2027/);
+  assert.match(html,/Teatro · León/);assert.match(html,/3 personas/);assert.match(html,/2 días liquidados/);
+  assert.match(html,/1\.?200,00/);assert.match(html,/300,00/);assert.match(html,/>07<\/strong>/);
+  assert.match(html,/noviembre/);const card=html.match(/<a class="production-card"[^>]*>([\s\S]*?)<\/a>/)[1];assert.doesNotMatch(card,/<a\b|<button\b/);
+  event.title='<img src=x>';assert.match(app.business.overview(),/&lt;img src=x&gt;/);
+  state.items.push({...event,id:'rehearsal',eventType:'rehearsal',title:'No mostrar ensayo'});assert.doesNotMatch(app.business.overview(),/No mostrar ensayo/);
+});
+test('management empty and unliquidated cards never invent amounts or lose admin boundaries',async()=>{
+  const {app,state,responses}=client();responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.business.overview();await flush();const html=app.business.overview();balanced(html);
+  assert.match(html,/Liquidación pendiente/);assert.match(html,/Temporada por asignar/);assert.match(html,/Ingresos registrados<\/small><strong>—/);
+  state.items=state.items.filter(e=>e.kind!=='event');assert.match(app.business.overview(),/Todavía no hay bolos/);
+  state.user.role='member';assert.doesNotMatch(app.business.overview(),/production-card/);
+  assert.doesNotMatch(read('app.js'),/La lista incluye preparar el acceso/);
+  assert.match(read('index.html'),/data-nav="lighting"[^>]*>[\s\S]*? Técnica<\/a>/);
+});
+
 test('cross-board dependencies are visible at both ends, safe and reflect completion/deletion',()=>{
   const {app,state}=client();
   state.items.push({id:'bb',kind:'board',title:'Programación <juego>'},{id:'bc',kind:'board',title:'Producción'});

@@ -158,7 +158,7 @@ def generate(store, data, user):
             if 'plan' in data:
                 from server import text
                 plan = normalize(data['plan'], problem, text)
-            heading(title or 'Plano de luminotecnia', 'Escenario, técnica y sala de intérpretes - vista desde el público')
+            heading(title or 'Plano técnico', 'Escenario, vídeo, sonido y sala de intérpretes - vista desde el público')
             story.append(StagePlan(plan,font))
             story.append(PageBreak())
             section('Leyenda del plano')
@@ -279,9 +279,9 @@ def StagePlan(plan,font='ScribSans'):
             from lighting import coordinates
             c.setFillColor(colors.HexColor('#f4f5f9'));c.roundRect(0,10,511,520,8,fill=1,stroke=0)
             c.setStrokeColor(colors.HexColor('#b7c1d0'))
-            c.rect(35,220,430,270,fill=0);c.rect(30,20,215,150,fill=0);c.rect(260,20,215,150,fill=0)
+            c.rect(35,282,430,216,fill=0);c.rect(30,38,215,204,fill=0);c.rect(260,38,215,204,fill=0)
             def point(e):
-                x,y=coordinates(e);return x/2,530-y/2
+                x,y=coordinates(e);return x/2,530-y*.4
             nodes={e['id']:e for e in plan['elements']}
             # Numbered symbols avoid long labels colliding. Full names below the diagram.
             for connection in plan['connections']:
@@ -289,22 +289,35 @@ def StagePlan(plan,font='ScribSans'):
                 a,b=point(nodes[connection['from']]),point(nodes[connection['to']])
                 c.setStrokeColor(colors.HexColor('#2389b0' if connection['type']=='hdmi' else '#369b65'))
                 c.setLineWidth(.7);c.setDash(3,2)
-                p=c.beginPath();p.moveTo(*a);p.lineTo(a[0],(a[1]+b[1])/2);p.lineTo(b[0],(a[1]+b[1])/2);p.lineTo(*b);c.drawPath(p)
+                p=c.beginPath();p.moveTo(*a)
+                source,target=nodes[connection['from']],nodes[connection['to']]
+                if source.get('zone')!=target.get('zone'):
+                    margin=494 if target['x']>50 else 17
+                    p.lineTo(margin,a[1]);p.lineTo(margin,b[1])
+                else:
+                    p.lineTo(a[0],(a[1]+b[1])/2);p.lineTo(b[0],(a[1]+b[1])/2)
+                p.lineTo(*b);c.drawPath(p)
             c.setDash()
             for index,e in enumerate(plan['elements'],1):
                 x,y=point(e)
                 color={'blue':'#1682ae','red':'#d3405c','warm':'#cda548','white':'#5b6380'}[e['color']]
                 c.setFillColor(colors.HexColor(color));c.setStrokeColor(colors.HexColor(color))
                 if e['type']=='screen':c.rect(x-65,y-9,130,18,fill=0)
-                elif e['type'] in ('desk','monitor','computer','console','projector','splitter'):c.roundRect(x-18,y-10,36,20,3,fill=0)
+                elif e['type'] in ('desk','monitor','computer','console','projector','splitter','video-card','psu','controller'):c.roundRect(x-16,y-7,32,14,3,fill=0)
+                elif e['type']=='power':
+                    c.roundRect(x-5,y-5,10,10,2,fill=0)
+                    c.line(x-2,y+5,x-2,y+9);c.line(x+2,y+5,x+2,y+9)
+                    c.line(x,y-5,x,y-9);c.line(x,y-9,x+10,y-9)
+                elif e['type']=='speaker':
+                    c.roundRect(x-9,y-14,18,28,2,fill=0);c.circle(x,y-5,6,fill=0);c.circle(x,y+7,3,fill=0)
                 elif e['type']=='front':
                     for offset in (-45,0,45):c.circle(x+offset,y,8,fill=1)
                 else:c.circle(x,y,11,fill=1)
-                c.setFont(font,8);c.drawCentredString(x,y-23,str(index))
+                c.setFont(font,7);c.drawCentredString(x,y+(15 if e['type']=='power' else -18),str(index))
                 if e['type']=='smoke':
                     c.line(x,y-12,x,y-27);c.line(x,y-27,x-4,y-22);c.line(x,y-27,x+4,y-22)
             c.setFillColor(colors.HexColor('#5e6576'));c.setFont(font,8)
-            c.drawCentredString(255,195,'PÚBLICO / PROSCENIO')
-            c.drawCentredString(137,177,'TÉCNICA');c.drawCentredString(367,177,'SALA DE INTÉRPRETES')
+            c.drawCentredString(255,260,'PÚBLICO / PROSCENIO')
+            c.drawCentredString(137,229,'TÉCNICA');c.drawCentredString(367,229,'SALA DE INTÉRPRETES')
             c.drawCentredString(255,515,'HDMI: azul - DMX: verde - detalles de todas las conexiones a continuación')
     return Drawing()
