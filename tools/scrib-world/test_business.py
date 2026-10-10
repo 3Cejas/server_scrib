@@ -24,6 +24,15 @@ class BusinessTests(unittest.TestCase):
     def agreement(self):
         s=self.settings();self.b.generate({'eventId':self.event['id'],'eventVersion':self.event['version'],'settingsVersion':s['version'],'people':[self.person['id']]},'admin')
         return self.b.agreements(self.event['id'])['agreements'][0]
+    def signed_agreement(self,event=None):
+        event=event or self.event
+        with self.store.connect() as db:s=self.b.record(db,'settings','organizer')
+        if not s['version']:s=self.settings()
+        self.b.generate(dict(eventId=event['id'],eventVersion=event['version'],settingsVersion=s['version'],people=[self.person['id']]),'admin')
+        a=self.b.agreements(event['id'])['agreements'][0]
+        self.b.upload(a['link'].split('/')[-1],{'name':'firmado.pdf','base64':base64.b64encode(b'%PDF-1.7\nsigned test\n%%EOF\n').decode()})
+        self.b.agreement_state({'id':a['id'],'status':'reviewed'},'admin')
+        return a
     def settlement(self,**changes):
         data={'id':self.event['id'],'version':0,'season':'2026–2027','days':[{'date':'2026-11-07','income':'100,00','expenses':'10',
             'allocations':[{'personId':self.person['id'],'amount':'42.35','paid':False}]}],**changes}
@@ -131,6 +140,7 @@ class BusinessTests(unittest.TestCase):
         self.settings();self.settlement();data={'eventId':self.event['id'],'personId':self.person['id'],'date':'2026-11-08'}
         with self.assertRaises(world.Problem):self.b.invoice(data,'admin')
         self.b.save('billing',{'id':self.person['id'],'version':0,'legalName':'Nombre de ensayo','taxId':'PRUEBA','address':'Domicilio de ensayo','vat':'10','withholding':'15','verified':True},'admin')
+        self.signed_agreement()
         r=self.b.invoice(data,'admin');self.assertEqual((r['base'],r['vat'],r['withholding'],r['total']),(4235,424,635,4024));self.assertEqual(r['status'],'draft')
         self.assertTrue(any(x['type']=='invoice' and x['id']==r['id'] for x in self.b.overview()['records']))
     def test_uploads_and_business_in_backup(self):

@@ -85,9 +85,10 @@ class TraceTests(unittest.TestCase):
         agreement=fixture.agreement();fixture.settlement()
         fixture.b.save('billing',{'id':fixture.person['id'],'version':0,'legalName':'Nombre ficticio',
             'taxId':'PRUEBA','address':'Domicilio ficticio','vat':'10','withholding':'15','verified':True},'admin')
-        invoice=fixture.b.invoice({'eventId':fixture.event['id'],'personId':fixture.person['id'],'date':'2026-11-08'},'admin')
         original=b'%PDF-1.7\noriginal signed upload, never rewrite\n%%EOF\n'
         fixture.b.upload(agreement['link'].split('/')[-1],{'name':'firmado.pdf','base64':base64.b64encode(original).decode()})
+        fixture.b.agreement_state(dict(id=agreement['id'],status='reviewed'),'admin')
+        invoice=fixture.b.invoice({'eventId':fixture.event['id'],'personId':fixture.person['id'],'date':'2026-11-08'},'admin')
         upload=fixture.b.agreements(fixture.event['id'])['agreements'][0]['uploads'][0]['id']
         for data in [{'kind':'inventory','ids':[obj['id']]},{'kind':'event','id':fixture.event['id']},
                      {'kind':'lighting'},{'kind':'report','id':'match-123'},{'kind':'agreement','id':agreement['id']},

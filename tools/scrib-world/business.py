@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from seasons import label as season_label, for_date as season_for_date
+from revenue import calculate as calculate_revenue
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS business_records (
@@ -55,6 +56,56 @@ class Business:
         row = db.execute('SELECT * FROM business_records WHERE type=? AND id=?', (kind, ident)).fetchone()
         return dict(json.loads(row['body']), version=row['version']) if row else {'version': 0}
 
+    def event_people(self, db, event):
+        return list(dict.fromkeys([c['personId'] for c in event['cast']] +
+            [a['personId'] for day in self.record(db,'settlement',event['id']).get('days',[]) for a in day['allocations']]))
+
+    def event_roles(self, db, event, person):
+        roles=[c['role'] for c in event['cast'] if c['personId']==person]
+        return list(dict.fromkeys(roles +
+            [part['label'] for day in self.record(db,'settlement',event['id']).get('days',[])
+             for a in day['allocations'] if a['personId']==person for part in a.get('breakdown',[]) if part.get('group')!='cast' or not roles]))
+
+    def settlement_day(self, db, event, day):
+        if not isinstance(day,dict):raise self.problem('Día no válido.')
+        date=self.date(day.get('date',''))
+        if not date:raise self.problem('Falta la fecha de función.')
+        income,expenses=self.money(day.get('income')),self.money(day.get('expenses'))
+        if expenses>income:raise self.problem('Los gastos superan los ingresos.')
+        auto=day.get('mode','manual')=='auto'
+        if day.get('mode','manual') not in ('auto','manual'):raise self.problem('Tipo de reparto no válido.')
+        allowed={p['id'] for p in self.store.all(db,'person')} if auto else set(self.event_people(db,event))
+        entries=day.get('allocations',[])
+        if not isinstance(entries,list) or len(entries)>100:raise self.problem('Reparto no válido.')
+        payment={}
+        for a in entries:
+            if not isinstance(a,dict):raise self.problem('Asignación no válida.')
+            person=self.text(a.get('personId',''),100,True)
+            if person in payment:raise self.problem('Asignación duplicada.')
+            payment[person]=a
+        calculation=calculate_revenue(income-expenses,day.get('rule',{}),day.get('members',{}),self.money,self.problem,allowed) if auto else {}
+        rows=calculation.get('allocations',entries)
+        allocations=[]
+        for a in rows:
+            person=self.text(a.get('personId',''),100,True)
+            if person not in allowed:raise self.problem('La persona del reparto no pertenece al bolo.')
+            p=payment.get(person,{})
+            row={'personId':person,'amount':a['amount'] if auto else self.money(a.get('amount')),
+                 'paid':p.get('paid') is True,'paymentDate':self.date(p.get('paymentDate','')),
+                 'reference':self.text(p.get('reference',''),200)}
+            if auto:row['breakdown']=a['breakdown']
+            if row['paid'] and not row['paymentDate']:raise self.problem('Indica la fecha del pago registrado.')
+            allocations.append(row)
+        if sum(a['amount'] for a in allocations)>income-expenses:raise self.problem('El reparto supera el ingreso neto del día.')
+        return {'date':date,'income':income,'expenses':expenses,'mode':'auto' if auto else 'manual',
+                **{k:calculation[k] for k in ('rule','members','pool','unassigned') if k in calculation},'allocations':allocations}
+
+    def settlement_preview(self, data):
+        with self.store.connect() as db:
+            event=self.store.item(db,data.get('id',''),'event',True)
+            self.store.check_version(event,data.get('eventVersion'))
+            return self.settlement_day(db,event,data.get('day'))
+
     def save(self, kind, data, actor):
         ident = self.text(data.get('id', ''), 100, True)
         with self.store.transaction() as db:
@@ -85,37 +136,22 @@ class Business:
                 days = data.get('days')
                 if not isinstance(days,list) or not 1 <= len(days) <= 60:
                     raise self.problem('Añade entre 1 y 60 días de función.')
-                allowed = {c['personId'] for c in event['cast']}
                 used = set()
                 for day in days:
-                    if not isinstance(day,dict):
-                        raise self.problem('Día no válido.')
-                    date = self.date(day.get('date',''))
+                    result=self.settlement_day(db,event,day)
+                    date = result['date']
                     if not date or date in used:
                         raise self.problem('Falta una fecha o hay días duplicados.')
                     used.add(date)
-                    income, expenses = self.money(day.get('income')), self.money(day.get('expenses'))
-                    if expenses > income:
-                        raise self.problem('Los gastos superan los ingresos. Revisa los importes.')
-                    allocations, people = [], set()
-                    entries = day.get('allocations', [])
-                    if not isinstance(entries,list) or len(entries) > 100:
-                        raise self.problem('Reparto no válido.')
-                    for a in entries:
-                        if not isinstance(a,dict):
-                            raise self.problem('Asignación no válida.')
-                        person = self.text(a.get('personId',''),100,True)
-                        if person not in allowed or person in people:
-                            raise self.problem('Cada persona del reparto debe pertenecer al bolo y aparecer una vez por día.')
-                        people.add(person)
-                        amount = self.money(a.get('amount'))
-                        allocations.append({'personId':person, 'amount':amount, 'paid':a.get('paid') is True,
-                                            'paymentDate': self.date(a.get('paymentDate','')), 'reference':self.text(a.get('reference',''),200)})
-                        if allocations[-1]['paid'] and not allocations[-1]['paymentDate']:
-                            raise self.problem('Indica la fecha del pago registrado.')
-                    if sum(a['amount'] for a in allocations) > income-expenses:
-                        raise self.problem('El reparto supera el ingreso neto del día.')
-                    body['days'].append({'date':date,'income':income,'expenses':expenses,'allocations':allocations})
+                    body['days'].append(result)
+                # Never silently erase a recorded payment through recalculation
+                # or by deleting a day/person. Unmark the payment explicitly first.
+                for day in old.get('days',[]):
+                    for paid in day['allocations']:
+                        if not paid.get('paid'):continue
+                        replacement=next((a for d in body['days'] if d['date']==day['date'] for a in d['allocations'] if a['personId']==paid['personId']),None)
+                        if replacement is None or replacement['amount']!=paid['amount']:
+                            raise self.problem('El reparto cambia un pago registrado. Desmarca ese pago y guarda antes de recalcular o quitarlo.')
             else:
                 raise self.problem('Registro no válido.')
             body.update(updated=self.now(), updatedBy=actor)
@@ -192,11 +228,11 @@ class Business:
                                    link=PUBLIC_ORIGIN+'/scrib-disponibilidad/'+row['token'],uploads=uploads))
             return {'agreements':result}
 
-    def render_agreement(self, event, person, billing, settings, preview=False):
+    def render_agreement(self, event, person, billing, settings, preview=False, roles=None):
         dates=self.event_date(event['start'],event.get('timePending',False))
         if event.get('end') and event['end'][:10] != event['start'][:10]:
             dates += ' — '+self.event_date(event['end'],event.get('timePending',False))
-        roles=' / '.join(dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person.get('id')))
+        roles=' / '.join(roles if roles is not None else dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person.get('id')))
         assigned = roles.split(' / ') if roles else []
         choices = list(dict.fromkeys(['Escritura', 'Interpretación', 'Presentador', 'Técnica', 'Jurado',
             'Dirección', 'Dramaturgia', 'Música', 'Comunicación', 'Montaje y desmontaje técnico'] + assigned))
@@ -227,11 +263,11 @@ class Business:
             db.execute('BEGIN')
             event=self.store.item(db,event_id,'event',True)
             settings=self.record(db,'settings','organizer')
-            people=list(dict.fromkeys(c['personId'] for c in event['cast']))
+            people=self.event_people(db,event)
             previews=[]
             for ident in people:
                 person=self.store.item(db,ident,'person')
-                previews.append({'personId':ident,'name':person['name'],'text':self.render_agreement(event,person,self.record(db,'billing',ident),settings,True)})
+                previews.append({'personId':ident,'name':person['name'],'text':self.render_agreement(event,person,self.record(db,'billing',ident),settings,True,self.event_roles(db,event,ident))})
             if not previews:
                 previews.append({'personId':'','name':'Ejemplo sin elenco asignado','text':self.render_agreement(event,{'name':'[Persona pendiente]'}, {},settings,True)})
             return {'eventTitle':event['title'],'previews':previews,'templateVersion':settings['version'],'eventVersion':event['version'],
@@ -254,7 +290,7 @@ class Business:
             generated=[]
             for person_id in selected:
                 person=self.store.item(db,person_id,'person',True)
-                roles=' / '.join(dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person_id))
+                roles=' / '.join(self.event_roles(db,event,person_id))
                 if not roles:
                     raise self.problem('El destinatario no pertenece al bolo.')
                 # Do not regenerate or revoke silently: signed versions remain immutable.
@@ -262,7 +298,7 @@ class Business:
                 if old:
                     generated.append(old['id']);continue
                 billing=self.record(db,'billing',person_id)
-                rendered=self.render_agreement(event,person,billing,settings)
+                rendered=self.render_agreement(event,person,billing,settings,roles=self.event_roles(db,event,person_id))
                 ident=str(uuid.uuid4());token=self.store.availability.new_token()
                 body={'name':person['name'],'eventTitle':event['title'],'text':rendered,'representative':settings['representative'],
                       'created':self.now(),'templateVersion':settings['version'],'eventVersion':event['version']}
@@ -338,6 +374,9 @@ class Business:
         event_id=self.text(data.get('eventId',''),100,True);person_id=self.text(data.get('personId',''),100,True)
         with self.store.transaction() as db:
             event=self.store.item(db,event_id,'event')
+            agreement=db.execute("SELECT id FROM agreements WHERE event=? AND person=? AND status='reviewed' AND EXISTS (SELECT 1 FROM agreement_uploads WHERE agreement=agreements.id) ORDER BY rowid DESC LIMIT 1",(event_id,person_id)).fetchone()
+            if not agreement:
+                raise self.problem('Antes de preparar la factura, sube y revisa el acuerdo firmado de esta persona para este bolo.')
             settlement=self.record(db,'settlement',event_id);billing=self.record(db,'billing',person_id);settings=self.record(db,'settings','organizer')
             if not settings.get('confirmed') or not billing.get('verified') or not all(billing.get(k) for k in ('legalName','taxId','address')) or billing.get('vat') is None or billing.get('withholding') is None:
                 raise self.problem('Confirma los datos fiscales de la entidad y de esta persona, incluido IVA y retención.')
@@ -345,7 +384,7 @@ class Business:
             for d in settlement.get('days',[]):
                 lines.extend({'date':d['date'],'amount':a['amount']} for a in d['allocations'] if a['personId']==person_id)
             if not lines:raise self.problem('No hay importes asignados a esta persona en el bolo.')
-            roles = list(dict.fromkeys(c['role'] for c in event['cast'] if c['personId'] == person_id))
+            roles = self.event_roles(db,event,person_id)
             if not roles:
                 raise self.problem('Asigna el rol de esta persona en el elenco del bolo antes de preparar su factura.')
             def join(parts):
@@ -363,7 +402,7 @@ class Business:
             vat=int((Decimal(base)*Decimal(billing['vat'])/100).quantize(Decimal(1),rounding=ROUND_HALF_UP))
             withholding=int((Decimal(base)*Decimal(billing['withholding'])/100).quantize(Decimal(1),rounding=ROUND_HALF_UP))
             ident=str(uuid.uuid4())
-            body={'id':ident,'eventId':event_id,'personId':person_id,'eventTitle':event['title'],'issuer':billing,'recipient':settings,
+            body={'id':ident,'agreementId':agreement['id'],'eventId':event_id,'personId':person_id,'eventTitle':event['title'],'issuer':billing,'recipient':settings,
                   'date':self.date(data.get('date','')),'series':self.text(data.get('series','SUTURA'),60),'number':self.text(data.get('number',''),60),
                   'concept':concept,'roles':roles,'lines':lines,'base':base,'vat':vat,'withholding':withholding,'total':base+vat-withholding,'created':self.now(),'status':'draft'}
             if not body['date']:raise self.problem('Indica la fecha del borrador.')

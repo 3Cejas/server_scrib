@@ -8,6 +8,31 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 
 ## Producción y PDFs
 
+- Bolos y ensayos se eliminan con confirmación y control de versión (no se
+  archivan desde su ficha). Los bolos con acuerdos, liquidaciones o partidas se
+  protegen para no perder documentos o trazabilidad. La eliminación es
+  idempotente; borra el plano asociado y desvincula las encuestas, conservando sus
+  respuestas. Los ensayos vinculados deben eliminarse antes que su bolo.
+- La agenda de Bolos agrupa por temporadas; el calendario indica la temporada
+  del mes visible. Julio y agosto se muestran como verano, fuera de septiembre-junio.
+- Reparto automático por día en `revenue.py`: creación 10 % y música 2 % sobre el
+  neto; publicidad y montaje 15 EUR fijos por función si tienen participantes.
+  El fondo restante se divide 5/5/90 entre dirección, dramaturgia activa y elenco
+  + técnica, normalizando solo las categorías activas como la hoja de Drive.
+  Cada categoría se divide a partes iguales con redondeo determinista al céntimo.
+  Derechos sin destinatario quedan sin asignar; nunca se pagan ni se reasignan
+  por inferencia. Personas, porcentajes y fijos son editables por función; el
+  montaje de 20 EUR de la hoja antigua se puede establecer explícitamente.
+  Las liquidaciones existentes permanecen manuales. Recalcular no puede cambiar
+  un importe pagado ni eliminar ese pago sin desmarcarlo y guardar antes.
+- Registrar pago no realiza transferencias. Las facturas nuevas requieren el
+  acuerdo del mismo bolo y persona, firmado, subido y revisado, y guardan su ID.
+  Acuerdos y facturas anteriores no se reescriben. La corrección explícita del
+  domicilio Sutura a 3B se aplica con `correct_sutura_address.apply(store)`; no
+  modifica el resto de datos fiscales ni confirma por sí misma toda la plantilla.
+- Exportación técnica: se materializa el estilo computado en atributos SVG,
+  no estilos inline. Firefox bloquea estos últimos bajo CSP y producía el plano
+  negro; la política de seguridad se conserva sin cambios.
 - Ensayos manuales desde cada bolo, además de los elegidos por disponibilidad.
   Son eventos `rehearsal` asociados por `parentEventId` y se muestran en el calendario.
 - El acuerdo conserva las 14 cláusulas del modelo Imparables 2026 de Drive.
@@ -32,7 +57,7 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 - `POST /scrib/backstage/api/pdf` requiere identidad y CSRF. Inventario, hoja de
   llamada, técnica y memoria llevan el logo; acuerdos/facturas requieren admin.
   El render nunca descarga URLs ni acepta rutas de archivo aportadas por clientes.
-- Todos los PDF generados usan fondo negro y la estética de la cabecera del
+- Los PDF técnicos y de juego usan fondo negro y la estética de la cabecera del
   informe del videojuego: logos originales de SCRIB y Sutura, título blanco y
   línea azul/roja. La marca de agua es el logo de los signos y la pluma, al 5,5%
   de opacidad. El pie lleva iconos vectoriales para redes, web, correo, aviso,
@@ -42,6 +67,8 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   las notas largas fluyen completas a continuación sin truncarse. Fondo negro
   significa mayor consumo de tinta al imprimir. Los PDF firmados que se suben no
   se reescriben ni se alteran: este diseño no afecta a sus firmas existentes.
+  Acuerdos y facturas usan papel blanco, ambos logos y colores azul/rojo de Sutura;
+  las casillas del acuerdo son campos PDF editables.
 - Trazabilidad privada: cada exportación se vincula al usuario autenticado mediante
   una referencia aleatoria y un sello HMAC-SHA-256 en metadatos. El PDF no contiene
   su nombre/usuario; el registro privado `document_exports` guarda identidad, fecha,

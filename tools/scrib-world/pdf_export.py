@@ -46,7 +46,7 @@ def generate(store, data, user, *, agreement_token=None):
     paper = kind in ('invoice', 'agreement')
     ink, muted = (colors.HexColor('#182331'), colors.HexColor('#596577')) if paper else (colors.HexColor('#f4f4f6'), colors.HexColor('#b0b8c7'))
     gold = colors.HexColor('#73521e' if paper else '#f2d777')
-    tones = {'blue': colors.HexColor('#14737f' if paper else '#46f0ff'), 'red': colors.HexColor('#ac3449' if paper else '#ff6b6b'),
+    tones = {'blue': colors.HexColor('#274ea5' if paper else '#46f0ff'), 'red': colors.HexColor('#c41425' if paper else '#ff6b6b'),
              'general': gold}
     styles = getSampleStyleSheet()
     for name in ('Normal', 'Title', 'Heading1', 'Heading2', 'Heading3'):
@@ -59,6 +59,8 @@ def generate(store, data, user, *, agreement_token=None):
     styles['Title'].fontSize = 23
     styles['Title'].leading = 29
     styles['Title'].spaceAfter = 14
+    if kind=='agreement':
+        styles['Title'].textColor=colors.HexColor('#c41425')
     styles['Heading2'].fontSize = 16
     styles['Heading2'].leading = 22
     styles['Heading2'].spaceAfter = 12
@@ -73,7 +75,7 @@ def generate(store, data, user, *, agreement_token=None):
     styles.add(ParagraphStyle('Money', parent=styles['Normal'], alignment=2))
     styles.add(ParagraphStyle('TotalMoney', parent=styles['Heading3'], alignment=2))
     styles.add(ParagraphStyle('AgreementClause', parent=styles['Heading3'], fontSize=10.5,
-                              leading=15, spaceBefore=6, spaceAfter=3, textColor=gold))
+                              leading=15, spaceBefore=6, spaceAfter=3, textColor=colors.HexColor('#274ea5')))
     clean = lambda s: ''.join(c for c in str(s or '').replace('\u2014','-').replace('\u2013','-') if ord(c) < 0x1f000)
     def para(value, style='Normal'):
         return Paragraph(escape(clean(value)).replace('\n', '<br/>'), styles[style])
@@ -83,7 +85,7 @@ def generate(store, data, user, *, agreement_token=None):
         nonlocal choice_number
         choice_number += 1
         match = re.fullmatch(r'\[([X ])\] (.+)', line)
-        return AgreementChoice('participacion_'+str(choice_number), match[2], match[1]=='X', styles['AgreementBody'], ink)
+        return AgreementChoice('participacion_'+str(choice_number), match[2], match[1]=='X', styles['AgreementBody'], colors.HexColor('#274ea5'))
     def heading(value, note=''):
         story.extend([para(value, 'Title')])
         if note:
@@ -480,15 +482,18 @@ def AgreementChoice(name, label, checked, style, color):
             self.label = Paragraph(escape(label), style)
         def wrap(self, width, height):
             self.width = width
-            _, self.label_height = self.label.wrap(max(30, width-22), height)
-            self.height = max(16, self.label_height)
+            _, self.label_height = self.label.wrap(max(30, width-36), height)
+            self.height = max(18, self.label_height)+10
             return width, self.height
         def draw(self):
+            from reportlab.lib.colors import HexColor
+            self.canv.setFillColor(HexColor('#eef2fa'))
+            self.canv.roundRect(0,0,self.width,self.height,5,fill=1,stroke=0)
             self.canv.acroForm.checkbox(name=name, tooltip=label, checked=checked, relative=True,
-                x=0, y=self.height-13, size=12, borderWidth=.8, borderColor=color,
+                x=6, y=self.height-21, size=16, borderWidth=1, borderColor=color,
                 fillColor=__import__('reportlab.lib.colors',fromlist=['white']).white,
                 textColor=color, buttonStyle='check', fieldFlags=0, forceBorder=True)
-            self.label.drawOn(self.canv,22,self.height-self.label_height)
+            self.label.drawOn(self.canv,30,self.height-self.label_height-5)
     return Choice()
 
 

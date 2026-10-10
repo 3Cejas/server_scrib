@@ -78,7 +78,7 @@
   };
   const icon = name => `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
   const btn = (action, label, id = "", css = "") => {
-    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next","home-month-prev":"prev","home-month-next":"next","business-settlement":"edit","business-person":"wallet","business-billing":"edit","business-invoice":"document","business-agreement-view":"document","business-copy":"copy","business-review":"check","business-revoke":"close","business-send-links":"send","business-refresh":"refresh"})[action];
+    const symbol = action.startsWith("edit-") ? "edit" : ({"delete-event":"trash","delete-ticket":"trash",archive:"archive",restore:"restore","duplicate-template":"copy",print:"print","month-prev":"prev","month-next":"next","home-month-prev":"prev","home-month-next":"next","business-settlement":"edit","business-person":"wallet","business-billing":"edit","business-invoice":"document","business-agreement-view":"document","business-copy":"copy","business-review":"check","business-revoke":"close","business-send-links":"send","business-refresh":"refresh"})[action];
     const only = symbol && !["archive","restore"].includes(action) && !action.startsWith('business-');
     const name = action.endsWith("month-prev") ? "Mes anterior" : action.endsWith("month-next") ? "Mes siguiente" : label;
     return `<button type="button" class="button ${css}${only ? " icon-only" : ""}" data-action="${esc(action)}" data-id="${esc(id)}"${symbol ? ` aria-label="${esc(name)}" title="${esc(name)}"` : ""}>${symbol ? icon(symbol) : ""}${only ? "" : label}</button>`;
@@ -249,8 +249,10 @@
   function renderEvents() {
     return pageHead("LA GIRA, BIEN ATADA", "Bolos y calendario", "Funciones y ensayos del elenco, juntos en el calendario. Los ensayos se pueden confirmar desde Disponibilidad. Horarios de Madrid.",btn("new-event","＋ Crear bolo","","primary")) +
       `<div class="toolbar"><div class="segmented" aria-label="Vista de los bolos"><button type="button" data-action="events-calendar" class="${calendarMode === "calendar"?"active":""}">Calendario</button><button type="button" data-action="events-agenda" class="${calendarMode === "agenda"?"active":""}">Agenda</button></div><a class="button small" href="${BASE}api/calendar.ics">↓ Exportar calendario</a></div>` +
-      (calendarMode === "agenda" ? `<div class="grid cols3">${agendaEvents().map(eventCard).join("") || empty("Todavía no hay bolos","Crea tu primera función y prepara el equipo.")}</div>` : renderCalendar());
+      (calendarMode === "agenda" ? seasonalAgenda() : renderCalendar());
   }
+  function seasonHeading(value){const [y,m]=String(value).slice(0,7).split('-').map(Number);if(!y||!m)return 'Fecha pendiente';if(m===7||m===8)return 'Verano '+y;const first=m>=9?y:y-1;return 'Temporada '+String(first%100).padStart(2,'0')+'-'+String((first+1)%100).padStart(2,'0');}
+  function seasonalAgenda(){const groups=new Map();for(const e of agendaEvents()){const key=seasonHeading(e.start);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(e);}return [...groups].map(([season,events])=>`<section class="event-season section"><h2 class="season-heading">${esc(season)}</h2><div class="grid cols3">${events.map(eventCard).join('')}</div></section>`).join('')||empty('Todavía no hay bolos','Crea tu primera función y prepara el equipo.');}
   function renderCalendar() {
     const year = month.getFullYear(), m = month.getMonth(), first = new Date(year,m,1), start = new Date(year,m,1 - (first.getDay()+6)%7);
     const events = active("event");
@@ -259,7 +261,7 @@
       const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
       return `<div class="calendar-day ${date.getMonth() !== m ? "outside" : ""} ${day === today()?"today":""}"><button type="button" class="icon-button day-number" data-action="new-event-day" data-id="${day}" aria-label="Crear bolo el ${esc(niceDate(day))}">${date.getDate()}</button>${events.filter(x=>x.start.slice(0,10) === day).sort((a,b)=>a.start.localeCompare(b.start)).map(x=>`<button type="button" class="calendar-event ${x.eventType==='rehearsal'?'rehearsal':'show'} ${x.status}${eventInactive(x) ? ' is-completed' : ''}" data-action="open-event" data-id="${x.id}">${x.eventType==='rehearsal'?'◷ Ensayo · ':''}${esc(x.title)}<small>${hour(x.start)} · ${esc(x.venue || "Lugar pendiente")}</small></button>`).join("")}</div>`;
     });
-    return `<div class="calendar"><div class="calendar-controls"><h2>${esc(new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(month))}</h2><div class="actions"><label class="calendar-jump">Ir a mes <input type="month" id="calendar-month" value="${year}-${String(m+1).padStart(2,"0")}" aria-label="Elegir mes y año del calendario"></label>${btn("month-prev","←","","small")}${btn("month-today","Hoy","","small")}${btn("month-next","→","","small")}</div></div><div class="calendar-week">${["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></div>`;
+    return `<h2 class="season-heading">${esc(seasonHeading(`${year}-${String(m+1).padStart(2,'0')}-01`))}</h2><div class="calendar"><div class="calendar-controls"><h2>${esc(new Intl.DateTimeFormat("es-ES",{month:"long",year:"numeric"}).format(month))}</h2><div class="actions"><label class="calendar-jump">Ir a mes <input type="month" id="calendar-month" value="${year}-${String(m+1).padStart(2,"0")}" aria-label="Elegir mes y año del calendario"></label>${btn("month-prev","←","","small")}${btn("month-today","Hoy","","small")}${btn("month-next","→","","small")}</div></div><div class="calendar-week">${["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-grid">${cells.join("")}</div></div>`;
   }
   function renderBoards() {
     return pageHead("TODO EL EQUIPO, EN MARCHA", "Tareas", "Tableros para organizar ideas, desarrollo, ensayos y producción.",btn("new-board","＋ Nuevo tablero","","primary")+`<a class="button" href="#archive">↺ Archivo recuperable</a>`) +
@@ -305,11 +307,11 @@
   }
   function renderEvent(id) {
     const event = item(id);
-    if (!event || event.archived) return empty("Este bolo está archivado o no existe","Puedes recuperarlo desde el archivo.",`<a class="button" href="#archive">Ir al archivo</a>`);
+    if (!event || event.archived) return empty("Este bolo no está disponible","Vuelve a los bolos y ensayos.",`<a class="button" href="#events">Ver bolos</a>`);
     if(event.eventType==='rehearsal')return renderRehearsal(event);
     const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${castSlots(event.cast).filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
     return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",eventSeries(event)[0].title,`${seriesDates(event)} · ${EVENT_STATUS[event.status]}`,
-      btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + btn("event-pdf","↓ Hoja de llamada PDF",event.id) + (event.eventType === "rehearsal" ? (event.sourcePollId ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : "") : btn("new-rehearsal","＋ Ensayo manual",event.id)+btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
+      btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn('delete-event',event.eventType==='rehearsal'?'Eliminar ensayo':'Eliminar bolo',event.id,'danger') + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + btn("event-pdf","↓ Hoja de llamada PDF",event.id) + (event.eventType === "rehearsal" ? (event.sourcePollId ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : "") : btn("new-rehearsal","＋ Ensayo manual",event.id)+btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
       `<div class="event-sheet">${seriesLinks(event)}<section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${rehearsalsPanel(event)}
       <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.cast.length?'':`<p class="muted section">Elige quién ocupa cada puesto. Puedes dejar huecos pendientes y completarlos después.</p>`}</section>
@@ -326,7 +328,7 @@
   }
   function renderRehearsal(e){
     const people=[...new Set(e.cast.map(c=>c.personId))];
-    return pageHead('◷ ENSAYO',e.title,dateTime(e.start)+(e.end?' — '+hour(e.end):''),btn('edit-event','Editar ensayo',e.id)+btn('show-calendar','▦ Calendario',e.start.slice(0,10))+(e.parentEventId?`<a class="button" href="#event/${esc(e.parentEventId)}">← Bolo asociado</a>`:''))+
+    return pageHead('◷ ENSAYO',e.title,dateTime(e.start)+(e.end?' — '+hour(e.end):''),btn('edit-event','Editar ensayo',e.id)+btn('delete-event','Eliminar ensayo',e.id,'danger')+btn('show-calendar','▦ Calendario',e.start.slice(0,10))+(e.parentEventId?`<a class="button" href="#event/${esc(e.parentEventId)}">← Bolo asociado</a>`:''))+
       `<section class="panel rehearsal-detail"><div class="event-info"><div class="info-tile"><small>⌖ Lugar</small><strong>${esc(e.venue||'Por confirmar')}</strong><p class="muted">${esc(e.city)}</p></div><div class="info-tile"><small>◷ Horario del ensayo</small><strong>${esc(hour(e.start))}${e.end?' — '+esc(hour(e.end)):''}</strong><p>${esc(niceDate(e.start))}</p></div></div><h2 class="section">Personas convocadas · ${people.length}</h2><div class="rehearsal-people section">${people.map(id=>`<a href="#person/${esc(id)}" class="rehearsal-person">${personPhoto(item(id)||{name:'Ficha archivada'})}${personLabel(id)}</a>`).join('')||'<p class="muted">Aún no hay personas convocadas.</p>'}</div>${e.description?`<h2 class="section">Notas del ensayo</h2><p class="notes section">${esc(e.description)}</p>`:''}</section>`;
   }
   function rehearsalPeople(e){
@@ -427,7 +429,7 @@
     if (!dialog.open) dialog.showModal();
   }
   function formShell(kind, object, body, extra = "") {
-    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${kind!=='person' && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
+    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${!['person','event'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
   }
   function openBoard(id) {
     const b = id ? item(id) : {title:"", description:"", color:"violet"};
@@ -586,6 +588,12 @@
     document.querySelector("#delete-error").textContent = "";
     deleteDialog.showModal();
   }
+  async function deleteEvent(id){const e=item(id);if(saving||!e||e.kind!=='event')return;
+    if(!window.confirm('¿Eliminar definitivamente '+(e.eventType==='rehearsal'?'el ensayo':'el bolo')+' «'+e.title+'»? No se puede deshacer. Los bolos con acuerdos, pagos o partidas guardadas están protegidos.'))return;
+    saving=true;
+    try{await request('delete-event',{id,version:e.version,requestId:crypto.randomUUID(),confirmed:true});dialog.close();state.items=state.items.filter(x=>x.id!==id);location.hash=e.parentEventId?'event/'+e.parentEventId:'events';renderPage();toast('Eliminado definitivamente.');await refresh(false);renderPage();}
+    catch(error){toast(error.message);}finally{saving=false;}
+  }
   async function confirmDelete() {
     if (saving || !pendingDelete || !deleteDialog.open) return;
     const operation = pendingDelete;
@@ -645,6 +653,7 @@
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
     else if(a === "delete-ticket")askDelete(id);
+    else if(a === 'delete-event')await deleteEvent(id);
     else if(a === "ticket-move-prev" || a === "ticket-move-next") {
       const task=item(id),statuses=Object.keys(STATUS),target=statuses[statuses.indexOf(task?.status)+(a.endsWith('prev')?-1:1)];
       if(task&&target) {

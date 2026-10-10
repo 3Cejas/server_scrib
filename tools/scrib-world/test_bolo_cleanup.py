@@ -104,6 +104,7 @@ class DocumentCleanupTests(unittest.TestCase):
         self.fixture.settlement(days=[
             dict(date='2026-11-07',income='100',expenses='0',allocations=[dict(personId=self.fixture.person['id'],amount='10')]),
             dict(date='2026-11-08',income='100',expenses='0',allocations=[dict(personId=self.fixture.person['id'],amount='20')])])
+        self.fixture.signed_agreement(event)
         invoice=self.business.invoice(dict(eventId=event['id'],personId=self.fixture.person['id'],date='2026-11-09'),'admin')
         for word in ('Escritura e Interpretación','Bolo de prueba','Teatro','7 de noviembre de 2026','8 de noviembre de 2026'):
             self.assertIn(word,invoice['concept'])
@@ -175,6 +176,7 @@ class DocumentCleanupTests(unittest.TestCase):
         self.business.save('billing',dict(id=self.fixture.person['id'],version=0,legalName='EMISOR FICTICIO',
             taxId='PRUEBA',address='Domicilio de prueba',vat='10',withholding='15',verified=True),'admin')
         self.fixture.settlement()
+        self.fixture.signed_agreement()
         invoice=self.business.invoice(dict(eventId=self.fixture.event['id'],personId=self.fixture.person['id'],date='2026-11-09'),'admin')
         reader=PdfReader(io.BytesIO(generate(self.store,dict(kind='invoice',id=invoice['id']),dict(role='admin',username='ensayo'))))
         text='\n'.join(p.extract_text() for p in reader.pages)

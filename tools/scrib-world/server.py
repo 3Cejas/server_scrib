@@ -448,7 +448,7 @@ class Store:
                     raise Problem("La operación ya se usó con otros datos.", 409)
                 result = json.loads(prior["response"])
                 if result.get('deleted'):
-                    raise Problem("Esta tarea fue eliminada definitivamente.", 410)
+                    raise Problem("Esta ficha fue eliminada definitivamente.", 410)
                 return result
             body = self.validate(db, kind, data)
             if kind == "event":
@@ -568,6 +568,42 @@ class Store:
                     db.execute('UPDATE requests SET response=? WHERE token=?', (json.dumps(result), receipt['token']))
             self.activity(db, ident, actor, 'tarea eliminada definitivamente')
             db.execute('INSERT INTO requests VALUES(?,?,?,?,?)', (request_id, actor, digest, json.dumps(result), now()))
+            return result
+
+    def delete_event(self, ident, actor, expected, request_id, confirmed=False):
+        if confirmed is not True:raise Problem('Confirma la eliminación definitiva del bolo o ensayo.')
+        if not re.fullmatch(r'[a-zA-Z0-9_-]{16,100}',request_id or ''):raise Problem('Falta el identificador de la operación.')
+        digest=hashlib.sha256(json.dumps({'action':'delete-event','id':ident,'version':expected},sort_keys=True).encode()).hexdigest()
+        with self.transaction() as db:
+            prior=db.execute('SELECT * FROM requests WHERE token=?',(request_id,)).fetchone()
+            if prior:
+                if prior['actor']!=actor or prior['payload_hash']!=digest:raise Problem('La operación ya se usó con otros datos.',409)
+                return json.loads(prior['response'])
+            event=self.item(db,ident,'event');self.check_version(event,expected)
+            if (db.execute('SELECT 1 FROM agreements WHERE event=?',(ident,)).fetchone() or
+                db.execute('SELECT 1 FROM match_reports WHERE event=?',(ident,)).fetchone() or
+                any(r['id']==ident and r['type']=='settlement' or json.loads(r['body']).get('eventId')==ident
+                    for r in db.execute('SELECT * FROM business_records'))):
+                raise Problem('Este bolo tiene acuerdos, pagos o partidas guardadas. No se puede eliminar sin perder su trazabilidad.',409)
+            children=[e for e in self.all(db,'event') if e.get('parentEventId')==ident]
+            if children:raise Problem('Elimina primero los ensayos vinculados a este bolo.',409)
+            # Release the confirmed poll slot so it can be scheduled again; keep
+            # availability replies and links, not a dangling rehearsal pointer.
+            for poll in self.all(db,'availability'):
+                confirmed={k:v for k,v in poll.get('confirmed',{}).items() if v!=ident}
+                changes={}
+                if confirmed!=poll.get('confirmed',{}):changes['confirmed']=confirmed
+                if poll.get('eventId')==ident:changes['eventId']=''
+                if changes:self.save(db,poll,changes,actor,'bolo o ensayo eliminado del calendario')
+            targets=[ident]+[x['id'] for x in self.all(db,'lighting') if x.get('eventId')==ident]
+            for target in targets:db.execute('DELETE FROM items WHERE id=?',(target,))
+            result={'id':ident,'kind':'event','deleted':True}
+            for receipt in db.execute('SELECT token,response FROM requests').fetchall():
+                body=json.loads(receipt['response'])
+                if isinstance(body,dict) and (body.get('id') in targets or body.get('eventId')==ident):
+                    db.execute('UPDATE requests SET response=? WHERE token=?',(json.dumps(result),receipt['token']))
+            self.activity(db,ident,actor,'ensayo eliminado definitivamente' if event.get('eventType')=='rehearsal' else 'bolo eliminado definitivamente')
+            db.execute('INSERT INTO requests VALUES(?,?,?,?,?)',(request_id,actor,digest,json.dumps(result),now()))
             return result
 
     def save_lighting(self, data, actor):
@@ -1083,6 +1119,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, file.read_bytes(), "image/" + ("jpeg" if file.suffix == ".jpg" else file.suffix[1:]))
                 if route == 'logo.png':
                     return self.reply(200, (ROOT / 'assets' / 'scrib-world-logo.png').read_bytes(), 'image/png')
+                if route == 'sutura-logo.png':
+                    return self.reply(200,(ROOT/'assets/sutura-document-logo.png').read_bytes(),'image/png')
                 if route == 'tasks.css':
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
                 if route == 'export.js':
@@ -1125,6 +1163,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise Problem('Gestión reservada a administración.',403)
                 if route in ('api/business/settings','api/business/billing','api/business/settlement'):
                     result=store.business.save(route.split('/')[-1],data,actor)
+                elif route == 'api/business/settlement-preview':
+                    result=store.business.settlement_preview(data)
                 elif route == 'api/business/generate':
                     result=store.business.generate(data,actor)
                 elif route == 'api/business/agreement-state':
@@ -1148,6 +1188,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = store.archive(data.get("id"), data["archived"], actor, data.get("version"))
             elif route == "api/delete-ticket":
                 result = store.delete_ticket(data.get('id'), actor, data.get('version'), data.get('requestId'), data.get('confirmed'))
+            elif route == 'api/delete-event':
+                result=store.delete_event(data.get('id'),actor,data.get('version'),data.get('requestId'),data.get('confirmed'))
             elif route == 'api/lighting/save':
                 result = store.save_lighting(data, actor)
             elif route == "api/comment":

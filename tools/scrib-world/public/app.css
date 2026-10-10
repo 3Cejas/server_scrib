@@ -124,3 +124,4 @@
 .rehearsal-person .person-photo,.rehearsal-person .person-placeholder{width:54px;height:54px;flex:0 0 54px;border-radius:12px;font-size:1.1rem;object-fit:cover}
 .rehearsal-person .person-label{min-width:0;overflow-wrap:anywhere}
 .calendar-event.rehearsal{border-left:3px solid var(--violet);background:#b68aff18}
+.season-heading{padding:14px 18px;margin:0 0 20px;border-left:4px solid var(--cyan);background:linear-gradient(90deg,#64e7e210,transparent);border-radius:0 10px 10px 0;font-size:1.1rem;color:var(--cyan)}

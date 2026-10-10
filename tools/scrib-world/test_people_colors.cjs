@@ -352,7 +352,8 @@ test('settlement has photos, initials, role labels, accurate amounts and visual 
   assert.equal((html.match(/class="settlement-person-card"/g)||[]).length,4);
   assert.match(html,/Asignado · base<\/small><strong>200,00/);
   assert.match(html,/Pendiente · base<\/small><strong>0,00/);
-  assert.match(html,/data-action="business-invoice" data-id="e1\|previous"/);
+  assert.match(html,/data-action="business-payments" data-id="e1\|previous"/);
+  assert.doesNotMatch(html,/data-action="business-invoice"/);assert.match(html,/Factura · falta acuerdo firmado/);
   assert.match(html,/data-action="business-person" data-id="p1"/);
   assert.match(html,/noviembre de 2026/);assert.match(html,/19:00/);
   for(const [action,label] of [['business-person','Ficha económica'],['business-invoice','Borrador de factura'],['business-settlement','Ingresos y reparto']]){

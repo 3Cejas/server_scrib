@@ -22,7 +22,7 @@ test('power cables are visible by default, attach to equipment ports and splitte
   for(const id of ['power-blue','power-red','power-sound','power-actors-blue','power-actors-red','power-splitter'])assert.match(html,new RegExp('data-connection="'+id+'"'));
   assert.doesNotMatch(html,/data-connection="power-game"/);assert.match(html,/data-connection="data-video"/);
   for(const id of ['blue-desk','red-desk','actors-blue','actors-red','game-computer','sound-computer'])assert.match(html,new RegExp('data-port-for="'+id+'"'));
-  assert.match(html,/class="lumi-ports"/);assert.match(html,/>IN<\/text>/);
+  assert.match(html,/class="lumi-ports"/);assert.match(html,/M-45 0h32L15-11h30M-13 0l28 11h30/);assert.doesNotMatch(html,/>IN<\/text>/);
   await action(app,'lighting-cables','power');
   const power=app.render();assert.match(power,/data-connection="power-blue"/);assert.doesNotMatch(power,/data-connection="hdmi-blue"/);
 });

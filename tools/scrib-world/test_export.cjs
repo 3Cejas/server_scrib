@@ -43,3 +43,13 @@ test('Android errors restore the button and never fall back to an unusable blob 
  const c=client({...success,blob:async()=>({size:16*1024*1024+1})},{bridge:{savePdf:()=>{throw Error('Do not pass oversized data');}}});
  await assert.rejects(c.run({csrf:'token'},{kind:'report'},c.button),/16 MB/);assert.equal(c.downloads.length,0);
 });
+test('plan capture uses computed SVG presentation attributes, not inline styles blocked by Firefox CSP',async()=>{
+ const node=()=>({attributes:{style:'fill:black'},removeAttribute(k){delete this.attributes[k]},setAttribute(k,v){this.attributes[k]=v},querySelectorAll(){return []},insertBefore(){}});
+ const copy=node(),original={...node(),cloneNode:()=>copy,viewBox:{baseVal:{height:1600}}};let serialized;
+ const context={window:{},getComputedStyle:()=>({getPropertyValue:k=>({fill:'rgb(18, 24, 37)',stroke:'rgb(57, 204, 255)','font-size':'16px'}[k]||'')}),
+  XMLSerializer:class{serializeToString(n){serialized=n;return '<svg/>'}},Image:class{set src(value){if(value)this.onload()}},
+  setTimeout:()=>1,clearTimeout(){},document:{createElementNS:()=>node(),createElement:()=>({getContext:()=>({drawImage(){}}),toDataURL:()=> 'data:image/png;base64,test'})}};
+ vm.runInNewContext(source,context);assert.equal(await context.window.ScribPlanImage(original),'test');
+ assert.equal(serialized.attributes.style,undefined);assert.equal(serialized.attributes.fill,'rgb(18, 24, 37)');
+ assert.equal(serialized.attributes.stroke,'rgb(57, 204, 255)');assert.equal(serialized.attributes['font-size'],'16px');
+});

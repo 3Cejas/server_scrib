@@ -2,9 +2,15 @@
 // Capture only the local SVG: the PDF uses the exact visible plan and cable layer.
 window.ScribPlanImage = async function(source) {
   if(!source)throw new Error('Abre el plano antes de exportarlo.');
-  const copy=source.cloneNode(true),properties=['fill','stroke','stroke-width','stroke-dasharray','stroke-linejoin','stroke-linecap','opacity','fill-opacity','stroke-opacity','font-family','font-size','font-weight','font-style','letter-spacing','text-anchor','paint-order','visibility'];
+  const copy=source.cloneNode(true),properties=['fill','stroke','stroke-width','stroke-dasharray','stroke-linejoin','stroke-linecap','opacity','fill-opacity','stroke-opacity','font-family','font-size','font-weight','font-style','letter-spacing','text-anchor','paint-order','visibility','color','stop-color','stop-opacity'];
   const originals=[source,...source.querySelectorAll('*')],clones=[copy,...copy.querySelectorAll('*')];
-  originals.forEach((node,i)=>{const style=getComputedStyle(node);clones[i].setAttribute('style',properties.map(p=>p+':'+style.getPropertyValue(p).replace(/url\(["']?[^)#]*#([^)'"\s]+)["']?\)/g,'url(#$1)')).join(';'));});
+  // Firefox applies the page's strict CSP to SVG data images. Inline style
+  // attributes are blocked there, producing black fill and no cable strokes.
+  // SVG presentation attributes retain the exact computed paint without
+  // weakening CSP or embedding any CSS/script in the exported image.
+  originals.forEach((node,i)=>{const style=getComputedStyle(node),clone=clones[i];clone.removeAttribute('style');
+    for(const property of properties){const value=style.getPropertyValue(property);if(value)clone.setAttribute(property,value.replace(/url\(["']?[^)#]*#([^)'"\s]+)["']?\)/g,'url(#$1)'));}
+  });
   const height=source.viewBox.baseVal.height;
   if(![1250,1600].includes(height))throw new Error('Formato de plano no válido.');
   copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('width','1000');copy.setAttribute('height',String(height));
