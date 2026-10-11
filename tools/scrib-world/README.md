@@ -79,7 +79,9 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 - Ensayos manuales desde cada bolo, además de los elegidos por disponibilidad.
   Son eventos `rehearsal` asociados por `parentEventId` y se muestran en el calendario.
 - El acuerdo conserva las 14 cláusulas del modelo Imparables 2026 de Drive.
-  Sus PDF tienen ambos logos, títulos de cláusula y firmas junto a aceptación.
+  La vista previa y sus PDF usan solo el logo de Sutura centrado. Los nombres
+  legales se rellenan en mayúsculas sin cambiar las fichas; las firmas tienen
+  dos columnas separadas y espacio libre antes de las líneas, junto a aceptación.
   El enlace personal descarga el mismo PDF maquetado, no la impresión del navegador;
   solo permite descargar su propio acuerdo mientras no haya caducado o sido revocado.
 - Concepto de factura automático: roles, espectáculo, bolo y días liquidados.
@@ -111,8 +113,13 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   las notas largas fluyen completas a continuación sin truncarse. Fondo negro
   significa mayor consumo de tinta al imprimir. Los PDF firmados que se suben no
   se reescriben ni se alteran: este diseño no afecta a sus firmas existentes.
-  Acuerdos y facturas usan papel blanco, ambos logos y colores azul/rojo de Sutura;
+  Acuerdos y facturas usan papel blanco y colores azul/rojo de Sutura;
+  las facturas conservan ambos logos y los acuerdos solo el de Sutura;
   las casillas del acuerdo son campos PDF editables.
+- Las temporadas, los importes generados/pagados/pendientes y los datos fiscales
+  se consultan dentro de la ficha de cada persona, solo para administración.
+  La edición mantiene sus versiones y los datos fiscales no entran en el estado
+  compartido con el elenco. No se modifican acuerdos existentes ni PDF firmados.
 - Trazabilidad privada: cada exportación se vincula al usuario autenticado mediante
   una referencia aleatoria y un sello HMAC-SHA-256 en metadatos. El PDF no contiene
   su nombre/usuario; el registro privado `document_exports` guarda identidad, fecha,

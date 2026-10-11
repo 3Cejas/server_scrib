@@ -133,11 +133,23 @@ class DocumentCleanupTests(unittest.TestCase):
                      dict(role='public',username='enlace-personal'),agreement_token=token)
         reader=PdfReader(io.BytesIO(raw))
         text='\n'.join(p.extract_text() for p in reader.pages)
-        for clause in ('PRIMERA. OBJETO','QUINTA. SISTEMA ECONÓMICO','DECIMOCUARTA. ACEPTACIÓN',self.fixture.person['name']):
+        for clause in ('PRIMERA. OBJETO','QUINTA. SISTEMA ECONÓMICO','DECIMOCUARTA. ACEPTACIÓN',self.fixture.person['name'].upper()):
             self.assertIn(clause,text)
-        self.assertIn('Representante de ensayo',text)
+        self.assertIn('REPRESENTANTE DE ENSAYO',text)
         self.assertNotIn('{entidad}',text)
-        self.assertGreaterEqual(len(reader.pages[0]['/Resources']['/XObject']),2)
+        # Only the centered Sutura logo, not the old SCRIB badge.
+        for page in reader.pages:
+            images=[x.get_object() for x in page['/Resources']['/XObject'].values() if x.get_object().get('/Subtype')=='/Image']
+            self.assertEqual(len(images),1)
+        positions={}
+        def capture(value,cm,tm,*_):
+            if value.strip() in ('LA COMPAÑÍA','LA PERSONA COLABORADORA','REPRESENTANTE DE ENSAYO',self.fixture.person['name'].upper()):
+                positions[value.strip()]=(cm[4]+tm[4],cm[5]+tm[5])
+        reader.pages[-1].extract_text(visitor_text=capture)
+        left,right=positions['REPRESENTANTE DE ENSAYO'],positions[self.fixture.person['name'].upper()]
+        self.assertGreater(right[0]-left[0],250)
+        self.assertAlmostEqual(left[1],right[1],places=2)
+        self.assertGreater(positions['LA COMPAÑÍA'][1]-left[1],90)
         with self.assertRaises(world.Problem):
             generate(self.store,dict(kind='agreement',id=agreement['id']),dict(role='viewer',username='otro'))
         with self.assertRaises(world.Problem):

@@ -50,6 +50,53 @@ function balanced(html) {
   assert.deepEqual(stack,[]);
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+test('person profile embeds seasonal totals and fiscal details, not the old finance popup',async()=>{
+  const {app,responses,nodes}=client();
+  responses['/scrib/backstage/api/business/overview']={records:[
+    {type:'billing',id:'p1',legalName:'Nombre fiscal <ensayo>',taxId:'PRUEBA',address:'Dirección ficticia',iban:'IBAN de ensayo',vat:0,withholding:15},
+    {type:'settlement',id:'e1',season:'2026–2027',days:[{allocations:[{personId:'p1',amount:12500,paid:false},{personId:'p1',amount:7500,paid:true},{personId:'p2',amount:9000,paid:true}]}]}
+  ]};
+  app.renderPerson('p1');await flush();const html=app.renderPerson('p1');balanced(html);
+  assert.match(html,/person-finances/);assert.match(html,/Por temporada/);assert.match(html,/<th>Generado<\/th><th>Pagado<\/th><th>Pendiente/);
+  assert.match(html,/200,00/);assert.match(html,/75,00/);assert.match(html,/125,00/);assert.doesNotMatch(html,/90,00/);
+  assert.match(html,/Nombre fiscal &lt;ensayo&gt;/);assert.match(html,/<dd>0 %<\/dd>/);assert.match(html,/<dd>15 %<\/dd>/);
+  assert.match(html,/data-action="business-billing" data-id="p1"/);
+  assert.doesNotMatch(html,/Solo administración puede consultar|antes de impuestos|· base|data-action="business-person"/);
+  await app.business.action({dataset:{action:'business-person',id:'p1'}});
+  assert.equal(nodes.editor.open,false);assert.match(nodes.main.innerHTML,/person-finances/);
+});
+test('fiscal profile is private even after an admin has already loaded it',async()=>{
+  const {app,state,responses,calls}=client();responses['/scrib/backstage/api/business/overview']={records:[{type:'billing',id:'p1',legalName:'Fiscal privado',taxId:'SECRETO'}]};
+  app.business.personPanel('p1');await flush();assert.match(app.business.personPanel('p1'),/SECRETO/);
+  state.user.role='member';calls.length=0;const html=app.renderPerson('p1');balanced(html);
+  assert.doesNotMatch(html,/person-finances|Fiscal privado|SECRETO|Datos fiscales/);assert.equal(calls.length,0);
+});
+test('empty fiscal profile shows pending fields without inventing rates or generated income',async()=>{
+  const {app,responses}=client();responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.renderPerson('p1');await flush();const html=app.renderPerson('p1');balanced(html);
+  assert.match(html,/Todavía no hay importes asignados/);assert.match(html,/colspan="4"/);
+  assert.equal((html.match(/<dd class="muted">Pendiente<\/dd>/g)||[]).length,6);
+  assert.doesNotMatch(html,/0,00|0 %|antes de impuestos/);
+});
+test('agreement preview centers only Sutura and safely separates uppercase signatures',async()=>{
+  const {app,responses,nodes}=client();
+  nodes['agreement-preview-person']=element();nodes['agreement-preview-text']=element();
+  responses['/scrib/backstage/api/business/agreement-preview/e1']={previews:[{personId:'p1',name:'Ana Sempere',text:'ACUERDO DE COLABORACIÓN\nDe una parte, DAVID VIÑAS MORALES.\nY de otra, ANA SEMPERE.\nFdo. LA COMPAÑÍA                         Fdo. LA PERSONA COLABORADORA\n________________________               __________________________\nDavid Viñas Morales                         Ana Sempere\n'}]};
+  await app.business.action({dataset:{action:'business-agreement-preview',id:'e1'}});
+  const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.equal((html.match(/sutura-logo.png/g)||[]).length,1);assert.doesNotMatch(html,/src="\/scrib\/backstage\/logo.png"/);
+  assert.equal((html.match(/class="agreement-signature"/g)||[]).length,2);
+  assert.match(html,/agreement-signature-space/);assert.match(html,/<p>DAVID VIÑAS MORALES<\/p>/);assert.match(html,/<p>ANA SEMPERE<\/p>/);
+  assert.equal((html.match(/class="agreement-party"/g)||[]).length,2);
+  assert.match(read('business.css'),/justify-content:center/);assert.match(read('business.css'),/height:100px/);
+  responses['/scrib/backstage/api/business/agreement-preview/e1'].previews[0].text='Acuerdo personalizado <seguro>\nFdo. Nombre\nAnexo posterior';
+  await app.business.action({dataset:{action:'business-agreement-preview',id:'e1'}});
+  assert.match(nodes['dialog-content'].innerHTML,/Anexo posterior/);assert.match(nodes['dialog-content'].innerHTML,/&lt;seguro&gt;/);
+});
+test('communication removes only the yellow guidance, retaining explicit compose and sending actions',()=>{
+  const source=read('app.js');assert.doesNotMatch(source,/Elige destinatarios, prepara el mensaje y envíalo/);
+  assert.match(source,/compose-message/);assert.match(source,/previewMessage/);assert.match(source,/whatsapp\/send/);
+});
 function paymentSummary(agreements={},payments={}){
   return {agreements:{total:0,generated:0,missing:0,unsigned:0,signed:0,review:0,reviewed:0,...agreements},
     payments:{recorded:false,assigned:0,paid:0,pending:0,pendingPeople:[],...payments}};

@@ -362,7 +362,7 @@
     const p=item(id);
     if(!p || p.kind!=='person' || p.archived)return empty('Ficha no disponible','Puedes volver al elenco.', '<a class="button" href="#people">← Elenco</a>');
     return pageHead('ELENCO · FICHA PERSONAL',p.name,'',`<a class="button" href="#people">← Elenco</a>${btn('edit-person','Editar ficha',p.id)}`)+
-      `<article class="panel person-detail ${colors.className(p)}"><div class="person-detail-head">${personPhoto(p)}<div><h2>${personLabel(p.id)}</h2>${profile.roleTags(p.roles)}${badge(`${p.participationCount || 0} ${(p.participationCount || 0)===1?'bolo realizado':'bolos realizados'}`,'gold')}</div></div><div class="section">${profile.contacts(p)}</div>${p.bio?`<section class="section"><h2>Sobre ${esc(p.name.split(' ')[0])}</h2><p class="notes section">${esc(p.bio)}</p></section>`:''}<section class="section"><h2>Bolos y participaciones</h2>${personHistory(p)}</section>${business.personLink(p.id)}</article>`;
+      `<article class="panel person-detail ${colors.className(p)}"><div class="person-detail-head">${personPhoto(p)}<div><h2>${personLabel(p.id)}</h2>${profile.roleTags(p.roles)}${badge(`${p.participationCount || 0} ${(p.participationCount || 0)===1?'bolo realizado':'bolos realizados'}`,'gold')}</div></div><div class="section">${profile.contacts(p)}</div>${p.bio?`<section class="section"><h2>Sobre ${esc(p.name.split(' ')[0])}</h2><p class="notes section">${esc(p.bio)}</p></section>`:''}<section class="section"><h2>Bolos y participaciones</h2>${personHistory(p)}</section>${business.personPanel(p.id)}</article>`;
   }
   function personHistory(p, compact=false) {
     const shows=p.participations || [];
@@ -376,7 +376,7 @@
   }
   function renderMessages() {
     return pageHead("COORDINAR SIN PERDER EL TOQUE PERSONAL","Comunicación","Mensajes de WhatsApp personalizados para tu elenco, por persona o para todo el reparto.",btn("compose-message","＋ Preparar mensaje","","primary")) +
-      `<div class="panel service-top"><div>${badge(whatsappStatus?.ready?"CONECTADO":"COMPROBAR CONEXIÓN",whatsappStatus?.ready?"green":"gold")}<p class="muted">${esc(whatsappStatus?.message || "Comprueba la conexión antes de enviar.")}</p></div>${btn("message-history","↻ Actualizar","","small")}</div><div class="notice section">Elige destinatarios, prepara el mensaje y envíalo desde la vista previa. Puedes enviar todos de una vez, sin confirmar cada tarjeta. Los teléfonos y mensajes permanecen en el espacio privado.</div><section class="section grid cols2">${messageHistory.map(d=>`<article class="panel"><p class="eyebrow">${d.expired?"VISTA PREVIA CADUCADA":"VISTA PREVIA"} · ${esc(dateTime(d.created))}</p><h3>${d.people.length} destinatarios${d.eventId?" · " + esc(titleOf(item(d.eventId))):""}</h3><p class="muted">${d.people.filter(p=>p.delivery.status === "sent").length} mensajes enviados</p>${btn("message-draft","Ver mensajes",d.id)}</article>`).join("") || empty("El siguiente mensaje empieza aquí","Prepararlo no envía nada. Puedes elegir un bolo o escribir a personas concretas.")}</section>`;
+      `<div class="panel service-top"><div>${badge(whatsappStatus?.ready?"CONECTADO":"COMPROBAR CONEXIÓN",whatsappStatus?.ready?"green":"gold")}<p class="muted">${esc(whatsappStatus?.message || "Comprueba la conexión antes de enviar.")}</p></div>${btn("message-history","↻ Actualizar","","small")}</div><section class="section grid cols2">${messageHistory.map(d=>`<article class="panel"><p class="eyebrow">${d.expired?"VISTA PREVIA CADUCADA":"VISTA PREVIA"} · ${esc(dateTime(d.created))}</p><h3>${d.people.length} destinatarios${d.eventId?" · " + esc(titleOf(item(d.eventId))):""}</h3><p class="muted">${d.people.filter(p=>p.delivery.status === "sent").length} mensajes enviados</p>${btn("message-draft","Ver mensajes",d.id)}</article>`).join("") || empty("El siguiente mensaje empieza aquí","Prepararlo no envía nada. Puedes elegir un bolo o escribir a personas concretas.")}</section>`;
   }
   function messageRecipients(eventId, personId="") {
     const event=eventId?item(eventId):null;
@@ -559,7 +559,6 @@
       input('color',p.color||'auto','hidden') +
       field("Teléfono",input("phone",p.phone || "","tel",'maxlength="40" placeholder="+34…" autocomplete="tel"')) +
       personHistory(p) +
-      business.personLink(p.id) +
       field("Biografía / notas profesionales",area("bio",p.bio,'maxlength="5000"')) +
       field("Instagram",input("instagram",p.instagram,"text",'placeholder="@tu_usuario o https://instagram.com/…" maxlength="2000"')) + input('website',p.website||'','hidden') + input('otherSocial',p.otherSocial||'','hidden') +
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));

@@ -280,10 +280,10 @@ class Business:
         count = (last-first).days+1
         dates_checks = '\n'.join('[X] '+self.event_date((first+timedelta(days=i)).date().isoformat(), True)
                                  for i in range(count)) if 1 <= count <= 60 else '[X] '+dates
-        fields={'persona':billing.get('legalName') or person['name'],
+        fields={'persona':str(billing.get('legalName') or person['name']).upper(),
                 'documento':billing.get('taxId') or '________________',
                 'entidad':settings.get('name',''),'cif':settings.get('taxId',''),'domicilio':settings.get('address',''),
-                'representante':settings.get('representative',''),'bolo':event['title'],'fecha':dates,
+                'representante':str(settings.get('representative','')).upper(),'bolo':event['title'],'fecha':dates,
                 'lugar':' · '.join(filter(None,[event['venue'],event['city'],event['address']])),
                 'papel':roles,'roles_checks':roles_checks,'fechas_checks':dates_checks,
                 'horario':event['start'][11:16] if not event.get('timePending') and len(event['start'])>10 else 'Por confirmar',

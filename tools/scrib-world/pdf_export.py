@@ -23,7 +23,7 @@ def generate(store, data, user, *, agreement_token=None):
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
                                    TableStyle, Image, PageBreak, KeepTogether,
-                                   BaseDocTemplate, Frame, PageTemplate, NextPageTemplate)
+                                   BaseDocTemplate, Frame, PageTemplate, NextPageTemplate, HRFlowable)
     from reportlab.lib.utils import ImageReader
     from reportlab.lib.pagesizes import A3, A4
 
@@ -71,7 +71,7 @@ def generate(store, data, user, *, agreement_token=None):
     styles.add(ParagraphStyle('Score',fontName='ScribSansBold',fontSize=27,leading=34,
                               textColor=ink,spaceAfter=12))
     styles.add(ParagraphStyle('Check',fontName=font,fontSize=9,leading=13,textColor=ink))
-    styles.add(ParagraphStyle('AgreementBody', parent=styles['Normal'], fontSize=10.5, leading=14))
+    styles.add(ParagraphStyle('AgreementBody', parent=styles['Normal'], fontSize=10.5, leading=14, spaceAfter=6))
     styles.add(ParagraphStyle('Money', parent=styles['Normal'], alignment=2))
     styles.add(ParagraphStyle('TotalMoney', parent=styles['Heading3'], alignment=2))
     styles.add(ParagraphStyle('AgreementClause', parent=styles['Heading3'], fontSize=10.5,
@@ -322,7 +322,7 @@ def generate(store, data, user, *, agreement_token=None):
             lines = document['text'].splitlines()
             standard = lines and lines[0].startswith('ACUERDO DE COLABORACIÓN')
             heading(title or ('Acuerdo de colaboración artística puntual' if standard else 'Acuerdo de colaboración'),
-                    document.get('eventTitle', '') + ' · ' + document['name'])
+                    document.get('eventTitle', '') + ' · ' + document['name'].upper())
             if standard:
                 lines = lines[2:]
             acceptance_index = None
@@ -345,17 +345,22 @@ def generate(store, data, user, *, agreement_token=None):
                         acceptance_index = len(story)
                     story.append(para(line, 'AgreementClause'))
                 else:
+                    if line.startswith('Y de otra'):
+                        story.append(Spacer(1, 12))
                     story.append(para(line, 'AgreementBody'))
             flush_choices()
             if any(line.startswith('Fdo. LA COMPAÑÍA') for line in lines):
-                names = lines[-1].split('                         ', 1)
+                names = re.split(r'\s{2,}', lines[-1].strip(), maxsplit=1)
+                def signature(label, name):
+                    return [para(label, 'AgreementClause'), Spacer(1, 78),
+                            HRFlowable(width='100%', thickness=.7, color=tones['blue']),
+                            Spacer(1, 10), para(str(name).upper(), 'Small')]
                 signatures = Table([[
-                    [para('LA COMPAÑÍA', 'AgreementClause'), Spacer(1, 32),
-                     para(document.get('representative') or names[0], 'Small')],
-                    [para('LA PERSONA COLABORADORA', 'AgreementClause'), Spacer(1, 32),
-                     para(names[-1] if len(names) > 1 else document['name'], 'Small')]]],
-                     colWidths=[255.5,255.5])
-                signatures.setStyle(card_style())
+                    signature('LA COMPAÑÍA', document.get('representative') or names[0]), '',
+                    signature('LA PERSONA COLABORADORA', names[-1] if len(names)>1 else document['name'])]],
+                    colWidths=[235.5,40,235.5])
+                signatures.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
+                    ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
                 closing = story[acceptance_index:] if acceptance_index is not None else []
                 if acceptance_index is not None:
                     del story[acceptance_index:]
@@ -418,17 +423,21 @@ def generate(store, data, user, *, agreement_token=None):
         # Same visual language as the videogame's report: black page, logos at
         # either end of a dark header, white heading and a cyan/red rule.
         canvas.setFillColor(colors.white if paper else colors.HexColor('#0c0c0c'));canvas.rect(0,h-82,w,82,fill=1,stroke=0)
-        if paper:
-            canvas.setFillColor(colors.HexColor('#182331'));canvas.roundRect(36,h-73,62,62,10,fill=1,stroke=0)
-        canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),36,h-73,62,62,mask='auto')
-        if paper:
-            canvas.drawImage(str(ROOT/'assets/sutura-document-logo.png'),w-195,h-58,155,36,preserveAspectRatio=True,mask='auto')
+        if kind == 'agreement':
+            canvas.drawImage(str(ROOT/'assets/sutura-document-logo.png'),(w-240)/2,h-70,240,56,
+                             preserveAspectRatio=True,anchor='c',mask='auto')
         else:
-            canvas.drawImage(str(ROOT/'materials/shared/logo_sutura.png'),w-89,h-66,47,47,preserveAspectRatio=True,mask='auto')
-        canvas.setFont('ScribSansBold',16);canvas.setFillColor(ink)
-        canvas.drawString(111,h-38,labels[kind])
-        canvas.setFont('ScribSansBold',7.8);canvas.setFillColor(muted)
-        canvas.drawString(111,h-57,'PRODUCCIÓN / SUTURA TEATRO')
+            if paper:
+                canvas.setFillColor(colors.HexColor('#182331'));canvas.roundRect(36,h-73,62,62,10,fill=1,stroke=0)
+            canvas.drawImage(str(ROOT/'assets/scrib-world-logo.png'),36,h-73,62,62,mask='auto')
+            if paper:
+                canvas.drawImage(str(ROOT/'assets/sutura-document-logo.png'),w-195,h-58,155,36,preserveAspectRatio=True,mask='auto')
+            else:
+                canvas.drawImage(str(ROOT/'materials/shared/logo_sutura.png'),w-89,h-66,47,47,preserveAspectRatio=True,mask='auto')
+            canvas.setFont('ScribSansBold',16);canvas.setFillColor(ink)
+            canvas.drawString(111,h-38,labels[kind])
+            canvas.setFont('ScribSansBold',7.8);canvas.setFillColor(muted)
+            canvas.drawString(111,h-57,'PRODUCCIÓN / SUTURA TEATRO')
         canvas.setFillColor(tones['blue']);canvas.rect(36,h-85,(w-72)/2,3,fill=1,stroke=0)
         canvas.setFillColor(tones['red']);canvas.rect(w/2,h-85,(w-72)/2,3,fill=1,stroke=0)
         canvas.setStrokeColor(colors.HexColor('#dbe0e6' if paper else '#383838'));canvas.setLineWidth(.5);canvas.line(42,82,w-42,82)

@@ -89,7 +89,7 @@ class BusinessTests(unittest.TestCase):
         preview=self.b.agreement_preview(self.event['id'])
         self.assertTrue(preview['pending'])
         self.assertIn('[Entidad pendiente]',preview['previews'][0]['text'])
-        self.assertIn(self.person['name'],preview['previews'][0]['text'])
+        self.assertIn(self.person['name'].upper(),preview['previews'][0]['text'])
         self.assertNotIn('token',json.dumps(preview))
         self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
         with self.assertRaises(world.Problem):self.b.agreement_preview('missing')
@@ -147,8 +147,18 @@ class BusinessTests(unittest.TestCase):
         saved=self.b.save('billing',dict(id=self.person['id'],version=0,legalName='Nombre fiscal de ensayo',taxId='PRUEBA',address='Domicilio de ensayo',vat='',withholding=''),'admin')
         self.assertFalse(saved['verified']);self.assertIsNone(saved['vat']);self.assertIsNone(saved['withholding'])
         agreement=self.agreement()
-        self.assertIn('Nombre fiscal de ensayo',agreement['text']);self.assertIn('PRUEBA',agreement['text'])
+        self.assertIn('NOMBRE FISCAL DE ENSAYO',agreement['text']);self.assertIn('PRUEBA',agreement['text'])
         self.assertNotIn('Nombre fiscal de ensayo',json.dumps(self.store.snapshot()))
+    def test_agreement_uppercases_both_legal_names_without_changing_private_profiles(self):
+        settings=self.settings()
+        settings=self.b.save('settings',dict(settings,template='{representante}\n{persona}',confirmed=True),'admin')
+        fiscal=self.b.save('billing',dict(id=self.person['id'],version=0,legalName='Ana Sempere',taxId='PRUEBA'),'admin')
+        preview=self.b.agreement_preview(self.event['id'])
+        self.assertEqual(preview['previews'][0]['text'],'REPRESENTANTE DE ENSAYO\nANA SEMPERE')
+        with self.store.connect() as db:
+            self.assertEqual(self.b.record(db,'billing',self.person['id'])['legalName'],fiscal['legalName'])
+            self.assertEqual(self.b.record(db,'settings','organizer')['representative'],'Representante de ensayo')
+        self.assertEqual(self.store.details(self.person['id'])['item']['name'],'Elenco de prueba')
     def test_invoice_still_requires_individual_tax_rates_even_with_signed_agreement(self):
         self.settings();self.settlement();self.signed_agreement()
         payload=dict(id=self.person['id'],version=0,legalName='Persona de ensayo',taxId='PRUEBA',address='Domicilio de ensayo')
@@ -259,7 +269,7 @@ class BusinessHttpTests(BusinessTests):
         self.assertEqual(self.call(path)[0],403)
         status,headers,preview=self.call(path,headers={'X-Scrib-Role':'admin'})
         self.assertEqual(status,200)
-        self.assertIn(self.person['name'],preview['previews'][0]['text'])
+        self.assertIn(self.person['name'].upper(),preview['previews'][0]['text'])
         self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
     def test_bolo_summary_requires_admin_and_has_no_private_document_payload(self):
         path='/scrib/backstage/api/business/summary/'+self.event['id']

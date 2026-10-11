@@ -102,8 +102,9 @@ class TraceTests(unittest.TestCase):
                     content=page.extract_text()
                     self.assertNotIn(reader.metadata['/SCRIBTrace'],content)
                     self.assertNotIn('Ref. SC-',content)
-                    for phrase in ['PRODUCCIÓN / SUTURA TEATRO','@scrib_show','@su.tu.ra','NO DISTRIBUIR','MATERIAL INTERNO']:
+                    for phrase in ['@scrib_show','@su.tu.ra','NO DISTRIBUIR','MATERIAL INTERNO']:
                         self.assertIn(phrase,content)
+                    if data['kind']!='agreement':self.assertIn('PRODUCCIÓN / SUTURA TEATRO',content)
                 trace=verify_pdf(fixture.store,raw)
                 self.assertTrue(trace['verified']);self.assertEqual(trace['exportedBy'],'exportador')
                 self.assertEqual(trace['kind'],data['kind'])
