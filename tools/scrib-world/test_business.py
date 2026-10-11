@@ -74,8 +74,27 @@ class BusinessTests(unittest.TestCase):
         with self.assertRaises(world.Problem):self.b.archive_report(r)
         r=self.report();r['endedAt']=False
         with self.assertRaises(world.Problem):self.b.archive_report(r)
-    def test_settings_require_review(self):
+    def test_settings_require_complete_fields(self):
         with self.assertRaises(world.Problem):self.b.save('settings',{'id':'organizer','version':0},'admin')
+    def test_complete_settings_save_without_confirmation_and_do_not_generate_documents(self):
+        data=dict(self.settings());data.pop('confirmed')
+        saved=self.b.save('settings',data,'admin')
+        self.assertTrue(saved['confirmed'])
+        self.assertEqual(saved['version'],2)
+        self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+        self.assertFalse(list(Path(self.tmp.name).rglob('*.pdf')))
+        self.b.generate(dict(eventId=self.event['id'],eventVersion=self.event['version'],settingsVersion=saved['version'],people=[self.person['id']]),'admin')
+        self.assertEqual(len(self.b.agreements(self.event['id'])['agreements']),1)
+    def test_settings_without_confirmation_still_validate_address_and_version(self):
+        data=dict(self.settings());data.pop('confirmed')
+        for changes in ({'address':''},{'version':0},{'confirmed':'yes'}):
+            with self.assertRaises(world.Problem):self.b.save('settings',dict(data,**changes),'admin')
+        with self.store.connect() as db:self.assertEqual(self.b.record(db,'settings','organizer')['version'],1)
+    def test_explicit_import_draft_stays_pending_until_complete_settings_are_saved(self):
+        data=dict(self.settings(),confirmed=False,address='')
+        saved=self.b.save('settings',data,'admin')
+        self.assertFalse(saved['confirmed'])
+        with self.assertRaises(world.Problem):self.b.generate(dict(eventId=self.event['id'],eventVersion=self.event['version'],settingsVersion=saved['version'],people=[self.person['id']]),'admin')
     def test_agreement_preview_uses_actual_renderer_without_creating_links_or_activity(self):
         s=self.settings()
         before=self.store.snapshot()['revision']

@@ -116,13 +116,13 @@ class Business:
             if kind == 'settings':
                 if ident != 'organizer':
                     raise self.problem('Configuración no válida.')
-                if type(data.get('confirmed')) is not bool:
-                    raise self.problem('Revisa y confirma los datos de la entidad y la plantilla.')
-                confirmed = data['confirmed']
+                confirmed = data.get('confirmed', True)
+                if type(confirmed) is not bool:
+                    raise self.problem('Configuración de la entidad no válida.')
                 body = {k: self.text(data.get(k, ''), limit, k in ('name', 'taxId', 'representative', 'template') or k == 'address' and confirmed)
                         for k, limit in [('name',200), ('taxId',40), ('address',1000), ('representative',200), ('template',22000)]}
-                # Import only known fiscal fields when a source conflict remains.
-                # Draft settings can be previewed but cannot generate documents.
+                # This legacy flag indicates complete settings, not a personal
+                # attestation. Explicit draft imports still cannot generate documents.
                 body['confirmed'] = confirmed
             elif kind == 'billing':
                 self.store.item(db, ident, 'person', True)

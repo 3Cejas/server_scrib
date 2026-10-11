@@ -722,6 +722,23 @@ test('fiscal form saves fields without a personal-confirmation checkbox or confi
   assert.equal(payload.id,'p1');assert.equal(payload.version,1);assert.equal(payload.legalName,'Nombre legal de prueba');assert.ok(!('verified' in payload));
   assert.equal(error.textContent,'');
 });
+test('entity form saves without a review checkbox or a personal attestation',async()=>{
+  const {app,nodes,responses,calls}=client(),form=element(),submit=element(),error=element();
+  form.entries=[['name','Entidad ficticia'],['taxId','PRUEBA'],['address','Domicilio de ensayo'],['representative','Representante ficticio'],['template','Acuerdo {persona}']];
+  form.querySelector=q=>q==='[type=submit]'?submit:q==='.form-error'?error:null;
+  nodes.editor.querySelector=q=>q==='form'?form:null;
+  responses['/scrib/backstage/api/business/overview']={records:[{type:'settings',id:'organizer',version:4,confirmed:false}]};
+  responses['/scrib/backstage/api/business/template']={text:'Plantilla {persona}'};
+  await app.business.action({dataset:{action:'business-settings'}});
+  const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.doesNotMatch(html,/name="confirmed"|He revisado los datos de la entidad/);
+  for(const field of ['name','taxId','address','representative','template'])assert.match(html,new RegExp('name="'+field+'"[^>]*required'));
+  await form.listeners.submit({preventDefault(){}});
+  const payload=JSON.parse(calls.find(c=>c.url==='/scrib/backstage/api/business/settings').options.body);
+  assert.equal(payload.id,'organizer');assert.equal(payload.version,4);assert.equal(payload.template,'Acuerdo {persona}');assert.ok(!('confirmed' in payload));
+  assert.equal(error.textContent,'');assert.equal(nodes.editor.open,false);
+  assert.ok(!calls.some(c=>c.url.endsWith('business/generate')||c.url.endsWith('whatsapp/send')));
+});
 test('every actual cast member has a direct upload action before preparing any agreement',async()=>{
   const {app,responses,calls,state}=client();
   responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};responses['/scrib/backstage/api/business/overview']={records:[]};
