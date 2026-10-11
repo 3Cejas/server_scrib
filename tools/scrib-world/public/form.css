@@ -3,3 +3,9 @@
 @media print{body{background:white;color:black}#form-root{box-shadow:none;border:0;max-width:none}header,footer,.no-print,button,.eyebrow,.description,h1{display:none!important}.agreement-document{color:black;font-size:11pt;padding:0;line-height:1.45}@page{size:A4;margin:18mm}}
 /* A readable, printable agreement on paper; the surrounding portal stays dark. */
 .agreement-document{background:#fff;color:#182331;border:1px solid #dbe0e6;border-radius:12px;padding:24px}
+.brand{display:flex;align-items:center;gap:12px}.brand-logo{display:block;flex:0 0 56px;width:56px;height:56px;object-fit:contain;background:#050505;border-radius:12px;padding:6px}
+.agreement-intro{margin-bottom:24px}.agreement-intro h1{margin:14px 0 18px}.agreement-intro .description{line-height:1.7}
+.agreement-document{margin:24px 0}.agreement-notice{margin:28px 0}
+#print-agreement{max-width:100%;white-space:normal}#agreement-download-error:empty{display:none}
+@media(max-width:480px){.brand{font-size:1.4rem;gap:8px}.brand-logo{flex-basis:48px;width:48px;height:48px}.agreement-document{padding:20px}}
+@media print{.agreement-document{margin:0}.agreement-intro{display:none}}

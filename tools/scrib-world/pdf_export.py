@@ -445,7 +445,7 @@ def generate(store, data, user, *, agreement_token=None):
         for x,icon,label,url in [(42,'instagram','@scrib_show','https://www.instagram.com/scrib_show/'),
                                  (154,'instagram','@su.tu.ra','https://www.instagram.com/su.tu.ra/'),
                                  (254,'web','scribshow.es','https://scribshow.es/'),
-                                 (358,'mail','scribaleatorio@gmail.com','mailto:scribaleatorio@gmail.com')]:
+                                 (358,'mail','suturateatro@gmail.com','mailto:suturateatro@gmail.com')]:
             draw_icon(canvas,icon,x,64,10,tones['blue'])
             canvas.drawString(x+15,66,label)
             canvas.linkURL(url,(x,63,x+15+pdfmetrics.stringWidth(label,'ScribSansBold',7),75),relative=0,thickness=0)

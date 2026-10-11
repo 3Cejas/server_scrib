@@ -353,6 +353,8 @@ class BusinessHttpTests(BusinessTests):
         self.assertEqual(status,200);self.assertEqual(summary['agreements']['missing'],1)
         self.assertNotIn('records',summary);self.assertNotIn('link',summary)
     def test_personal_link_downloads_branded_pdf_without_exposing_other_agreements(self):
+        from pypdf import PdfReader
+        import io
         agreement=self.agreement()
         with self.store.connect() as db:
             token=db.execute('SELECT token FROM agreements WHERE id=?',(agreement['id'],)).fetchone()['token']
@@ -362,8 +364,19 @@ class BusinessHttpTests(BusinessTests):
         self.assertEqual(headers['Content-Type'],'application/pdf')
         self.assertTrue(raw.startswith(b'%PDF'))
         self.assertIn('attachment',headers['Content-Disposition'])
+        reader=PdfReader(io.BytesIO(raw))
+        self.assertTrue(all('suturateatro@gmail.com' in p.extract_text() for p in reader.pages))
         self.assertEqual(self.call('/scrib-disponibilidad/'+'A'*43+'/acuerdo.pdf')[0],404)
         self.b.agreement_state(dict(id=agreement['id'],status='revoked'),'admin')
         self.assertEqual(self.call(route)[0],404)
+    def test_public_form_logo_is_the_exact_brand_asset_with_no_private_asset_access(self):
+        status,headers,raw=self.call('/scrib-disponibilidad/logo.png?v=1',headers={'X-Scrib-Bridge':''})
+        self.assertEqual(status,200);self.assertEqual(headers['Content-Type'],'image/png')
+        self.assertEqual(raw,(world.ROOT/'assets/scrib-world-logo.png').read_bytes())
+        self.assertEqual(headers['Referrer-Policy'],'no-referrer')
+        status,headers,raw=self.call('/scrib-disponibilidad/logo.png','HEAD',headers={'X-Scrib-Bridge':''})
+        self.assertEqual(status,200);self.assertEqual(raw,b'')
+        self.assertEqual(self.call('/scrib-disponibilidad/server.py',headers={'X-Scrib-Bridge':''})[0],404)
+        self.assertEqual(self.call('/scrib/backstage/logo.png',headers={'X-Scrib-Bridge':''})[0],401)
 
 if __name__=='__main__':unittest.main()

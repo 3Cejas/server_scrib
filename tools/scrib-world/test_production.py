@@ -97,10 +97,10 @@ class ProductionTests(unittest.TestCase):
         for number,page in enumerate(reader.pages,1):
             text=page.extract_text()
             self.assertNotIn('Página ',text)
-            self.assertIn('scribaleatorio@gmail.com',text)
+            self.assertIn('suturateatro@gmail.com',text)
             links=[a.get_object().get('/A',{}).get('/URI') for a in page.get('/Annots',[])]
             self.assertEqual(set(links),{'https://www.instagram.com/scrib_show/',
-                'https://www.instagram.com/su.tu.ra/','https://scribshow.es/','mailto:scribaleatorio@gmail.com'})
+                'https://www.instagram.com/su.tu.ra/','https://scribshow.es/','mailto:suturateatro@gmail.com'})
             alpha=page['/Resources']['/ExtGState']
             self.assertTrue(any(abs(float(s.get('/ca',1))-.055)<.0001 for s in alpha.values()))
             ops=ContentStream(page.get_contents(),reader).operations

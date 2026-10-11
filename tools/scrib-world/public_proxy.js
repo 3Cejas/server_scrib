@@ -3,7 +3,7 @@
 const http = require("http");
 module.exports = function(req,res) {
   const url=new URL(req.url,"http://localhost"), path=url.pathname;
-  const allowed=/^\/scrib-disponibilidad\/(?:[A-Za-z0-9_-]{43}\/?|api\/[A-Za-z0-9_-]{43}\/?|form\.(?:js|css))$/.test(path);
+  const allowed=/^\/scrib-disponibilidad\/(?:[A-Za-z0-9_-]{43}(?:\/?|\/acuerdo\.pdf)|api\/[A-Za-z0-9_-]{43}\/?|form\.(?:js|css)|logo\.png)$/.test(path);
   const size=Number(req.headers["content-length"]||0);
   function fail(code,msg){res.writeHead(code,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","Referrer-Policy":"no-referrer"});res.end(JSON.stringify({error:msg}));}
   if(!allowed||!["GET","HEAD","POST"].includes(req.method)||(req.method==="POST"&&!path.includes("/api/")))return fail(404,"Enlace no disponible.");

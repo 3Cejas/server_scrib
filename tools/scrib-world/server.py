@@ -1115,6 +1115,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def public_availability(self, route):
         tail = route[len(PUBLIC_PREFIX):]
+        if self.command in ('GET', 'HEAD') and tail == 'logo.png':
+            return self.reply(200, (ROOT / 'assets' / 'scrib-world-logo.png').read_bytes(), 'image/png')
         if self.command in ('GET', 'HEAD') and tail in ('form.js', 'form.css'):
             return self.reply(200, (ROOT / 'public' / tail).read_bytes(), 'application/javascript; charset=utf-8' if tail.endswith('.js') else 'text/css; charset=utf-8')
         download = re.fullmatch('(' + TOKEN_RE + ')/acuerdo.pdf', tail)

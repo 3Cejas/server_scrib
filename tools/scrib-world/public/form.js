@@ -19,8 +19,8 @@
   }
   function renderAgreement(){
     document.title='Acuerdo SCRIB · '+poll.name;
-    root.innerHTML=`<p class="eyebrow">✍ TU ACUERDO DE COLABORACIÓN</p><h1>${esc(poll.title)}</h1><p class="description">${esc(poll.name)} · enlace personal, no lo reenvíes.</p><button type="button" id="print-agreement">Descargar / guardar acuerdo en PDF</button><article class="agreement-document">${esc(poll.text)}</article><div class="notice no-print">El PDF subido se conserva sin modificar. La organización revisará el documento; subirlo no valida automáticamente la identidad ni la firma.</div><section class="no-print"><h2>Devolver el acuerdo firmado</h2><p>${poll.status==='reviewed'?'✓ Documento recibido y revisado por organización.':poll.uploads.length?'✓ Documento recibido, pendiente de revisión. Puedes corregirlo subiendo otra versión.':'Firma el documento y sube el PDF aquí (máximo 3 MB).'}</p>${poll.uploads.map(u=>`<p class="hint">${esc(u.name)} · ${esc(u.created)}</p>`).join('')}${poll.status==='reviewed'?'':`<form id="signed-upload"><label class="field">PDF firmado<input type="file" name="pdf" accept="application/pdf,.pdf" required></label><p class="error" role="alert"></p><p class="success" role="status"></p><button class="primary" type="submit">Subir PDF firmado</button></form>`}</section>`;
-    root.querySelector('#print-agreement').onclick=()=>{location.href='/scrib-disponibilidad/'+token+'/acuerdo.pdf';};
+    root.innerHTML=`<section class="agreement-intro"><p class="eyebrow">✍ TU ACUERDO DE COLABORACIÓN</p><h1>Hola, ${esc(poll.name)}</h1><p class="description">Este es tu enlace personal para revisar, descargar y devolver firmado tu acuerdo de colaboración para <strong>${esc(poll.title)}</strong>. Guárdalo y no lo reenvíes: permite acceder a tu documento.</p></section><button type="button" id="print-agreement">Descargar / guardar acuerdo en PDF</button><p id="agreement-download-error" class="error no-print" role="alert"></p><article class="agreement-document">${esc(poll.text)}</article><div class="notice agreement-notice no-print">El PDF subido se conserva sin modificar. La organización revisará el documento; subirlo no valida automáticamente la identidad ni la firma.</div><section class="no-print"><h2>Devolver el acuerdo firmado</h2><p>${poll.status==='reviewed'?'✓ Documento recibido y revisado por organización.':poll.uploads.length?'✓ Documento recibido, pendiente de revisión. Puedes corregirlo subiendo otra versión.':'Firma el documento y sube el PDF aquí (máximo 3 MB).'}</p>${poll.uploads.map(u=>`<p class="hint">${esc(u.name)} · ${esc(u.created)}</p>`).join('')}${poll.status==='reviewed'?'':`<form id="signed-upload"><label class="field">PDF firmado<input type="file" name="pdf" accept="application/pdf,.pdf" required></label><p class="error" role="alert"></p><p class="success" role="status"></p><button class="primary" type="submit">Subir PDF firmado</button></form>`}</section>`;
+    root.querySelector('#print-agreement').onclick=downloadAgreement;
     root.querySelector('#signed-upload')?.addEventListener('submit',async e=>{
       e.preventDefault();const form=e.target,button=form.querySelector('button'),file=form.elements.namedItem('pdf').files[0];
       if(button.disabled)return;
@@ -28,6 +28,27 @@
       button.disabled=true;
       try{const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});const result=await call({name:file.name,base64});poll={...result.agreement,csrf:poll.csrf};renderAgreement();}catch(error){form.querySelector('.error').textContent=error.message;}finally{button.disabled=false;}
     });
+  }
+  async function downloadAgreement(){
+    const button=root.querySelector('#print-agreement'),error=root.querySelector('#agreement-download-error');
+    if(button.disabled)return;
+    const label=button.textContent,controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+    button.disabled=true;button.textContent='Preparando PDF…';button.setAttribute('aria-busy','true');error.textContent='';
+    try{
+      const r=await fetch('/scrib-disponibilidad/'+token+'/acuerdo.pdf',{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      const type=r.headers.get('content-type')||'';
+      if(!r.ok||r.redirected||!type.includes('application/pdf')){
+        const body=type.includes('application/json')?await r.json():{};
+        throw new Error(body.error||'No se pudo descargar el acuerdo. Vuelve a intentarlo o contacta con organización.');
+      }
+      const blob=await r.blob();
+      if(await blob.slice(0,5).text()!=='%PDF-')throw new Error('El archivo recibido no es un PDF válido. Vuelve a intentarlo.');
+      const url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download='SCRIB-acuerdo-colaboracion.pdf';document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }catch(e){
+      error.textContent=e.name==='AbortError'?'La descarga está tardando. Puedes volver a intentarlo sin salir de esta página.':e instanceof TypeError?'No hay conexión con el servidor. Puedes volver a intentarlo.':e.message;
+    }finally{clearTimeout(timer);button.disabled=false;button.textContent=label;button.removeAttribute('aria-busy');}
   }
   async function save(e){e.preventDefault();const form=e.target,button=form.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;form.querySelector('.error').textContent='';const data={name:form.elements.namedItem('name').value,comment:form.elements.namedItem('comment').value,editToken:edit,version:poll.mine?.version||0,answers:Object.fromEntries(poll.slots.map((s,i)=>[s.id,form.elements.namedItem('slot-'+i).value]))};
     try{const r=await call(data);poll.mine=r.mine;form.querySelector('.success').textContent='✓ Disponibilidad guardada. Gracias, '+r.mine.name+'.';button.textContent='Actualizar disponibilidad';}catch(e){form.querySelector('.error').textContent=e.message;}finally{button.disabled=false;}}

@@ -107,7 +107,7 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   línea azul/roja. La marca de agua es el logo de los signos y la pluma, al 5,5%
   de opacidad. El pie lleva iconos vectoriales para redes, web, correo y aviso,
   sin referencia ni fecha/hora de generación visibles, con enlaces a `@scrib_show`, `@su.tu.ra`, `scribshow.es` y
-  `scribaleatorio@gmail.com`. Se numeran solo con un número. Inventario y checklist
+  `suturateatro@gmail.com`. Se numeran solo con un número. Inventario y checklist
   técnica se presentan a dos columnas con casillas vectoriales; el checklist
   técnico tiene un único panel y bandas de color por sección, sin tarjeta por tarea;
   las notas largas fluyen completas a continuación sin truncarse. Fondo negro
@@ -488,6 +488,11 @@ ficticios; no se envían WhatsApps reales.
   CSRF firmado por enlace + cookie HttpOnly/Secure/Strict + Origin,
   máximo 500 respuestas y 240 escrituras por enlace / 10 min. No hay listado
   público de encuestas ni permisos nuevos en los mundos privados.
+  El puente permite también el logo público y `TOKEN/acuerdo.pdf`; el servicio
+  vuelve a validar el token, su vigencia y el acuerdo exacto antes de generar el
+  PDF. La descarga no abandona el formulario y muestra errores recuperables.
+  Al modificar ese puente, reiniciar `DASHBOARD_AUTH` para recargar su módulo,
+  además de `SCRIB_WORLD` si cambia el servicio; nunca reiniciar el videojuego.
 - Tokens de 256 bits con firma HMAC permiten al gateway reconocer un enlace
   válido mientras el servidor está apagado. El encendido conserva su confirmación
   explícita existente; no basta una URL aleatoria. Solo una página visible manda
