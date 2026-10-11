@@ -15,7 +15,7 @@ window.ScribInventory = function(h) {
   function list() {
     const objects=active('inventory');
     return pageHead('LO QUE LLEVAMOS A ESCENA','Inventario','',btn('new-object','＋ Añadir objeto','','primary')+btn('inventory-export','↓ Exportar PDF'))+
-      `<div class="inventory-summary">${Object.entries(TEAMS).map(([team,name])=>`<button type="button" class="panel ${team}" data-action="inventory-team" data-id="${team}" aria-pressed="${filters.team===team}"><i aria-hidden="true"></i><strong>${name}</strong></button>`).join('')}</div><div class="toolbar inventory-filters">${input('inventory-search',filters.search,'search','id="inventory-search" aria-label="Buscar objetos" placeholder="Buscar objeto…"')}${select('inventory-team',{'':'Azul y rojo',...TEAMS},filters.team,'id="inventory-team" aria-label="Filtrar por equipo"')}${select('inventory-category',{'':'Todas las categorías',...CATEGORIES},filters.category,'id="inventory-category" aria-label="Filtrar por categoría"')}</div><div class="grid cols3" id="inventory-grid">${objects.sort((a,b)=>a.team.localeCompare(b.team)||a.title.localeCompare(b.title,'es')).map(card).join('')||empty('Un almacén por construir','Añade los objetos de cada equipo.',btn('new-object','＋ Primer objeto','','primary'))}</div><div id="inventory-no-match" hidden>${empty('No hay coincidencias','Prueba otro equipo, categoría o palabra.')}</div>`;
+      `<div class="toolbar inventory-filters">${input('inventory-search',filters.search,'search','id="inventory-search" aria-label="Buscar objetos" placeholder="Buscar objeto…"')}${select('inventory-team',{'':'Azul y rojo',...TEAMS},filters.team,'id="inventory-team" aria-label="Filtrar por equipo"')}${select('inventory-category',{'':'Todas las categorías',...CATEGORIES},filters.category,'id="inventory-category" aria-label="Filtrar por categoría"')}</div><div class="grid cols3" id="inventory-grid">${objects.sort((a,b)=>a.team.localeCompare(b.team)||a.title.localeCompare(b.title,'es')).map(card).join('')||empty('Un almacén por construir','Añade los objetos de cada equipo.',btn('new-object','＋ Primer objeto','','primary'))}</div><div id="inventory-no-match" hidden>${empty('No hay coincidencias','Prueba otro equipo, categoría o palabra.')}</div>`;
   }
   function applyFilters() {
     const cards=[...document.querySelectorAll('[data-object]')];
@@ -57,7 +57,6 @@ window.ScribInventory = function(h) {
   async function action(node) {
     const {action:a,id}=node.dataset;
     if(a==='new-object')open();else if(a==='edit-object')open(id);else if(a==='object-for-event')open('',id);
-    else if(a==='inventory-team'){filters.team=filters.team===id?'':id;h.renderPage();}
     else if(a==='inventory-export')exportDialog(id);
     else if(a==='inventory-select')h.dialog.querySelectorAll('[name=objects]').forEach(n=>n.checked=id==='all'||n.dataset.team===id);
     else if(a==='remove-object-photo'){const form=node.closest('form');form.querySelector('[name=image]').value='';form.querySelector('[name=photo]').value='';form.querySelector('.object-form-photo')?.remove();node.remove();}

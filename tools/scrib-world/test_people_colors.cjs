@@ -38,7 +38,7 @@ function client() {
   const event={id:'e1',version:1,kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
   context.window.tests.setState(state);
-  return {app:context.window.tests,colors:context.window.ScribPeopleColors,state,event,people,nodes,listeners,calls,responses};
+  return {app:context.window.tests,colors:context.window.ScribPeopleColors,state,event,people,nodes,listeners,calls,responses,document:context.document};
 }
 function balanced(html) {
   const stack=[],voids=new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
@@ -308,6 +308,41 @@ test('only writing and acting cast rows expose blue/red teams and juror replaces
   }
   for(const role of ['Escritura','Interpretación'])assert.doesNotMatch(app.castRow({role,team:'blue'}),/hidden disabled/);
   assert.match(app.profile.roleEditor([]),/Jurado/);assert.doesNotMatch(app.profile.roleEditor(['Participación']),/Participación/);
+});
+test('inventory uses only the team dropdown, without duplicate team filter buttons or styles',()=>{
+  const {app,state}=client();
+  state.items.push({id:'blue-object',kind:'inventory',title:'Gorra',team:'blue',quantity:1,category:'costume'}, {id:'red-object',kind:'inventory',title:'Gorra',team:'red',quantity:1,category:'costume'});
+  const html=app.inventory.list();balanced(html);
+  assert.doesNotMatch(html,/inventory-summary|data-action="inventory-team"/);
+  assert.equal((html.match(/id="inventory-team"/g)||[]).length,1);
+  assert.match(html,/<select name="inventory-team"[^>]*aria-label="Filtrar por equipo"/);
+  for(const [value,label] of [['','Azul y rojo'],['blue','Equipo azul'],['red','Equipo rojo']])assert.match(html,new RegExp('<option value="'+value+'"[^>]*>'+label+'</option>'));
+  for(const team of ['blue','red'])assert.match(html,new RegExp('class="panel object-card '+team+'"'));
+  assert.doesNotMatch(read('resources.css'),/inventory-summary/);
+});
+test('inventory dropdown filtering combines with category and search and preserves export selection',async()=>{
+  const {app,state,nodes,document,calls}=client();
+  const objects=[['blue-hat','Gorra','blue','costume'],['red-hat','Gorra','red','costume'],['blue-light','Linterna','blue','technical'],['red-ball','Balón','red','props']].map(([id,title,team,category])=>({id,title,team,category,kind:'inventory',quantity:1,description:''}));
+  state.items.push(...objects);
+  const cards=objects.map(o=>({dataset:{object:o.id},hidden:false})),visible=()=>cards.filter(n=>!n.hidden).map(n=>n.dataset.object);
+  nodes['inventory-no-match']=element();document.querySelectorAll=q=>q==='[data-object]'?cards:[];
+  const filter=(id,value)=>assert.equal(app.inventory.filter({id,value}),true);
+  filter('inventory-team','blue');assert.deepEqual(visible(),['blue-hat','blue-light']);
+  assert.match(app.inventory.list(),/<option value="blue" selected>Equipo azul<\/option>/);
+  await app.inventory.action({dataset:{action:'inventory-export'}});
+  assert.equal((nodes['dialog-content'].innerHTML.match(/name="objects"[^>]*checked/g)||[]).length,2);
+  assert.doesNotMatch(nodes['dialog-content'].innerHTML,/data-team="red" checked/);
+  filter('inventory-category','technical');assert.deepEqual(visible(),['blue-light']);
+  filter('inventory-search','GORRA');assert.deepEqual(visible(),[]);assert.equal(nodes['inventory-no-match'].hidden,false);
+  filter('inventory-category','');assert.deepEqual(visible(),['blue-hat']);assert.equal(nodes['inventory-no-match'].hidden,true);
+  filter('inventory-team','red');assert.deepEqual(visible(),['red-hat']);
+  filter('inventory-search','');assert.deepEqual(visible(),['red-hat','red-ball']);
+  filter('inventory-team','');assert.deepEqual(visible(),objects.map(o=>o.id));
+  await app.inventory.action({dataset:{action:'inventory-export'}});
+  assert.equal((nodes['dialog-content'].innerHTML.match(/name="objects"[^>]*checked/g)||[]).length,4);
+  assert.equal(app.inventory.filter({id:'other',value:'red'}),false);
+  assert.equal(await app.inventory.action({dataset:{action:'inventory-team',id:'blue'}}),false);
+  assert.equal(calls.length,0);
 });
 test('archive is inside Tareas and inventory export selects separate team kits by default',async()=>{
   const {app,state,event,nodes}=client();
