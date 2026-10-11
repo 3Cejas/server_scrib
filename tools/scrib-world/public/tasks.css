@@ -88,6 +88,10 @@
 .chat-send{width:42px;min-width:42px;min-height:42px;padding:10px;border-radius:12px;flex-shrink:0}.chat-send svg{width:20px;height:20px;pointer-events:none}
 .comment-form .form-error:empty{display:none}
 .form-footer>.actions{flex-wrap:wrap}
+.task-save-status{font-size:.74rem;color:var(--green);max-width:100%;overflow-wrap:anywhere}.task-save-status[data-state=dirty],.task-save-status[data-state=saving]{color:var(--gold)}.task-save-status[data-state=error]{color:var(--coral)}
+#edit-form[data-kind=ticket] .form-error:empty{display:none}
+#edit-form[data-kind=ticket] .form-footer{align-items:flex-start}
+#edit-form[data-kind=ticket] .form-footer>.actions:last-child{flex:1;justify-content:flex-end;min-width:0}
 .editor-grid .form-row{align-items:start}
 .ticket-dependencies{display:grid;gap:7px;min-width:0}.ticket-dependencies:empty{display:none}
 .dependency-link{display:block;background:#d6af5310;border:1px solid #d6af5344;border-radius:8px;padding:8px;font-size:.75rem;color:var(--gold);overflow-wrap:anywhere}

@@ -8,7 +8,7 @@ def validate(store, db, identifiers, existing, problem):
             raise problem('Una tarea no puede depender de sí misma.')
         target = tasks.get(ident)
         board = store.item(db, target['boardId'], 'board') if target else None
-        if (not target or target['archived'] or board['archived']) and ident not in old:
+        if (not target or target['archived'] or board['archived'] or board.get('eventId')) and ident not in old:
             raise problem('Selecciona una tarea activa para añadir una dependencia.')
         # Iterative graph traversal, including archived nodes: prevent indirect cycles.
         seen, pending = set(), [ident]

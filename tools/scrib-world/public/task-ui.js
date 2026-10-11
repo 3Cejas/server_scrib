@@ -42,8 +42,9 @@ window.ScribTasksUI = h => {
       return false; // Never truncate or lose a draft that exceeded a limit.
     }
   }
-  function readLabels(form) {
+  function readLabels(form, commitDraft=true) {
     const input = form.querySelector('.tag-input');
+    if(!commitDraft)return combineLabels(labelsIn(input.closest('.tag-editor')),input.value);
     if(!commit(input))throw new Error(input.validationMessage);
     return labelsIn(input.closest('.tag-editor'));
   }

@@ -348,6 +348,8 @@ class Store:
             body["eventId"] = existing.get("eventId", "") if existing else ""
         elif kind == "ticket":
             board = self.item(db, data.get("boardId", ""), "board", True)
+            if board.get('eventId') and not existing:
+                raise Problem('Las tareas por bolo ya no están disponibles. Selecciona un tablero de Tareas.')
             body.update(boardId=board["id"], status=choice(data.get("status", "todo"), STATUSES),
                         priority=choice(data.get("priority", "normal"), ("low", "normal", "high", "urgent")),
                         due=date_value(data.get("due", "")), labels=values(data.get("labels", []), 12, 60),
@@ -483,6 +485,73 @@ class Store:
                 self.availability.sync_links(db, result)
             return result
 
+    def autosave_ticket(self, payload, actor):
+        ident, token = payload.get('id'), payload.get('requestId')
+        if not isinstance(token,str) or not re.fullmatch(r'[a-zA-Z0-9_-]{16,100}', token):
+            raise Problem('Falta el identificador de la operación.')
+        if ident is None or ident=='':
+            if not isinstance(payload.get('data'),dict):raise Problem('Datos de tarea no válidos.')
+            return self.create('ticket', payload['data'], actor, token)
+        if not isinstance(ident,str):raise Problem('Identificador de tarea no válido.')
+        changes, baseline = payload.get('changes'), payload.get('base')
+        allowed = {'title', 'description', 'priority', 'due', 'labels', 'assignees', 'blockedBy', 'checklist'}
+        if (not isinstance(changes, dict) or not changes or changes.keys()-allowed or
+                not isinstance(baseline, dict) or changes.keys()!=baseline.keys()):
+            raise Problem('Cambios de tarea no válidos.')
+        expected = payload.get('version')
+        if type(expected) is not int or expected<1:
+            raise Problem('Versión de tarea no válida.', 409)
+        digest=hashlib.sha256(json.dumps({'action':'task-autosave', 'id':ident, 'version':expected,
+            'changes':changes, 'base':baseline}, sort_keys=True).encode()).hexdigest()
+        with self.transaction() as db:
+            prior=db.execute('SELECT * FROM requests WHERE token=?',(token,)).fetchone()
+            if prior:
+                if prior['actor']!=actor or prior['payload_hash']!=digest:
+                    raise Problem('La operación ya se usó con otros datos.',409)
+                result=json.loads(prior['response'])
+                if result.get('deleted'):raise Problem('Esta tarea fue eliminada definitivamente.',410)
+                return result
+            task=self.item(db,ident,'ticket',True)
+            if expected>task['version']:
+                raise Problem('Versión de tarea no válida.',409)
+            # Merge disjoint edits only. A collaborator's status change, title,
+            # or priority must never be overwritten by unrelated typing.
+            if any(task.get(k)!=baseline[k] and task.get(k)!=v for k,v in changes.items()):
+                raise Problem('Otra persona ha cambiado el mismo campo. Tu borrador sigue aquí; revisa sus cambios antes de reintentar.',409)
+            result=self.save(db,task,self.validate(db,'ticket',{**task,**changes},task),actor)
+            block_dependents(self,db,result,actor)
+            db.execute('INSERT INTO requests VALUES(?,?,?,?,?)',(token,actor,digest,json.dumps(result),now()))
+            return result
+
+    def retire_bolo_tasks(self, expected=None, apply=False, actor='sistema'):
+        """Explicit removal of the retired per-bolo feature, never a startup purge."""
+        with self.transaction() as db:
+            boards={b['id'] for b in self.all(db,'board') if b.get('eventId')}
+            tasks=[t for t in self.all(db,'ticket') if t['boardId'] in boards]
+            targets=sorted([dict(id=t['id'],version=t['version'],boardId=t['boardId']) for t in tasks],key=lambda t:t['id'])
+            if not apply:return targets
+            if expected!=targets:raise Problem('Las tareas del bolo han cambiado. Revisa la selección antes de eliminarlas.',409)
+            ids={t['id'] for t in tasks}
+            for task in self.all(db,'ticket'):
+                references=task.get('blockedBy',[])
+                if task['id'] not in ids and ids.intersection(references):
+                    self.save(db,task,{'blockedBy':[i for i in references if i not in ids]},actor,'dependencias de bolos retiradas')
+            for t in tasks:
+                self.remove_ticket_data(db,t['id'],actor)
+            return targets
+
+    def remove_ticket_data(self, db, ident, actor):
+        db.execute('DELETE FROM comment_attachments WHERE comment IN (SELECT id FROM comments WHERE ticket=?)',(ident,))
+        db.execute('DELETE FROM comments WHERE ticket=?',(ident,))
+        db.execute("DELETE FROM items WHERE id=? AND kind='ticket'",(ident,))
+        result={'id':ident,'kind':'ticket','deleted':True}
+        for receipt in db.execute('SELECT token,response FROM requests').fetchall():
+            body=json.loads(receipt['response'])
+            if isinstance(body,dict) and (body.get('id')==ident or body.get('ticket')==ident):
+                db.execute('UPDATE requests SET response=? WHERE token=?',(json.dumps(result),receipt['token']))
+        self.activity(db,ident,actor,'tarea eliminada definitivamente')
+        return result
+
     def move(self, ident, status, before, actor, expected):
         choice(status, STATUSES)
         with self.transaction() as db:
@@ -614,17 +683,7 @@ class Store:
                 return json.loads(prior['response'])
             ticket = self.item(db, ident, 'ticket')
             self.check_version(ticket, expected)
-            db.execute('DELETE FROM comment_attachments WHERE comment IN (SELECT id FROM comments WHERE ticket=?)', (ident,))
-            db.execute('DELETE FROM comments WHERE ticket=?', (ident,))
-            db.execute('DELETE FROM items WHERE id=? AND kind=\'ticket\'', (ident,))
-            result = {'id': ident, 'kind': 'ticket', 'deleted': True}
-            # Erase content from cached creation/comment receipts too, retaining
-            # tombstones so retries cannot recreate or return a deleted task.
-            for receipt in db.execute('SELECT token,response FROM requests').fetchall():
-                body = json.loads(receipt['response'])
-                if isinstance(body, dict) and (body.get('id') == ident or body.get('ticket') == ident):
-                    db.execute('UPDATE requests SET response=? WHERE token=?', (json.dumps(result), receipt['token']))
-            self.activity(db, ident, actor, 'tarea eliminada definitivamente')
+            result = self.remove_ticket_data(db, ident, actor)
             db.execute('INSERT INTO requests VALUES(?,?,?,?,?)', (request_id, actor, digest, json.dumps(result), now()))
             return result
 
@@ -1198,7 +1257,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200,(ROOT/'assets/sutura-document-logo.png').read_bytes(),'image/png')
                 if route == 'tasks.css':
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
-                if route in ('task-ui.js', 'task-comments.js'):
+                if route in ('task-ui.js', 'task-comments.js', 'task-autosave.js'):
                     return self.reply(200, (ROOT / 'public' / route).read_bytes(), 'application/javascript; charset=utf-8')
                 if route == 'export.js':
                     return self.reply(200, (ROOT / 'public' / 'export.js').read_bytes(), 'application/javascript; charset=utf-8')
@@ -1266,6 +1325,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = store.archive(data.get("id"), data["archived"], actor, data.get("version"))
             elif route == "api/delete-ticket":
                 result = store.delete_ticket(data.get('id'), actor, data.get('version'), data.get('requestId'), data.get('confirmed'))
+            elif route == 'api/task-autosave':
+                result = store.autosave_ticket(data, actor)
             elif route == 'api/delete-event':
                 result=store.delete_event(data.get('id'),actor,data.get('version'),data.get('requestId'),data.get('confirmed'))
             elif route == 'api/lighting/save':

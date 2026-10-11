@@ -1,6 +1,7 @@
 "use strict";
 window.ScribTaskComments = h => {
   const drafts = new WeakMap();
+  const parked = new Map();
   const draft = form => {if(!drafts.has(form))drafts.set(form,[]);return drafts.get(form);};
   const photoName = name => typeof name==='string' && /^[a-f0-9]{64}\.(png|jpg|webp)$/.test(name);
   const imageUrl = name => '/scrib/backstage/images/' + name;
@@ -32,6 +33,8 @@ window.ScribTaskComments = h => {
     finally{input.disabled=false;delete form.dataset.reading;}
   }
   const hasPhotos = form => draft(form).length>0;
+  function stash(form){if(!form)return;const body=form.querySelector('textarea').value,photos=draft(form);if(body||photos.length)parked.set(form.dataset.id,{body,photos,request:form.dataset.request});else parked.delete(form.dataset.id);}
+  function restore(form){if(!form)return;const kept=parked.get(form.dataset.id);if(!kept)return;form.querySelector('textarea').value=kept.body;form.dataset.request=kept.request;drafts.set(form,kept.photos);preview(form);parked.delete(form.dataset.id);}
   async function prepare(form) {
     if(form.dataset.reading)throw new Error('Espera a que se carguen las fotos.');
     const body=form.querySelector('textarea').value;
@@ -43,7 +46,7 @@ window.ScribTaskComments = h => {
     }
     return {body,attachments};
   }
-  function reset(form){drafts.delete(form);form.reset();preview(form);form.dataset.request=crypto.randomUUID();}
+  function reset(form){parked.delete(form.dataset.id);drafts.delete(form);form.reset();preview(form);form.dataset.request=crypto.randomUUID();}
   async function action(node) {
     const a=node.dataset.action;
     if(a==='attach-comment-photo'){
@@ -67,5 +70,5 @@ window.ScribTaskComments = h => {
     finally{node.disabled=false;}
     return true;
   }
-  return {html,composer,select,prepare,reset,hasPhotos,action,photoName};
+  return {html,composer,select,prepare,reset,stash,restore,hasPhotos,action,photoName};
 };

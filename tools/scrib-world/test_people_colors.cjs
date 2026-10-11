@@ -28,7 +28,7 @@ function client() {
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
   vm.createContext(context);
-  for(const file of ['people-colors.js','task-ui.js','task-comments.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
+  for(const file of ['people-colors.js','task-ui.js','task-comments.js','task-autosave.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>',read:()=>undefined};
   const marker='  boot();';
@@ -227,6 +227,18 @@ test('cross-board dependencies are visible at both ends, safe and reflect comple
   source.status='done';assert.match(app.dependencyInfo(target),/Dependencias resueltas/);
   html=app.dependencyEditor(target);balanced(html);assert.match(html,/Programación &lt;juego&gt;/);assert.match(html,/name="blockedBy" value="s" checked/);
   target.blockedBy=['missing'];assert.match(app.dependencyInfo(target),/Tarea eliminada/);assert.match(app.dependencyEditor(target),/desmarca para retirar/);
+});
+test('task form autosaves without a save button and excludes retired bolo dependencies',()=>{
+  const {app,state}=client();
+  state.items.push({id:'old-board',kind:'board',eventId:'e1',title:'Universidad de León'},
+    {id:'old-task',kind:'ticket',boardId:'old-board',title:'Antigua tarea de León',status:'todo'},
+    {id:'new-board',kind:'board',title:'Programación'},
+    {id:'new-task',kind:'ticket',boardId:'new-board',title:'Nueva tarea de juego',status:'todo'});
+  const editor=app.dependencyEditor({id:'own',blockedBy:[]});balanced(editor);
+  assert.match(editor,/¿Depende de otras tareas\?/);assert.match(editor,/Nueva tarea de juego/);
+  assert.doesNotMatch(editor,/Universidad de León|old-task|Antigua tarea/);
+  const form=app.formShell('ticket',{id:'own'},'<input name="title" value="Prueba">');balanced(form);
+  assert.doesNotMatch(form,/type="submit"|Guardar tarea|Cancelar/);assert.match(form,/task-save-status/);
 });
 
 test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{

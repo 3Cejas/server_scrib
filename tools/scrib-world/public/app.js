@@ -112,7 +112,8 @@
   const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage,isAdmin});
   const laboratory = window.ScribLaboratory({esc,btn,badge,pageHead,empty});
   const lighting = window.ScribLighting({state:()=>state,esc,btn,pageHead,request,toast,refresh,renderPage});
-  dialog.addEventListener('close', () => { if (state) renderPage(); });
+  const taskAutosave=window.ScribTaskAutosave({read:form=>formData(form,{draftLabels:true}),request,busy:()=>saving,saved:ticketSaved});
+  dialog.addEventListener('close', () => {taskAutosave.detached();if (state) renderPage();});
 
   function toast(message) {
     const node = document.querySelector("#toast");
@@ -300,9 +301,9 @@
     return `<div class="ticket-dependencies">${dependencies.map(t=>link(t,t?.status==='done'?'✓':'🔒')).join('')}${dependencies.length&&!pending.length&&task.status==='blocked'?'<span class="badge green">✓ Dependencias resueltas · puedes reanudar</span>':''}${downstream.map(t=>link(t,task.status==='done'?'✓ Permite reanudar:':'↗ Desbloquea:')).join('')}</div>`;
   }
   function dependencyEditor(t) {
-    const ids=t.blockedBy || [], tasks=state.items.filter(x=>x.kind==='ticket' && x.id!==t.id && ((!x.archived && !item(x.boardId)?.archived) || ids.includes(x.id)));
+    const ids=t.blockedBy || [], tasks=state.items.filter(x=>x.kind==='ticket' && x.id!==t.id && !item(x.boardId)?.eventId && ((!x.archived && !item(x.boardId)?.archived) || ids.includes(x.id)));
     const groups=[...new Set(tasks.map(x=>x.boardId))];
-    return `<details class="dependency-editor" ${ids.length?'open':''}><summary>🔗 Depende de otras tareas ${ids.length?'('+ids.length+')':''}</summary><p class="tiny">Puede ser de cualquier tablero. Mientras haya dependencias pendientes, esta tarea estará bloqueada. Al resolverse podrás reanudarla.</p><div class="dependency-options">${groups.map(id=>`<fieldset><legend>${esc(boardTitle(item(id)?.title || 'Tablero archivado'))}</legend>${tasks.filter(x=>x.boardId===id).map(x=>`<label class="check-option"><input type="checkbox" name="blockedBy" value="${esc(x.id)}" ${ids.includes(x.id)?'checked':''}><span>${esc(x.title)}<small>${STATUS[x.status]}${x.archived?' · archivada':''}</small></span></label>`).join('')}</fieldset>`).join('')}${ids.filter(id=>!item(id)).map(id=>`<label class="check-option"><input type="checkbox" name="blockedBy" value="${esc(id)}" checked>⚠ Tarea eliminada · desmarca para retirar el bloqueo</label>`).join('')}</div></details>`;
+    return `<details class="dependency-editor" ${ids.length?'open':''}><summary>🔗 ¿Depende de otras tareas? ${ids.length?'('+ids.length+')':''}</summary><p class="tiny">Puede ser de cualquier tablero. Mientras haya dependencias pendientes, esta tarea estará bloqueada. Al resolverse podrás reanudarla.</p><div class="dependency-options">${groups.map(id=>`<fieldset><legend>${esc(boardTitle(item(id)?.title || 'Tablero archivado'))}</legend>${tasks.filter(x=>x.boardId===id).map(x=>`<label class="check-option"><input type="checkbox" name="blockedBy" value="${esc(x.id)}" ${ids.includes(x.id)?'checked':''}><span>${esc(x.title)}<small>${STATUS[x.status]}${x.archived?' · archivada':''}</small></span></label>`).join('')}</fieldset>`).join('')}${ids.filter(id=>!item(id)).map(id=>`<label class="check-option"><input type="checkbox" name="blockedBy" value="${esc(id)}" checked>⚠ Tarea eliminada · desmarca para retirar el bloqueo</label>`).join('')}</div></details>`;
   }
   function applyFilters() {
     main.querySelectorAll("[data-ticket]").forEach(node=>{
@@ -442,7 +443,7 @@
     if (!dialog.open) dialog.showModal();
   }
   function formShell(kind, object, body, extra = "") {
-    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${!['person','event','ticket','board'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${kind==='ticket'?'':btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
+    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${!['person','event','ticket','board'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${kind==='ticket'?'<span class="task-save-status" data-state="saved" role="status" aria-live="polite">✓ Guardado</span><button type="button" class="button small" data-action="task-retry" hidden>↻ Reintentar</button>':`${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button>`}</div></div></form>${extra}`;
   }
   function openBoard(id) {
     const b = id ? item(id) : {title:"", description:"", color:"violet"};
@@ -464,8 +465,24 @@
       dependencyInfo(t) + dependencyEditor(t) +
       `<div><p class="field">Responsables</p><div class="assignee-options">${taskUI.assigneeOptions(t.assignees)}</div></div>` +
       `<div><div class="panel-head"><h3>Checklist</h3>${btn("add-check","＋ Paso","","small")}</div><div class="checklist-editor">${t.checklist.map(checkRow).join("")}</div></div>`);
-    openDialog("ticket",id ? "Dentro de la tarea" : "Nueva tarea",`<div class="editor-grid"><div>${form}</div><aside class="discussion"><h3>Comentarios</h3><div id="comments" class="comment-thread" role="region" aria-label="Comentarios de la tarea" tabindex="0">${id?commentsHtml(details.comments):`<p class="muted">Guarda la tarea para añadir comentarios.</p>`}</div>${id?`${taskComments.composer(id)}<details><summary>Historial de la tarea</summary>${details.activity.map(activityRow).join("")}</details>`:""}</aside></div>`);
+    openDialog("ticket",id ? "Dentro de la tarea" : "Nueva tarea",`<div class="editor-grid"><div>${form}</div><aside class="discussion"><h3>Comentarios</h3><div id="comments" class="comment-thread" role="region" aria-label="Comentarios de la tarea" tabindex="0">${id?commentsHtml(details.comments):''}</div>${id?`${taskComments.composer(id)}<details><summary>Historial de la tarea</summary>${details.activity.map(activityRow).join("")}</details>`:'<p class="muted new-task-hint">Añade un título: la tarea se guardará automáticamente.</p>'}</aside></div>`);
     const thread=dialog.querySelector('#comments');if(thread)thread.scrollTop=thread.scrollHeight;
+    await taskAutosave.attach(dialog.querySelector('#edit-form'));
+    taskComments.restore(dialog.querySelector('.comment-form'));
+  }
+  function ticketSaved(t,form){
+    const index=state.items.findIndex(x=>x.id===t.id);if(index>=0)state.items[index]=t;else state.items.push(t);
+    const status=form.querySelector('[name=status]');if(status)status.value=t.status;
+    const footer=form.querySelector('.form-footer>.actions');if(footer&&!footer.querySelector('[data-action="delete-ticket"]'))footer.innerHTML=btn('delete-ticket','Eliminar tarea',t.id,'danger');
+    if(!dialog.querySelector('.comment-form')){const aside=dialog.querySelector('.discussion');if(aside){aside.querySelector('.new-task-hint')?.remove();aside.insertAdjacentHTML('beforeend',taskComments.composer(t.id));}}
+  }
+  async function closeTask(){
+    const form=dialog.querySelector('#edit-form');if(!form||form.dataset.kind!=='ticket')return false;
+    if(saving){toast('Espera a que termine el envío.');return true;}
+    if(dialog.querySelector('.comment-form')?.dataset.reading){toast('Espera a que terminen de cargar las fotos.');return true;}
+    if(await taskAutosave.flush()){taskComments.stash(dialog.querySelector('.comment-form'));dialog.close();}
+    else form.reportValidity();
+    return true;
   }
   function commentsHtml(comments) {return taskComments.html(comments);}
   function updateComments(comments, forceEnd=false) {
@@ -537,11 +554,11 @@
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
     colors.decorate(dialog,p);
   }
-  async function formData(form) {
+  async function formData(form,{draftLabels=false}={}) {
     const data = Object.fromEntries(new FormData(form));
     if (form.dataset.kind === "availability") return polls.formData(form, data);
     if (form.dataset.kind === "ticket") {
-      data.labels = taskUI.readLabels(form);
+      data.labels = taskUI.readLabels(form,!draftLabels);
       data.assignees = [...new Set([...form.querySelectorAll('[name=assignees]:checked')].map(x=>taskUI.canonicalAssignee(x.value)))];
       // Removing test accounts from the UI must not silently rewrite old assignments.
       data.assignees.push(...(item(form.dataset.id)?.assignees||[]).filter(username=>taskUI.isServiceMember({username,name:member(username)})));
@@ -583,6 +600,8 @@
   }
   async function saveForm(form) {
     if (saving) return;
+    if(form.dataset.kind==='ticket'){await taskAutosave.flush();return;}
+    if(form.matches('.comment-form') && !(await taskAutosave.flush()))return;
     const composer=form.matches('.comment-form')?form.querySelector('textarea'):null;
     const returnFocus=composer && form.contains(document.activeElement);
     saving = true; const buttons = [...form.querySelectorAll("button")]; buttons.forEach(b=>b.disabled=true);
@@ -696,14 +715,18 @@
     else if(a === "message-draft") {await loadMessages();const draft=messageHistory.find(x=>x.id===id);if(draft)showMessagePreview(draft);}
     else if(a === "send-message")await sendMessage(node);
     else if(a === "send-messages")await sendMessages(node);
-    else if(a === "close-dialog") {if(!saving)dialog.close();}
-    else if(a === "add-check")dialog.querySelector(".checklist-editor").insertAdjacentHTML("beforeend",checkRow());
+    else if(a === "close-dialog") {if(!(await closeTask())&&!saving)dialog.close();}
+    else if(a === 'task-retry')await taskAutosave.flush();
+    else if(a === "add-check"){dialog.querySelector(".checklist-editor").insertAdjacentHTML("beforeend",checkRow());taskAutosave.changed(dialog.querySelector('#edit-form'));}
     else if(a === "add-cast"){dialog.querySelector(".cast-editor").insertAdjacentHTML("beforeend",castRow());syncCastChoices(dialog.querySelector('#edit-form'));}
-    else if(a === "remove-row"){const form=node.closest('form'),cast=node.parentElement.classList.contains('cast-editor-row');node.parentElement.remove();if(cast)syncCastChoices(form);}
-    else if(a === "remove-tag")taskUI.removeTag(node);
+    else if(a === "remove-row"){const form=node.closest('form'),cast=node.parentElement.classList.contains('cast-editor-row');node.parentElement.remove();if(cast)syncCastChoices(form);taskAutosave.changed(form);}
+    else if(a === "remove-tag"){taskUI.removeTag(node);taskAutosave.changed(node.closest('form')||dialog.querySelector('#edit-form'));}
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
-    else if(a === "delete-ticket")askDelete(id);
+    else if(a === "delete-ticket"){
+      const form=dialog.querySelector('#edit-form');
+      if(!taskAutosave.owns(form) || await taskAutosave.flush())askDelete(id);
+    }
     else if(a === 'delete-event')await deleteEvent(id);
     else if(a === "confirm-delete")await confirmDelete();
     else if(a === "cancel-delete") {if(!saving)deleteDialog.close();}
@@ -721,7 +744,12 @@
       homeDay=id;updateHomeCalendarFocus(a,id);
     }
   }
+  let taskBackdropDown=false;
   document.addEventListener("click",event=>{
+    if(event.target===dialog && dialog.querySelector('#edit-form')?.dataset.kind==='ticket'){
+      const rect=dialog.getBoundingClientRect(),outside=event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom;
+      if(outside && taskBackdropDown){taskBackdropDown=false;closeTask().catch(error=>toast(error.message));return;}
+    }
     const node=event.target.closest("[data-action]");
     if(node){action(node).catch(error=>toast(error.message));return;}
     const card=event.target.closest('.ticket[data-ticket]');
@@ -730,6 +758,7 @@
   document.addEventListener("submit",event=>{if(event.target.matches("#document-check-form")){event.preventDefault();documents.submit(event.target);}else if(event.target.matches("#inventory-export-form")){event.preventDefault();inventory.exportForm(event.target);}else if(event.target.matches("#edit-form,.comment-form")){event.preventDefault();saveForm(event.target);}else if(event.target.matches("#message-form")){event.preventDefault();previewMessage(event.target);}});
   document.addEventListener("change",event=>{
     const node=event.target;
+    taskAutosave.changed(node.closest('#edit-form'),event.isComposing);
     if(node.matches('.comment-photo-input')){taskComments.select(node);return;}
     if(node.dataset.castEvent){assignCastSlot(node).catch(error=>toast(error.message));return;}
     if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');syncCastChoices(node.closest('form'));return;}
@@ -745,21 +774,29 @@
     if(node.id === "message-event")messageRecipients(node.value);
   });
   document.addEventListener("input",event=>{
+    taskAutosave.changed(event.target.closest('#edit-form'),event.isComposing);
     if(taskUI.input(event))return;
     if(lighting.input(event.target))return;
     if(event.target.id==='inventory-search'){inventory.filter(event.target);return;}
     if(event.target.id === "board-search"){filters.search=event.target.value;applyFilters();}
     if(event.target.id === "people-search")main.querySelectorAll("[data-person]").forEach(node=>{const p=item(node.dataset.person);node.hidden=![p.name,...p.roles].join(" ").toLowerCase().includes(event.target.value.toLowerCase());});
   });
-  dialog.addEventListener("cancel",event=>{if(saving)event.preventDefault();});
-  document.addEventListener('pointerdown',event=>lighting.pointerDown(event));
+  dialog.addEventListener("cancel",event=>{if(dialog.querySelector('#edit-form')?.dataset.kind==='ticket'){event.preventDefault();closeTask().catch(error=>toast(error.message));}else if(saving)event.preventDefault();});
+  document.addEventListener('pointerdown',event=>{
+    taskBackdropDown=false;
+    if(event.target===dialog && dialog.querySelector('#edit-form')?.dataset.kind==='ticket'){
+      const rect=dialog.getBoundingClientRect();
+      taskBackdropDown=event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom;
+    }
+    lighting.pointerDown(event);
+  });
   document.addEventListener('pointermove',event=>lighting.pointerMove(event));
   document.addEventListener('pointerup',event=>lighting.pointerUp(event));
   document.addEventListener('pointercancel',event=>lighting.pointerUp(event));
   document.addEventListener('lostpointercapture',event=>lighting.pointerUp(event));
   document.addEventListener('compositionend',event=>taskUI.input(event));
   document.addEventListener('keydown',event=>{
-    if(taskUI.keydown(event))return;
+    if(taskUI.keydown(event)){taskAutosave.changed(event.target.closest('#edit-form'),event.isComposing);return;}
     if(!event.isComposing && event.keyCode!==229 && event.target.matches('.comment-form textarea') && event.key==='Enter' && !event.shiftKey){
       event.preventDefault();
       if((event.target.value.trim() || taskComments.hasPhotos(event.target.form)) && !saving)event.target.form.requestSubmit();
@@ -775,8 +812,9 @@
     }
     lighting.keydown(event);
   });
-  document.addEventListener('focusout',event=>{taskUI.focusout(event);lighting.focusout(event);});
-  window.addEventListener('beforeunload',event=>{if(lighting.hasDraft()){event.preventDefault();event.returnValue='';}});
+  document.addEventListener('focusout',event=>{taskUI.focusout(event);lighting.focusout(event);if(event.target.matches('.tag-input'))taskAutosave.changed(event.target.closest('#edit-form'));});
+  document.addEventListener('compositionend',event=>taskAutosave.changed(event.target.closest('#edit-form')));
+  window.addEventListener('beforeunload',event=>{if(lighting.hasDraft()||taskAutosave.hasDraft()){event.preventDefault();event.returnValue='';}});
   window.addEventListener("hashchange",()=>{polls.invalidate();filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
 
   function clearDrop() {document.querySelectorAll(".drop-active,.drop-before").forEach(n=>n.classList.remove("drop-active","drop-before"));}

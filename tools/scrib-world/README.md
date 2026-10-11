@@ -12,6 +12,21 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   enlaces/botones secundarios su acción propia. Las cuatro prioridades se
   muestran con texto y color. Los aliases de responsables `3cejas`/`trescejas`
   se presentan como una sola opción `3cejas`, sin fusionar cuentas de acceso.
+- La ficha de tarea guarda sus campos automáticamente (650 ms de pausa al
+  escribir) y al cerrar con la X, Escape o pulsando fuera. Espera al último
+  guardado antes de cerrar; un fallo conserva el formulario y permite reintentar.
+  No reconstruye los inputs ni mueve el cursor. Recibos idempotentes evitan
+  duplicados tras respuestas interrumpidas y los parches de campos preservan
+  movimientos de columna y cambios de otras personas; los conflictos del mismo
+  campo no sobrescriben datos ajenos. Los comentarios conservan el envío explícito
+  del chat; un borrador sin enviar, con sus fotos, se recupera al reabrir la tarea
+  durante la misma sesión del navegador.
+- Las dependencias excluyen las antiguas tareas por bolo. Para retirarlas de
+  almacenamiento, `retire_bolo_tasks.py --data RUTA` devuelve los IDs/versiones
+  exactos. `--apply --expect MANIFIESTO` exige esa selección sin cambios y crea
+  previamente una copia privada SQLite. Conserva bolos, tableros y fotos; retira
+  referencias a las tareas eliminadas sin cambiar columnas por inferencia. Nunca
+  ejecuta esta limpieza al arrancar el servidor.
 - Comentarios: hasta cuatro fotos privadas PNG/JPG/WebP de 4 MB, vista previa,
   envío con o sin texto y apertura de la foto completa. El borrado confirmado
   está disponible al equipo autenticado que puede editar la tarea. Conserva

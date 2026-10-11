@@ -151,9 +151,12 @@ class StoreTests(unittest.TestCase):
         e=self.event()
         # Old production tasks remain recoverable, even after retiring their UI.
         with self.store.transaction() as db:
-            board=self.store.insert(db,'board',dict(title='Legacy',eventId=e['id'],color='gold',description=''),'angela')
+            board=self.store.insert(db,'board',dict(title='Legacy',eventId='',color='gold',description=''),'angela')
             e=self.store.save(db,e,dict(boardId=board['id']),'angela')
         self.task(boardId=board['id']);self.task(boardId=board['id'])
+        # Materialize legacy records directly: new per-bolo tasks are retired.
+        with self.store.transaction() as db:
+            self.store.save(db,self.store.item(db,board['id']),{'eventId':e['id']},'angela')
         tasks=[x for x in self.store.snapshot()["items"] if x["kind"] == "ticket"]
         self.store.archive(tasks[0]["id"],True,"angela",tasks[0]["version"])
         archived=self.store.archive(e["id"],True,"angela",e["version"])
