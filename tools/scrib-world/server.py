@@ -357,7 +357,7 @@ class Store:
             body['blockedBy'] = values(data.get('blockedBy', (existing or {}).get('blockedBy', [])), 30, 100)
             if validate_dependencies(self, db, body['blockedBy'], existing, Problem):
                 if body['status'] == 'done':
-                    raise Problem('Completa o retira las dependencias pendientes antes de completar esta tarea.')
+                    raise Problem('Antes de completar esta tarea, completa todas las tareas de las que depende.')
                 body['status'] = 'blocked'
             usernames = {m["username"] for m in self.members(db)}
             if any(a not in usernames for a in body["assignees"]):
@@ -561,6 +561,8 @@ class Store:
             self.item(db, item["boardId"], "board", True)
             self.check_version(item, expected)
             if status != 'blocked' and validate_dependencies(self, db, item.get('blockedBy', []), item, Problem):
+                if status == 'done':
+                    raise Problem('Antes de completar esta tarea, completa todas las tareas de las que depende.', 409)
                 raise Problem('Esta tarea sigue bloqueada por dependencias pendientes. Abre la ficha para consultarlas.', 409)
             siblings = sorted((x for x in self.all(db, "ticket") if not x["archived"] and x["boardId"] == item["boardId"] and x["status"] == status and x["id"] != ident), key=lambda x: (x.get("position", 0), x["created"]))
             if before:

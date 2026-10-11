@@ -684,6 +684,10 @@ solo el asa inicia un arrastre; nunca el cuerpo o título de la tarjeta. El esta
 no forma parte del parche de autoguardado. Las etiquetas se pueden reutilizar
 desde los tableros activos o crear escribiendo y separando con comas.
 La eliminación está en la cabecera de la ficha y conserva su confirmación.
+Una tarea con dependencias pendientes no puede pasar a COMPLETADAS: deben estar
+completadas todas las tareas de las que depende, incluso las de otros tableros.
+El servidor comprueba su estado actual en la misma transacción del movimiento;
+un intento rechazado no mueve ni reordena ninguna tarjeta.
 
 - `world.sqlite3`: fichas, tareas, posiciones, comentarios, responsables e historial.
 - `images/`: fotos privadas, identificadas por SHA256.

@@ -216,8 +216,14 @@ class PdfHttpTests(unittest.TestCase):
         self.assertEqual(status,200)
         self.assertIn('image/svg+xml',headers['Content-Type'])
         svg=ET.fromstring(raw)
-        self.assertEqual(svg.find('{http://www.w3.org/2000/svg}rect').attrib['fill'],'#000')
-        uri=svg.find('{http://www.w3.org/2000/svg}image').attrib['href']
+        ns='{http://www.w3.org/2000/svg}'
+        tile=svg.find(ns+'g')
+        self.assertEqual(tile.attrib['clip-path'],'url(#rounded-tile)')
+        clip=svg.find(ns+'defs/'+ns+'clipPath')
+        self.assertEqual(clip.attrib['id'],'rounded-tile')
+        self.assertEqual(clip.find(ns+'rect').attrib,dict(width='500',height='500',rx='96'))
+        self.assertEqual(tile.find(ns+'rect').attrib['fill'],'#000')
+        uri=tile.find(ns+'image').attrib['href']
         self.assertEqual(base64.b64decode(uri.split(',',1)[1]),(ROOT/'assets/scrib-world-logo.png').read_bytes())
 
 

@@ -894,7 +894,7 @@ test('match memory has one refresh action and one SVG arrow before and after loa
     assert.doesNotMatch(html,/↻/);assert.match(html,/Actualizar/);
     await flush();
   }
-  assert.match(read('index.html'),/rel="icon" type="image\/svg\+xml" href="\/scrib\/backstage\/favicon.svg\?v=1"/);
+  assert.match(read('index.html'),/rel="icon" type="image\/svg\+xml" href="\/scrib\/backstage\/favicon.svg\?v=2"/);
 });
 test('a form cannot save repeated writer/staff positions even with programmatically set selects',async()=>{
   const {app}=client();
