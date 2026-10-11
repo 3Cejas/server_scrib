@@ -8,6 +8,18 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 
 ## Producción y PDFs
 
+- Tareas: toda la tarjeta abre la ficha; el asa conserva el arrastre y los
+  enlaces/botones secundarios su acción propia. Las cuatro prioridades se
+  muestran con texto y color. Los aliases de responsables `3cejas`/`trescejas`
+  se presentan como una sola opción `3cejas`, sin fusionar cuentas de acceso.
+- Comentarios: hasta cuatro fotos privadas PNG/JPG/WebP de 4 MB, vista previa,
+  envío con o sin texto y apertura de la foto completa. El borrado confirmado
+  está disponible al equipo autenticado que puede editar la tarea. Conserva
+  los demás comentarios y borradores, e impide que un reintento resucite el
+  mensaje. Relaciones en `comment_attachments` junto a la base SQLite; la
+  exportación recuperable incluye esas relaciones y las imágenes. No se borran
+  archivos compartidos por otras fichas/comentarios. Esquema antiguo compatible.
+
 - `portal_polish.py` aplica cambios idempotentes solo al CSS de la marca Sutura
   y al apartado Escena: ancla `ak-loading-overlay` al recuadro completo y elimina
   los accesos antiguos de SCRIB. Conserva el selector de mundos y no modifica

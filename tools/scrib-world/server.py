@@ -160,6 +160,9 @@ class Store:
                 id TEXT PRIMARY KEY, ticket TEXT NOT NULL, author TEXT NOT NULL,
                 body TEXT NOT NULL, created TEXT NOT NULL);
               CREATE INDEX IF NOT EXISTS comment_ticket ON comments(ticket, created);
+              CREATE TABLE IF NOT EXISTS comment_attachments (
+                comment TEXT NOT NULL, image TEXT NOT NULL, position INTEGER NOT NULL,
+                PRIMARY KEY(comment,image));
               CREATE TABLE IF NOT EXISTS activity (
                 seq INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL,
                 actor TEXT NOT NULL, action TEXT NOT NULL, created TEXT NOT NULL);
@@ -522,11 +525,26 @@ class Store:
                 db.execute("UPDATE items SET archived=? WHERE id=?", (int(archived), target["id"]))
             return self.item(db, ident)
 
-    def comment(self, ident, message, actor, request_id):
-        message = text(message, 10000, True)
-        if not re.fullmatch(r"[a-zA-Z0-9_-]{16,100}", request_id or ""):
+    def comment(self, ident, message, actor, request_id, attachments=None):
+        ident = text(ident, 100, True)
+        message = text(message, 10000)
+        if not isinstance(attachments if attachments is not None else [], list) or len(attachments or []) > 4:
+            raise Problem('Puedes adjuntar hasta 4 fotos por comentario.')
+        images = []
+        for image in attachments or []:
+            if not isinstance(image, str) or not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|webp)', image):
+                raise Problem('Foto adjunta no válida. Utiliza el botón de adjuntar fotos.')
+            if not (self.directory / 'images' / image).is_file():
+                raise Problem('La foto adjunta no está disponible.')
+            if image not in images:
+                images.append(image)
+        if not message and not images:
+            raise Problem('Escribe un comentario o adjunta una foto.')
+        if not isinstance(request_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{16,100}", request_id):
             raise Problem("Falta el identificador del comentario.")
-        digest = hashlib.sha256((ident + message).encode()).hexdigest()
+        # Keep text-only request hashes compatible with pre-upgrade retries.
+        payload = json.dumps({'id':ident,'body':message,'attachments':images}, sort_keys=True) if images else ident + message
+        digest = hashlib.sha256(payload.encode()).hexdigest()
         with self.transaction() as db:
             prior = db.execute("SELECT * FROM requests WHERE token=?", (request_id,)).fetchone()
             if prior:
@@ -534,14 +552,47 @@ class Store:
                     raise Problem("Operación duplicada con otros datos.", 409)
                 result = json.loads(prior["response"])
                 if result.get('deleted'):
-                    raise Problem("Esta tarea fue eliminada definitivamente.", 410)
+                    raise Problem('Este comentario fue eliminado.' if result.get('kind') == 'comment' else 'Esta tarea fue eliminada definitivamente.', 410)
                 return result
             ticket = self.item(db, ident, "ticket", True)
             self.item(db, ticket["boardId"], "board", True)
-            result = {"id": str(uuid.uuid4()), "ticket": ident, "author": actor, "body": message, "created": now()}
+            result = {"id": str(uuid.uuid4()), "ticket": ident, "author": actor, "body": message, "created": now(), 'attachments': images}
             db.execute("INSERT INTO comments VALUES(:id,:ticket,:author,:body,:created)", result)
+            db.executemany('INSERT INTO comment_attachments VALUES(?,?,?)', [(result['id'], image, i) for i, image in enumerate(images)])
             self.activity(db, ident, actor, "comentario añadido")
             db.execute("INSERT INTO requests VALUES(?,?,?,?,?)", (request_id, actor, digest, json.dumps(result), now()))
+            return result
+
+    def delete_comment(self, ident, ticket_id, actor, request_id, confirmed=False):
+        ident, ticket_id = text(ident, 100, True), text(ticket_id, 100, True)
+        if confirmed is not True:
+            raise Problem('Confirma la eliminación del comentario.')
+        if not isinstance(request_id, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{16,100}', request_id):
+            raise Problem('Falta el identificador de la operación.')
+        digest = hashlib.sha256(json.dumps({'action':'delete-comment','id':ident,'ticket':ticket_id}, sort_keys=True).encode()).hexdigest()
+        with self.transaction() as db:
+            prior = db.execute('SELECT * FROM requests WHERE token=?', (request_id,)).fetchone()
+            if prior:
+                if prior['actor'] != actor or prior['payload_hash'] != digest:
+                    raise Problem('La operación ya se usó con otros datos.', 409)
+                return json.loads(prior['response'])
+            ticket = self.item(db, ticket_id, 'ticket', True)
+            self.item(db, ticket['boardId'], 'board', True)
+            comment = db.execute('SELECT * FROM comments WHERE id=? AND ticket=?', (ident, ticket_id)).fetchone()
+            if not comment:
+                raise Problem('El comentario ya no está disponible.', 404)
+            db.execute('DELETE FROM comment_attachments WHERE comment=?', (ident,))
+            db.execute('DELETE FROM comments WHERE id=?', (ident,))
+            result = {'id':ident,'ticket':ticket_id,'kind':'comment','deleted':True}
+            # A delayed retry of sending this comment must never resurrect it.
+            for receipt in db.execute('SELECT token,response FROM requests').fetchall():
+                body = json.loads(receipt['response'])
+                if isinstance(body, dict) and body.get('id') == ident:
+                    db.execute('UPDATE requests SET response=? WHERE token=?', (json.dumps(result), receipt['token']))
+            self.activity(db, ticket_id, actor, 'comentario eliminado')
+            db.execute('INSERT INTO requests VALUES(?,?,?,?,?)', (request_id, actor, digest, json.dumps(result), now()))
+            # Content-addressed files can also be used by another comment or a
+            # profile. Unlink only this relation; backups retain recoverability.
             return result
 
     def delete_ticket(self, ident, actor, expected, request_id, confirmed=False):
@@ -558,6 +609,7 @@ class Store:
                 return json.loads(prior['response'])
             ticket = self.item(db, ident, 'ticket')
             self.check_version(ticket, expected)
+            db.execute('DELETE FROM comment_attachments WHERE comment IN (SELECT id FROM comments WHERE ticket=?)', (ident,))
             db.execute('DELETE FROM comments WHERE ticket=?', (ident,))
             db.execute('DELETE FROM items WHERE id=? AND kind=\'ticket\'', (ident,))
             result = {'id': ident, 'kind': 'ticket', 'deleted': True}
@@ -639,8 +691,15 @@ class Store:
 
     def details(self, ident):
         with self.connect() as db:
+            # One read snapshot: a photo/comment arriving between these queries
+            # must not create a dangling attachment or a missing dictionary key.
+            db.execute('BEGIN')
             item = self.item(db, ident)
-            return {"item": item, "comments": [dict(r) for r in db.execute("SELECT * FROM comments WHERE ticket=? ORDER BY created,rowid", (ident,))],
+            comments = [dict(r, attachments=[]) for r in db.execute('SELECT * FROM comments WHERE ticket=? ORDER BY created,rowid', (ident,))]
+            by_id = {c['id']:c for c in comments}
+            for row in db.execute('SELECT a.* FROM comment_attachments a JOIN comments c ON c.id=a.comment WHERE c.ticket=? ORDER BY a.position', (ident,)):
+                by_id[row['comment']]['attachments'].append(row['image'])
+            return {"item": item, "comments": comments,
                     "activity": [dict(r) for r in db.execute("SELECT * FROM activity WHERE target=? ORDER BY seq DESC LIMIT 60", (ident,))]}
 
     def upload(self, encoded):
@@ -676,6 +735,7 @@ class Store:
             db.execute("BEGIN")
             payload = {"format": "scrib-world-v1", "exported": now(), "timezone": "Europe/Madrid", "items": self.all(db),
                        "comments": [dict(r) for r in db.execute("SELECT * FROM comments")], "activity": [dict(r) for r in db.execute("SELECT * FROM activity")], "members": self.members(db),
+                       "commentAttachments": [dict(r) for r in db.execute('SELECT * FROM comment_attachments ORDER BY comment,position')],
                        "messageDrafts": [dict(r) for r in db.execute("SELECT * FROM message_drafts")], "messageDeliveries": [dict(r) for r in db.execute("SELECT * FROM message_deliveries")],
                        "availabilityLinks": [dict(r) for r in db.execute("SELECT * FROM availability_links")], "availabilityReplies": [dict(r) for r in db.execute("SELECT * FROM availability_replies")],
                        "businessRecords": [dict(r) for r in db.execute("SELECT * FROM business_records")], "matchReports": [dict(r) for r in db.execute("SELECT * FROM match_reports")],
@@ -1133,8 +1193,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200,(ROOT/'assets/sutura-document-logo.png').read_bytes(),'image/png')
                 if route == 'tasks.css':
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
-                if route == 'task-ui.js':
-                    return self.reply(200, (ROOT / 'public' / 'task-ui.js').read_bytes(), 'application/javascript; charset=utf-8')
+                if route in ('task-ui.js', 'task-comments.js'):
+                    return self.reply(200, (ROOT / 'public' / route).read_bytes(), 'application/javascript; charset=utf-8')
                 if route == 'export.js':
                     return self.reply(200, (ROOT / 'public' / 'export.js').read_bytes(), 'application/javascript; charset=utf-8')
                 if route == 'documents.js':
@@ -1206,7 +1266,9 @@ class Handler(BaseHTTPRequestHandler):
             elif route == 'api/lighting/save':
                 result = store.save_lighting(data, actor)
             elif route == "api/comment":
-                result = store.comment(data.get("id"), data.get("body"), actor, data.get("requestId"))
+                result = store.comment(data.get("id"), data.get("body"), actor, data.get("requestId"), data.get('attachments'))
+            elif route == 'api/delete-comment':
+                result = store.delete_comment(data.get('id'), data.get('ticket'), actor, data.get('requestId'), data.get('confirmed'))
             elif route == "api/upload":
                 result = {"image": store.upload(data.get("base64"))}
             elif route == "api/whatsapp/preview":

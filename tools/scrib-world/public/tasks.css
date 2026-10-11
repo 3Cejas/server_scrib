@@ -34,6 +34,14 @@
 .column .status-dot{background:var(--task-color)}
 .ticket{background:var(--task-fill);border-color:var(--task-border);border-left:3px solid var(--task-color)}
 .ticket:hover{border-color:var(--task-color)}
+.ticket{cursor:pointer}
+.ticket:focus-within{outline:2px solid var(--task-color);outline-offset:2px}
+.ticket-priority{border:1px solid currentColor;font-size:.66rem;gap:6px}
+.ticket-priority::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.priority-low{color:#8cdde9;background:#213c48}
+.priority-normal{color:#c9b5ff;background:#34294e}
+.priority-high{color:#ffdc8a;background:#44381c}
+.priority-urgent{color:#ff9bac;background:#491c30}
 .ticket.urgent{border-left-color:var(--task-color)}
 .ticket-assignees{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .ticket-assignee{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--person-color);background:#ffffff08;border-radius:8px;font-size:.7rem;color:var(--person-color);overflow-wrap:anywhere;max-width:100%;min-width:0}
@@ -57,6 +65,23 @@
 .comment-thread .comment{margin:10px 16px 10px 0;border-radius:12px 12px 12px 3px;line-height:1.5}
 .comment-thread .comment.own{margin-left:16px;margin-right:0;background:#2a3441;border-radius:12px 12px 3px 12px;border:1px solid #497078}
 .comment small strong{color:var(--person-color)}
+.comment-head{display:flex;align-items:flex-start;gap:6px;justify-content:space-between;white-space:normal}
+.comment-head small{flex:1;min-width:0}
+.comment-delete,.chat-attach{display:inline-grid;place-items:center;background:transparent;border:0;border-radius:8px;padding:7px;color:var(--muted);flex-shrink:0;min-width:34px;min-height:34px}
+.comment-delete:hover{color:var(--coral);background:#ff647b15}
+.comment-delete svg{width:16px;height:16px;pointer-events:none}
+.comment-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;white-space:normal}
+.comment-photos a{display:block;min-width:0;border-radius:8px;overflow:hidden;background:#111723}
+.comment-photos img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
+.comment-photos a:only-child{grid-column:1/-1}
+.comment-draft-photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.comment-draft-photos:empty{display:none}
+.comment-draft-photo{position:relative;width:66px;height:66px}
+.comment-draft-photo img{display:block;width:100%;height:100%;object-fit:cover;border-radius:8px}
+.comment-draft-photo button{position:absolute;right:-4px;top:-4px;border:1px solid var(--line);border-radius:50%;background:#161925;color:white;min-width:28px;min-height:28px}
+.comment-photo-hint{color:var(--muted);font-size:.64rem;line-height:1.4}
+.chat-attach{min-width:36px;min-height:42px;padding:8px;color:var(--cyan)}
+.chat-attach:hover{background:#64e7e215}.chat-attach svg{width:20px;height:20px;pointer-events:none}
 .chat-composer{display:flex;align-items:flex-end;gap:8px;padding:8px;border:1px solid var(--line);border-radius:15px;background:#131722;margin-top:12px}
 .chat-composer:focus-within{border-color:var(--cyan)}
 .comment-form .chat-composer textarea{flex:1;min-width:0;min-height:52px;max-height:160px;border:0;background:transparent;outline:0;padding:8px;resize:vertical;margin:0;line-height:1.4}

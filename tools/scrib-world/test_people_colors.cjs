@@ -28,7 +28,7 @@ function client() {
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
   vm.createContext(context);
-  for(const file of ['people-colors.js','task-ui.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
+  for(const file of ['people-colors.js','task-ui.js','task-comments.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>'};
   const marker='  boot();';
@@ -83,6 +83,43 @@ test('verification actors are hidden only from assignment UI, without deleting m
   assert.equal(JSON.stringify(state.members),before);
   const comments=app.commentsHtml([{author:'deployment-verification',created:'2026-10-11T12:00:00Z',body:'Comentario antiguo'}]);
   assert.match(comments,/Deployment Verification|Comentario antiguo/);
+});
+
+test('David Viñas assignment aliases display only one 3cejas, retaining account data',()=>{
+  const {app,state}=client();
+  state.members=[{username:'3cejas',name:'David Viñas'},{username:'trescejas',name:'David Viñas'},{username:'pablop',name:'Pablo Pineño'}];
+  const before=JSON.stringify(state.members),html=app.taskUI.assigneeOptions(['trescejas']);balanced(html);
+  assert.equal((html.match(/name="assignees" value="3cejas"/g)||[]).length,1);
+  assert.match(html,/value="3cejas" checked/);assert.doesNotMatch(html,/David Viñas|value="trescejas"/);
+  const card=app.ticketCard({id:'t',title:'Prueba',status:'todo',priority:'normal',labels:[],assignees:['3cejas','trescejas'],checklist:[],blockedBy:[]});
+  assert.equal((card.match(/class="ticket-assignee /g)||[]).length,1);assert.doesNotMatch(card,/David Viñas/);
+  assert.equal(JSON.stringify(state.members),before);
+  assert.equal(app.taskUI.canonicalAssignee('pablop'),'pablop');
+});
+
+test('all four task priorities have readable labels and distinct color classes',()=>{
+  const {app}=client();
+  for(const [key,label] of Object.entries({low:'Baja',normal:'Normal',high:'Alta',urgent:'Urgente'})){
+    const html=app.ticketCard({id:'t',title:'Prueba',status:'todo',priority:key,labels:[],assignees:[],checklist:[],blockedBy:[]});balanced(html);
+    assert.match(html,new RegExp('priority-'+key+'">Prioridad '+label));
+    assert.match(read('tasks.css'),new RegExp('\\.priority-'+key+'\\{color:'));
+  }
+});
+
+test('task detail has close X but no Cancel button, while other forms keep theirs',async()=>{
+  const {app,nodes}=client();await app.openTicket('', 'b1');
+  assert.doesNotMatch(nodes['dialog-content'].innerHTML,/Cancelar/);
+  assert.match(read('index.html'),/aria-label="Cerrar ficha"/);
+  assert.match(app.formShell('board',{},''),/Cancelar/);
+});
+
+test('comment photos are private, enlarged on click and unsafe paths never render',()=>{
+  const {app}=client(),name='a'.repeat(64)+'.png';
+  const html=app.commentsHtml([{id:'c',ticket:'t',author:'tester',created:'2026-10-11T12:00:00Z',body:'Foto <prueba>',attachments:[name,'https://evil.invalid/x.png','../../secret']}]);balanced(html);
+  assert.match(html,/data-action="delete-comment"/);assert.match(html,/data-ticket="t"/);
+  assert.match(html,/Foto &lt;prueba&gt;/);assert.equal((html.match(/<img /g)||[]).length,1);
+  assert.match(html,/href="\/scrib\/backstage\/images\/[a-f0-9]+\.png" target="_blank"/);
+  assert.doesNotMatch(html,/evil|secret/);
 });
 
 test('task editor has chips and chat comments, no redundant column/blocking copy or archive',async()=>{

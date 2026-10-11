@@ -4,8 +4,13 @@ window.ScribTasksUI = h => {
   // Hide synthetic verification actors, not their comments/history or stored assignments.
   const isServiceMember = m => [m?.username, m?.name].some(value => /^(?:deployment(?: verification| test| smoke)?|verification deploy(?:ment)?|verificacion despliegue|despliegue verificacion|e2e|smoke test)(?: |$)/.test(normalize(value)));
   const memberClass = username => h.colors.className({id:'member:' + username, color:'auto'});
-  const members = () => h.state().members.filter(m => !isServiceMember(m));
-  const assigneeOptions = selected => members().map(m => `<label class="assignee-option ${memberClass(m.username)}"><input type="checkbox" name="assignees" value="${h.esc(m.username)}" ${selected.includes(m.username)?'checked':''}><span><i aria-hidden="true">${h.esc(h.initials(m.name))}</i>${h.esc(m.name)}</span></label>`).join('');
+  // Only task-assignment aliases; this does not merge login accounts or history.
+  const canonicalAssignee = username => ['3cejas','trescejas'].includes(username) ? '3cejas' : username;
+  const assigneeName = username => canonicalAssignee(username)==='3cejas' ? '3cejas' : h.state().members.find(m=>m.username===username)?.name || username;
+  const members = () => [...new Map(h.state().members.filter(m => !isServiceMember(m)).map(m=>{
+    const username=canonicalAssignee(m.username);return [username,{...m,username,name:assigneeName(username)}];
+  })).values()];
+  const assigneeOptions = selected => members().map(m => `<label class="assignee-option ${memberClass(m.username)}"><input type="checkbox" name="assignees" value="${h.esc(m.username)}" ${selected.map(canonicalAssignee).includes(m.username)?'checked':''}><span><i aria-hidden="true">${h.esc(h.initials(m.name))}</i>${h.esc(m.name)}</span></label>`).join('');
   const chip = label => `<span class="tag-chip badge ${h.labelColor(label)}" data-label="${h.esc(label)}"><span>${h.esc(label)}</span><button type="button" data-action="remove-tag" aria-label="Quitar etiqueta ${h.esc(label)}">×</button></span>`;
   const tagEditor = labels => `<div class="field"><span>Etiquetas</span><div class="tag-editor" role="group" aria-label="Etiquetas de la tarea"><div class="tag-chips">${labels.map(chip).join('')}</div><input class="tag-input" name="labels" type="text" maxlength="800" aria-label="Añadir etiquetas" placeholder="Añadir etiqueta…" autocomplete="off"><small class="tag-error" role="alert"></small></div></div>`;
   const labelsIn = editor => [...editor.querySelectorAll('.tag-chip')].map(n => n.dataset.label);
@@ -68,5 +73,5 @@ window.ScribTasksUI = h => {
   function focusout(event) {
     if(event.target.matches('.tag-input'))commit(event.target);
   }
-  return {isServiceMember,memberClass,members,assigneeOptions,tagEditor,combineLabels,readLabels,input,removeTag,keydown,focusout};
+  return {isServiceMember,canonicalAssignee,assigneeName,memberClass,members,assigneeOptions,tagEditor,combineLabels,readLabels,input,removeTag,keydown,focusout};
 };
