@@ -527,6 +527,24 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn('object-fit: contain',integrate.CSS)
         self.assertIn('clamp(',integrate.CSS)
 
+    def test_decorated_selector_removes_extra_copy_but_keeps_logo_subtitle_and_link(self):
+        surrounding = '<a href="/sutura/">Sutura</a>' + integrate.BRIDGE
+        source = integrate.CSS + integrate.DECORATED_CARD + surrounding
+        changed = integrate.update_selector(source)
+        self.assertEqual(changed, integrate.CSS + integrate.CARD + surrounding)
+        self.assertEqual(changed, integrate.update_selector(changed))
+        self.assertEqual(changed, integrate.entry_html(source))
+        self.assertNotIn('ESCRITURA × JUEGO × ESCENA', changed)
+        self.assertNotIn('ENTRAR AL BACKSTAGE', changed)
+        self.assertNotIn('world-scrib-kicker', integrate.CARD)
+        self.assertNotIn('world-scrib-enter', integrate.CARD)
+        self.assertIn(integrate.SUBTITLE, integrate.CARD)
+        self.assertIn('world-scrib-stage', integrate.CARD)
+        self.assertIn('href="https://sutura-gateway.ddns.net/scrib/"', integrate.CARD)
+        for drift in (source.replace('JUEGO × ESCENA','OTRO TEXTO'), source + integrate.DECORATED_CARD):
+            with self.assertRaises(ValueError):
+                integrate.update_selector(drift)
+
     def test_installed_logo_only_card_adds_subtitle_without_changing_other_worlds(self):
         surrounding = 'other worlds preserved' + integrate.BRIDGE
         for old_card in (integrate.LOGO_ONLY_CARD, integrate.RELATIVE_CARD, integrate.PREVIOUS_CARD):

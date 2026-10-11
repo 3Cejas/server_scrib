@@ -21,13 +21,18 @@ PREVIOUS_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sut
 LOGO_ONLY_CARD = RELATIVE_CARD.replace('href="/mundo-scrib/"', 'href="https://sutura-gateway.ddns.net/scrib/"')
 SUBTITLE = "el primer videojuego- espectáculo de escritura en vivo"
 SUBTITLE_CARD = LOGO_ONLY_CARD.replace('      </a>', '        <span class="world-scrib-copy">' + SUBTITLE + '</span>\n      </a>')
-CARD = '''      <a class="world world--scrib" href="https://sutura-gateway.ddns.net/scrib/" aria-label="Entrar en SCRIB">
+DECORATED_CARD = '''      <a class="world world--scrib" href="https://sutura-gateway.ddns.net/scrib/" aria-label="Entrar en SCRIB">
         <span class="world-scrib-stage"><img class="world-logo world-scrib-logo" src="/favicons/scrib-world-logo.png?v=1" width="500" height="500" alt="&lt;SCRI&gt; B"></span>
         <span class="world-scrib-kicker" aria-hidden="true">ESCRITURA × JUEGO × ESCENA</span>
         <span class="world-scrib-copy">''' + SUBTITLE + '''</span>
         <span class="world-scrib-enter" aria-hidden="true">ENTRAR AL BACKSTAGE <span>↗</span></span>
       </a>
 '''
+CARD = DECORATED_CARD.replace(
+    '        <span class="world-scrib-kicker" aria-hidden="true">ESCRITURA × JUEGO × ESCENA</span>\n', ''
+).replace(
+    '        <span class="world-scrib-enter" aria-hidden="true">ENTRAR AL BACKSTAGE <span>↗</span></span>\n', ''
+)
 LOGO_ONLY_CSS = '''    /* Mundo SCRIB: lightweight, no continuous GPU effects. */
     .world--scrib { --accent: #64e7e2; background: linear-gradient(120deg, #152f36, #20162b 55%, #40212b); border-color: #71506b; gap: 0; }
     .world--scrib .world-scrib-logo { height: clamp(136px, 18vw, 160px); width: min(220px, 85%); object-fit: contain; }
@@ -264,7 +269,7 @@ def update_selector(source):
         raise ValueError("La tarjeta SCRIB ha cambiado: revisar manualmente.")
     if source.count(CARD) == 1 and source.count(CSS) == 1:
         return source
-    for old_card in (SUBTITLE_CARD, LOGO_ONLY_CARD, RELATIVE_CARD, PREVIOUS_CARD):
+    for old_card in (DECORATED_CARD, SUBTITLE_CARD, LOGO_ONLY_CARD, RELATIVE_CARD, PREVIOUS_CARD):
         for old_css in (SUBTITLE_CSS, LOGO_ONLY_CSS, CSS):
             if source.count(old_card) == 1 and source.count(old_css) == 1:
                 return source.replace(old_card, CARD, 1).replace(old_css, CSS, 1)
