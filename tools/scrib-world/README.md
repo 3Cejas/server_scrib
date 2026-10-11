@@ -89,7 +89,17 @@ que administración haya exportado antes otro documento.
   solo permite descargar su propio acuerdo mientras no haya caducado o sido revocado.
 - Concepto de factura automático: roles, espectáculo, bolo y días liquidados.
   Datos de la entidad en registros privados, tipos fiscales individuales y
-  numeración a revisar por el emisor; los documentos siguen siendo borradores.
+  numeración editable por el emisor. Vista y PDF no muestran «Borrador» ni un
+  número pendiente; si se deja el número vacío, solo aparece la fecha. El texto
+  indica el pago por transferencia y su cuenta, sin realizar ninguna transferencia.
+  Los PDF firmados se suben desde cada factura (hasta 3 MB, diez versiones), se
+  conservan intactos y pueden consultarse en Pagos del bolo y Producción y cuentas.
+  Solo administración puede subir, consultar o eliminar documentos. La papelera
+  elimina facturas y archivos de acuerdos de la vista, con confirmación, control
+  de versión e idempotencia. No cambia pagos ni borra originales compartidos;
+  `business_deletions` y los archivos privados permiten recuperación administrativa
+  y se incluyen en el ZIP recuperable. Eliminar un acuerdo revisado obliga a
+  revisar los archivos que queden; sin ninguno, vuelve a bloquear nuevas facturas.
   Los datos importados con domicilio pendiente no habilitan generación de acuerdos/facturas.
 - En Técnica la sala de intérpretes se sitúa debajo de la zona técnica,
   ambas a todo el ancho. Arrastre, deshacer y PDF usan las nuevas coordenadas

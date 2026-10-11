@@ -198,7 +198,10 @@ class DocumentCleanupTests(unittest.TestCase):
         reader=PdfReader(io.BytesIO(generate(self.store,dict(kind='invoice',id=invoice['id']),dict(role='admin',username='ensayo'))))
         text='\n'.join(p.extract_text() for p in reader.pages)
         self.assertEqual(text.count('Remuneración por los roles'),1)
-        self.assertEqual(text.count('BORRADOR - NO EMITIDO'),1)
+        self.assertNotIn('BORRADOR',text)
+        self.assertNotIn('Pendiente',text)
+        self.assertNotIn('N.º',text)
+        self.assertIn('El pago se realizará mediante transferencia bancaria',text)
         self.assertIn('IRPF 15 %',text);self.assertIn('IVA 10 %',text)
         self.assertIn('TOTAL A PERCIBIR',text);self.assertEqual(len(reader.pages),1)
         ops=ContentStream(reader.pages[0].get_contents(),reader).operations

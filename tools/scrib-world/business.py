@@ -1,6 +1,7 @@
 """Private production records. Fiscal data never enters the shared world snapshot.
 
-Amounts are integer cents; invoices are explicitly drafts, never an issuing system.
+Amounts are integer cents; invoice PDFs do not initiate payments or electronic filing.
+The legacy draft status describes stored preparation records, not a printed watermark.
 Signed uploads preserve original bytes, not a claim of signature verification.
 """
 import base64
@@ -32,6 +33,11 @@ CREATE INDEX IF NOT EXISTS agreement_event ON agreements(event);
 CREATE TABLE IF NOT EXISTS agreement_uploads (
  id TEXT PRIMARY KEY, agreement TEXT NOT NULL, hash TEXT NOT NULL, name TEXT NOT NULL,
  created TEXT NOT NULL, UNIQUE(agreement,hash));
+CREATE TABLE IF NOT EXISTS invoice_uploads (
+ id TEXT PRIMARY KEY, invoice TEXT NOT NULL, hash TEXT NOT NULL, name TEXT NOT NULL,
+ created TEXT NOT NULL, UNIQUE(invoice,hash));
+CREATE TABLE IF NOT EXISTS business_deletions (
+ id TEXT PRIMARY KEY, type TEXT NOT NULL, body TEXT NOT NULL, deleted TEXT NOT NULL, actor TEXT NOT NULL);
 '''
 PUBLIC_ORIGIN = 'https://sutura-gateway.ddns.net'
 
@@ -173,6 +179,9 @@ class Business:
     def overview(self):
         with self.store.connect() as db:
             records = [dict(json.loads(r['body']),type=r['type'],id=r['id'],version=r['version']) for r in db.execute('SELECT * FROM business_records')]
+            for record in records:
+                if record['type']=='invoice':
+                    record['uploads']=[dict(r) for r in db.execute('SELECT id,name,created FROM invoice_uploads WHERE invoice=? ORDER BY created DESC,id',(record['id'],))]
             return {'records':records}
 
     def event_summary(self, event_id):
@@ -443,6 +452,76 @@ class Business:
             if not row:raise self.problem('Documento no encontrado.',404)
             return (self.store.directory/'documents'/(row['hash']+'.pdf')).read_bytes()
 
+    def invoice_document(self, ident):
+        with self.store.connect() as db:
+            row=db.execute("SELECT u.hash FROM invoice_uploads u JOIN business_records r ON r.type='invoice' AND r.id=u.invoice WHERE u.id=?",(self.text(ident,100,True),)).fetchone()
+            if not row:raise self.problem('Factura subida no encontrada.',404)
+            return (self.store.directory/'documents'/(row['hash']+'.pdf')).read_bytes()
+
+    def invoice_upload(self, data, actor):
+        raw,name,digest=self.upload_data(data)
+        ident=self.text(data.get('id',''),100,True)
+        with self.store.transaction() as db:
+            invoice=self.record(db,'invoice',ident)
+            if not invoice['version']:raise self.problem('Factura no encontrada.',404)
+            duplicate=db.execute('SELECT id FROM invoice_uploads WHERE invoice=? AND hash=?',(ident,digest)).fetchone()
+            if duplicate:return {'id':ident,'uploadId':duplicate['id'],'duplicate':True}
+            if type(data.get('version')) is not int or data['version']!=invoice['version']:
+                raise self.problem('La factura ha cambiado. Recarga antes de subir el archivo.',409)
+            if db.execute('SELECT COUNT(*) FROM invoice_uploads WHERE invoice=?',(ident,)).fetchone()[0]>=10:
+                raise self.problem('Límite de archivos de esta factura alcanzado.',429)
+            folder=self.store.directory/'documents';folder.mkdir(mode=0o700,exist_ok=True)
+            target=folder/(digest+'.pdf')
+            try:
+                with target.open('xb') as file:os.chmod(target,0o600);file.write(raw);file.flush();os.fsync(file.fileno())
+            except FileExistsError:
+                if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:raise self.problem('El archivo almacenado no coincide. Contacta con administración.',409)
+            upload_id=str(uuid.uuid4())
+            db.execute('INSERT INTO invoice_uploads VALUES(?,?,?,?,?)',(upload_id,ident,digest,name,self.now()))
+            version=invoice.pop('version');invoice.update(updated=self.now(),updatedBy=actor)
+            db.execute("UPDATE business_records SET body=?,version=? WHERE type='invoice' AND id=?",(json.dumps(invoice,ensure_ascii=False),version+1,ident))
+            self.store.activity(db,invoice['eventId'],actor,'factura firmada subida (sin verificación automática de firma)')
+            return {'id':ident,'uploadId':upload_id,'duplicate':False}
+
+    def delete_document(self, kind, data, actor):
+        if kind not in ('invoice','agreement-upload'):raise self.problem('Documento no válido.')
+        ident=self.text(data.get('id',''),100,True)
+        token=data.get('requestId')
+        if data.get('confirmed') is not True:raise self.problem('Confirma la eliminación del documento.')
+        if not isinstance(token,str) or not re.fullmatch(r'[a-zA-Z0-9_-]{16,100}',token):raise self.problem('Falta el identificador de la operación.')
+        expected=data.get('version') if kind=='invoice' else self.text(data.get('agreementId',''),100,True)
+        digest=hashlib.sha256(json.dumps({'kind':kind,'id':ident,'expected':expected},sort_keys=True).encode()).hexdigest()
+        with self.store.transaction() as db:
+            receipt=db.execute('SELECT * FROM requests WHERE token=?',(token,)).fetchone()
+            if receipt:
+                if receipt['actor']!=actor or receipt['payload_hash']!=digest:raise self.problem('La operación ya se usó con otros datos.',409)
+                return json.loads(receipt['response'])
+            if kind=='invoice':
+                row=db.execute("SELECT * FROM business_records WHERE type='invoice' AND id=?",(ident,)).fetchone()
+                if not row:raise self.problem('Factura no encontrada.',404)
+                if type(expected) is not int or expected!=row['version']:raise self.problem('La factura ha cambiado. Recarga antes de eliminarla.',409)
+                body=json.loads(row['body']);event=body['eventId']
+                removed={'record':dict(row),'uploads':[dict(r) for r in db.execute('SELECT * FROM invoice_uploads WHERE invoice=?',(ident,))]}
+                db.execute('DELETE FROM invoice_uploads WHERE invoice=?',(ident,))
+                db.execute("DELETE FROM business_records WHERE type='invoice' AND id=?",(ident,))
+            else:
+                row=db.execute('SELECT * FROM agreement_uploads WHERE id=? AND agreement=?',(ident,expected)).fetchone()
+                if not row:raise self.problem('Acuerdo subido no encontrado.',404)
+                agreement=db.execute('SELECT * FROM agreements WHERE id=?',(expected,)).fetchone()
+                if not agreement:raise self.problem('Acuerdo no encontrado.',404)
+                event=agreement['event'];removed={'upload':dict(row),'agreement':dict(agreement)}
+                db.execute('DELETE FROM agreement_uploads WHERE id=?',(ident,))
+                if agreement['status']!='revoked':
+                    remaining=db.execute('SELECT 1 FROM agreement_uploads WHERE agreement=?',(expected,)).fetchone()
+                    db.execute('UPDATE agreements SET status=? WHERE id=?',('uploaded' if remaining else 'generated',expected))
+            # Remove the active relation, not shared content-addressed originals.
+            # Private recovery data is also included in the administrative backup.
+            db.execute('INSERT INTO business_deletions VALUES(?,?,?,?,?)',(str(uuid.uuid4()),kind,json.dumps(removed,ensure_ascii=False),self.now(),actor))
+            result={'id':ident,'kind':kind,'deleted':True}
+            self.store.activity(db,event,actor,'documento eliminado: '+kind)
+            db.execute('INSERT INTO requests VALUES(?,?,?,?,?)',(token,actor,digest,json.dumps(result),self.now()))
+            return result
+
     def invoice(self,data,actor):
         event_id=self.text(data.get('eventId',''),100,True);person_id=self.text(data.get('personId',''),100,True)
         with self.store.transaction() as db:
@@ -478,7 +557,7 @@ class Business:
             body={'id':ident,'agreementId':agreement['id'],'eventId':event_id,'personId':person_id,'eventTitle':event['title'],'issuer':billing,'recipient':settings,
                   'date':self.date(data.get('date','')),'series':self.text(data.get('series','SUTURA'),60),'number':self.text(data.get('number',''),60),
                   'concept':concept,'roles':roles,'lines':lines,'base':base,'vat':vat,'withholding':withholding,'total':base+vat-withholding,'created':self.now(),'status':'draft'}
-            if not body['date']:raise self.problem('Indica la fecha del borrador.')
+            if not body['date']:raise self.problem('Indica la fecha de la factura.')
             db.execute('INSERT INTO business_records VALUES(?,?,?,1)',('invoice',ident,json.dumps(body,ensure_ascii=False)))
-            self.store.activity(db,event_id,actor,'borrador de factura preparado (no emitido ni pagado)')
+            self.store.activity(db,event_id,actor,'factura preparada (sin envío ni transferencia)')
             return body

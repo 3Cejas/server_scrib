@@ -376,10 +376,10 @@ def generate(store, data, user, *, agreement_token=None):
             records = store.business.overview()['records']
             invoice = next((r for r in records if r['type']=='invoice' and r['id']==data.get('id')),None)
             if not invoice:
-                raise problem('Borrador no encontrado.',404)
-            heading('Factura', 'BORRADOR - NO EMITIDO')
-            story.append(para('N.º '+str(invoice.get('series',''))+' / '+str(invoice.get('number') or 'Pendiente')+
-                              '  |  Fecha: '+str(invoice.get('date','')),'Small'))
+                raise problem('Factura no encontrada.',404)
+            heading('Factura')
+            number=' / '.join(str(invoice.get(k) or '') for k in ('series','number') if invoice.get(k)) if invoice.get('number') else ''
+            story.append(para(('N.º '+number+'  |  ' if number else '')+'Fecha: '+str(invoice.get('date','')),'Small'))
             parties=[]
             for label, party, name in [('EMISOR',invoice['issuer'],invoice['issuer'].get('legalName','')),
                                        ('DESTINATARIO',invoice['recipient'],invoice['recipient'].get('name',''))]:
@@ -410,7 +410,8 @@ def generate(store, data, user, *, agreement_token=None):
             totals_table.setStyle(TableStyle([('ALIGN',(1,0),(1,-1),'RIGHT'),('TOPPADDING',(0,0),(-1,-1),8),
                 ('BACKGROUND',(0,-1),(-1,-1),colors.HexColor('#edf4f5')),('LINEABOVE',(0,-1),(-1,-1),.8,tones['blue'])]))
             story.extend([totals_table,Spacer(1,14)])
-            story.append(para('Transferencia: '+str(invoice['issuer'].get('iban') or 'Cuenta pendiente de confirmar'),'Small'))
+            iban=invoice['issuer'].get('iban')
+            story.append(para('El pago se realizará mediante transferencia bancaria'+(' a la cuenta '+str(iban)+'.' if iban else '. Cuenta bancaria pendiente de indicar.'),'Small'))
     created=datetime.now(timezone.utc).isoformat(timespec='seconds')
     reference='SC-'+uuid.uuid4().hex
     labels={'inventory':'KIT DE ESCENA','lighting':'TÉCNICA',

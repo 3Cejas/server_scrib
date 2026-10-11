@@ -808,6 +808,7 @@ class Store:
                        "availabilityLinks": [dict(r) for r in db.execute("SELECT * FROM availability_links")], "availabilityReplies": [dict(r) for r in db.execute("SELECT * FROM availability_replies")],
                        "businessRecords": [dict(r) for r in db.execute("SELECT * FROM business_records")], "matchReports": [dict(r) for r in db.execute("SELECT * FROM match_reports")],
                        "agreements": [dict(r) for r in db.execute("SELECT * FROM agreements")], "agreementUploads": [dict(r) for r in db.execute("SELECT * FROM agreement_uploads")],
+                       "invoiceUploads": [dict(r) for r in db.execute("SELECT * FROM invoice_uploads")], "businessDeletions": [dict(r) for r in db.execute("SELECT * FROM business_deletions")],
                        "documentExports": [dict(r) for r in db.execute("SELECT * FROM document_exports")]}
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
@@ -1227,6 +1228,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self.reply(200,store.business.agreements(route.split('/')[-1]))
                     if route.startswith('api/business/document/'):
                         return self.reply(200,store.business.document(route.split('/')[-1]),'application/pdf',{'Content-Disposition':'attachment; filename="acuerdo-firmado.pdf"','Content-Security-Policy':"sandbox; default-src 'none'"})
+                    if route.startswith('api/business/invoice-document/'):
+                        return self.reply(200,store.business.invoice_document(route.split('/')[-1]),'application/pdf',{'Content-Disposition':'inline; filename="factura-firmada.pdf"','Content-Security-Policy':"sandbox; default-src 'none'"})
                     raise Problem('No encontrado.',404)
                 if route == 'api/game-configurations':
                     return self.reply(200, store.game_configurations())
@@ -1315,6 +1318,11 @@ class Handler(BaseHTTPRequestHandler):
                     result=store.business.admin_upload(data,actor)
                 elif route == 'api/business/invoice':
                     result=store.business.invoice(data,actor)
+                elif route == 'api/business/invoice-upload':
+                    result=store.business.invoice_upload(data,actor)
+                elif route in ('api/business/invoice-delete','api/business/agreement-upload-delete'):
+                    kind='invoice' if route.endswith('/invoice-delete') else 'agreement-upload'
+                    result=store.business.delete_document(kind,data,actor)
                 else:
                     raise Problem('No encontrado.',404)
                 return self.reply(200,{'ok':True,'item':result})
