@@ -24,7 +24,7 @@ class PlanImageTests(unittest.TestCase):
 
     def test_only_bounded_pngs_are_accepted_not_paths_xml_or_other_shapes(self):
         image=PlanImage(self.png(),fixtures.world.Problem)
-        self.assertEqual((image.drawWidth,image.drawHeight),(428,535))
+        self.assertEqual((image.drawWidth,image.drawHeight),(728,910))
         for bad in ['file:///etc/passwd','<svg/>','A'*3_145_729,'not a png',self.png(1000,1000),self.png(20,25),None]:
             with self.subTest(value=str(bad)[:25]),self.assertRaises(fixtures.world.Problem):
                 PlanImage(bad,fixtures.world.Problem)
@@ -35,43 +35,61 @@ class PlanImageTests(unittest.TestCase):
             store=fixtures.world.Store(directory)
             raw=generate(store,{'kind':'lighting','planImage':self.png()}, {'username':'ensayo','role':'admin'})
             reader=PdfReader(io.BytesIO(raw))
-            images=[image for image in reader.pages[0].images if image.image.size==(1000,725)]
+            images=[image for image in reader.pages[0].images if image.image.size==(1000,1250)]
             self.assertEqual(len(images),1)
             self.assertEqual(images[0].image.convert('RGB').getpixel((500,500)),(12,16,27))
-            self.assertEqual(len([image for image in reader.pages[1].images if image.image.size==(1000,525)]),1)
-            self.assertIn('Técnica y sala de intérpretes',reader.pages[1].extract_text())
+            self.assertEqual(len([image for image in reader.pages[1].images if image.image.size==(1000,1250)]),0)
+            self.assertIn('Leyenda del plano',reader.pages[1].extract_text())
+            self.assertAlmostEqual(float(reader.pages[0].mediabox.width),841.8898,places=3)
+            self.assertAlmostEqual(float(reader.pages[1].mediabox.width),595.2756,places=3)
             text='\n'.join(p.extract_text() for p in reader.pages)
             self.assertIn('Material técnico del show',text);self.assertIn('Cables necesarios',text)
             self.assertNotIn('Circuito / canal:',text);self.assertNotIn('Conexiones y cableado',text)
 
-    def test_detailed_pages_are_full_width_and_reassemble_the_entire_original_without_overlap_or_gaps(self):
+    def test_full_plan_preserves_inter_zone_cables_and_every_pixel_without_crops(self):
         from PIL import Image
         for height in (1250,1600):
             image=Image.new('RGB',(1500,round(height*1.5)),'#112233')
             image.paste('#ffd16e',(0,1088,1500,image.height));out=io.BytesIO();image.save(out,format='PNG')
             encoded=base64.b64encode(out.getvalue()).decode()
-            stage=PlanImage(encoded,fixtures.world.Problem,'stage');backstage=PlanImage(encoded,fixtures.world.Problem,'backstage')
-            self.assertEqual(stage.drawWidth,511);self.assertEqual(backstage.drawWidth,511)
-            self.assertEqual(stage._img.getSize(),(1500,1088));self.assertEqual(backstage._img.getSize(),(1500,image.height-1088))
-            self.assertLessEqual(stage.drawHeight,535);self.assertLessEqual(backstage.drawHeight,535)
-            with self.assertRaises(fixtures.world.Problem):PlanImage(encoded,fixtures.world.Problem,'invalid')
+            full=PlanImage(encoded,fixtures.world.Problem)
+            self.assertEqual(full._img.getSize(),image.size)
+            self.assertEqual(full.drawHeight,910)
+            self.assertEqual(full.drawWidth,910*1000/height)
+            with tempfile.TemporaryDirectory() as directory:
+                raw=generate(fixtures.world.Store(directory),{'kind':'lighting','planImage':encoded},{'username':'test','role':'admin'})
+                from pypdf import PdfReader
+                embedded=next(i.image for i in PdfReader(io.BytesIO(raw)).pages[0].images if i.image.size==image.size)
+                self.assertEqual(embedded.convert('RGB').tobytes(),image.tobytes())
 
-    def test_vector_fallback_uses_uniform_geometry_on_both_pages_and_exports_all_cable_types(self):
+    def test_vector_fallback_has_one_intact_plan_and_all_cable_types(self):
         from pypdf import PdfReader
         from pypdf.generic import ContentStream
         with tempfile.TemporaryDirectory() as directory:
             raw=generate(fixtures.world.Store(directory),{'kind':'lighting'}, {'username':'ensayo','role':'admin'})
             reader=PdfReader(io.BytesIO(raw))
-            plan_text='\n'.join(page.extract_text() for page in reader.pages[:2])
+            plan_text=reader.pages[0].extract_text()
             self.assertNotIn('Calle azul',plan_text)
             self.assertNotIn('Calle roja',plan_text)
-            for page in reader.pages[:2]:
+            self.assertIn('SALA INTÉRPRETES',plan_text)
+            self.assertIn('TÉCNICA',plan_text)
+            for page in reader.pages[:1]:
                 ops=ContentStream(page.get_contents(),reader).operations
                 transforms=[args for args,operator in ops if operator==b'cm']
-                self.assertTrue(any(abs(float(args[0])-.511)<.0001 and abs(float(args[3])+.511)<.0001 for args in transforms))
+                self.assertTrue(any(.54<float(args[0])<.57 and abs(float(args[0])+float(args[3]))<.0001 for args in transforms))
                 for hexcolor in ('55d7ff','c9b8ff','ca93ff','ffd16e','6ce6a4'):
                     rgb=[int(hexcolor[i:i+2],16)/255 for i in (0,2,4)]
                     self.assertTrue(any(operator==b'RG' and all(abs(float(args[i])-rgb[i])<.00001 for i in range(3)) for args,operator in ops))
+
+    def test_long_title_and_legend_notes_never_push_plan_onto_another_page_or_truncate_notes(self):
+        from pypdf import PdfReader
+        with tempfile.TemporaryDirectory() as directory:
+            plan=default_plan();plan['elements'][0]['notes']='Montaje seguro. '*120+'FIN DE NOTAS'
+            raw=generate(fixtures.world.Store(directory),{'kind':'lighting','plan':plan,'title':('Plano técnico completo para un espectáculo con escenario, técnica e intérpretes. '*2)[:160],'planImage':self.png()}, {'username':'test','role':'admin'})
+            reader=PdfReader(io.BytesIO(raw))
+            self.assertTrue(any(i.image.size==(1000,1250) for i in reader.pages[0].images))
+            text='\n'.join(p.extract_text() for p in reader.pages)
+            self.assertIn('Detalles de montaje',text);self.assertIn('FIN DE NOTAS',text)
 
 
 if __name__=='__main__':unittest.main()

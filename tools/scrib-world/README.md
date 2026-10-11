@@ -8,6 +8,11 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 
 ## Producción y PDFs
 
+- `portal_polish.py` aplica cambios idempotentes solo al CSS de la marca Sutura
+  y al apartado Escena: ancla `ak-loading-overlay` al recuadro completo y elimina
+  los accesos antiguos de SCRIB. Conserva el selector de mundos y no modifica
+  flujos, usuarios, permisos ni rutas de autenticación.
+
 - Bolos y ensayos se eliminan con confirmación y control de versión (no se
   archivan desde su ficha). Los bolos con acuerdos, liquidaciones o partidas se
   protegen para no perder documentos o trazabilidad. La eliminación es
@@ -60,8 +65,8 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 - Los PDF técnicos y de juego usan fondo negro y la estética de la cabecera del
   informe del videojuego: logos originales de SCRIB y Sutura, título blanco y
   línea azul/roja. La marca de agua es el logo de los signos y la pluma, al 5,5%
-  de opacidad. El pie lleva iconos vectoriales para redes, web, correo, aviso,
-  referencia y fecha, con enlaces a `@scrib_show`, `@su.tu.ra`, `scribshow.es` y
+  de opacidad. El pie lleva iconos vectoriales para redes, web, correo y aviso,
+  sin referencia ni fecha/hora de generación visibles, con enlaces a `@scrib_show`, `@su.tu.ra`, `scribshow.es` y
   `scribaleatorio@gmail.com`. Se numeran solo con un número. Inventario y checklist
   técnica se presentan en tarjetas a dos columnas con casillas vectoriales;
   las notas largas fluyen completas a continuación sin truncarse. Fondo negro
@@ -73,7 +78,9 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   una referencia aleatoria y un sello HMAC-SHA-256 en metadatos. El PDF no contiene
   su nombre/usuario; el registro privado `document_exports` guarda identidad, fecha,
   tipo y hashes. **Materiales → Comprobar PDF**, solo para administración, identifica
-  al exportador del original y comprueba sus bytes. Si se ha modificado, no atribuye
+  al exportador del original adjuntando el archivo, sin introducir ninguna referencia,
+  y comprueba sus bytes. La fecha y referencia quedan solo en el registro privado.
+  Si se ha modificado, no atribuye
   los cambios al exportador. No es una firma digital certificada ni un mecanismo
   anticopia: imprimir, reexportar o borrar la marca puede impedir reconocerlo.
 - Respaldar juntos `world.sqlite3` y `document-trace.key` (32 bytes, modo 0600),
@@ -109,8 +116,8 @@ Renderizar los PDFs con `pdftoppm` e inspeccionarlos antes de desplegar.
 `android-app/` contiene la app privada Android 8+, con el enfoque WebView de
 Impropios y firma de instalación independiente. Abre el gateway de `/scrib/`,
 mantiene la sesión, integra atrás, teclado, fotos/documentos y guardado de PDFs
-mediante el selector de Android. Inicio y el acceso fijo «Descargar app» del menú
-ofrecen la APK firmada para Android; Materiales mantiene también su enlace. El archivo y
+mediante el selector de Android. El acceso fijo «Descargar app» del menú ofrece
+la APK firmada para Android, sin duplicarse junto a «Crear bolo». El archivo y
 su información de versión requieren autenticación. No incorpora notificaciones
 ni conexiones en segundo plano. Ver `android-app/README.md` para compilar, proteger
 la clave de instalación y las pruebas necesarias en un dispositivo real.
@@ -212,9 +219,12 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   Los antiguos planos de siete elementos se amplían sin sobreescribir posiciones,
   nombres, circuitos ni notas. No hay reescritura al leer: se guardan explícitamente.
   El PDF generado desde la web incorpora el mismo dibujo visible, sus capas de
-  cableado, posiciones, colores y simulación. Captura local PNG de 1500×1875,
+  cableado, posiciones y colores. Captura local PNG de 1500×2400 (o 1500×1875 para planos antiguos),
   validada y limitada en el servidor; no acepta SVG, rutas ni recursos externos.
-  Incluye notas de los elementos, recuentos, walkies y checklist paginada. Se
+  El dibujo completo queda en una primera página A3, sin partir conexiones entre
+  zonas; la leyenda de tarjetas compactas a tres columnas, recuentos, walkies y
+  checklist se presentan en A4. Las notas largas fluyen completas. Nombre de
+  descarga: `SCRIB-Plano-tecnico-y-montaje.pdf`, también en Android. Se
   conserva el render de servidor para exportaciones API sin captura del navegador.
 - El humo está orientado hacia público en el esquema solicitado; su dirección,
   distancias, ventilación y uso deben validarse con sala/manual antes de utilizarlo.

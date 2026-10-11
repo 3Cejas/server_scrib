@@ -10,7 +10,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
-PLAN_SPLIT = 725
 TEAMS = {'blue': 'EQUIPO AZUL', 'red': 'EQUIPO ROJO'}
 CATEGORIES = {'props': 'Utilería', 'costume': 'Vestuario', 'furniture': 'Mobiliario',
               'technical': 'Técnica', 'other': 'Otros'}
@@ -23,9 +22,10 @@ def generate(store, data, user, *, agreement_token=None):
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
-                                   TableStyle, Image, PageBreak, KeepTogether)
+                                   TableStyle, Image, PageBreak, KeepTogether,
+                                   BaseDocTemplate, Frame, PageTemplate, NextPageTemplate)
     from reportlab.lib.utils import ImageReader
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A3, A4
 
     problem = store.business.problem
     kind = data.get('kind')
@@ -213,22 +213,49 @@ def generate(store, data, user, *, agreement_token=None):
             if 'plan' in data:
                 from server import text
                 plan = normalize(data['plan'], problem, text)
-            heading(title or 'Plano técnico', 'Escenario y público')
-            story.append(PlanImage(data['planImage'],problem,'stage') if 'planImage' in data else StagePlan(plan,font,'stage'))
-            story.append(PageBreak())
-            heading('Técnica y sala de intérpretes', 'Continuación del mismo plano - conexiones y distribución')
-            story.append(PlanImage(data['planImage'],problem,'backstage') if 'planImage' in data else StagePlan(plan,font,'backstage'))
-            story.append(PageBreak())
+            heading(title or 'Plano técnico y montaje', 'Escenario · Técnica · Sala de intérpretes')
+            # One intact A3 diagram: never slice inter-zone cables at a page
+            # boundary. The legend and checklists remain printable in A4.
+            heading_height=sum(f.wrap(A3[0]-96,2000)[1]+f.getSpaceBefore()+f.getSpaceAfter() for f in story)
+            diagram_height=min(910,A3[1]-215-heading_height-2)
+            story.append(PlanImage(data['planImage'],problem,max_height=diagram_height) if 'planImage' in data else StagePlan(plan,font,max_height=diagram_height))
+            story.extend([NextPageTemplate('details'), PageBreak()])
             section('Leyenda del plano')
-            for number,e in enumerate(plan['elements'],1):
-                block=[para(str(number)+'. '+e['label'], 'Heading3')]
-                if e.get('notes'):
-                    block.append(para(e['notes']))
-                if number==1:
-                    # Keep the section banner with its first complete entry;
-                    # later legend entries can move as a unit to the next page.
-                    block=story[-2:]+block;del story[-2:]
-                story.append(KeepTogether(block))
+            cable_palette={'hdmi':'#55d7ff','data':'#c9b8ff','audio':'#ca93ff','power':'#ffd16e','dmx':'#6ce6a4'}
+            cable_names={'hdmi':'Vídeo','data':'Datos / mando','audio':'Audio','power':'Alimentación','dmx':'DMX'}
+            cable_styles=[ParagraphStyle('cable-'+key,parent=styles['Check'],textColor=colors.HexColor(color),fontName='ScribSansBold') for key,color in cable_palette.items()]
+            cable_key=Table([[Paragraph('— '+cable_names[key],style) for key,style in zip(cable_palette,cable_styles)]],colWidths=[87,106,78,144,96])
+            cable_key.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#121825')),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+            story.extend([cable_key,Spacer(1,10)])
+            cards,long_notes=[],[]
+            palette={'blue':'#39ccff','red':'#ff708c','warm':'#ffcf81','white':'#c9b8ff'}
+            legend_width=(511-24)/3
+            note_style=ParagraphStyle('legend-note',parent=styles['Small'],fontSize=7.3,leading=9.4,spaceAfter=0)
+            for e in plan['elements']:
+                color=colors.HexColor(palette.get(e['color'],'#c9b8ff'))
+                label_style=ParagraphStyle('legend-label',parent=styles['Check'],fontName='ScribSansBold',fontSize=8.5,leading=11,textColor=color)
+                contents=[Paragraph(escape(clean(e['label'])),label_style)]
+                notes=e.get('notes','')
+                if notes and len(notes)<=170 and notes.count('\n')<3:
+                    contents.append(Paragraph(escape(clean(notes)).replace('\n','<br/>'),note_style))
+                elif notes:
+                    long_notes.append((e['label'],notes))
+                card=Table([['',contents]],colWidths=[4,legend_width-4])
+                card.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#121825')),
+                    ('BACKGROUND',(0,0),(0,-1),color),('VALIGN',(0,0),(-1,-1),'TOP'),
+                    ('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),
+                    ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
+                cards.append(card)
+            for start in range(0,len(cards),3):
+                chunk=cards[start:start+3]+['']*(3-len(cards[start:start+3]))
+                row=Table([[chunk[0],'',chunk[1],'',chunk[2]]],colWidths=[legend_width,12,legend_width,12,legend_width])
+                row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
+                    ('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+                story.extend([row,Spacer(1,5)])
+            if long_notes:
+                section('Detalles de montaje')
+                for label,notes in long_notes:
+                    story.extend([para(label,'Heading3'),para(notes)])
             if plan.get('notes'):
                 section('Notas para la sala')
                 story.append(para(plan['notes']))
@@ -379,13 +406,12 @@ def generate(store, data, user, *, agreement_token=None):
             story.extend([totals_table,Spacer(1,14)])
             story.append(para('Transferencia: '+str(invoice['issuer'].get('iban') or 'Cuenta pendiente de confirmar'),'Small'))
     created=datetime.now(timezone.utc).isoformat(timespec='seconds')
-    stamp = datetime.fromisoformat(created).astimezone(ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')
     reference='SC-'+uuid.uuid4().hex
     labels={'inventory':'KIT DE ESCENA','event':'HOJA DE LLAMADA','lighting':'TÉCNICA',
             'report':'MEMORIA DE PARTIDA','agreement':'COLABORACIÓN','invoice':'GESTIÓN'}
     buffer = io.BytesIO()
     def frame(canvas, doc):
-        w,h = A4
+        w,h = canvas._pagesize
         canvas.saveState()
         canvas.setFillColor(colors.white if paper else colors.HexColor('#050505'));canvas.rect(0,0,w,h,fill=1,stroke=0)
         # Reuse the actual brackets-and-pen logo, softly behind the document.
@@ -423,18 +449,24 @@ def generate(store, data, user, *, agreement_token=None):
         draw_icon(canvas,'lock',42,46,9,gold)
         canvas.setFillColor(muted);canvas.setFont('ScribSansBold',6.5)
         canvas.drawString(57,48,'MATERIAL INTERNO. NO DISTRIBUIR, REPRODUCIR NI PUBLICAR SIN AUTORIZACIÓN DE SUTURA TEATRO.')
-        if not paper:
-            draw_icon(canvas,'document',42,29,9,muted)
-            canvas.setFont(font,6.2);canvas.setFillColor(muted);canvas.drawString(57,31,'Ref. '+reference)
-            draw_icon(canvas,'clock',351,29,9,muted)
-            canvas.drawString(365,31,stamp)
         canvas.setFont('ScribSansBold',9);canvas.setFillColor(ink)
         canvas.drawRightString(w-42,31,str(doc.page))
         canvas.restoreState()
-    doc = SimpleDocTemplate(buffer,pagesize=A4,rightMargin=42,leftMargin=42,
-                           topMargin=107,bottomMargin=96,title=title or 'SCRIB - '+kind,
-                           author='SCRIB / Sutura Teatro')
-    doc.build(story,onFirstPage=frame,onLaterPages=frame)
+    options=dict(rightMargin=42,leftMargin=42,topMargin=107,bottomMargin=96,
+                 title=title or ('SCRIB - Plano técnico y montaje' if kind=='lighting' else 'SCRIB - '+kind),author='SCRIB / Sutura Teatro')
+    if kind=='lighting':
+        doc=BaseDocTemplate(buffer,pagesize=A3,**options)
+        def plan_page(canvas,doc):
+            canvas.setPageSize(A3);frame(canvas,doc)
+        def detail_page(canvas,doc):
+            canvas.setPageSize(A4);frame(canvas,doc)
+        doc.addPageTemplates([
+            PageTemplate(id='plan',pagesize=A3,onPage=plan_page,frames=[Frame(42,96,A3[0]-84,A3[1]-203,id='plan-frame')]),
+            PageTemplate(id='details',pagesize=A4,onPage=detail_page,frames=[Frame(42,96,A4[0]-84,A4[1]-203,id='detail-frame',leftPadding=0,rightPadding=0)])])
+        doc.build(story)
+    else:
+        doc = SimpleDocTemplate(buffer,pagesize=A4,**options)
+        doc.build(story,onFirstPage=frame,onLaterPages=frame)
     from document_trace import seal_pdf
     return seal_pdf(store,buffer.getvalue(),user,kind,data.get('id',''),reference,created)
 
@@ -497,7 +529,7 @@ def AgreementChoice(name, label, checked, style, color):
     return Choice()
 
 
-def PlanImage(encoded,problem,region=None):
+def PlanImage(encoded,problem,*,max_height=910):
     # Decode a bounded local PNG only: never XML, a path or remote content.
     from PIL import Image as PillowImage
     from reportlab.platypus import Image
@@ -512,27 +544,13 @@ def PlanImage(encoded,problem,region=None):
             image.verify()
     except (ValueError,binascii.Error,OSError,PillowImage.DecompressionBombError):
         raise problem('No se pudo leer la imagen del plano. Vuelve a exportar desde Técnica.') from None
-    if region is not None:
-        if region not in ('stage','backstage'):raise problem('Zona del plano no válida.')
-        logical_height=1600 if height*5==width*8 else 1250
-        top,bottom=(0,PLAN_SPLIT) if region=='stage' else (PLAN_SPLIT,logical_height)
-        # Crop only at the empty gap between zones, not through any element.
-        try:
-            with PillowImage.open(io.BytesIO(raw)) as image:
-                cropped=image.crop((0,round(top*height/logical_height),width,round(bottom*height/logical_height)))
-                output=io.BytesIO();cropped.save(output,format='PNG');raw=output.getvalue()
-                width,height=cropped.size
-        except (ValueError,OSError,PillowImage.DecompressionBombError):
-            raise problem('No se pudo leer la imagen del plano. Vuelve a exportar desde Técnica.') from None
-        scale=min(511/width,535/height)
-        result=Image(io.BytesIO(raw),width=width*scale,height=height*scale)
-    else:
-        result=Image(io.BytesIO(raw),width=535*width/height,height=535)
+    scale=min(742/width,max_height/height)
+    result=Image(io.BytesIO(raw),width=width*scale,height=height*scale)
     result.hAlign='CENTER'
     return result
 
 
-def StagePlan(plan,font='ScribSans',region='stage'):
+def StagePlan(plan,font='ScribSans',*,max_height=910):
     """Vector fallback with the same coordinates and cable layers as the web."""
     from reportlab.platypus import Flowable
     from reportlab.lib import colors
@@ -541,14 +559,14 @@ def StagePlan(plan,font='ScribSans',region='stage'):
     class Drawing(Flowable):
         def __init__(self):
             super().__init__()
-            self.top,self.bottom=(0,PLAN_SPLIT) if region=='stage' else (PLAN_SPLIT,1600)
-            self.scale=511/1000
-            self.width,self.height=511,(self.bottom-self.top)*self.scale
+            self.scale=max_height/1600
+            self.width,self.height=1000*self.scale,max_height
+            self.hAlign='CENTER'
         def draw(self):
             c=self.canv
             c.saveState()
             clip=c.beginPath();clip.rect(0,0,self.width,self.height);c.clipPath(clip,stroke=0)
-            c.translate(0,self.height);c.scale(self.scale,-self.scale);c.translate(0,-self.top)
+            c.translate(0,self.height);c.scale(self.scale,-self.scale)
             c.setFillColor(colors.HexColor('#0c101b'));c.rect(0,0,1000,1600,fill=1,stroke=0)
             for x,y,w,h in ((70,80,860,540),(60,730,900,510),(60,1280,900,300)):
                 c.setFillColor(colors.HexColor('#121825'));c.setStrokeColor(colors.HexColor('#607087'))

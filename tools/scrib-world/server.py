@@ -1166,8 +1166,9 @@ class Handler(BaseHTTPRequestHandler):
                 if packages not in sys.path and Path(packages).is_dir():
                     sys.path.insert(0,packages)
                 from pdf_export import generate
+                filename='SCRIB-Plano-tecnico-y-montaje.pdf' if data.get('kind')=='lighting' else 'SCRIB-'+str(data.get('kind','document'))+'.pdf'
                 return self.reply(200, generate(store, data, user), 'application/pdf',
-                                  {'Content-Disposition': 'attachment; filename="SCRIB-'+str(data.get('kind','document'))+'.pdf"'})
+                                  {'Content-Disposition': 'attachment; filename="'+filename+'"'})
             if route.startswith('api/business/'):
                 if user['role'] != 'admin':
                     raise Problem('Gestión reservada a administración.',403)

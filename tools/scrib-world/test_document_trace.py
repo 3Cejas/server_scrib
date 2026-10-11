@@ -28,6 +28,9 @@ class TraceTests(unittest.TestCase):
         from pypdf import PdfReader
         raw=self.pdf();reader=PdfReader(io.BytesIO(raw));text='\n'.join(p.extract_text() for p in reader.pages)
         self.assertTrue(reader.metadata['/SCRIBTrace'].startswith('SC-'))
+        self.assertNotIn(reader.metadata['/SCRIBTrace'],text)
+        self.assertNotIn('Ref. SC-',text)
+        self.assertNotRegex(text,r'\d{2}/\d{2}/\d{4} \d{2}:\d{2}')
         self.assertNotIn('exportador',str(reader.metadata));self.assertNotIn('Nombre de quien exporta',text)
         self.assertIn('NO DISTRIBUIR',text);self.assertIn('@scrib_show',text);self.assertIn('@su.tu.ra',text)
         self.assertTrue(all('NO DISTRIBUIR' in p.extract_text() for p in reader.pages))
@@ -97,6 +100,8 @@ class TraceTests(unittest.TestCase):
                 raw=generate(fixture.store,data,ADMIN);reader=PdfReader(io.BytesIO(raw))
                 for page in reader.pages:
                     content=page.extract_text()
+                    self.assertNotIn(reader.metadata['/SCRIBTrace'],content)
+                    self.assertNotIn('Ref. SC-',content)
                     for phrase in ['PRODUCCIÓN / SUTURA TEATRO','@scrib_show','@su.tu.ra','NO DISTRIBUIR','MATERIAL INTERNO']:
                         self.assertIn(phrase,content)
                 trace=verify_pdf(fixture.store,raw)
@@ -104,15 +109,15 @@ class TraceTests(unittest.TestCase):
                 self.assertEqual(trace['kind'],data['kind'])
         self.assertEqual(fixture.b.document(upload),original)
 
-    def dispatch(self,raw,role='admin',csrf=True,secret='bridge-secret'):
+    def dispatch(self,raw,role='admin',csrf=True,secret='bridge-secret',route='pdf/verify',body=None):
         handler=object.__new__(world.Handler)
         handler.server=SimpleNamespace(store=self.store,demo=False,secret='bridge-secret',origins={'https://sutura-gateway.ddns.net'})
-        handler.command='POST';handler.path=world.PREFIX+'api/pdf/verify'
+        handler.command='POST';handler.path=world.PREFIX+'api/'+route
         token=handler.csrf_token('exportador')
         handler.headers={'X-Scrib-Bridge':secret,'X-Scrib-User':'exportador','X-Scrib-Role':role,
                          'Origin':'https://sutura-gateway.ddns.net','Cookie':'scrib_world_csrf='+token,
                          'X-CSRF-Token':token if csrf else '','Content-Type':'application/json'}
-        payload=json.dumps({'pdf':base64.b64encode(raw).decode()}).encode()
+        payload=json.dumps(body if body is not None else {'pdf':base64.b64encode(raw).decode()}).encode()
         handler.headers['Content-Length']=str(len(payload));handler.rfile=io.BytesIO(payload)
         handler.connection=SimpleNamespace(settimeout=lambda _:None);results=[]
         handler.reply=lambda *args,**kwargs:results.append(args);handler.dispatch();return results[0]
@@ -125,6 +130,12 @@ class TraceTests(unittest.TestCase):
         status,data=self.dispatch(raw)
         self.assertEqual(status,200);self.assertEqual(data['status'],'original')
         self.assertEqual(self.dispatch(b'not a pdf')[0],400)
+
+    def test_technical_download_response_uses_descriptive_filename(self):
+        status,raw,mime,headers=self.dispatch(b'',route='pdf',body={'kind':'lighting'})
+        self.assertEqual(status,200);self.assertEqual(mime,'application/pdf')
+        self.assertEqual(headers['Content-Disposition'],'attachment; filename="SCRIB-Plano-tecnico-y-montaje.pdf"')
+        self.assertEqual(verify_pdf(self.store,raw)['status'],'original')
 
     def test_provenance_upload_route_has_own_nginx_limit_without_weakening_auth_or_other_routes(self):
         from document_routes import transform, BEGIN

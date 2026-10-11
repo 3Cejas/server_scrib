@@ -38,15 +38,15 @@ window.ScribExport = async function(state, data, button) {
     if(!response.ok || !response.headers.get('content-type')?.startsWith('application/pdf')) {
       const result=await response.json().catch(()=>({}));throw new Error(result.error || 'No se pudo generar el PDF.');
     }
-    const blob=await response.blob();
+    const blob=await response.blob(),filename=data.kind==='lighting'?'SCRIB-Plano-tecnico-y-montaje.pdf':'SCRIB-'+data.kind+'.pdf';
     if(typeof window.ScribAndroid?.savePdf==='function'){
       if(blob.size>16*1024*1024)throw new Error('El PDF supera los 16 MB admitidos por la app. Descárgalo desde el navegador.');
       const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('No se pudo preparar el PDF.'));reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.readAsDataURL(blob);});
-      if(window.ScribAndroid.savePdf(encoded,'SCRIB-'+data.kind+'.pdf')!==true)throw new Error('No se pudo abrir el guardado del PDF. Termina la descarga anterior o vuelve a intentarlo.');
+      if(window.ScribAndroid.savePdf(encoded,filename)!==true)throw new Error('No se pudo abrir el guardado del PDF. Termina la descarga anterior o vuelve a intentarlo.');
       return;
     }
     const url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download='SCRIB-'+data.kind+'.pdf';document.body.append(link);link.click();link.remove();
+    link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),60000);
   } finally {clearTimeout(timer);if(button){button.innerHTML=label;button.disabled=false;button.removeAttribute('aria-busy');}}
 };

@@ -16,7 +16,7 @@ window.ScribDocuments=function(h){
       const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('No se pudo leer el archivo.'));reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.readAsDataURL(file);});
       const data=await h.request('pdf/verify',{pdf:encoded});
       if(data.status==='original'||data.status==='modified'){
-        result.innerHTML=`<div class="notice ${data.verified?'document-original':'document-modified'}"><strong>${data.verified?'✓ Original verificado':'⚠ Archivo modificado'}</strong><p>Original generado por <strong>${h.esc(data.name)}</strong> (${h.esc(data.exportedBy)})</p><p>${h.esc(new Date(data.created).toLocaleString('es-ES'))} · ${h.esc(data.kind)}</p><small>${h.esc(data.reference)}</small>${data.verified?'':'<p>No se puede atribuir a esta persona el contenido añadido o cambiado.</p>'}</div>`;
+        result.innerHTML=`<div class="notice ${data.verified?'document-original':'document-modified'}"><strong>${data.verified?'✓ Original verificado':'⚠ Archivo modificado'}</strong><p>Original generado por <strong>${h.esc(data.name)}</strong> (${h.esc(data.exportedBy)})</p>${data.verified?'':'<p>No se puede atribuir a esta persona el contenido añadido o cambiado.</p>'}</div>`;
       }else result.textContent=data.status==='unverifiable'?'No se puede validar el sello: falta la clave privada de recuperación.':'No hay un sello reconocido en este archivo. Puede ser antiguo, de otro servidor o haber perdido su marca.';
     }catch(e){error.textContent=e.message;}
     finally{button.disabled=false;button.textContent='Comprobar documento';}

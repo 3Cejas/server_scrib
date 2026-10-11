@@ -18,6 +18,7 @@ test('original provenance uses the existing authenticated request and escapes na
  const c=client(original);await c.run.submit(c.form);assert.equal(c.calls.length,1);assert.equal(c.calls[0][0],'pdf/verify');
  assert.equal(c.calls[0][1].pdf,'JVBERg==');assert.match(c.result.innerHTML,/Original verificado/);
  assert.match(c.result.innerHTML,/&lt;Persona&gt;/);assert.doesNotMatch(c.result.innerHTML,/<Persona>/);assert.equal(c.button.disabled,false);
+ assert.doesNotMatch(c.result.innerHTML,/SC-test|2026|10:00/);
 });
 test('modified PDFs attribute the original, never the changes; old or missing keys are unverified',async()=>{
  const c=client({...original,status:'modified',verified:false});await c.run.submit(c.form);

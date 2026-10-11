@@ -43,6 +43,13 @@ test('Android errors restore the button and never fall back to an unusable blob 
  const c=client({...success,blob:async()=>({size:16*1024*1024+1})},{bridge:{savePdf:()=>{throw Error('Do not pass oversized data');}}});
  await assert.rejects(c.run({csrf:'token'},{kind:'report'},c.button),/16 MB/);assert.equal(c.downloads.length,0);
 });
+test('technical plan has the same descriptive filename on web and Android',async()=>{
+ const web=client(success);await web.run({csrf:'token'},{kind:'lighting'},web.button);
+ assert.equal(web.downloads[0].name,'SCRIB-Plano-tecnico-y-montaje.pdf');
+ const saves=[],app=client(success,{bridge:{savePdf:(...args)=>{saves.push(args);return true}}});
+ await app.run({csrf:'token'},{kind:'lighting'},app.button);
+ assert.equal(saves[0][1],web.downloads[0].name);
+});
 test('plan capture uses computed SVG presentation attributes, not inline styles blocked by Firefox CSP',async()=>{
  const node=()=>({attributes:{style:'fill:black'},removeAttribute(k){delete this.attributes[k]},setAttribute(k,v){this.attributes[k]=v},querySelectorAll(){return []},insertBefore(){}});
  const copy=node(),original={...node(),cloneNode:()=>copy,viewBox:{baseVal:{height:1600}}};let serialized;
