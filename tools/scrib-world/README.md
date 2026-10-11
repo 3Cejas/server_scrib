@@ -5,6 +5,9 @@ Guardar datos aquí no modifica las partidas del videojuego. Python 3.10+, SQLit
 JavaScript/CSS sin fuentes remotas ni animaciones continuas. El render de PDFs
 usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
 `SCRIB_WORLD_DATA/python-packages`; no cambia el Python del sistema.
+El renderizador carga ese directorio antes de generar cualquier PDF, también
+la primera descarga de un enlace personal tras un reinicio, sin depender de
+que administración haya exportado antes otro documento.
 
 ## Producción y PDFs
 

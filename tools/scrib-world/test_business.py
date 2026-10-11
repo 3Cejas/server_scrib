@@ -1,8 +1,12 @@
 import base64
 import hashlib
 import http.client
+import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
+import textwrap
 import threading
 import time
 import unittest
@@ -25,6 +29,42 @@ class BusinessTests(unittest.TestCase):
     def agreement(self):
         s=self.settings();self.b.generate({'eventId':self.event['id'],'eventVersion':self.event['version'],'settingsVersion':s['version'],'people':[self.person['id']]},'admin')
         return self.b.agreements(self.event['id'])['agreements'][0]
+    def test_first_public_pdf_after_startup_loads_isolated_renderer_without_private_export(self):
+        agreement=self.agreement();token=agreement['link'].split('/')[-1]
+        packages=Path(self.tmp.name)/'python-packages';packages.mkdir()
+        # Recreate the deployed dependency layout, with no site packages on the
+        # child's search path. Include native Pillow sibling libraries as well.
+        roots=set()
+        for name in ('reportlab','pypdf','PIL','charset_normalizer'):
+            spec=importlib.util.find_spec(name)
+            if spec and spec.origin:roots.add(Path(spec.origin).parent.parent)
+        for root in sorted(roots):
+            for entry in root.iterdir():
+                target=packages/entry.name
+                if not target.exists():target.symlink_to(entry,target_is_directory=entry.is_dir())
+        code=textwrap.dedent('''
+            import http.client, io, sys, threading
+            sys.path.insert(0, sys.argv[1])
+            from server import App, Store
+            assert 'reportlab' not in sys.modules and 'pypdf' not in sys.modules
+            app=App(0, Store(sys.argv[2]), True, secret='test-secret', bridge=None)
+            thread=threading.Thread(target=app.serve_forever,daemon=True);thread.start()
+            try:
+                c=http.client.HTTPConnection('127.0.0.1',app.server_address[1],timeout=10)
+                c.request('GET','/scrib-disponibilidad/'+sys.argv[3]+'/acuerdo.pdf')
+                r=c.getresponse();raw=r.read();c.close()
+                assert r.status==200 and r.getheader('Content-Type')=='application/pdf'
+                assert raw.startswith(b'%PDF-')
+                assert sys.path[0]==sys.argv[2]+'/python-packages'
+                from pypdf import PdfReader
+                assert all('suturateatro@gmail.com' in p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages)
+                print('fresh-public-pdf-ok')
+            finally:
+                app.shutdown();app.server_close();thread.join()
+        ''')
+        result=subprocess.run([sys.executable,'-I','-S','-c',code,str(world.ROOT),self.tmp.name,token],capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout.strip(),'fresh-public-pdf-ok')
     def signed_agreement(self,event=None):
         event=event or self.event
         with self.store.connect() as db:s=self.b.record(db,'settings','organizer')

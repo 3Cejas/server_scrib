@@ -1296,11 +1296,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,verify_pdf(store,raw))
             data = self.body()
             if route == 'api/pdf':
-                # Isolated renderer packages, not global/system dependency changes.
-                import sys
-                packages = str(store.directory/'python-packages')
-                if packages not in sys.path and Path(packages).is_dir():
-                    sys.path.insert(0,packages)
                 from pdf_export import generate
                 filename='SCRIB-Plano-tecnico-y-montaje.pdf' if data.get('kind')=='lighting' else 'SCRIB-'+str(data.get('kind','document'))+'.pdf'
                 return self.reply(200, generate(store, data, user), 'application/pdf',

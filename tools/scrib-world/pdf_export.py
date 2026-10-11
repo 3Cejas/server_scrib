@@ -3,6 +3,7 @@ import io
 import base64
 import binascii
 import re
+import sys
 import uuid
 from datetime import datetime, timezone
 from html import escape
@@ -16,6 +17,12 @@ CATEGORIES = {'props': 'Utilería', 'costume': 'Vestuario', 'furniture': 'Mobili
 
 
 def generate(store, data, user, *, agreement_token=None):
+    # Both private exports and personal links must work on a fresh process.
+    # Resolve the isolated packages here, never as a side effect of a previous
+    # administration request; leave startup/diagnostics dependency-free.
+    packages = str(store.directory / 'python-packages')
+    if packages not in sys.path and Path(packages).is_dir():
+        sys.path.insert(0, packages)
     # Optional imports keep diagnostics/legacy startup usable without the renderer.
     from reportlab.lib import colors
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
