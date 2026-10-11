@@ -287,8 +287,8 @@
   function ticketCard(ticket) {
     const checks = ticket.checklist?.length || 0;
     const assignees=ticketAssignees(ticket);
-    return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-status="${esc(ticket.status)}" data-ticket="${esc(ticket.id)}" draggable="true">
-      <div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}; con el teclado, izquierda o derecha cambia la columna" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${esc(ticket.id)}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div>
+    return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-status="${esc(ticket.status)}" data-ticket="${esc(ticket.id)}" draggable="false">
+      <div class="ticket-top"><button type="button" class="drag-handle" draggable="true" aria-label="Arrastrar ${esc(ticket.title)}; con el teclado, izquierda o derecha cambia la columna" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${esc(ticket.id)}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div>
       <div class="ticket-tags">${badge('Prioridad '+PRIORITY[ticket.priority], 'ticket-priority priority-'+ticket.priority)}${ticket.labels.map(x=>badge(x,labelColor(x))).join("")}</div>
       ${ticket.status === "blocked" && ticket.blockedReason?`<p class="muted">⚑ ${esc(ticket.blockedReason.slice(0,120))}</p>`:""}${dependencyInfo(ticket)}
       <div class="ticket-assignees">${assignees.map(x=>`<span class="ticket-assignee ${taskUI.memberClass(x)}"><span aria-hidden="true">${esc(initials(taskUI.assigneeName(x)))}</span>${esc(taskUI.assigneeName(x))}</span>`).join("")||'<span class="muted tiny">Sin responsable</span>'}</div>
@@ -439,11 +439,17 @@
     for(const c of [...dialog.classList])if(c.startsWith('person-tone-'))dialog.classList.remove(c);
     document.querySelector("#dialog-title").textContent = title;
     document.querySelector("#dialog-kicker").textContent = KIND[kind]?.toUpperCase() || "BACKSTAGE";
+    const actions=document.querySelector('#dialog-task-actions');if(actions)actions.innerHTML='';
     document.querySelector("#dialog-content").innerHTML = html;
     if (!dialog.open) dialog.showModal();
   }
   function formShell(kind, object, body, extra = "") {
-    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${!['person','event','ticket','board'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${kind==='ticket'?'<span class="task-save-status" data-state="saved" role="status" aria-live="polite">✓ Guardado</span><button type="button" class="button small" data-action="task-retry" hidden>↻ Reintentar</button>':`${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button>`}</div></div></form>${extra}`;
+    const footer=kind==='ticket'?'<div class="task-error-actions" hidden><button type="button" class="button small" data-action="task-retry" hidden>↻ Reintentar</button></div>':`<div class="form-footer"><div class="actions">${!['person','event','ticket','board'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div>`;
+    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p>${footer}</form>${extra}`;
+  }
+  function ticketHeader(t) {
+    const actions=document.querySelector('#dialog-task-actions');
+    if(actions)actions.innerHTML=t.id?btn('delete-ticket','Eliminar tarea',t.id,'danger small'):'';
   }
   function openBoard(id) {
     const b = id ? item(id) : {title:"", description:"", color:"violet"};
@@ -463,9 +469,10 @@
       `<div class="form-row">${field("Fecha límite",input("due",t.due,"date"))}${taskUI.tagEditor(t.labels)}</div>` +
       input("blockedReason",t.blockedReason,"hidden") +
       dependencyInfo(t) + dependencyEditor(t) +
-      `<div><p class="field">Responsables</p><div class="assignee-options">${taskUI.assigneeOptions(t.assignees)}</div></div>` +
+      `<section class="task-responsibles" aria-labelledby="task-responsibles-title"><div class="panel-head"><h3 id="task-responsibles-title">Responsables</h3></div><div class="assignee-options">${taskUI.assigneeOptions(t.assignees)}</div></section>` +
       `<div><div class="panel-head"><h3>Checklist</h3>${btn("add-check","＋ Paso","","small")}</div><div class="checklist-editor">${t.checklist.map(checkRow).join("")}</div></div>`);
     openDialog("ticket",id ? "Dentro de la tarea" : "Nueva tarea",`<div class="editor-grid"><div>${form}</div><aside class="discussion"><h3>Comentarios</h3><div id="comments" class="comment-thread" role="region" aria-label="Comentarios de la tarea" tabindex="0">${id?commentsHtml(details.comments):''}</div>${id?`${taskComments.composer(id)}<details><summary>Historial de la tarea</summary>${details.activity.map(activityRow).join("")}</details>`:'<p class="muted new-task-hint">Añade un título: la tarea se guardará automáticamente.</p>'}</aside></div>`);
+    ticketHeader(t);
     const thread=dialog.querySelector('#comments');if(thread)thread.scrollTop=thread.scrollHeight;
     await taskAutosave.attach(dialog.querySelector('#edit-form'));
     taskComments.restore(dialog.querySelector('.comment-form'));
@@ -473,7 +480,7 @@
   function ticketSaved(t,form){
     const index=state.items.findIndex(x=>x.id===t.id);if(index>=0)state.items[index]=t;else state.items.push(t);
     const status=form.querySelector('[name=status]');if(status)status.value=t.status;
-    const footer=form.querySelector('.form-footer>.actions');if(footer&&!footer.querySelector('[data-action="delete-ticket"]'))footer.innerHTML=btn('delete-ticket','Eliminar tarea',t.id,'danger');
+    if(taskAutosave.owns(form))ticketHeader(t);
     if(!dialog.querySelector('.comment-form')){const aside=dialog.querySelector('.discussion');if(aside){aside.querySelector('.new-task-hint')?.remove();aside.insertAdjacentHTML('beforeend',taskComments.composer(t.id));}}
   }
   async function closeTask(){
@@ -637,7 +644,7 @@
     }
   }
   async function moveTicket(id, status, beforeId = "") {
-    const ticket = item(id); if (!ticket || saving) return;
+    const ticket = item(id); if (!ticket || saving || dialog.open || !Object.hasOwn(STATUS,status)) return;
     saving = true;
     try {await request("move",{id,status,beforeId,version:ticket.version});await refresh(false); renderPage();toast("Tarea movida a " + STATUS[status] + ".");}
     catch(error) {toast(error.message);await refresh(false).catch(()=>{});renderPage();}
@@ -761,6 +768,7 @@
   document.addEventListener("change",event=>{
     const node=event.target;
     taskAutosave.changed(node.closest('#edit-form'),event.isComposing);
+    if(taskUI.chooseExisting(event))return;
     if(node.matches('.comment-photo-input')){taskComments.select(node);return;}
     if(node.dataset.castEvent){assignCastSlot(node).catch(error=>toast(error.message));return;}
     if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');syncCastChoices(node.closest('form'));return;}
@@ -831,9 +839,13 @@
   }
   function showDrop(drop) {clearDrop();if(drop){drop.column.classList.add("drop-active");drop.before?.classList.add("drop-before");}}
   document.addEventListener("dragstart",event=>{
+    // Opening/selecting a card is read-only. Only its explicit handle can move it.
+    if(!event.target.closest('.drag-handle')){event.preventDefault();return;}
     const ticket=event.target.closest(".ticket");if(!ticket)return;
     if(event.target.closest("select,input,[data-action]")){event.preventDefault();return;}
     dragId=ticket.dataset.ticket;ticket.classList.add("dragging");event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/plain",dragId);
+    const rect=ticket.getBoundingClientRect();
+    event.dataTransfer.setDragImage?.(ticket,Math.max(0,event.clientX-rect.left),Math.max(0,event.clientY-rect.top));
   });
   document.addEventListener("dragover",event=>{if(!dragId)return;const drop=targetAt(event.target,event.clientY);if(drop){event.preventDefault();event.dataTransfer.dropEffect="move";showDrop(drop);}});
   document.addEventListener("drop",event=>{

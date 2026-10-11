@@ -53,12 +53,17 @@
 .assignee-option input:checked+span{background:#35394c;box-shadow:inset 0 0 0 1px var(--person-color);font-weight:700}
 .assignee-option input:checked+span::after{content:'✓';font-weight:800}
 .assignee-option input:focus-visible+span{outline:2px solid white;outline-offset:3px}
+.task-responsibles .panel-head{margin-bottom:16px}
+.dialog-head>div:first-child{min-width:0}
+.dialog-head .dialog-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.dialog-head #dialog-task-actions:empty{display:none}
 .tag-editor{border:1px solid var(--line);border-radius:10px;background:#131722;padding:8px;min-width:0}
 .tag-editor:focus-within{border-color:var(--cyan)}
 .tag-chips{display:flex;flex-wrap:wrap;gap:6px}.tag-chip{max-width:100%;gap:5px}
 .tag-chip>span{overflow-wrap:anywhere;min-width:0}.tag-chip button{border:0;background:transparent;color:inherit;padding:4px;min-width:28px;min-height:28px;border-radius:50%;font-size:1.1rem;cursor:pointer}
 .tag-chip button:hover{background:#ffffff15}.tag-chip button:focus-visible{outline:2px solid white}
 .tag-editor .tag-input{border:0;background:transparent;width:100%;padding:8px 4px;outline:0;font-size:.8rem;margin-top:2px}
+.tag-editor .tag-existing{width:100%;min-width:0;margin-top:8px;font-size:.78rem;border-radius:7px}
 .tag-error{display:block;color:var(--coral);font-size:.73rem}.tag-error:empty{display:none}
 .discussion{min-width:0}.comment-thread{max-height:360px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;min-width:0;padding-right:4px}
 .comment-thread:empty{display:none}.comment-thread:focus-visible{outline:2px solid var(--violet);outline-offset:3px;border-radius:9px}
@@ -88,10 +93,8 @@
 .chat-send{width:42px;min-width:42px;min-height:42px;padding:10px;border-radius:12px;flex-shrink:0}.chat-send svg{width:20px;height:20px;pointer-events:none}
 .comment-form .form-error:empty{display:none}
 .form-footer>.actions{flex-wrap:wrap}
-.task-save-status{font-size:.74rem;color:var(--green);max-width:100%;overflow-wrap:anywhere}.task-save-status[data-state=dirty],.task-save-status[data-state=saving]{color:var(--gold)}.task-save-status[data-state=error]{color:var(--coral)}
 #edit-form[data-kind=ticket] .form-error:empty{display:none}
-#edit-form[data-kind=ticket] .form-footer{align-items:flex-start}
-#edit-form[data-kind=ticket] .form-footer>.actions:last-child{flex:1;justify-content:flex-end;min-width:0}
+.task-error-actions:not([hidden]){display:flex;justify-content:flex-end}
 .editor-grid .form-row{align-items:start}
 .ticket-dependencies{display:grid;gap:7px;min-width:0}.ticket-dependencies:empty{display:none}
 .dependency-link{display:block;background:#d6af5310;border:1px solid #d6af5344;border-radius:8px;padding:8px;font-size:.75rem;color:var(--gold);overflow-wrap:anywhere}
@@ -106,4 +109,5 @@
 .button.destructive:hover{background:#ff96a6}
 @media(max-width:700px){.brand-logo{width:54px;height:54px}.sidebar .brand{margin-bottom:16px}.delete-content{padding:18px}}
 @media(max-width:520px){.editor-grid .form-row{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.dialog-head .dialog-actions{gap:6px}.dialog-head #dialog-task-actions .button{padding:7px;font-size:.68rem}}
 @media(prefers-reduced-motion:reduce){.board-card{transition:none}}

@@ -677,6 +677,14 @@ reiniciar `DASHBOARD_AUTH` y parar `SCRIB_WORLD`. NO borrar el directorio de dat
 
 ## Dónde están los datos / recuperación
 
+Las fichas de tareas se guardan automáticamente sin indicadores de guardado
+habitual; los errores mantienen el borrador abierto y ofrecen reintentar.
+Abrir/cerrar una ficha no realiza escrituras ni cambia su columna. En escritorio,
+solo el asa inicia un arrastre; nunca el cuerpo o título de la tarjeta. El estado
+no forma parte del parche de autoguardado. Las etiquetas se pueden reutilizar
+desde los tableros activos o crear escribiendo y separando con comas.
+La eliminación está en la cabecera de la ficha y conserva su confirmación.
+
 - `world.sqlite3`: fichas, tareas, posiciones, comentarios, responsables e historial.
 - `images/`: fotos privadas, identificadas por SHA256.
 - `backups/world-YYYY-MM-DD.sqlite3`: copia consistente automática antes de la

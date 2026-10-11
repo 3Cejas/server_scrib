@@ -46,6 +46,23 @@ class AutosaveTests(unittest.TestCase):
         self.assertEqual(result['status'],'progress')
         self.assertEqual(result['description'],'Mi texto')
 
+    def test_read_and_metadata_edits_never_move_other_blocked_or_todo_tasks(self):
+        source=self.task()
+        first=self.task(blockedBy=[source['id']])
+        second=self.task(blockedBy=[source['id']])
+        manual=self.task(status='blocked')
+        todo=self.task()
+        before=self.store.snapshot()
+        for _ in range(3):
+            for task in (first,second,manual,todo):self.store.details(task['id'])
+        self.assertEqual(self.store.snapshot(),before)
+        saved=self.store.autosave_ticket(self.patch(first,labels=['Sonido']), 'angela')
+        self.assertEqual(saved['status'],'blocked')
+        for task in (source,second,manual,todo):self.assertEqual(self.store.details(task['id'])['item'],task)
+        saved=self.store.autosave_ticket(self.patch(todo,description='Solo esta descripción'), 'angela')
+        self.assertEqual(saved['status'],'todo')
+        for task in (second,manual):self.assertEqual(self.store.details(task['id'])['item'],task)
+
     def test_conflicting_field_is_not_overwritten_even_after_latest_version_ack(self):
         task=self.task();patch=self.patch(task,title='Mi título')
         remote=self.store.update(task['id'],dict(task,title='Título ajeno'),'pablo',task['version'])

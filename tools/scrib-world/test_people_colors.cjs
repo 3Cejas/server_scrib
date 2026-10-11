@@ -15,7 +15,7 @@ function element() {
     showModal(){this.open=true;},close(){this.open=false;},listeners};
 }
 function client() {
-  const nodes = Object.fromEntries(['main','editor','dialog-title','dialog-kicker','dialog-content','message-recipients','server-health','delete-confirmation','delete-ticket-name','delete-error','toast','user-name','user-avatar','connection'].map(k=>[k,element()]));
+  const nodes = Object.fromEntries(['main','editor','dialog-title','dialog-kicker','dialog-content','dialog-task-actions','message-recipients','server-health','delete-confirmation','delete-ticket-name','delete-error','toast','user-name','user-avatar','connection'].map(k=>[k,element()]));
   nodes['delete-confirmation'].open=false;
   nodes.editor.querySelector=q=>nodes[q.slice(1)]||null;
   const listeners={},calls=[],responses={};
@@ -134,6 +134,10 @@ test('task editor has chips and chat comments, no redundant column/blocking copy
   assert.match(html,/tag-chip badge cyan/);assert.match(html,/Texto &lt;largo&gt;/);
   assert.match(html,/type="hidden"[^>]*name="blockedReason"|name="blockedReason"[^>]*type="hidden"/);
   assert.match(html,/Conservar motivo antiguo/);assert.match(html,/assignee-option person-colored/);
+  assert.match(html,/<h3 id="task-responsibles-title">Responsables<\/h3>/);
+  assert.doesNotMatch(html,/task-save-status|Guardado|Cambios pendientes|data-action="delete-ticket"/);
+  assert.match(nodes['dialog-task-actions'].innerHTML,/data-action="delete-ticket"[^>]*data-id="t1"/);
+  app.openBoard();assert.equal(nodes['dialog-task-actions'].innerHTML,'');
 });
 
 test('tag parsing handles comma paste, blanks, duplicates and limits without losing drafts',()=>{
@@ -238,7 +242,44 @@ test('task form autosaves without a save button and excludes retired bolo depend
   assert.match(editor,/¿Depende de otras tareas\?/);assert.match(editor,/Nueva tarea de juego/);
   assert.doesNotMatch(editor,/Universidad de León|old-task|Antigua tarea/);
   const form=app.formShell('ticket',{id:'own'},'<input name="title" value="Prueba">');balanced(form);
-  assert.doesNotMatch(form,/type="submit"|Guardar tarea|Cancelar/);assert.match(form,/task-save-status/);
+  assert.doesNotMatch(form,/type="submit"|Guardar tarea|Cancelar|task-save-status|Cambios pendientes|data-action="delete-ticket"/);assert.match(form,/task-error-actions" hidden/);
+});
+
+test('tag selector reuses live labels from all ordinary boards without obsolete/archived labels',()=>{
+  const {app,state}=client();
+  state.items.push({id:'live',kind:'board'},{id:'other',kind:'board'},{id:'old',kind:'board',eventId:'e1'},{id:'archived',kind:'board',archived:true},
+    {id:'t1',kind:'ticket',boardId:'live',labels:['Sonido','Luz']},{id:'t2',kind:'ticket',boardId:'other',labels:['Luz','Texto <seguro>']},
+    {id:'t3',kind:'ticket',boardId:'old',labels:['Obsoleta']},{id:'t4',kind:'ticket',boardId:'archived',labels:['Archivada']},
+    {id:'t5',kind:'ticket',boardId:'live',labels:['Borrada'],archived:true});
+  assert.deepEqual(Array.from(app.taskUI.knownLabels()),['Luz','Sonido','Texto <seguro>']);
+  const html=app.taskUI.tagEditor(['Sonido']);balanced(html);
+  assert.match(html,/tag-existing/);assert.match(html,/<option value="Luz">Luz<\/option>/);assert.match(html,/Texto &lt;seguro&gt;/);
+  assert.doesNotMatch(html,/<option value="Sonido"|Obsoleta|Archivada|Borrada/);assert.match(html,/Crear etiqueta/);
+});
+
+test('choosing an existing tag retains typing, deduplicates chips and enforces limits',()=>{
+  const {app}=client(),chips=[{dataset:{label:'Luz'}}],error={textContent:''};
+  const list={insertAdjacentHTML(_,html){chips.push({dataset:{label:html.match(/data-label="([^"]+)"/)[1]}});}};
+  const picker={value:'Sonido',innerHTML:'',matches:q=>q==='.tag-existing',closest:()=>editor};
+  const input={value:'Borrador sin terminar',validationMessage:'',selectionStart:5,setCustomValidity(message){this.validationMessage=message;},closest:()=>editor};
+  const editor={querySelectorAll:()=>chips,querySelector:q=>({'.tag-input':input,'.tag-existing':picker,'.tag-chips':list,'.tag-error':error}[q] || null)};
+  assert.ok(app.taskUI.chooseExisting({target:picker}));assert.equal(input.value,'Borrador sin terminar');assert.equal(input.selectionStart,5);
+  assert.deepEqual(chips.map(n=>n.dataset.label),['Luz','Sonido']);
+  picker.value='Sonido';app.taskUI.chooseExisting({target:picker});assert.equal(chips.length,2);
+  while(chips.length<12)chips.push({dataset:{label:'Etiqueta '+chips.length}});
+  picker.value='Una más';app.taskUI.chooseExisting({target:picker});assert.equal(chips.length,12);
+  assert.equal(input.value,'Borrador sin terminar');assert.match(error.textContent,/hasta 12/);
+});
+
+test('opening tasks never posts a move or changes the other cards and only handles start drag',async()=>{
+  const {app,state,nodes,responses,calls,listeners}=client();
+  state.items.push({id:'b1',kind:'board',title:'Programación'});
+  const tickets=['blocked','blocked','todo','progress','done'].map((status,i)=>({id:'s'+i,kind:'ticket',version:1,title:'Tarea '+i,description:'',boardId:'b1',status,priority:'normal',due:'',labels:[],assignees:[],blockedBy:[],checklist:[],created:'2026-10-11',position:i}));
+  state.items.push(...tickets);const before=JSON.stringify(state.items);
+  for(const t of tickets){responses['/scrib/backstage/api/items/'+t.id]={item:{...t},comments:[],activity:[]};await app.openTicket(t.id);}
+  assert.equal(JSON.stringify(state.items),before);assert.ok(calls.every(c=>c.options.method==='GET'));
+  let cancelled=false;listeners.dragstart({target:{closest:()=>null},preventDefault(){cancelled=true;}});assert.ok(cancelled);
+  const html=app.ticketCard(tickets[0]);assert.match(html,/article[^>]+draggable="false"/);assert.match(html,/drag-handle" draggable="true"/);
 });
 
 test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{
@@ -661,7 +702,7 @@ test('board editor cleans legacy labels and symbols retain tooltip/accessibility
     assert.match(html,/aria-hidden="true" focusable="false"/);
   }
   const form=app.formShell('ticket',ticket,'');balanced(form);
-  assert.doesNotMatch(form,/data-action="archive"/);assert.match(form,/data-action="delete-ticket"/);
+  assert.doesNotMatch(form,/data-action="archive"|data-action="delete-ticket"/);
   assert.doesNotMatch(app.formShell('ticket',{},''),/data-action="delete-ticket"/);
   assert.doesNotMatch(app.formShell('board',board,''),/data-action="delete-ticket"/);
   assert.doesNotMatch(app.formShell('board',board,''),/data-action="archive"/);

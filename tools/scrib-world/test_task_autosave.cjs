@@ -9,12 +9,12 @@ const fields={title:'Prueba',description:'',priority:'normal',due:'',labels:[],a
 const tick=()=>new Promise(r=>setImmediate(r));
 function setup(overrides={}){
  const context={window:{},crypto:{randomUUID},setTimeout:()=>1,clearTimeout(){}};vm.createContext(context);vm.runInContext(source,context);
- const status={dataset:{},textContent:''},error={textContent:''},retry={hidden:true};
+ const error={textContent:''},retry={hidden:true},actions={hidden:true};
  const form={dataset:{id:'t',version:'1',request:randomUUID()},data:clone(fields),valid:true,
-  checkValidity(){return this.valid;},querySelector:q=>q==='.task-save-status'?status:q==='.form-error'?error:retry};
+  checkValidity(){return this.valid;},querySelector:q=>q==='.task-error-actions'?actions:q==='.form-error'?error:q==='[data-action="task-retry"]'?retry:null};
  const calls=[],saved=[];
  const h={read:async f=>clone(f.data),busy:()=>false,request:async(route,payload)=>{calls.push(clone(payload));return{item:{...clone(payload.data||form.data),kind:'ticket',id:'t',version:2}};},saved:t=>saved.push(t),...overrides};
- const auto=context.window.ScribTaskAutosave(h);return{auto,h,form,calls,saved,status,error,retry};
+ const auto=context.window.ScribTaskAutosave(h);return{auto,h,form,calls,saved,error,retry,actions};
 }
 test('changes save without rebuilding, disabling, or moving editable fields',async()=>{
  const x=setup();await x.auto.attach(x.form);const same=x.form.data;
@@ -22,7 +22,7 @@ test('changes save without rebuilding, disabling, or moving editable fields',asy
  assert.equal(await x.auto.flush(),true);assert.equal(x.form.data,same);
  assert.equal(x.form.dataset.version,'2');assert.equal(x.calls.length,1);
  assert.deepEqual(x.calls[0].changes,{description:'Uno\nDos'});assert.deepEqual(x.calls[0].base,{description:''});
- assert.equal(x.auto.hasDraft(),false);assert.equal(x.status.dataset.state,'saved');
+ assert.equal(x.auto.hasDraft(),false);assert.equal(x.form.dataset.saveState,'saved');assert.equal(x.actions.hidden,true);
  x.auto.changed(x.form);await x.auto.flush();assert.equal(x.calls.length,1);
 });
 test('typing during flight and a simultaneous close flush serialize latest revision',async()=>{
@@ -44,7 +44,7 @@ test('validation and server conflicts keep draft intact, never report saved',asy
  const x=setup({request:async()=>{const e=new Error('Cambio ajeno');e.status=409;throw e;}});await x.auto.attach(x.form);
  x.form.valid=false;x.form.data.title='';x.auto.changed(x.form);assert.equal(await x.auto.flush(),false);assert.equal(x.saved.length,0);
  x.form.valid=true;x.form.data.title='Local';x.auto.changed(x.form);assert.equal(await x.auto.flush(),false);
- assert.equal(x.auto.hasDraft(),true);assert.equal(x.status.dataset.state,'error');assert.equal(x.error.textContent,'Cambio ajeno');assert.equal(x.form.data.title,'Local');
+ assert.equal(x.auto.hasDraft(),true);assert.equal(x.form.dataset.saveState,'error');assert.equal(x.actions.hidden,false);assert.equal(x.retry.hidden,false);assert.equal(x.error.textContent,'Cambio ajeno');assert.equal(x.form.data.title,'Local');
 });
 test('an unconfirmed or wrong-task response retains frozen retry instead of losing draft',async()=>{
  const x=setup({request:async()=>({item:{kind:'ticket',id:'wrong',version:2}})});await x.auto.attach(x.form);
@@ -67,4 +67,16 @@ test('normalized server fields do not cause conflict or caret rewrite on later t
  assert.equal(x.form.data.title,' Nuevo ');
  x.form.data.description='Descripción';x.auto.changed(x.form);await x.auto.flush();assert.deepEqual(x.calls[1].changes,{description:'Descripción'});
  x.form.data.title=' Nuevo título ';x.auto.changed(x.form);await x.auto.flush();assert.equal(x.calls[2].base.title,'Nuevo');
+});
+test('opening, blurring and closing tasks of any status never saves or patches their status',async()=>{
+ const x=setup();
+ for(const status of ['blocked','todo','blocked','done','progress']){
+  x.form.data={...clone(fields),status};await x.auto.attach(x.form);
+  assert.equal(await x.auto.flush(),true);assert.equal(x.calls.length,0);
+  x.auto.changed(x.form);assert.equal(await x.auto.flush(),true);assert.equal(x.calls.length,0);
+  assert.equal(x.form.data.status,status);x.auto.detached();
+ }
+ x.form.data={...clone(fields),status:'blocked'};await x.auto.attach(x.form);
+ x.form.data.labels=['Sonido'];x.auto.changed(x.form);await x.auto.flush();
+ assert.deepEqual(x.calls[0].changes,{labels:['Sonido']});assert.equal(x.form.data.status,'blocked');
 });
