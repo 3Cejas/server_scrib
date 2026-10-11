@@ -5,7 +5,7 @@ window.ScribLaboratory = function(h) {
     {id:"s7",title:"S+7",subtitle:"Escribir con restricciones",description:"Transforma un texto desplazando sus palabras por el diccionario. Explora S+7, V+7, A+7, SAV+7, Eclipse y Caradec; también puedes utilizar tu propio diccionario.",tags:["Oulipo","Escritura"],url:"/scrib/backstage/laboratory/s7/"}
   ];
   function list() {
-    return h.pageHead("PROBAR · JUGAR · DESCUBRIR","Laboratorio","Dos juegos para explorar otras maneras de escribir y crear en equipo.")+
+    return h.pageHead("PROBAR · JUGAR · DESCUBRIR","Laboratorio","Juegos para explorar otras maneras de escribir y crear en equipo.")+
       `<div class="grid cols2 laboratory-grid">${games.map(g=>`<article class="panel laboratory-card laboratory-card--${g.id}"><a class="laboratory-cover" href="#experiment/${g.id}" aria-label="Abrir ${g.title}">${g.id==="bolzano"?'<div class="laboratory-words" aria-hidden="true"><span>Mar</span><b>⇄</b><span>Cielo</span></div>':'<div class="laboratory-formula" aria-hidden="true"><span>S</span><b>+</b><span>7</span></div>'}<span class="laboratory-play" aria-hidden="true">▶</span></a><div class="material-body"><div class="label-group">${g.tags.map(t=>h.badge(t,g.id==="bolzano"?"cyan":"violet")).join("")}</div><h2>${g.title}</h2><p class="laboratory-subtitle">${g.subtitle}</p><p class="muted">${g.description}</p><a class="button primary" href="#experiment/${g.id}">Jugar ↗</a></div></article>`).join("")}</div>`;
   }
   function detail(id) {

@@ -530,10 +530,10 @@ test('home embeds a visual calendar instead of the old calendar button; empty st
   assert.doesNotMatch(html,/Ver calendario ↗/);
   state.items=state.items.filter(x=>x.kind!=='event');
   app.setHomeCalendar('2026-11','2026-11-07');const empty=app.renderHome();balanced(empty);
-  assert.match(empty,/Primer bolo/);assert.match(empty,/No hay bolos ni ensayos este día/);
+  assert.match(empty,/<a class="button" href="#events">Bolos y calendario ↗<\/a>/);assert.match(empty,/No hay bolos ni ensayos este día/);
   assert.equal((empty.match(/data-action="home-calendar-day"/g)||[]).length,42);
 });
-test('Android app download stays in the sidebar, without duplication next to Create event',()=>{
+test('Android app download stays in the sidebar, without duplication on Home',()=>{
   const {app,state}=client();const index=read('index.html');
   assert.match(index,/<a class="sidebar-app" href="\/scrib\/backstage\/android\/scrib\.apk" download="SCRIB-Android.apk"/);
   const sidebar=index.match(/<a class="sidebar-app"[\s\S]*?<\/a>/)[0];
@@ -541,7 +541,23 @@ test('Android app download stays in the sidebar, without duplication next to Cre
   for(const role of ['admin','user']){
     state.user.role=role;const html=app.renderHome();balanced(html);
     assert.doesNotMatch(html,/app-download|android\/scrib\.apk|Descargar app · Android/);
-    assert.match(html,/Crear bolo/);
+  }
+});
+test('Home has no event creation action, including its empty state, while Events retains it',()=>{
+  const {app,state,event}=client();event.start=app.today()+'T19:00';
+  for(const role of ['admin','user']){
+    state.user.role=role;
+    const populated=app.renderHome();balanced(populated);
+    assert.doesNotMatch(populated,/data-action="new-event"|Crear bolo|Primer bolo/);
+    const events=app.renderEvents();balanced(events);
+    assert.match(events,/data-action="new-event"/);assert.match(events,/Crear bolo/);
+  }
+  state.items=state.items.filter(x=>x.kind!=='event');
+  for(const role of ['admin','user']){
+    state.user.role=role;
+    const empty=app.renderHome();balanced(empty);
+    assert.doesNotMatch(empty,/data-action="new-event"|Crear bolo|Primer bolo/);
+    assert.match(empty,/href="#events"/);
   }
 });
 test('home month navigation and day selection are read-only and independent of full calendar',async()=>{

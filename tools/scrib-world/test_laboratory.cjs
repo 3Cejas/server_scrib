@@ -8,6 +8,8 @@ function library(){const context={window:{}};vm.runInNewContext(read('public/lab
 
 test('Laboratory lists both games and accepts only its two exact game IDs',()=>{
   const lab=library();const list=lab.list();
+  assert.match(list,/Juegos para explorar otras maneras de escribir y crear en equipo\./);
+  assert.doesNotMatch(list,/Dos juegos/i);
   assert.match(list,/Bolzano/);assert.match(list,/S\+7/);
   assert.match(list,/#experiment\/bolzano/);assert.match(list,/#experiment\/s7/);
   assert.match(lab.detail('bolzano'),/src="\/scrib\/backstage\/laboratory\/bolzano\/"/);
