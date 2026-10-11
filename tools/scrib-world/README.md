@@ -120,6 +120,14 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   se consultan dentro de la ficha de cada persona, solo para administración.
   La edición mantiene sus versiones y los datos fiscales no entran en el estado
   compartido con el elenco. No se modifican acuerdos existentes ni PDF firmados.
+- En Bolo → Pagos cada persona tiene «Subir acuerdo firmado», también antes
+  de preparar un acuerdo. La subida administrativa (identidad, rol admin y CSRF)
+  asocia un PDF de hasta 3 MB a esa persona y función, sin enviar mensajes.
+  Si falta el acuerdo se prepara y se adjunta en una sola transacción; un fallo
+  no deja documentos vacíos. Los acuerdos revisados o revocados no se sustituyen.
+  Los enlaces personales siguen funcionando; un admin puede adjuntar aunque el
+  enlace haya caducado, sin reactivar dicho enlace. El PDF queda por revisar.
+  La referencia fiscal se conserva como metadato privado, pero no aparece en el formulario.
 - Trazabilidad privada: cada exportación se vincula al usuario autenticado mediante
   una referencia aleatoria y un sello HMAC-SHA-256 en metadatos. El PDF no contiene
   su nombre/usuario; el registro privado `document_exports` guarda identidad, fecha,

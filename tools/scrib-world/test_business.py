@@ -7,6 +7,7 @@ import threading
 import time
 import unittest
 import uuid
+from unittest.mock import patch
 from pathlib import Path
 from test_world import world
 from import_billing import import_candidates, Problem as BillingImportProblem
@@ -112,6 +113,50 @@ class BusinessTests(unittest.TestCase):
         self.assertEqual(a['status'],'uploaded');self.assertEqual(self.b.document(a['uploads'][0]['id']),raw)
         self.b.agreement_state({'id':a['id'],'status':'reviewed'},'admin')
         with self.assertRaises(world.Problem):self.b.upload(token,data)
+    def upload_payload(self, **extra):
+        return dict(eventId=self.event['id'],personId=self.person['id'],eventVersion=self.event['version'],
+                    name='firmado.pdf',base64=base64.b64encode(b'%PDF-1.7\noriginal signature bytes\n%%EOF\n').decode(),**extra)
+    def test_admin_upload_prepares_only_selected_person_and_preserves_signed_bytes(self):
+        settings=self.settings();other=self.store.create('person',{'name':'Otra persona'},'admin',str(uuid.uuid4()))
+        payload=self.upload_payload(settingsVersion=settings['version'])
+        first=self.b.admin_upload(payload,'admin');self.assertFalse(first['duplicate'])
+        agreement=self.b.agreements(self.event['id'])['agreements'][0]
+        self.assertEqual(agreement['personId'],self.person['id']);self.assertEqual(agreement['status'],'uploaded')
+        self.assertEqual(len(agreement['uploads']),1)
+        self.assertEqual(self.b.document(agreement['uploads'][0]['id']),base64.b64decode(payload['base64']))
+        retry=self.b.admin_upload(payload,'admin');self.assertTrue(retry['duplicate']);self.assertEqual(retry['agreementId'],first['agreementId'])
+        self.assertEqual(len(self.b.agreements(self.event['id'])['agreements']),1)
+        with self.assertRaises(world.Problem):self.b.admin_upload(dict(payload,personId=other['id']),'admin')
+    def test_admin_upload_failures_never_leave_an_empty_agreement(self):
+        settings=self.settings();payload=self.upload_payload(settingsVersion=settings['version'])
+        for changes in ({'base64':'not-a-pdf'},{'name':'../firmado.pdf'},{'eventVersion':0},{'settingsVersion':0}):
+            with self.assertRaises(world.Problem):self.b.admin_upload(dict(payload,**changes),'admin')
+            self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+        with patch.object(self.b,'store_upload',side_effect=OSError('Disk error')):
+            with self.assertRaises(OSError):self.b.admin_upload(payload,'admin')
+        self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+    def test_admin_upload_matches_person_event_and_never_overwrites_reviewed_or_revoked(self):
+        agreement=self.agreement();payload=self.upload_payload(agreementId=agreement['id'])
+        other=self.store.create('person',{'name':'Otra persona'},'admin',str(uuid.uuid4()))
+        with self.assertRaises(world.Problem):self.b.admin_upload(dict(payload,personId=other['id']),'admin')
+        result=self.b.admin_upload(payload,'admin');self.assertEqual(result['agreementId'],agreement['id'])
+        kept=self.b.agreements(self.event['id'])['agreements'][0]
+        self.assertEqual(kept['text'],agreement['text'])
+        self.b.agreement_state(dict(id=agreement['id'],status='reviewed'),'admin')
+        with self.assertRaises(world.Problem):self.b.admin_upload(payload,'admin')
+        self.assertEqual(self.b.document(kept['uploads'][0]['id']),base64.b64decode(payload['base64']))
+        self.b.agreement_state(dict(id=agreement['id'],status='revoked'),'admin')
+        with self.assertRaises(world.Problem):self.b.admin_upload(payload,'admin')
+    def test_admin_can_upload_to_expired_personal_link_without_restoring_public_access(self):
+        agreement=self.agreement();token=agreement['link'].split('/')[-1]
+        with self.store.transaction() as db:db.execute('UPDATE agreements SET expires=? WHERE id=?',(time.time()-10,agreement['id']))
+        with self.assertRaises(world.Problem):self.b.public(token)
+        self.b.admin_upload(self.upload_payload(agreementId=agreement['id']),'admin')
+        with self.assertRaises(world.Problem):self.b.public(token)
+    def test_hidden_billing_reference_survives_edits_without_a_reference_input(self):
+        saved=self.b.save('billing',dict(id=self.person['id'],version=0,legalName='Prueba',source='https://drive.google.com/file/d/test',vat='',withholding=''),'admin')
+        updated=self.b.save('billing',dict(id=self.person['id'],version=saved['version'],legalName='Prueba editada',vat='',withholding=''),'admin')
+        self.assertEqual(updated['source'],saved['source']);self.assertEqual(updated['legalName'],'Prueba editada')
     def test_fake_pdf_revocation_expiry_and_paths(self):
         a=self.agreement();token=a['link'].split('/')[-1]
         for data in ({'name':'firmado.pdf','base64':'notbase64'},{'name':'../../test.pdf','base64':base64.b64encode(b'%PDF-1\n%%EOF').decode()}):
@@ -261,6 +306,17 @@ class BusinessHttpTests(BusinessTests):
         head={'Origin':'http://localhost','Cookie':headers['Set-Cookie'].split(';')[0],'X-CSRF-Token':data['csrf']}
         self.assertEqual(self.call(url,'POST',payload,head)[0],200)
         self.assertEqual(self.call(url,'POST',payload,dict(head,Origin='http://evil'))[0],403)
+    def test_direct_upload_requires_admin_csrf_and_is_scoped_to_bolo_person(self):
+        settings=self.settings();payload=self.upload_payload(settingsVersion=settings['version'])
+        status,headers,state=self.call('/scrib/backstage/api/state')
+        head={'Origin':'http://localhost','Cookie':headers['Set-Cookie'].split(';')[0],'X-CSRF-Token':state['csrf']}
+        path='/scrib/backstage/api/business/agreement-upload'
+        self.assertEqual(self.call(path,'POST',payload,head)[0],403)
+        self.assertEqual(self.call(path,'POST',payload,{'X-Scrib-Role':'admin'})[0],403)
+        status,_,reply=self.call(path,'POST',payload,dict(head,**{'X-Scrib-Role':'admin'}))
+        self.assertEqual(status,200);self.assertTrue(reply['ok']);self.assertIn('agreementId',reply['item'])
+        agreement=self.b.agreements(self.event['id'])['agreements'][0]
+        self.assertEqual(agreement['status'],'uploaded');self.assertEqual(agreement['personId'],self.person['id'])
     def test_documents_admin_only_and_unknown_tokens(self):
         self.assertEqual(self.call('/scrib/backstage/api/business/document/missing')[0],403)
         self.assertEqual(self.call('/scrib-disponibilidad/api/'+'A'*43)[0],404)

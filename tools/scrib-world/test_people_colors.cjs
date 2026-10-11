@@ -25,6 +25,7 @@ function client() {
       addEventListener:(k,f)=>{listeners[k]=f;}},crypto:{randomUUID:()=> 'test-request'},
     setInterval(){},setTimeout:()=>1,clearTimeout(){},AbortController,URL,
     FormData:class{constructor(form){return form.entries;}},
+    FileReader:class{readAsDataURL(){this.result='data:application/pdf;base64,JVBERi0xLjcKJSVFT0Y=';this.onload();}},
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || (url.includes('/business/summary/')?paymentSummary():{reports:[]})};}};
   vm.createContext(context);
@@ -699,7 +700,9 @@ test('agreement cards expose the signed-upload link only for open, unrevised agr
   responses['/scrib/backstage/api/business/agreements/e1']={agreements:['generated','sent','uploaded','reviewed','revoked'].map((status,i)=>({id:'a'+i,personId:i===3?'p1':'p2',name:'Persona '+i,status,link:'https://sutura-gateway.ddns.net/scrib-disponibilidad/token'+i,uploads:status==='reviewed'?[{id:'upload',name:'firmado.pdf',created:'2026-10-11'}]:[]}))};
   responses['/scrib/backstage/api/business/overview']={records:[]};app.business.production(event.id);await flush();
   const html=app.business.production(event.id);balanced(html);
-  assert.equal((html.match(/↑ Subir acuerdo firmado/g)||[]).length,3);
+  assert.equal((html.match(/Enlace personal de firma/g)||[]).length,3);
+  for(const i of [0,1,2])assert.match(html,new RegExp('data-action="business-agreement-upload" data-id="e1\\|p2\\|a'+i+'"'));
+  for(const i of [3,4])assert.doesNotMatch(html,new RegExp('data-action="business-agreement-upload" data-id="e1\\|p[12]\\|a'+i+'"'));
   for(const i of [0,1,2])assert.match(html,new RegExp('href="https://sutura-gateway.ddns.net/scrib-disponibilidad/token'+i+'" target="_blank" rel="noopener noreferrer"'));
   for(const i of [3,4])assert.doesNotMatch(html,new RegExp('href="https://sutura-gateway.ddns.net/scrib-disponibilidad/token'+i+'"'));
   assert.match(html,/data-action="business-invoice" data-id="e1\|p1"/);
@@ -713,11 +716,46 @@ test('fiscal form saves fields without a personal-confirmation checkbox or confi
   responses['/scrib/backstage/api/business/overview']={records:[{type:'billing',id:'p1',version:1,source:'https://drive.google.com/file/d/prueba',legalName:'Nombre anterior'}]};
   await app.business.action({dataset:{action:'business-billing',id:'p1'}});
   const html=nodes['dialog-content'].innerHTML;balanced(html);
-  assert.doesNotMatch(html,/name="verified"|He confirmado estos datos con la persona/);assert.match(html,/name="legalName"[^>]*value="Nombre anterior"/);
+  assert.doesNotMatch(html,/name="verified"|He confirmado estos datos con la persona|Datos de la factura de referencia|Documento de referencia|name="source"/);assert.match(html,/name="legalName"[^>]*value="Nombre anterior"/);
   await form.listeners.submit({preventDefault(){}});
   const payload=JSON.parse(calls.find(c=>c.url==='/scrib/backstage/api/business/billing').options.body);
   assert.equal(payload.id,'p1');assert.equal(payload.version,1);assert.equal(payload.legalName,'Nombre legal de prueba');assert.ok(!('verified' in payload));
   assert.equal(error.textContent,'');
+});
+test('every actual cast member has a direct upload action before preparing any agreement',async()=>{
+  const {app,responses,calls,state}=client();
+  responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.business.production('e1');await flush();const html=app.business.production('e1');balanced(html);
+  for(const id of ['p1','p2','p3'])assert.match(html,new RegExp('data-action="business-agreement-upload" data-id="e1\\|'+id+'"'));
+  assert.equal((html.match(/Sin acuerdo/g)||[]).length,3);assert.ok(calls.every(c=>c.options.method==='GET'));
+  state.user.role='member';assert.doesNotMatch(app.business.production('e1'),/business-agreement-upload/);
+});
+test('direct upload reads the chosen PDF, scopes one person and avoids duplicate submissions',async()=>{
+  const {app,nodes,responses,calls}=client(),form=element(),submit=element(),error=element();
+  const file={name:'firma.pdf',size:100},input={files:[file]};
+  form.querySelector=q=>q==='[type=submit]'?submit:q==='.form-error'?error:q==='[name=pdf]'?input:null;
+  nodes.editor.querySelector=q=>q==='form'?form:null;
+  responses['/scrib/backstage/api/business/overview']={records:[{type:'settings',id:'organizer',version:7}]};
+  let resolveUpload;responses['/scrib/backstage/api/business/agreement-upload']=()=>new Promise(r=>resolveUpload=r);
+  await app.business.action({dataset:{action:'business-agreement-upload',id:'e1|p1'}});
+  assert.match(nodes['dialog-content'].innerHTML,/name="pdf" accept="application\/pdf,.pdf" required/);
+  assert.equal(submit.textContent,'Subir acuerdo firmado');
+  const pending=form.listeners.submit({preventDefault(){}});await flush();await form.listeners.submit({preventDefault(){}});
+  const uploads=calls.filter(c=>c.url.endsWith('business/agreement-upload'));assert.equal(uploads.length,1);
+  const data=JSON.parse(uploads[0].options.body);assert.equal(data.eventId,'e1');assert.equal(data.personId,'p1');assert.equal(data.agreementId,'');assert.equal(data.eventVersion,1);assert.equal(data.settingsVersion,7);assert.equal(data.name,'firma.pdf');assert.equal(data.base64,'JVBERi0xLjcKJSVFT0Y=');
+  assert.ok(!calls.some(c=>c.url.endsWith('business/generate')||c.url.endsWith('whatsapp/send')));
+  resolveUpload({ok:true,item:{agreementId:'a1'}});await pending;assert.equal(nodes.editor.open,false);assert.equal(submit.disabled,false);
+});
+test('invalid upload selection keeps the dialog and sends nothing',async()=>{
+  const {app,nodes,responses,calls}=client(),form=element(),submit=element(),error=element(),input={files:[]};
+  form.querySelector=q=>q==='[type=submit]'?submit:q==='.form-error'?error:q==='[name=pdf]'?input:null;
+  nodes.editor.querySelector=q=>q==='form'?form:null;responses['/scrib/backstage/api/business/overview']={records:[]};
+  await app.business.action({dataset:{action:'business-agreement-upload',id:'e1|p1|a1'}});
+  for(const file of [null,{name:'firma.pdf',size:4*1024*1024},{name:'imagen.png',size:100}]){
+    input.files=file?[file]:[];await form.listeners.submit({preventDefault(){}});
+    assert.match(error.textContent,/Selecciona un PDF/);assert.equal(submit.disabled,false);assert.equal(nodes.editor.open,true);
+  }
+  assert.ok(calls.every(c=>c.options.method==='GET'));
 });
 test('roadmap groups blue/red/general teams and keeps each person color',()=>{
   const {app,people}=client(),html=app.renderEvent('e1');balanced(html);

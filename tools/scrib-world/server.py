@@ -1314,6 +1314,8 @@ class Handler(BaseHTTPRequestHandler):
                     result=store.business.generate(data,actor)
                 elif route == 'api/business/agreement-state':
                     result=store.business.agreement_state(data,actor)
+                elif route == 'api/business/agreement-upload':
+                    result=store.business.admin_upload(data,actor)
                 elif route == 'api/business/invoice':
                     result=store.business.invoice(data,actor)
                 else:

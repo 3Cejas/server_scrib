@@ -126,7 +126,7 @@ class Business:
                 body['confirmed'] = confirmed
             elif kind == 'billing':
                 self.store.item(db, ident, 'person', True)
-                body = {k: self.text(data.get(k,''), limit) for k, limit in [('legalName',200), ('taxId',40), ('address',1000), ('iban',40), ('source',2000)]}
+                body = {k: self.text(data.get(k,old.get(k,'') if k=='source' else ''), limit) for k, limit in [('legalName',200), ('taxId',40), ('address',1000), ('iban',40), ('source',2000)]}
                 # Retain legacy review metadata, but no checkbox/contact claim
                 # is required to save fiscal fields or prepare a draft.
                 body['verified'] = old.get('verified', False)
@@ -327,23 +327,23 @@ class Business:
                 raise self.problem('Completa el espacio del bolo y comprueba su estado.')
             generated=[]
             for person_id in selected:
-                person=self.store.item(db,person_id,'person',True)
-                roles=' / '.join(self.event_roles(db,event,person_id))
-                if not roles:
-                    raise self.problem('El destinatario no pertenece al bolo.')
-                # Do not regenerate or revoke silently: signed versions remain immutable.
-                old=db.execute("SELECT id FROM agreements WHERE event=? AND person=? AND status<>'revoked'",(event_id,person_id)).fetchone()
-                if old:
-                    generated.append(old['id']);continue
-                billing=self.record(db,'billing',person_id)
-                rendered=self.render_agreement(event,person,billing,settings,roles=self.event_roles(db,event,person_id))
-                ident=str(uuid.uuid4());token=self.store.availability.new_token()
-                body={'name':person['name'],'eventTitle':event['title'],'text':rendered,'representative':settings['representative'],
-                      'created':self.now(),'templateVersion':settings['version'],'eventVersion':event['version']}
-                db.execute('INSERT INTO agreements VALUES(?,?,?,?,?,?,?,?)', (ident,event_id,person_id,hashlib.sha256(token.encode()).hexdigest(),token,json.dumps(body,ensure_ascii=False),'generated',time.time()+90*86400))
-                generated.append(ident)
+                generated.append(self.prepare_one(db,event,person_id,settings))
             self.store.activity(db,event_id,actor,'acuerdos preparados (sin envío)')
             return {'ids':generated}
+
+    def prepare_one(self, db, event, person_id, settings):
+        person=self.store.item(db,person_id,'person',True)
+        roles=self.event_roles(db,event,person_id)
+        if not roles:raise self.problem('El destinatario no pertenece al bolo.')
+        # Reuse the existing version, never revoke or rewrite a signed agreement.
+        old=db.execute("SELECT id FROM agreements WHERE event=? AND person=? AND status<>'revoked'",(event['id'],person_id)).fetchone()
+        if old:return old['id']
+        rendered=self.render_agreement(event,person,self.record(db,'billing',person_id),settings,roles=roles)
+        ident=str(uuid.uuid4());token=self.store.availability.new_token()
+        body={'name':person['name'],'eventTitle':event['title'],'text':rendered,'representative':settings['representative'],
+              'created':self.now(),'templateVersion':settings['version'],'eventVersion':event['version']}
+        db.execute('INSERT INTO agreements VALUES(?,?,?,?,?,?,?,?)',(ident,event['id'],person_id,hashlib.sha256(token.encode()).hexdigest(),token,json.dumps(body,ensure_ascii=False),'generated',time.time()+90*86400))
+        return ident
 
     def lookup(self, db, token):
         row=db.execute('SELECT * FROM agreements WHERE token_hash=?',(hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
@@ -362,7 +362,7 @@ class Business:
             uploads=[dict(r) for r in db.execute('SELECT name,created FROM agreement_uploads WHERE agreement=? ORDER BY created DESC',(row['id'],))]
             return dict(kind='agreement',name=body['name'],title=body['eventTitle'],text=body['text'],status=row['status'],uploads=uploads)
 
-    def upload(self, token, data):
+    def upload_data(self, data):
         encoded=data.get('base64','')
         if not isinstance(encoded,str) or len(encoded)>4*1024*1024:
             raise self.problem('PDF demasiado grande (máximo 3 MB).',413)
@@ -374,22 +374,57 @@ class Business:
         if not name.lower().endswith('.pdf') or any(c in name for c in ('/','\\','\r','\n')):
             raise self.problem('Nombre de PDF no válido.')
         digest=hashlib.sha256(raw).hexdigest()
+        return raw,name,digest
+
+    def store_upload(self, db, row, raw, name, digest, actor):
+        if row['status']=='reviewed':raise self.problem('El acuerdo ya fue revisado. Contacta con organización antes de sustituirlo.',409)
+        if row['status']=='revoked':raise self.problem('Este acuerdo fue revocado.',409)
+        if db.execute('SELECT 1 FROM agreement_uploads WHERE agreement=? AND hash=?',(row['id'],digest)).fetchone():return {'duplicate':True}
+        if db.execute('SELECT COUNT(*) FROM agreement_uploads WHERE agreement=?',(row['id'],)).fetchone()[0]>=10:
+            raise self.problem('Límite de versiones alcanzado. Contacta con organización.',429)
+        folder=self.store.directory/'documents';folder.mkdir(mode=0o700,exist_ok=True)
+        target=folder/(digest+'.pdf')
+        try:
+            with target.open('xb') as file:os.chmod(target,0o600);file.write(raw);file.flush();os.fsync(file.fileno())
+        except FileExistsError:pass
+        db.execute('INSERT INTO agreement_uploads VALUES(?,?,?,?,?)',(str(uuid.uuid4()),row['id'],digest,name,self.now()))
+        db.execute("UPDATE agreements SET status='uploaded' WHERE id=?",(row['id'],))
+        self.store.activity(db,row['event'],actor,'acuerdo subido; pendiente de revisión')
+        return {'duplicate':False}
+
+    def upload(self, token, data):
+        raw,name,digest=self.upload_data(data)
         with self.store.transaction() as db:
             row=self.lookup(db,token)
             if not row:raise self.problem('Enlace no disponible.',404)
-            if row['status']=='reviewed':raise self.problem('El acuerdo ya fue revisado. Contacta con organización antes de sustituirlo.',409)
-            if db.execute('SELECT 1 FROM agreement_uploads WHERE agreement=? AND hash=?',(row['id'],digest)).fetchone():return {'duplicate':True}
-            if db.execute('SELECT COUNT(*) FROM agreement_uploads WHERE agreement=?',(row['id'],)).fetchone()[0]>=10:
-                raise self.problem('Límite de versiones alcanzado. Contacta con organización.',429)
-            folder=self.store.directory/'documents';folder.mkdir(mode=0o700,exist_ok=True)
-            target=folder/(digest+'.pdf')
-            try:
-                with target.open('xb') as file:os.chmod(target,0o600);file.write(raw);file.flush();os.fsync(file.fileno())
-            except FileExistsError:pass
-            db.execute('INSERT INTO agreement_uploads VALUES(?,?,?,?,?)',(str(uuid.uuid4()),row['id'],digest,name,self.now()))
-            db.execute("UPDATE agreements SET status='uploaded' WHERE id=?",(row['id'],))
-            self.store.activity(db,row['event'],'enlace-personal','acuerdo subido; pendiente de revisión')
-        return {'duplicate':False}
+            return self.store_upload(db,row,raw,name,digest,'enlace-personal')
+
+    def admin_upload(self, data, actor):
+        raw,name,digest=self.upload_data(data)
+        event_id=self.text(data.get('eventId',''),100,True)
+        person_id=self.text(data.get('personId',''),100,True)
+        ident=self.text(data.get('agreementId',''),100)
+        with self.store.transaction() as db:
+            event=self.store.item(db,event_id,'event',True)
+            self.store.check_version(event,data.get('eventVersion'))
+            self.store.item(db,person_id,'person',True)
+            if event.get('eventType')=='rehearsal':raise self.problem('El acuerdo debe asociarse a un bolo, no a un ensayo.')
+            if ident:
+                row=db.execute('SELECT * FROM agreements WHERE id=? AND event=? AND person=?',(ident,event_id,person_id)).fetchone()
+                if not row:raise self.problem('El acuerdo no corresponde a esta persona y bolo.',409)
+            else:
+                if not self.event_roles(db,event,person_id):raise self.problem('El destinatario no pertenece al bolo.')
+                row=db.execute("SELECT * FROM agreements WHERE event=? AND person=? AND status<>'revoked' ORDER BY rowid DESC LIMIT 1",(event_id,person_id)).fetchone()
+                if not row:
+                    settings=self.record(db,'settings','organizer')
+                    if not settings.get('confirmed'):raise self.problem('Completa primero la entidad y la plantilla en Producción y cuentas.')
+                    if type(data.get('settingsVersion')) is not int or data['settingsVersion']!=settings['version']:
+                        raise self.problem('La plantilla ha cambiado. Recarga antes de subir el acuerdo.',409)
+                    if event['status']=='cancelled' or not event['venue']:raise self.problem('Completa el espacio del bolo y comprueba su estado.')
+                    ident=self.prepare_one(db,event,person_id,settings)
+                    row=db.execute('SELECT * FROM agreements WHERE id=?',(ident,)).fetchone()
+            # Preparation and upload share one transaction: failed uploads create no empty agreement.
+            return dict(self.store_upload(db,row,raw,name,digest,actor),agreementId=row['id'])
 
     def agreement_state(self, data, actor):
         with self.store.transaction() as db:
