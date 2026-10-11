@@ -99,8 +99,13 @@ class DocumentCleanupTests(unittest.TestCase):
         self.business.save('billing',dict(id=self.fixture.person['id'],version=0,legalName='Nombre fiscal',
             taxId='PRUEBA-P',address='Domicilio de prueba',vat='10',withholding='15',verified=True),'admin')
         event=self.fixture.event
-        event=self.store.update(event['id'],dict(event,cast=event['cast']+[dict(personId=self.fixture.person['id'],
-            role='Interpretación',team='blue')]),'admin',event['version'])
+        # Legacy multi-role casts still need accurate recoverable invoices;
+        # new planning assignments now prohibit this overlap.
+        with self.store.connect() as db:
+            body=json.loads(db.execute('SELECT body FROM items WHERE id=?',(event['id'],)).fetchone()[0])
+            body['cast'].append(dict(personId=self.fixture.person['id'],role='Interpretación',team='blue'))
+            db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(body),event['id']))
+        event=self.store.details(event['id'])['item']
         self.fixture.settlement(days=[
             dict(date='2026-11-07',income='100',expenses='0',allocations=[dict(personId=self.fixture.person['id'],amount='10')]),
             dict(date='2026-11-08',income='100',expenses='0',allocations=[dict(personId=self.fixture.person['id'],amount='20')])])

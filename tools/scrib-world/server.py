@@ -32,7 +32,7 @@ from laboratory import LaboratoryLibrary, POLICY as LABORATORY_POLICY, DEMO_POLI
 from inventory_seed import apply_initial_inventory
 from inventory_teams import apply_team_inventory
 from presenter_assignment import apply_presenter_assignment
-from production import TEAM_ROLES, normalize_role
+from production import TEAM_ROLES, normalize_role, cast_conflict
 from lighting import default_plan as default_lighting, normalize as normalize_lighting, upgrade as upgrade_lighting
 from dependencies import validate as validate_dependencies, block_dependents
 from document_trace import SCHEMA as DOCUMENT_TRACE_SCHEMA
@@ -407,6 +407,11 @@ class Store:
                     self.item(db, ident, 'inventory')
             if len({(c["personId"], c["role"], c["team"]) for c in body["cast"]}) != len(cast):
                 raise Problem("Hay una entrada del elenco duplicada.")
+            if body['eventType'] != 'rehearsal':
+                conflict = cast_conflict(body['cast'], (existing or {}).get('cast', []))
+                if conflict:
+                    person = self.item(db, conflict, 'person')
+                    raise Problem(person['name'] + ' ya ocupa otro puesto en este bolo. Solo se pueden combinar los dos puestos de técnica.')
             if existing:
                 body["boardId"] = existing.get("boardId", "")
                 for key in ("historical", "historyKey", "sourcePollId", "sourceSlotId", "parentEventId"):

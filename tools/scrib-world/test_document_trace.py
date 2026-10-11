@@ -77,7 +77,7 @@ class TraceTests(unittest.TestCase):
         self.assertNotIn('document-trace.key',str(self.store.snapshot()))
         self.assertEqual(verify_pdf(self.store,raw)['status'],'original')
 
-    def test_all_six_generated_document_types_share_branding_and_trace_but_not_uploaded_signatures(self):
+    def test_all_five_generated_document_types_share_branding_and_trace_but_not_uploaded_signatures(self):
         from test_business import BusinessTests
         from pypdf import PdfReader
         fixture=BusinessTests();fixture.setUp()
@@ -93,7 +93,7 @@ class TraceTests(unittest.TestCase):
         fixture.b.agreement_state(dict(id=agreement['id'],status='reviewed'),'admin')
         invoice=fixture.b.invoice({'eventId':fixture.event['id'],'personId':fixture.person['id'],'date':'2026-11-08'},'admin')
         upload=fixture.b.agreements(fixture.event['id'])['agreements'][0]['uploads'][0]['id']
-        for data in [{'kind':'inventory','ids':[obj['id']]},{'kind':'event','id':fixture.event['id']},
+        for data in [{'kind':'inventory','ids':[obj['id']]},
                      {'kind':'lighting'},{'kind':'report','id':'match-123'},{'kind':'agreement','id':agreement['id']},
                      {'kind':'invoice','id':invoice['id']}]:
             with self.subTest(kind=data['kind']):

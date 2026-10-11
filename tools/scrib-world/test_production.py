@@ -153,9 +153,10 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaises(world.Problem) as error:generate(self.store,{'kind':'inventory','ids':[o['id']]},ADMIN)
         self.assertEqual(error.exception.status,409)
 
-    def test_event_and_lighting_pdf_keep_saved_data_and_do_not_save_draft(self):
+    def test_call_sheet_pdf_removed_and_lighting_draft_does_not_save(self):
         self.seed();e=self.create('event',title='León',start='2026-11-07T19:00',venue='Teatro')
-        text,_=self.pdf_text({'kind':'event','id':e['id']});self.assertIn('HOJA DE LLAMADA',text);self.assertIn('Linternas',text)
+        with self.assertRaises(world.Problem) as error:generate(self.store,{'kind':'event','id':e['id']},ADMIN)
+        self.assertEqual(error.exception.status,400)
         from lighting import default_plan
         plan=default_plan();plan['elements'][0]['label']='Calle personalizada';text,reader=self.pdf_text({'kind':'lighting','plan':plan})
         self.assertIn('Calle personalizada',text)
@@ -185,6 +186,7 @@ class PdfHttpTests(unittest.TestCase):
         self.assertEqual(self.req('api/pdf',{'kind':'lighting'},raw=True)[0],403)
         self.assertEqual(self.req('api/pdf',{'kind':'lighting'},self.csrf(),raw=True)[0],200)
         self.assertEqual(self.req('api/pdf',{'kind':'invoice'},self.csrf(),raw=True)[0],403)
+        self.assertEqual(self.req('api/pdf',{'kind':'event'},self.csrf(),raw=True)[0],400)
 
 
 if __name__=='__main__':unittest.main()

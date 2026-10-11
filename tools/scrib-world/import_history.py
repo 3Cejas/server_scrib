@@ -79,7 +79,10 @@ def import_history(store, sections, instagram=None, apply=False, today=None):
                     record['id'] = prior[0]['id']
                     continue  # Preserve manual edits, archived state, cast and board progress.
                 if apply:
-                    body = store.validate(db, 'event', body)
+                    # This offline import records already-performed casts as
+                    # published, including historical multi-role appearances.
+                    # Normal browser/API creation never supplies this baseline.
+                    body = store.validate(db, 'event', body, {'cast': cast})
                     board_id = str(uuid.uuid4())
                     body.update(boardId=board_id, historical=True, historyKey=digest)
                     saved = store.insert(db, 'event', body, 'historial-scrib')

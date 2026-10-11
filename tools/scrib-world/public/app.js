@@ -315,9 +315,10 @@
     const event = item(id);
     if (!event || event.archived) return empty("Este bolo no está disponible","Vuelve a los bolos y ensayos.",`<a class="button" href="#events">Ver bolos</a>`);
     if(event.eventType==='rehearsal')return renderRehearsal(event);
-    const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${castSlots(event.cast).filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
+    const slots=castSlots(event.cast);
+    const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${slots.filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId,[...slots,...event.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')],c.role,c.slotIndex)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
     return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",eventSeries(event)[0].title,`${seriesDates(event)} · ${EVENT_STATUS[event.status]}`,
-      btn("edit-event",event.eventType === "rehearsal"?"Editar ensayo":"Editar bolo",event.id) + btn('delete-event',event.eventType==='rehearsal'?'Eliminar ensayo':'Eliminar bolo',event.id,'danger') + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + btn("event-pdf","↓ Hoja de llamada PDF",event.id) + (event.eventType === "rehearsal" ? (event.sourcePollId ? `<a class="button" href="#poll/${esc(event.sourcePollId)}">Ver disponibilidades</a>` : "") : btn("new-rehearsal","＋ Ensayo manual",event.id)+btn("new-poll-event","◷ Buscar fecha de ensayo",event.id))) +
+      btn("edit-event","Editar bolo",event.id) + btn('delete-event','Eliminar bolo',event.id,'danger') + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + (state.user.role==='admin'?`<a class="button" href="#production/${esc(event.id)}">✍ Acuerdos y liquidación</a>`:'')) +
       `<div class="event-sheet">${seriesLinks(event)}<section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${rehearsalsPanel(event)}
       <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.cast.length?'':`<p class="muted section">Elige quién ocupa cada puesto. Puedes dejar huecos pendientes y completarlos después.</p>`}</section>
@@ -330,7 +331,13 @@
     if(event.eventType==='rehearsal')return `<section class="panel event-prep-section"><p class="eyebrow">◷ ENSAYO DEL ELENCO</p><h2>${event.sourcePollId?'Fecha acordada por disponibilidad':'Ensayo manual'}</h2><p class="muted section">Puedes editar la fecha, el horario y las personas asistentes.</p>${event.parentEventId?`<a class="button section" href="#event/${esc(event.parentEventId)}">Ver bolo asociado ↗</a>`:""}</section>`;
     const ids=new Set(eventSeries(event).map(e=>e.id));
     const rehearsals=active('event').filter(e=>e.eventType==='rehearsal'&&ids.has(e.parentEventId)).sort((a,b)=>a.start.localeCompare(b.start));
-    return `<section class="panel event-prep-section"><div class="panel-head"><h2>◷ Ensayos</h2>${btn('new-rehearsal','＋ Ensayo manual',event.id,'small')}</div><div class="report-list section">${rehearsals.map(e=>`<a class="button" href="#event/${esc(e.id)}">${esc(e.title)} · ${esc(dateTime(e.start))}${e.end?' — '+esc(hour(e.end)):''}${e.status==='cancelled'?' · Cancelado':''}</a>`).join('')||'<p class="muted">Todavía no hay ensayos. Añade uno directamente o busca fecha con una encuesta.</p>'}</div></section>`;
+    return `<section class="panel event-prep-section bolo-rehearsals"><div class="panel-head"><h2>◷ Ensayos</h2><div class="actions">${btn('new-rehearsal','＋ Ensayo manual',event.id,'small')}${btn('new-poll-event','◷ Buscar fecha de ensayo',event.id,'small')}</div></div><div class="rehearsal-grid">${rehearsals.map(rehearsalCard).join('')||'<div class="rehearsal-empty"><span aria-hidden="true">◷</span><p>Todavía no hay ensayos</p><small>Añade uno o encuentra fecha con el elenco.</small></div>'}</div></section>`;
+  }
+  function rehearsalCard(e){
+    const day=new Date(e.start.length===10?e.start+'T12:00:00Z':e.start),valid=Number.isFinite(day.getTime());
+    const part=options=>valid?new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',...options}).format(day):'—';
+    const people=[...new Set(e.cast.map(c=>c.personId))],names=people.map(id=>item(id)?.name||'Ficha archivada');
+    return `<a class="rehearsal-card${e.status==='cancelled'?' is-cancelled':''}" href="#event/${esc(e.id)}"><div class="rehearsal-date"><span>${esc(part({month:'short'}))}</span><strong>${esc(part({day:'2-digit'}))}</strong><small>${esc(part({weekday:'short'}))}</small></div><div class="rehearsal-body"><div class="rehearsal-card-head"><h3>${esc(e.title)}</h3><span aria-hidden="true">↗</span></div><p class="rehearsal-time"><time datetime="${esc(e.start)}">${esc(hour(e.start))}${e.end?' — '+esc(hour(e.end)):''}</time>${e.status==='cancelled'?badge('Cancelado','coral'):''}</p><p class="rehearsal-place">⌖ ${esc([e.venue,e.city].filter(Boolean).join(' · ')||'Lugar por confirmar')}</p><div class="rehearsal-cast" aria-label="${esc(names.length?'Convocados: '+names.join(', '):'Convocatoria pendiente')}"><span class="rehearsal-avatars" aria-hidden="true">${people.slice(0,4).map(id=>`<span title="${esc(item(id)?.name||'Ficha archivada')}">${personPhoto(item(id)||{name:'Ficha archivada'})}</span>`).join('')}</span><small>${people.length?`${people.length} ${people.length===1?'persona convocada':'personas convocadas'}`:'Convocatoria pendiente'}</small></div></div></a>`;
   }
   function renderRehearsal(e){
     const people=[...new Set(e.cast.map(c=>c.personId))];
@@ -470,11 +477,28 @@
     const e=item(node.dataset.castEvent),slots=castSlots(e.cast),slot=slots[Number(node.dataset.castSlot)];if(!slot)return;
     if(saving){node.value=slot.personId;return;}
     const previous=slot.personId;slot.personId=node.value;
+    const cast=[...slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team})),...e.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')];
+    const conflict=castConflict(cast,e.cast);
+    if(conflict){node.value=previous;throw new Error(castConflictMessage(conflict));}
     saving=true;node.disabled=true;
-    try{const result=await request('update',{id:e.id,version:Number(node.dataset.castVersion),data:{...e,cast:[...slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team})),...e.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')]}});state.items[state.items.findIndex(x=>x.id===e.id)]=result.item;renderPage();toast('Puesto guardado.');}
+    try{const result=await request('update',{id:e.id,version:Number(node.dataset.castVersion),data:{...e,cast}});state.items[state.items.findIndex(x=>x.id===e.id)]=result.item;renderPage();toast('Puesto guardado.');}
     catch(error){node.value=previous;throw error;}finally{saving=false;node.disabled=false;}
   }
-  function personChoices(id){return option('','Selecciona quién ocupa el puesto',id)+state.items.filter(p=>p.kind==='person'&&(!p.archived||p.id===id)).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>option(p.id,p.name+(p.archived?' (archivado)':''),id)).join('');}
+  const technicalRole=role=>['Técnica','Técnica videojuego','Técnica luminotecnia-sonido'].includes(role);
+  function castConflict(cast,previous=[]){
+    const group=rows=>{const groups=new Map();for(const c of rows.filter(c=>c.personId)){const role=c.role==='Técnica'?'Técnica videojuego':c.role,key=JSON.stringify([role,TEAM_ROLES.has(role)?c.team:'general']);if(!groups.has(c.personId))groups.set(c.personId,new Map());const counts=groups.get(c.personId);counts.set(key,(counts.get(key)||0)+1);}return groups;};
+    const old=group(previous);
+    for(const [id,positions] of group(cast))if([...positions.values()].reduce((a,b)=>a+b,0)>1&&!cast.filter(c=>c.personId===id).every(c=>technicalRole(c.role))&&[...positions].some(([key,count])=>count>(old.get(id)?.get(key)||0)))return id;
+    return '';
+  }
+  const castConflictMessage=id=>(item(id)?.name||'Esta persona')+' ya ocupa otro puesto en este bolo. Solo se pueden combinar los dos puestos de técnica.';
+  function personChoices(id,cast=[],role='',slotIndex=-1){return option('','Selecciona quién ocupa el puesto',id)+state.items.filter(p=>p.kind==='person'&&(!p.archived||p.id===id)).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>{const taken=p.id!==id&&cast.some((c,i)=>i!==slotIndex&&c.personId===p.id&&!(technicalRole(role)&&technicalRole(c.role)));return `<option value="${esc(p.id)}"${p.id===id?' selected':''}${taken?' disabled':''}>${esc(p.name+(p.archived?' (archivado)':'')+(taken?' · Ya ocupa otro puesto':''))}</option>`;}).join('');}
+  function syncCastChoices(form){
+    if(!form)return;
+    const rows=[...form.querySelectorAll('.cast-editor-row')],cast=rows.map(row=>({personId:row.querySelector('.cast-person').value,role:row.querySelector('.cast-role').value}));
+    const hidden=(item(form.dataset.id)?.cast||[]).filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica');
+    rows.forEach((row,index)=>{const node=row.querySelector('.cast-person');node.innerHTML=personChoices(node.value,[...cast,...hidden],cast[index].role,index);});
+  }
   function castSlots(cast=[]){const remaining=cast.map(c=>({...c,role:c.role==='Técnica'?'Técnica videojuego':c.role})),rows=[];for(const [role,team] of CAST_SLOTS){const index=remaining.findIndex(c=>c.role===role&&(TEAM_ROLES.has(role)?c.team: 'general')===team);rows.push({...(index>=0?remaining.splice(index,1)[0]:{role,team,personId:''}),team,fixed:true});}return [...rows,...remaining.filter(c=>TEAM_ROLES.has(c.role)).map(c=>({...c,team:c.team,fixed:true}))].map((c,slotIndex)=>({...c,slotIndex}));}
   function castRow(c = {}) {
     const choices=state.items.filter(p=>p.kind === "person" && (!p.archived || p.id === c.personId));
@@ -496,6 +520,7 @@
       (rehearsal?'':field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"'))) + field(rehearsal?"Notas del ensayo":"Notas de producción",area("description",e.description,'maxlength="15000"')) +
       (rehearsal?'':window.ScribWorldGameConfig.editor(e,state.gameConfigSchema)) +
       (rehearsal?rehearsalPeople(e):`<div><div class="panel-head"><h3>${rehearsal?'Asistentes al ensayo':'Elenco de esta función'}</h3>${btn("add-cast","＋ Elenco adicional","","small")}</div><p class="hint">Puedes guardar un borrador y completar después los puestos que faltan.</p><div class="cast-editor">${castSlots(e.cast).map(castRow).join("")}</div></div>`)));
+    if(!rehearsal)syncCastChoices(dialog.querySelector('#edit-form'));
   }
   function openPerson(id) {
     const p = id ? item(id) : {name:"",roles:[],bio:"",instagram:"",website:"",otherSocial:"",image:""};
@@ -536,7 +561,11 @@
       data.cast = [...form.querySelectorAll(".cast-editor-row")].map(row=>({personId:row.querySelector(".cast-person").value,role:row.querySelector(".cast-role").value,team:TEAM_ROLES.has(row.querySelector('.cast-role').value)?row.querySelector(".cast-team").value:'general'})).filter(c=>c.personId);
       if(data.cast.some(c=>!c.role))throw new Error('Elige el rol de cada persona del elenco.');
       if(data.eventType==='rehearsal')data.cast=[...form.querySelectorAll('[name=attendees]:checked')].map(n=>({personId:n.value,role:'Ensayo',team:'general'}));
-      else data.cast.push(...(item(form.dataset.id)?.cast||[]).filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica'));
+      else {
+        const previous=item(form.dataset.id)?.cast||[];
+        data.cast.push(...previous.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica'));
+        const conflict=castConflict(data.cast,previous);if(conflict)throw new Error(castConflictMessage(conflict));
+      }
       data.address=item(form.dataset.id)?.address||'';
 
     }
@@ -667,11 +696,10 @@
     else if(a === "message-draft") {await loadMessages();const draft=messageHistory.find(x=>x.id===id);if(draft)showMessagePreview(draft);}
     else if(a === "send-message")await sendMessage(node);
     else if(a === "send-messages")await sendMessages(node);
-    else if(a === "event-pdf")await window.ScribExport(state,{kind:'event',id},node);
     else if(a === "close-dialog") {if(!saving)dialog.close();}
     else if(a === "add-check")dialog.querySelector(".checklist-editor").insertAdjacentHTML("beforeend",checkRow());
-    else if(a === "add-cast")dialog.querySelector(".cast-editor").insertAdjacentHTML("beforeend",castRow());
-    else if(a === "remove-row"){node.parentElement.remove();}
+    else if(a === "add-cast"){dialog.querySelector(".cast-editor").insertAdjacentHTML("beforeend",castRow());syncCastChoices(dialog.querySelector('#edit-form'));}
+    else if(a === "remove-row"){const form=node.closest('form'),cast=node.parentElement.classList.contains('cast-editor-row');node.parentElement.remove();if(cast)syncCastChoices(form);}
     else if(a === "remove-tag")taskUI.removeTag(node);
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
@@ -704,8 +732,8 @@
     const node=event.target;
     if(node.matches('.comment-photo-input')){taskComments.select(node);return;}
     if(node.dataset.castEvent){assignCastSlot(node).catch(error=>toast(error.message));return;}
-    if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');return;}
-    if(node.matches('.cast-person,.cast-team')){return;}
+    if(node.matches('.cast-role')){const row=node.closest('.cast-editor-row'),team=row.querySelector('.cast-team'),hasTeam=TEAM_ROLES.has(node.value);row.classList.toggle('no-team',!hasTeam);team.hidden=team.disabled=!hasTeam;team.innerHTML=hasTeam?option('blue','Azul',team.value)+option('red','Rojo',team.value):option('general','','general');syncCastChoices(node.closest('form'));return;}
+    if(node.matches('.cast-person,.cast-team')){syncCastChoices(node.closest('form'));return;}
     if(node.id==='lighting-scope'){lighting.changeScope(node).catch(error=>toast(error.message));return;}
     if(lighting.input(node)){if(['x','y'].includes(node.dataset.lightingField)){const value=Number(node.value);if(Number.isFinite(value) && node.value!=='')node.value=String(Math.max(Number(node.min),Math.min(Number(node.max),value)));}return;}
     if(inventory.filter(node))return;

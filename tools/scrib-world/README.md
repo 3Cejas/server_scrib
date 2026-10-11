@@ -167,7 +167,15 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   círculos y ediciones obsoletas. Archivar/eliminar un requisito pendiente no
   libera el bloqueo silenciosamente: hay que retirarlo.
 - Calendario mensual, agenda, exportación ICS (horario Europe/Madrid), ficha de bolo,
-  convocatoria del elenco, lugar, horario, información y hoja de llamada imprimible.
+  convocatoria del elenco, lugar, horario e información.
+- Ensayos del bolo en tarjetas con fecha, horario, lugar y personas convocadas;
+  crear un ensayo o buscar disponibilidad se hace dentro de «Ensayos».
+  «Acuerdos y liquidación» está en la cabecera (administración). La hoja de
+  llamada PDF ya no se ofrece ni se genera; los documentos existentes se conservan.
+- Una persona solo puede ocupar un puesto por bolo, salvo combinar ambas técnicas.
+  Los selectores y el servidor rechazan los solapamientos nuevos. Se conservan
+  repartos históricos y su importación; se pueden reducir, nunca ampliar, sus
+  solapamientos antiguos sin bloquear la edición de otros datos del bolo.
 - Se pueden crear bolos con fecha y hora pendiente: se muestran como «Hora pendiente»,
   se exportan como fecha (sin inventar las 00:00) y bloquean `{hora}` en WhatsApp hasta
   completarla. Añadir la hora después conserva el elenco y la configuración.

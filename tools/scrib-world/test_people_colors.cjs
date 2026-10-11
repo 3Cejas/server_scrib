@@ -30,7 +30,7 @@ function client() {
   vm.createContext(context);
   for(const file of ['people-colors.js','task-ui.js','task-comments.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
-  context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>'};
+  context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>',read:()=>undefined};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
   vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,eventGroups,eventSeries,seriesDates,seriesLinks,castSlots,openEvent,assignCastSlot,renderHome,renderEvent,renderPeople,renderPerson,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,openTicket,commentsHtml,updateComments,taskUI,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
@@ -619,7 +619,7 @@ test('unquantified inventory cards and event entries stay explicit without NaN o
   for(const html of [app.inventory.list(),app.inventory.eventPanel(event)]){
     balanced(html);assert.match(html,/Cantidad sin especificar/);assert.doesNotMatch(html,/Por revisar|Compartido|× null|NaN/);
   }
-  assert.match(app.inventory.list(),/unidades · 1 objetos/);
+  assert.doesNotMatch(app.inventory.list(),/unidades|inventory-count|Elige los objetos/);
 });
 
 function taskFixture() {
@@ -773,6 +773,49 @@ test('assigning and clearing a role slot save only its original date with optimi
   node.value='p1';responses['/scrib/backstage/api/update']={__status:409,__body:{error:'Actualizado por otra persona'}};
   await assert.rejects(app.assignCastSlot(node),/Actualizado por otra persona/);
   assert.equal(node.value,'');assert.equal(node.disabled,false);assert.equal(event.cast.length,3);
+});
+test('bolo header has financial action once and rehearsal actions only inside Ensayos',()=>{
+  const {app,event,state}=client();let html=app.renderEvent(event.id);balanced(html);
+  const header=html.slice(0,html.indexOf('<div class="event-sheet">'));
+  assert.match(header,/href="#production\/e1"/);
+  assert.equal((html.match(/Acuerdos y liquidación/g)||[]).length,1);
+  assert.doesNotMatch(header,/new-rehearsal|new-poll-event|event-pdf|Hoja de llamada/);
+  const rehearsals=html.split('bolo-rehearsals')[1].split('</section>')[0];
+  assert.match(rehearsals,/new-rehearsal/);assert.match(rehearsals,/new-poll-event/);
+  state.user.role='user';assert.doesNotMatch(app.renderEvent(event.id),/#production\//);
+});
+test('rehearsal cards include calendar stamp, time, place, attendees and cancellation',()=>{
+  const {app,state,event}=client();
+  state.items.push({...event,id:'r1',eventType:'rehearsal',parentEventId:event.id,title:'Lectura conjunta',status:'cancelled',cast:[event.cast[0]],start:'2026-11-01T19:00'});
+  const html=app.renderEvent(event.id);balanced(html);
+  assert.match(html,/class="rehearsal-card is-cancelled" href="#event\/r1"/);
+  for(const text of ['Lectura conjunta','19:00','Teatro','León','1 persona convocada','Cancelado','rehearsal-date'])assert.ok(html.includes(text),text);
+  assert.match(html,/Convocados: ÁNGELA HARRIS BUENO/);
+});
+test('assigned nontechnical people are disabled in other slots but both techniques can share',()=>{
+  const {app,event}=client(),html=app.renderEvent(event.id);
+  const slot=index=>html.match(new RegExp('data-cast-slot="'+index+'"[^>]*>(.*?)</select>','s'))[1];
+  assert.match(slot(0),/<option value="p1" selected>/);
+  assert.match(slot(3),/<option value="p1" disabled>.*Ya ocupa otro puesto/);
+  assert.match(slot(6),/<option value="p3" disabled>/);
+  assert.match(slot(9),/<option value="p3">DAVID VIÑAS<\/option>/);
+  assert.doesNotMatch(slot(9),/<option value="p3" disabled/);
+});
+test('slot assignments reject a conflicting writer before posting and allow the technical pair',async()=>{
+  const {app,event,responses,calls}=client();
+  const node={dataset:{castEvent:event.id,castSlot:'3',castVersion:'1'},value:'p1',disabled:false};
+  await assert.rejects(app.assignCastSlot(node),/ya ocupa otro puesto/);
+  assert.equal(node.value,'p2');assert.equal(node.disabled,false);assert.equal(calls.filter(c=>c.options.method==='POST').length,0);
+  responses['/scrib/backstage/api/update']=options=>{const p=JSON.parse(options.body);return {item:{...p.data,version:2}};};
+  node.dataset.castSlot='9';node.value='p3';await app.assignCastSlot(node);
+  const cast=JSON.parse(calls.find(c=>c.options.method==='POST').options.body).data.cast;
+  assert.equal(cast.filter(c=>c.personId==='p3').length,2);
+});
+test('a form cannot save repeated writer/staff positions even with programmatically set selects',async()=>{
+  const {app}=client();
+  const row=(role,team)=>({querySelector:s=>({value:s==='.cast-role'?role:s==='.cast-team'?team:'p1'})});
+  const form={dataset:{kind:'event',id:''},entries:[['title','Bolo'],['eventType','show'],['start','2026-11-07'],['startTime','']],querySelector:()=>({value:''}),querySelectorAll:s=>s==='.cast-editor-row'?[row('Escritura','blue'),row('Jurado','general')]:[]};
+  await assert.rejects(app.formData(form),/ya ocupa otro puesto/);
 });
 test('grouped saved matches list all dates with Instagram export and never export the live match',async()=>{
   const {app,state,event,responses,calls}=client();

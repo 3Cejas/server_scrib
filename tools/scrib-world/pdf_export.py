@@ -29,7 +29,7 @@ def generate(store, data, user, *, agreement_token=None):
 
     problem = store.business.problem
     kind = data.get('kind')
-    if kind not in ('inventory', 'event', 'lighting', 'report', 'invoice', 'agreement'):
+    if kind not in ('inventory', 'lighting', 'report', 'invoice', 'agreement'):
         raise problem('Este documento no se puede exportar.', 400)
     if kind in ('invoice', 'agreement') and user['role'] != 'admin' and not (kind == 'agreement' and agreement_token):
         raise problem('Documento reservado a administración.', 403)
@@ -177,32 +177,6 @@ def generate(store, data, user, *, agreement_token=None):
                 raise problem('Asigna los objetos al equipo azul o rojo antes de exportar.')
             heading(title or 'Inventario de escena', 'Objetos del equipo de intérpretes - selección personalizada')
             inventory(objects)
-        elif kind == 'event':
-            event = store.item(db, data.get('id',''), 'event', True)
-            rehearsal=event.get('eventType')=='rehearsal'
-            heading(title or event['title'], ('ENSAYO - ' if rehearsal else 'HOJA DE LLAMADA - ')+event['start'][:10])
-            for label, value in [('Espacio', ' - '.join(filter(None,[event['venue'],event['city']]))),
-                                  ('Ensayo' if rehearsal else 'Función',event['start'].replace('T',' ')),
-                                  ('Fin',event['end'].replace('T',' ')),
-                                  *([] if rehearsal else [('Convocatoria',event['arrival'].replace('T',' '))])]:
-                story.extend([para(label, 'Heading3'), para(value or 'Pendiente'), Spacer(1, 8)])
-            for team in ('blue','red','general'):
-                rows = [c for c in event['cast'] if (c['team'] if c['role'] in ('Escritura','Interpretación') else 'general') == team]
-                if not rows:
-                    continue
-                section('PERSONAS CONVOCADAS' if rehearsal else TEAMS.get(team,'EQUIPO DEL ESPECTÁCULO'), team)
-                for row in rows:
-                    person = store.item(db,row['personId'],'person')
-                    story.append(para(person['name'] if rehearsal else person['name']+' - '+row['role']))
-                story.append(Spacer(1, 15))
-            if event['description']:
-                section('Notas de producción')
-                story.append(para(event['description']))
-            allowed = event.get('inventoryIds')
-            objects = [o for o in all_objects if allowed is None or o['id'] in allowed]
-            if objects and not rehearsal:
-                story.append(PageBreak())
-                inventory(objects)
         elif kind == 'lighting':
             from lighting import normalize, default_plan, upgrade
             ident = data.get('id','')
@@ -407,7 +381,7 @@ def generate(store, data, user, *, agreement_token=None):
             story.append(para('Transferencia: '+str(invoice['issuer'].get('iban') or 'Cuenta pendiente de confirmar'),'Small'))
     created=datetime.now(timezone.utc).isoformat(timespec='seconds')
     reference='SC-'+uuid.uuid4().hex
-    labels={'inventory':'KIT DE ESCENA','event':'HOJA DE LLAMADA','lighting':'TÉCNICA',
+    labels={'inventory':'KIT DE ESCENA','lighting':'TÉCNICA',
             'report':'MEMORIA DE PARTIDA','agreement':'COLABORACIÓN','invoice':'GESTIÓN'}
     buffer = io.BytesIO()
     def frame(canvas, doc):

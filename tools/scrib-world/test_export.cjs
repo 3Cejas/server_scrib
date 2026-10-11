@@ -31,8 +31,8 @@ test('double click cannot launch duplicate rendering while the button is generat
 });
 test('Android PDF export uses the limited native save bridge, not a blob URL',async()=>{
  const saves=[],c=client(success,{bridge:{savePdf:(...args)=>{saves.push(args);return true;}}});
- await c.run({csrf:'private-token'},{kind:'event'},c.button);
- assert.deepEqual(saves,[['JVBERi10ZXN0','SCRIB-event.pdf']]);assert.equal(c.downloads.length,0);
+ await c.run({csrf:'private-token'},{kind:'inventory'},c.button);
+ assert.deepEqual(saves,[['JVBERi10ZXN0','SCRIB-inventory.pdf']]);assert.equal(c.downloads.length,0);
  assert.equal(c.button.innerHTML,'Exportar PDF');assert.equal(c.button.disabled,false);assert.equal(c.calls.length,1);
 });
 test('Android errors restore the button and never fall back to an unusable blob download',async()=>{

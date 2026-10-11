@@ -4,8 +4,6 @@ window.ScribInventory = function(h) {
   const TEAMS={blue:'Equipo azul',red:'Equipo rojo'};
   const CATEGORIES={props:'Utilería',costume:'Vestuario',furniture:'Mobiliario',technical:'Técnica',other:'Otros'};
   const quantityLabel=o=>o.quantity==null?'Cantidad sin especificar':'× '+o.quantity;
-  const knownUnits=objects=>objects.reduce((n,o)=>n+(o.quantity??0),0);
-  const unitsLabel=objects=>`${knownUnits(objects)} unidades${objects.some(o=>o.quantity==null)?' · algunas cantidades sin especificar':''}`;
   let filters={team:'',category:'',search:''};
   function matches(o) {
     const query=[o.title,o.description].join(' ').toLocaleLowerCase('es');
@@ -16,14 +14,13 @@ window.ScribInventory = function(h) {
   }
   function list() {
     const objects=active('inventory');
-    return pageHead('LO QUE LLEVAMOS A ESCENA','Inventario','Dos equipos, dos kits. Elige los objetos que quieres incluir en tu PDF.',btn('new-object','＋ Añadir objeto','','primary')+btn('inventory-export','↓ Exportar PDF'))+
-      `<div class="inventory-summary">${Object.entries(TEAMS).map(([team,name])=>{const chosen=objects.filter(o=>o.team===team);return `<button type="button" class="panel ${team}" data-action="inventory-team" data-id="${team}" aria-pressed="${filters.team===team}"><small>${name}</small><strong>${knownUnits(chosen)}</strong><span>unidades · ${chosen.length} objetos</span></button>`;}).join('')}</div><div class="toolbar inventory-filters">${input('inventory-search',filters.search,'search','id="inventory-search" aria-label="Buscar objetos" placeholder="Buscar objeto…"')}${select('inventory-team',{'':'Azul y rojo',...TEAMS},filters.team,'id="inventory-team" aria-label="Filtrar por equipo"')}${select('inventory-category',{'':'Todas las categorías',...CATEGORIES},filters.category,'id="inventory-category" aria-label="Filtrar por categoría"')}</div><p id="inventory-count" class="muted" role="status"></p><div class="grid cols3" id="inventory-grid">${objects.sort((a,b)=>a.team.localeCompare(b.team)||a.title.localeCompare(b.title,'es')).map(card).join('')||empty('Un almacén por construir','Añade los objetos de cada equipo.',btn('new-object','＋ Primer objeto','','primary'))}</div><div id="inventory-no-match" hidden>${empty('No hay coincidencias','Prueba otro equipo, categoría o palabra.')}</div>`;
+    return pageHead('LO QUE LLEVAMOS A ESCENA','Inventario','',btn('new-object','＋ Añadir objeto','','primary')+btn('inventory-export','↓ Exportar PDF'))+
+      `<div class="inventory-summary">${Object.entries(TEAMS).map(([team,name])=>`<button type="button" class="panel ${team}" data-action="inventory-team" data-id="${team}" aria-pressed="${filters.team===team}"><i aria-hidden="true"></i><strong>${name}</strong></button>`).join('')}</div><div class="toolbar inventory-filters">${input('inventory-search',filters.search,'search','id="inventory-search" aria-label="Buscar objetos" placeholder="Buscar objeto…"')}${select('inventory-team',{'':'Azul y rojo',...TEAMS},filters.team,'id="inventory-team" aria-label="Filtrar por equipo"')}${select('inventory-category',{'':'Todas las categorías',...CATEGORIES},filters.category,'id="inventory-category" aria-label="Filtrar por categoría"')}</div><div class="grid cols3" id="inventory-grid">${objects.sort((a,b)=>a.team.localeCompare(b.team)||a.title.localeCompare(b.title,'es')).map(card).join('')||empty('Un almacén por construir','Añade los objetos de cada equipo.',btn('new-object','＋ Primer objeto','','primary'))}</div><div id="inventory-no-match" hidden>${empty('No hay coincidencias','Prueba otro equipo, categoría o palabra.')}</div>`;
   }
   function applyFilters() {
     const cards=[...document.querySelectorAll('[data-object]')];
     for(const node of cards)node.hidden=!matches(item(node.dataset.object));
-    const visible=cards.filter(n=>!n.hidden),indicator=document.querySelector('#inventory-count'),blank=document.querySelector('#inventory-no-match');
-    if(indicator)indicator.textContent=`${visible.length} objetos · ${unitsLabel(visible.map(n=>item(n.dataset.object)))}`;
+    const visible=cards.filter(n=>!n.hidden),blank=document.querySelector('#inventory-no-match');
     if(blank)blank.hidden=!cards.length||Boolean(visible.length);
   }
   function open(id='',eventId='') {
