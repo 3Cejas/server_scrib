@@ -107,6 +107,7 @@
   const isAdmin=()=>state?.user.role==='admin';
   const documents = window.ScribDocuments({esc,request,openDialog,isAdmin});
   const library = window.ScribMaterials({esc,btn,badge,pageHead,empty,request,renderPage,isAdmin});
+  const laboratory = window.ScribLaboratory({esc,btn,badge,pageHead,empty});
   const lighting = window.ScribLighting({state:()=>state,esc,btn,pageHead,request,toast,refresh,renderPage});
   dialog.addEventListener('close', () => { if (state) renderPage(); });
 
@@ -149,12 +150,13 @@
     if (!state) return;
     // Background collaboration updates must never reload a playing presentation.
     if(renderedRoute===location.hash && /^#material\//.test(location.hash) && main.querySelector('.material-viewer iframe'))return;
+    if(renderedRoute===location.hash && /^#experiment\//.test(location.hash) && main.querySelector('.laboratory-viewer iframe'))return;
     const keepScroll = renderedRoute === location.hash ? {
       left:main.querySelector(".kanban")?.scrollLeft || 0,
       columns:Object.fromEntries([...main.querySelectorAll(".column")].map(c=>[c.dataset.status,c.querySelector(".ticket-list").scrollTop]))
     } : null;
     const [page = "home", id] = route();
-    const nav = page === "person" ? "people" : page === "archive" ? "boards" : page === "material" ? "materials" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
+    const nav = page === "person" ? "people" : page === "archive" ? "boards" : page === "material" ? "materials" : page === "experiment" ? "laboratory" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
     let content;
     if (page === "events") content = renderEvents();
@@ -169,6 +171,8 @@
     else if (page === "lighting") content = lighting.render();
     else if (page === "materials") content = library.list();
     else if (page === "material") content = library.detail(id);
+    else if (page === "laboratory") content = laboratory.list();
+    else if (page === "experiment") content = laboratory.detail(id);
     else if (page === 'finance') content = business.overview();
     else if (page === 'production') content = business.production(id);
     else if (page === 'report') content = business.report(id);
@@ -623,6 +627,7 @@
     if(await polls.action(node))return;
     if(await inventory.action(node))return;
     if(await library.action(node))return;
+    if(await laboratory.action(node))return;
     if(await documents.action(node))return;
     if(a === "new-event")openEvent();
     else if(a === "new-event-day")openEvent("",id);

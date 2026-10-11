@@ -28,7 +28,7 @@ function client() {
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
   vm.createContext(context);
-  for(const file of ['people-colors.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js'])vm.runInContext(read(file),context,{filename:file});
+  for(const file of ['people-colors.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>'};
   const marker='  boot();';
@@ -127,7 +127,7 @@ test('cross-board dependencies are visible at both ends, safe and reflect comple
 test('all sidebar icons use the same outline system and keep routes and admin restriction',()=>{
   const html=read('index.html'),nav=html.match(/<nav aria-label="Secciones">([\s\S]*?)<\/nav>/)[1];
   const entries=[...nav.matchAll(/<a\b[^>]*data-nav="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)];
-  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','messages','finance']);
+  assert.deepEqual(entries.map(x=>x[1]),['home','events','availability','boards','people','inventory','lighting','materials','laboratory','messages','finance']);
   for(const [,route,content] of entries){
     assert.match(content,/<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">/);
     assert.equal((content.match(/<svg/g)||[]).length,1,route);

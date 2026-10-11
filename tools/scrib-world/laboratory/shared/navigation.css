@@ -1,0 +1,3 @@
+.lab-return{display:inline-flex;align-items:center;align-self:flex-start;position:relative;z-index:2;width:fit-content;max-width:100%;padding:.75rem 1rem;border:1px solid #63e7ff75;border-radius:10px;color:#f5fbff;background:#08121ccc;text-decoration:none;font-size:.8rem;line-height:1.5;transition:border-color 150ms ease,background 150ms ease}
+.lab-return:hover,.lab-return:focus-visible{border-color:#63e7ff;background:#102833;outline:2px solid #63e7ff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.lab-return{transition:none}}

@@ -263,6 +263,16 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   empaquetados, sin HTML del usuario ni acceso por rutas arbitrarias. Vídeos con
   soporte Range/206, también a través del proxy autenticado. CSP de scripts sin
   `unsafe-inline`; estilos inline solo en estas presentaciones de confianza.
+- **Laboratorio** reúne Bolzano (Control, Musa azul y Musa roja) y S+7 con todas
+  sus variantes. Se accede por `#laboratory`; `#experiment/bolzano` y
+  `#experiment/s7` conservan su iframe durante las actualizaciones del mundo.
+  Los juegos, motor S+7, tipografía y cliente Socket.IO viven en `laboratory/`,
+  con lista exacta de archivos y autenticación en cada petición. Bolzano utiliza
+  su protocolo y salas independientes del videojuego; no se reinicia el show.
+  Solo las demos locales permiten sockets a localhost:3000. El latido visible
+  del gateway mantiene el servidor activo también al abrir el juego aparte.
+  Las páginas públicas antiguas redirigen aquí y los comandos ocultos se retiran.
+  La charla y la guía permanecen únicamente en Materiales.
 - El código y los medios se conservan en Git. Publicar Mundo SCRIB antes de retirar
   las carpetas públicas de players_scrib; sus enlaces antiguos redirigen a Sutura.
 - La agenda prioriza bolos y ensayos por realizar, del más cercano al más lejano;

@@ -28,6 +28,7 @@ from availability import Availability, SCHEMA as AVAILABILITY_SCHEMA, PUBLIC_PRE
 from game_config import normalize as normalize_game_config, profile as game_profile, SCHEMA as GAME_CONFIG_SCHEMA
 from business import Business, SCHEMA as BUSINESS_SCHEMA
 from materials import MaterialLibrary, POLICY as MATERIAL_POLICY, PREVIEW_POLICY as MATERIAL_PREVIEW_POLICY
+from laboratory import LaboratoryLibrary, POLICY as LABORATORY_POLICY, DEMO_POLICY as LABORATORY_DEMO_POLICY
 from inventory_seed import apply_initial_inventory
 from inventory_teams import apply_team_inventory
 from presenter_assignment import apply_presenter_assignment
@@ -823,6 +824,7 @@ class App(ThreadingHTTPServer):
     def __init__(self, port, store, demo=False, secret=None, bridge=None):
         self.store, self.demo = store, demo
         self.materials = MaterialLibrary(ROOT/'materials')
+        self.laboratory = LaboratoryLibrary(ROOT/'laboratory')
         self.whatsapp = bridge or Bridge(disabled=demo)
         self.secret_path = store.directory / "bridge-secret"
         if secret is None:
@@ -1068,6 +1070,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200,self.server.materials.list())
                 if route.startswith('materials/'):
                     return self.material_file(route[len('materials/'):])
+                if route.startswith('laboratory/'):
+                    found=self.server.laboratory.file(route[len('laboratory/'):])
+                    if not found:raise Problem('Juego no encontrado.',404)
+                    path,mime=found
+                    return self.reply(200,path.read_bytes(),mime,{'Content-Security-Policy':LABORATORY_DEMO_POLICY if self.server.demo else LABORATORY_POLICY})
+                if route in ('laboratory.js','laboratory.css'):
+                    mime='application/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
+                    return self.reply(200,(ROOT/'public'/route).read_bytes(),mime)
                 if route.startswith('api/reports/event/'):
                     return self.reply(200,store.business.reports(route.split('/')[-1]))
                 if route.startswith('api/reports/match/'):

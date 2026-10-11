@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCRB - S+7</title>
+    <link rel="icon" href="/scrib/backstage/logo.png" type="image/png" />
+    <style>
+        :root {
+            --bg: #050508;
+            --ink: #f5f7f2;
+            --muted: #a9b2b7;
+            --line: rgba(255, 255, 255, 0.18);
+            --panel: rgba(13, 16, 20, 0.9);
+            --panel-strong: rgba(18, 23, 30, 0.96);
+            --cyan: #63e7ff;
+            --red: #ff5d67;
+            --gold: #ffd166;
+            --mint: #7cffc4;
+            --paper: #fbf1d2;
+            --paper-ink: #211b15;
+            --shadow: rgba(0, 0, 0, 0.42);
+        }
+
+        @font-face {
+            font-family: "Retro-gaming";
+            src: url("../shared/retro.ttf") format("truetype");
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            min-height: 100%;
+            background: var(--bg);
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            color: var(--ink);
+            font-family: "Retro-gaming", "Courier New", monospace;
+            background:
+                linear-gradient(135deg, rgba(99, 231, 255, 0.1) 0%, transparent 34%),
+                linear-gradient(225deg, rgba(255, 93, 103, 0.13) 0%, transparent 32%),
+                repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 4px),
+                #050508;
+        }
+
+        button,
+        textarea,
+        input,
+        select {
+            font: inherit;
+        }
+
+        button {
+            min-height: 2.75rem;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #111820;
+            color: var(--ink);
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        }
+
+        button:hover,
+        button:focus-visible {
+            border-color: var(--cyan);
+            background: #162431;
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .app {
+            width: min(1240px, calc(100vw - 28px));
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: clamp(1rem, 2vw, 1.6rem) 0 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .topbar {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: clamp(0.7rem, 2vw, 1.3rem);
+            align-items: center;
+            padding: 0.6rem 0;
+        }
+
+        .brand-mark {
+            width: clamp(48px, 7vw, 76px);
+            height: auto;
+            image-rendering: pixelated;
+            filter: drop-shadow(0 0 0.55rem rgba(99, 231, 255, 0.48));
+        }
+
+        .title-wrap {
+            min-width: 0;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin: 0;
+        }
+
+        h1 {
+            font-size: clamp(2.4rem, 8vw, 5.9rem);
+            line-height: 0.92;
+            letter-spacing: 0;
+            text-transform: uppercase;
+            text-shadow: -0.055em 0 var(--red), 0.055em 0 var(--cyan);
+        }
+
+        .subtitle {
+            margin-top: 0.35rem;
+            color: var(--gold);
+            font-size: clamp(0.72rem, 1.7vw, 0.98rem);
+            text-transform: uppercase;
+        }
+
+        .home-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2.45rem;
+            padding: 0 0.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 6px;
+            color: var(--ink);
+            text-decoration: none;
+            background: rgba(9, 12, 16, 0.78);
+        }
+
+        .home-link:hover,
+        .home-link:focus-visible {
+            border-color: var(--red);
+            outline: none;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .editor-shell,
+        .control-shell,
+        .result-shell {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: 0 16px 34px var(--shadow);
+        }
+
+        .editor-shell,
+        .control-shell {
+            min-height: 520px;
+        }
+
+        .editor-shell {
+            display: grid;
+            grid-template-rows: auto minmax(280px, 1fr) auto;
+            overflow: hidden;
+        }
+
+        .shell-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            padding: 0.8rem 0.9rem;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .shell-title {
+            color: var(--mint);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .metric {
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-align: right;
+        }
+
+        .writer-area,
+        .result-area,
+        .aux-area {
+            width: 100%;
+            min-width: 0;
+            resize: vertical;
+            border: 0;
+            outline: none;
+            color: var(--paper-ink);
+            background:
+                linear-gradient(90deg, rgba(120, 75, 25, 0.08) 0 1px, transparent 1px 100%),
+                var(--paper);
+            background-size: 2rem 100%;
+            line-height: 1.68;
+            padding: 1rem;
+        }
+
+        .writer-area {
+            min-height: 100%;
+            font-size: clamp(1rem, 2.1vw, 1.35rem);
+        }
+
+        .writer-foot {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.7rem;
+            padding: 0.75rem 0.9rem;
+            border-top: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 0.72rem;
+        }
+
+        .control-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            padding: 0.9rem;
+        }
+
+        .control-group {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .control-label {
+            color: var(--gold);
+            font-size: 0.76rem;
+            text-transform: uppercase;
+        }
+
+        .mode-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.45rem;
+        }
+
+        .mode-button {
+            min-height: 3rem;
+            padding: 0 0.45rem;
+            color: var(--muted);
+        }
+
+        .mode-button[aria-pressed="true"] {
+            border-color: var(--gold);
+            color: #070707;
+            background: var(--gold);
+        }
+
+        .number-row {
+            display: grid;
+            grid-template-columns: 2.7rem minmax(0, 1fr) 2.7rem;
+            gap: 0.45rem;
+        }
+
+        .number-row input,
+        .select-control {
+            min-width: 0;
+            min-height: 2.75rem;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            color: var(--ink);
+            background: #0a0f15;
+            padding: 0 0.65rem;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            color: var(--muted);
+            font-size: 0.78rem;
+        }
+
+        .toggle-row input {
+            width: 1.15rem;
+            height: 1.15rem;
+            accent-color: var(--mint);
+        }
+
+        .aux-panel {
+            display: none;
+            gap: 0.5rem;
+        }
+
+        .aux-panel.is-visible {
+            display: grid;
+        }
+
+        .aux-area {
+            min-height: 132px;
+            max-height: 260px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 6px;
+            font-size: 0.86rem;
+        }
+
+        .action-stack {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.55rem;
+            margin-top: auto;
+        }
+
+        .action-primary {
+            grid-column: 1 / -1;
+            color: #061015;
+            background: var(--cyan);
+            border-color: var(--cyan);
+        }
+
+        .action-danger {
+            border-color: rgba(255, 93, 103, 0.55);
+        }
+
+        .result-shell {
+            display: grid;
+            grid-template-rows: auto minmax(240px, auto) auto;
+            overflow: hidden;
+        }
+
+        .result-area {
+            min-height: 260px;
+            font-size: clamp(0.94rem, 1.7vw, 1.12rem);
+        }
+
+        .log-wrap {
+            max-height: 240px;
+            overflow: auto;
+            border-top: 1px solid var(--line);
+            background: rgba(5, 8, 12, 0.92);
+        }
+
+        .log-empty {
+            padding: 0.8rem 0.9rem;
+            color: var(--muted);
+            font-size: 0.78rem;
+        }
+
+        .replacement-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.72rem;
+        }
+
+        .replacement-table th,
+        .replacement-table td {
+            padding: 0.55rem 0.65rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.11);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .replacement-table th {
+            color: var(--gold);
+            background: rgba(255, 255, 255, 0.05);
+            text-transform: uppercase;
+        }
+
+        .replacement-table td:last-child {
+            color: var(--muted);
+        }
+
+        .recommendations {
+            padding: clamp(0.9rem, 2vw, 1.2rem);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel-strong);
+        }
+
+        .recommendations h2 {
+            color: var(--red);
+            font-size: clamp(1.05rem, 2.2vw, 1.4rem);
+            text-transform: uppercase;
+        }
+
+        .recommendation-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.8rem;
+            margin-top: 0.8rem;
+        }
+
+        .recommendation {
+            min-height: 100%;
+            border-left: 3px solid var(--cyan);
+            padding: 0.15rem 0 0.15rem 0.8rem;
+            color: #dfe8e8;
+            font-family: "Courier New", monospace;
+            font-size: 0.94rem;
+            line-height: 1.45;
+        }
+
+        .recommendation strong {
+            color: var(--gold);
+        }
+
+        .status-line {
+            min-height: 1.2rem;
+            color: var(--mint);
+            font-size: 0.72rem;
+        }
+
+        .is-hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 900px) {
+            .workspace,
+            .recommendation-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .control-shell,
+            .editor-shell {
+                min-height: auto;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .app {
+                width: min(100vw - 18px, 1240px);
+                padding-top: 0.65rem;
+            }
+
+            .topbar {
+                grid-template-columns: auto minmax(0, 1fr);
+            }
+
+            .home-link {
+                grid-column: 1 / -1;
+            }
+
+            .mode-grid,
+            .action-stack {
+                grid-template-columns: 1fr;
+            }
+
+            .action-primary {
+                grid-column: auto;
+            }
+
+            .shell-head,
+            .writer-foot {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .metric {
+                text-align: left;
+            }
+        }
+    </style>
+    <script defer src="/scrib/backstage/activity.js?v=1"></script>
+</head>
+<body>
+    <main class="app">
+        <header class="topbar">
+            <img class="brand-mark" src="/scrib/backstage/logo.png" alt="SCRIB" />
+            <div class="title-wrap">
+                <h1>&lt;S+7&gt;</h1>
+                <p class="subtitle">Oulipo para escritura inmediata</p>
+            </div>
+            <a class="home-link" href="/scrib/#laboratory" target="_top">← Laboratorio</a>
+        </header>
+
+        <section class="workspace" aria-label="Juego S mas siete">
+            <section class="editor-shell">
+                <div class="shell-head">
+                    <h2 class="shell-title">Texto de partida</h2>
+                    <p id="source_metric" class="metric">0 palabras</p>
+                </div>
+                <textarea id="source_text" class="writer-area" spellcheck="true">La casa guarda una palabra secreta. El gato mira la luna y quiere escribir un poema.</textarea>
+                <div class="writer-foot">
+                    <span id="draft_status">Borrador local activo.</span>
+                    <span>Transforma cuando quieras; el original queda aquí hasta que apliques el resultado.</span>
+                </div>
+            </section>
+
+            <aside class="control-shell" aria-label="Controles">
+                <div class="control-group">
+                    <span class="control-label">Modo</span>
+                    <div class="mode-grid" role="group" aria-label="Modo de transformación">
+                        <button class="mode-button" type="button" data-mode="s7" aria-pressed="true">S+7</button>
+                        <button class="mode-button" type="button" data-mode="v7" aria-pressed="false">V+7</button>
+                        <button class="mode-button" type="button" data-mode="a7" aria-pressed="false">A+7</button>
+                        <button class="mode-button" type="button" data-mode="sav7" aria-pressed="false">SAV+7</button>
+                        <button class="mode-button" type="button" data-mode="eclipse" aria-pressed="false">Eclipse</button>
+                        <button class="mode-button" type="button" data-mode="caradec" aria-pressed="false">Caradec</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="step_value">Salto</label>
+                    <div class="number-row">
+                        <button id="step_down" type="button" title="Restar salto">-</button>
+                        <input id="step_value" type="number" min="-40" max="40" step="1" value="7" />
+                        <button id="step_up" type="button" title="Sumar salto">+</button>
+                    </div>
+                </div>
+
+                <div id="caradec_group" class="control-group is-hidden">
+                    <label class="control-label" for="caradec_length">Eslabones</label>
+                    <input id="caradec_length" class="select-control" type="number" min="2" max="40" step="1" value="12" />
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="instrument_select">Instrumento auxiliar</label>
+                    <select id="instrument_select" class="select-control">
+                        <option value="default">Diccionario local circular</option>
+                        <option value="auxiliary">Texto auxiliar pegado</option>
+                    </select>
+                </div>
+
+                <div id="aux_panel" class="control-group aux-panel">
+                    <label class="control-label" for="aux_text">Texto auxiliar</label>
+                    <textarea id="aux_text" class="aux-area" spellcheck="true" placeholder="Pega aquí un diccionario, un fragmento de libro o una lista de palabras."></textarea>
+                </div>
+
+                <label class="toggle-row">
+                    <input id="auto_preview" type="checkbox" checked />
+                    <span>Vista previa automática</span>
+                </label>
+
+                <p id="status_line" class="status-line" aria-live="polite"></p>
+
+                <div class="action-stack">
+                    <button id="transform_button" class="action-primary" type="button">Transformar</button>
+                    <button id="apply_button" type="button">Aplicar</button>
+                    <button id="copy_button" type="button">Copiar</button>
+                    <button id="clear_button" class="action-danger" type="button">Limpiar</button>
+                </div>
+            </aside>
+        </section>
+
+        <section class="result-shell" aria-label="Resultado">
+            <div class="shell-head">
+                <h2 class="shell-title">Resultado</h2>
+                <p id="result_metric" class="metric">0 sustituciones</p>
+            </div>
+            <textarea id="result_text" class="result-area" readonly></textarea>
+            <div id="replacement_log" class="log-wrap" aria-live="polite"></div>
+        </section>
+
+        <section class="recommendations">
+            <h2>Recomendaciones y variaciones</h2>
+            <div class="recommendation-grid">
+                <p class="recommendation"><strong>Ajustes gramaticales.</strong> Cuando el sustantivo cambia de género, se recomienda efectuar los ajustes gramaticales necesarios. Si el sustantivo implícito cambia, conviene revisar artículos, adjetivos y verbos; por ejemplo, de “palabras” a “palabristas”.</p>
+                <p class="recommendation"><strong>Diccionario circular.</strong> El diccionario se considera un objeto circular. En el Diccionario de María Moliner, el S+7 de “zuzón” es “abacero”.</p>
+                <p class="recommendation"><strong>Palabra ausente.</strong> Si el sustantivo no se encuentra en el diccionario, se elige el primero que aparezca tras el lugar donde debería hallarse. Para “rejegos”, se puede tomar “rejera” como base y contar desde ahí.</p>
+                <p class="recommendation"><strong>Variaciones.</strong> El método puede convertirse en V+7, A+7 o SAV+7, sustituyendo verbos, adjetivos o sustantivos-adjetivos-verbos con el mismo salto.</p>
+                <p class="recommendation"><strong>Eclipse.</strong> Se crea un texto original en dos unidades: la segunda es el S+7 de la primera, o la primera funciona como S-7 de la segunda.</p>
+                <p class="recommendation"><strong>Caradec.</strong> La cadena de François Caradec recorre el diccionario de siete en siete sustantivos. En este modo se toma la primera palabra del editor como semilla.</p>
+                <p class="recommendation"><strong>Instrumento auxiliar.</strong> Se puede cambiar el diccionario por otro léxico: un diccionario especializado, una lista pintoresca o un libro como la Biblia, el Corán o la Crítica de la Razón Pura.</p>
+                <p class="recommendation"><strong>Texto auxiliar.</strong> Si usas otro libro como instrumento, el juego extrae candidatos del texto pegado y mantiene el comportamiento circular para seguir contando.</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="./js/s7-engine.js?v=20260506a"></script>
+    <script src="./js/index.js?v=20260506a"></script>
+</body>
+</html>

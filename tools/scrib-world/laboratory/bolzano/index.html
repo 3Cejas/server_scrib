@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCRB - Bolzano</title>
+    <link rel="icon" href="/scrib/backstage/logo.png" type="image/png" />
+    <style>
+        :root {
+            --bg: #030303;
+            --panel: rgba(10, 12, 16, 0.82);
+            --ink: #f5fbff;
+            --cyan: #63e7ff;
+            --red: #ff5959;
+            --gold: #ffd166;
+            --mint: #7cffc4;
+            --violet: #9a6bff;
+            --amber: #ffcf6b;
+            --ok: #72f7b4;
+            --warn: #ff9f7a;
+            --calentamiento-bg:
+                linear-gradient(90deg, rgba(0, 126, 186, 0.24) 0%, rgba(6, 10, 18, 0.58) 42%, rgba(6, 10, 18, 0.58) 58%, rgba(178, 38, 38, 0.24) 100%),
+                radial-gradient(circle at 14% 20%, rgba(0, 181, 255, 0.2), transparent 56%),
+                radial-gradient(circle at 86% 20%, rgba(255, 67, 67, 0.2), transparent 56%),
+                radial-gradient(circle at 50% 120%, rgba(255, 255, 255, 0.08), transparent 62%),
+                #02040a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        @font-face {
+            font-family: "Retro-gaming";
+            src: url("../shared/retro.ttf") format("truetype");
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "Retro-gaming", "Share Tech Mono", monospace;
+            background: var(--calentamiento-bg);
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-attachment: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            padding: clamp(1rem, 3vw, 2rem);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background:
+                repeating-linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.03) 0px,
+                    rgba(255, 255, 255, 0.03) 1px,
+                    transparent 1px,
+                    transparent 3px
+                );
+            opacity: 0.24;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .landing {
+            width: min(1100px, 95vw);
+            display: flex;
+            flex-direction: column;
+            gap: clamp(1rem, 2.6vw, 2rem);
+            position: relative;
+            z-index: 1;
+        }
+
+        h1, h2, p {
+            margin: 0;
+        }
+
+        .brand {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(0.45rem, 1.5vw, 0.85rem);
+        }
+
+        .brand-title {
+            font-size: clamp(34px, 8vw, 92px);
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #f9fbff;
+            text-shadow: -0.08em 0 #ff3b3b, 0 0 1.6rem rgba(0, 245, 255, 0.55);
+        }
+
+        .brand-sub {
+            font-size: clamp(10px, 2.1vw, 15px);
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: #d9ecff;
+            opacity: 0.9;
+        }
+
+        .mode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: clamp(0.7rem, 2.2vw, 1.3rem);
+        }
+
+        .role-card {
+            position: relative;
+            width: 100%;
+            padding: clamp(1rem, 2.8vw, 1.5rem);
+            border-radius: 18px;
+            background: var(--panel);
+            border: 2px solid rgba(99, 231, 255, 0.35);
+            box-shadow: 0 0 18px rgba(0, 245, 255, 0.18);
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+            text-align: left;
+            text-decoration: none;
+            cursor: pointer;
+            font-family: "Retro-gaming", "Share Tech Mono", monospace;
+            transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, filter 180ms ease;
+            overflow: hidden;
+        }
+
+        .role-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top left, rgba(255, 255, 255, 0.09), transparent 55%);
+            opacity: 0;
+            transition: opacity 200ms ease;
+        }
+
+        .role-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: var(--accent, rgba(99, 231, 255, 0.8));
+            box-shadow: 0 0 24px var(--accent-glow, rgba(99, 231, 255, 0.35));
+        }
+
+        .role-card:hover::after {
+            opacity: 1;
+        }
+
+        .mode-card.is-selected {
+            border-color: var(--accent, rgba(99, 231, 255, 0.85));
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15), 0 0 34px var(--accent-glow, rgba(99, 231, 255, 0.45));
+            filter: saturate(1.08);
+        }
+
+        .role-icon {
+            font-size: clamp(22px, 4.5vw, 34px);
+            line-height: 1;
+        }
+
+        .role-name {
+            font-size: clamp(14px, 2.8vw, 23px);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .role-desc {
+            font-size: clamp(11px, 2.2vw, 15px);
+            color: #d0e9ff;
+            line-height: 1.35;
+        }
+
+        .role-card--gold {
+            --accent: rgba(255, 209, 102, 0.9);
+            --accent-glow: rgba(255, 209, 102, 0.45);
+        }
+
+        .role-card--violet {
+            --accent: rgba(154, 107, 255, 0.9);
+            --accent-glow: rgba(154, 107, 255, 0.45);
+        }
+
+        .role-card--red {
+            --accent: rgba(255, 74, 74, 0.9);
+            --accent-glow: rgba(255, 74, 74, 0.48);
+        }
+
+        .role-card--mint {
+            --accent: rgba(124, 255, 196, 0.9);
+            --accent-glow: rgba(124, 255, 196, 0.45);
+        }
+
+        .role-card--cyan {
+            --accent: rgba(99, 231, 255, 0.9);
+            --accent-glow: rgba(99, 231, 255, 0.45);
+        }
+
+        .role-card--amber {
+            --accent: rgba(255, 179, 92, 0.9);
+            --accent-glow: rgba(255, 179, 92, 0.48);
+        }
+
+        .panel-wrap {
+            position: relative;
+            min-height: 190px;
+        }
+
+        .panel {
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            background: linear-gradient(145deg, rgba(6, 10, 16, 0.9), rgba(10, 14, 24, 0.84));
+            box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.04), 0 0 22px rgba(0, 0, 0, 0.32);
+            padding: clamp(0.9rem, 2.5vw, 1.4rem);
+            display: none;
+            gap: clamp(0.7rem, 2vw, 1rem);
+            animation: panelIn 280ms ease;
+        }
+
+        .panel.activo {
+            display: grid;
+        }
+
+        .panel-title {
+            font-size: clamp(15px, 2.5vw, 22px);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #ecf9ff;
+            text-shadow: 0 0 0.85rem rgba(99, 231, 255, 0.42);
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: clamp(0.65rem, 1.6vw, 0.95rem);
+        }
+
+        .action-card {
+            appearance: none;
+            min-height: 114px;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .action-card .role-name {
+            font-size: clamp(13px, 2.2vw, 18px);
+        }
+
+        .action-card .role-desc {
+            font-size: clamp(10px, 1.9vw, 13px);
+        }
+
+        .estado {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            min-height: 1.2em;
+            font-size: clamp(10px, 2vw, 13px);
+            letter-spacing: 0.06em;
+            color: #cfeaff;
+            text-transform: uppercase;
+        }
+
+        .estado-chip {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #808793;
+            box-shadow: 0 0 0.55rem rgba(128, 135, 147, 0.45);
+            transition: background-color 160ms ease, box-shadow 160ms ease;
+        }
+
+        .estado-chip.ok {
+            background: var(--ok);
+            box-shadow: 0 0 0.65rem rgba(114, 247, 180, 0.6);
+        }
+
+        .estado-chip.error {
+            background: var(--warn);
+            box-shadow: 0 0 0.65rem rgba(255, 159, 122, 0.65);
+        }
+
+        .estado-texto {
+            color: #e2f2ff;
+            opacity: 0.9;
+        }
+
+        .estado-texto.error {
+            color: #ffd2c2;
+            opacity: 1;
+        }
+
+        @keyframes panelIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 760px) {
+            .landing {
+                width: 100%;
+            }
+
+            .action-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="../shared/navigation.css?v=1">
+    <script defer src="/scrib/backstage/activity.js?v=1"></script>
+</head>
+<body>
+    <main class="landing">
+        <a class="lab-return" href="/scrib/#laboratory" target="_top">← Laboratorio</a>
+        <header class="brand">
+            <h1 class="brand-title">&lt;BOLZANO&gt;</h1>
+            <p class="brand-sub">Un juego para calentar a las musas</p>
+        </header>
+
+        <section class="mode-grid" aria-label="Seleccion de modo">
+            <button id="menu_control" class="role-card role-card--gold mode-card" type="button">
+                <span class="role-icon">🎛️</span>
+                <span class="role-name">Control</span>
+                <span class="role-desc">Gestiona la vista, reinicia ronda y reinicia marcador.</span>
+            </button>
+            <button id="menu_musa" class="role-card role-card--violet mode-card" type="button">
+                <span class="role-icon">👁️</span>
+                <span class="role-name">Musa</span>
+                <span class="role-desc">Entra directo a la vista de tutorial de musas.</span>
+            </button>
+        </section>
+
+        <section class="panel-wrap">
+            <section id="panel_control" class="panel" aria-live="polite">
+                <h2 class="panel-title">Control</h2>
+                <div class="action-grid">
+                    <button id="btn_rejugar" class="role-card role-card--amber action-card" type="button">
+                        <span class="role-icon">🔁</span>
+                        <span class="role-name">Rejugar</span>
+                        <span class="role-desc">Lanza una nueva ronda del tutorial actual.</span>
+                    </button>
+                    <button id="btn_reiniciar_marcador" class="role-card role-card--red action-card" type="button">
+                        <span class="role-icon">🏆</span>
+                        <span class="role-name">Reiniciar marcador</span>
+                        <span class="role-desc">Pone a cero los aciertos acumulados.</span>
+                    </button>
+                </div>
+            </section>
+
+            <section id="panel_musa" class="panel" aria-live="polite">
+                <h2 class="panel-title">Musa</h2>
+                <div class="action-grid">
+                    <button data-player="1" class="role-card role-card--cyan action-card" type="button">
+                        <span class="role-icon">🪶</span>
+                        <span class="role-name">Musa azul</span>
+                        <span class="role-desc">Abre musa del equipo 1 en modo tutorial.</span>
+                    </button>
+                    <button data-player="2" class="role-card role-card--red action-card" type="button">
+                        <span class="role-icon">🪶</span>
+                        <span class="role-name">Musa roja</span>
+                        <span class="role-desc">Abre musa del equipo 2 en modo tutorial.</span>
+                    </button>
+                </div>
+            </section>
+        </section>
+
+        <p class="estado" aria-live="polite">
+            <span id="estado_chip" class="estado-chip"></span>
+            <span id="estado_texto" class="estado-texto"></span>
+        </p>
+    </main>
+
+<script src="../shared/config.js?v=1"></script>
+    <script src="../shared/socket.io.js"></script>
+    <script src="./js/events.js"></script>
+    <script src="./js/index.js"></script>
+</body>
+</html>
