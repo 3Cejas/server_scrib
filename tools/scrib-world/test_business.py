@@ -177,6 +177,57 @@ class BusinessTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(self.store.export())) as z:
             data=json.loads(z.read('mundo-scrib.json'));self.assertEqual(len(data['businessRecords']),2)
 
+    def test_bolo_summary_without_agreements_or_settlement_is_read_only_and_private(self):
+        self.b.save('billing',dict(id=self.person['id'],version=0,legalName='PRIVATE NAME',taxId='PRIVATE NIF',address='PRIVATE ADDRESS',iban='PRIVATE IBAN'),'admin')
+        revision=self.store.snapshot()['revision']
+        result=self.b.event_summary(self.event['id'])
+        self.assertEqual(result['agreements'],dict(total=1,generated=0,missing=1,unsigned=0,signed=0,review=0,reviewed=0))
+        self.assertEqual(result['payments'],dict(recorded=False,assigned=0,paid=0,pending=0,pendingPeople=[]))
+        self.assertNotIn('PRIVATE',json.dumps(result))
+        self.assertEqual(self.store.snapshot()['revision'],revision)
+        with self.assertRaises(world.Problem):self.b.event_summary('missing')
+
+    def test_bolo_summary_distinguishes_generation_signature_review_and_revocation(self):
+        a=self.agreement()
+        counts=self.b.event_summary(self.event['id'])['agreements']
+        self.assertEqual((counts['generated'],counts['unsigned'],counts['missing']), (1,1,0))
+        self.b.upload(a['link'].split('/')[-1],dict(name='test.pdf',base64=base64.b64encode(b'%PDF-1.7\nsigned\n%%EOF').decode()))
+        counts=self.b.event_summary(self.event['id'])['agreements']
+        self.assertEqual((counts['signed'],counts['unsigned'],counts['review'],counts['reviewed']), (1,0,1,0))
+        self.b.agreement_state(dict(id=a['id'],status='reviewed'),'admin')
+        counts=self.b.event_summary(self.event['id'])['agreements']
+        self.assertEqual((counts['review'],counts['reviewed']), (0,1))
+        self.b.agreement_state(dict(id=a['id'],status='revoked'),'admin')
+        counts=self.b.event_summary(self.event['id'])['agreements']
+        self.assertEqual((counts['generated'],counts['missing'],counts['signed']), (0,1,0))
+        text=json.dumps(self.b.event_summary(self.event['id']))
+        for value in ('token','link',a['text'],a['id']):self.assertNotIn(value,text)
+
+    def test_bolo_summary_counts_people_once_and_preserves_unpaid_historical_allocations(self):
+        other=self.store.create('person',dict(name='Otro integrante'),'admin',str(uuid.uuid4()))
+        with self.store.transaction() as db:
+            event=self.store.item(db,self.event['id'],'event')
+            event['cast'] += [dict(personId=self.person['id'],role='Interpretación',team='blue'),dict(personId=self.person['id'],role='Papel pendiente de confirmar',team='general'),dict(personId=other['id'],role='Papel pendiente de confirmar',team='general')]
+            db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(event),event['id']))
+        self.assertEqual(self.b.event_summary(self.event['id'])['agreements']['total'],1)
+        self.b.save('settlement',dict(id=self.event['id'],version=0,days=[
+            dict(date='2026-11-07',income='100',expenses='0',allocations=[dict(personId=self.person['id'],amount='10',paid=True,paymentDate='2026-11-07'),dict(personId=other['id'],amount='20',paid=False)]),
+            dict(date='2026-11-08',income='100',expenses='0',allocations=[dict(personId=self.person['id'],amount='30',paid=False),dict(personId=other['id'],amount='0',paid=False)])]),'admin')
+        with self.store.transaction() as db:
+            event=self.store.item(db,self.event['id'],'event')
+            db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(dict(event,cast=[])),event['id']))
+        result=self.b.event_summary(self.event['id'])
+        self.assertEqual(result['agreements']['total'],2)
+        self.assertEqual(result['payments'],dict(recorded=True,assigned=6000,paid=1000,pending=5000,pendingPeople=sorted([self.person['id'],other['id']])))
+
+    def test_bolo_summary_does_not_mix_other_events(self):
+        self.settlement();self.agreement()
+        other=self.store.create('event',dict(title='Otro bolo',start='2026-12-01',venue='Otro teatro'),'admin',str(uuid.uuid4()))
+        result=self.b.event_summary(other['id'])
+        self.assertEqual(result['agreements']['total'],0)
+        self.assertFalse(result['payments']['recorded'])
+        self.assertEqual(result['payments']['pending'],0)
+
 class BusinessHttpTests(BusinessTests):
     def setUp(self):
         super().setUp();self.app=world.App(0,self.store,False,secret='test-secret',bridge=None);self.thread=threading.Thread(target=self.app.serve_forever,daemon=True);self.thread.start()
@@ -210,6 +261,12 @@ class BusinessHttpTests(BusinessTests):
         self.assertEqual(status,200)
         self.assertIn(self.person['name'],preview['previews'][0]['text'])
         self.assertEqual(self.b.agreements(self.event['id'])['agreements'],[])
+    def test_bolo_summary_requires_admin_and_has_no_private_document_payload(self):
+        path='/scrib/backstage/api/business/summary/'+self.event['id']
+        self.assertEqual(self.call(path)[0],403)
+        status,headers,summary=self.call(path,headers={'X-Scrib-Role':'admin'})
+        self.assertEqual(status,200);self.assertEqual(summary['agreements']['missing'],1)
+        self.assertNotIn('records',summary);self.assertNotIn('link',summary)
     def test_personal_link_downloads_branded_pdf_without_exposing_other_agreements(self):
         agreement=self.agreement()
         with self.store.connect() as db:

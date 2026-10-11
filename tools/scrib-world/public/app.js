@@ -136,7 +136,8 @@
   }
   async function refresh(render = true) {
     const next = await request("state");
-    const changed = !state || next.revision !== state.revision;
+    const changed = !state || next.revision !== state.revision || next.user.role!==state.user.role;
+    if(state && changed)business.invalidate();
     state = next;
     document.querySelectorAll('[data-admin]').forEach(n=>n.hidden=state.user.role!=='admin');
     document.querySelector("#user-name").textContent = state.user.name;
@@ -319,10 +320,11 @@
     const slots=castSlots(event.cast);
     const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${slots.filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId,[...slots,...event.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')],c.role,c.slotIndex)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
     return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",eventSeries(event)[0].title,`${seriesDates(event)} · ${EVENT_STATUS[event.status]}`,
-      btn("edit-event","Editar bolo",event.id) + btn('delete-event','Eliminar bolo',event.id,'danger') + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + (state.user.role==='admin'?`<a class="button" href="#production/${esc(event.id)}">✍ Acuerdos y liquidación</a>`:'')) +
+      btn("edit-event","Editar bolo",event.id) + btn('delete-event','Eliminar bolo',event.id,'danger') + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id)) +
       `<div class="event-sheet">${seriesLinks(event)}<section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Hora de llegada del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${rehearsalsPanel(event)}
       <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.cast.length?'':`<p class="muted section">Elige quién ocupa cada puesto. Puedes dejar huecos pendientes y completarlos después.</p>`}</section>
+      ${business.paymentsPanel(event)}
       ${inventory.eventPanel(event)}
       ${event.eventType === 'rehearsal' ? '' : `<section class="panel event-game-section"><div class="panel-head"><h2>🎮 Configuración del videojuego</h2>${btn('edit-event','Editar parámetros',event.id,'small')}</div>${window.ScribWorldGameConfig.summary(event,state.gameConfigSchema)}</section>`}
       ${event.eventType === 'rehearsal' ? '' : business.eventPanel(event)}

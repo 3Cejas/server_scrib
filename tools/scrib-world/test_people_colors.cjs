@@ -26,7 +26,7 @@ function client() {
     setInterval(){},setTimeout:()=>1,clearTimeout(){},AbortController,URL,
     FormData:class{constructor(form){return form.entries;}},
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
-      headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
+      headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || (url.includes('/business/summary/')?paymentSummary():{reports:[]})};}};
   vm.createContext(context);
   for(const file of ['people-colors.js','task-ui.js','task-comments.js','task-autosave.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
@@ -50,6 +50,77 @@ function balanced(html) {
   assert.deepEqual(stack,[]);
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
+function paymentSummary(agreements={},payments={}){
+  return {agreements:{total:0,generated:0,missing:0,unsigned:0,signed:0,review:0,reviewed:0,...agreements},
+    payments:{recorded:false,assigned:0,paid:0,pending:0,pendingPeople:[],...payments}};
+}
+
+test('bolo Pagos is a full-card link replacing the old header button with real counts',async()=>{
+  const {app,event,responses,calls}=client();
+  responses['/scrib/backstage/api/business/summary/e1']=paymentSummary(
+    {total:5,generated:4,missing:1,unsigned:2,signed:2,review:1,reviewed:1},
+    {recorded:true,assigned:12000,paid:4500,pending:7500,pendingPeople:['p1','p2']});
+  let html=app.renderEvent(event.id);balanced(html);
+  assert.doesNotMatch(html,/✍ Acuerdos y liquidación/);
+  assert.match(html,/Cargando acuerdos y pagos/);assert.doesNotMatch(html,/Personas por pagar/);
+  await flush();html=app.renderEvent(event.id);balanced(html);
+  assert.match(html,/<section class="panel event-payments-section"><a class="event-payments-link" href="#production\/e1"/);
+  assert.match(html,/<h2>💶 Pagos<\/h2>/);assert.match(html,/1 sin generar/);
+  assert.match(html,/Acuerdos generados<\/small><strong>4<span> \/ 5/);
+  assert.match(html,/Por firmar<\/small><strong>2/);assert.match(html,/Por revisar<\/small><strong>1/);
+  assert.match(html,/Personas por pagar<\/small><strong>2/);assert.match(html,/75,00/);assert.match(html,/45,00/);
+  const card=html.match(/<a class="event-payments-link"[^>]*>([\s\S]*?)<\/a>/)[1];
+  assert.doesNotMatch(card,/<a\b|<button\b/);assert.match(card,/Ver acuerdos y pagos/);
+  assert.ok(html.indexOf('event-cast-section')<html.indexOf('event-payments-section'));
+  assert.ok(calls.every(c=>c.options.method==='GET'));
+  assert.ok(!calls.some(c=>c.url.endsWith('business/overview')||c.url.includes('business/agreements/')));
+});
+test('Pagos aggregates consecutive performances without double counting people still unpaid',async()=>{
+  const {app,state,event,responses}=client();
+  const next={...event,id:'e2',start:'2026-11-08T19:00'};state.items.push(next);
+  responses['/scrib/backstage/api/business/summary/e1']=paymentSummary(
+    {total:2,generated:1,missing:1,unsigned:1},
+    {recorded:true,assigned:5000,paid:2000,pending:3000,pendingPeople:['p1']});
+  responses['/scrib/backstage/api/business/summary/e2']=paymentSummary(
+    {total:2,generated:2,signed:2,review:1,reviewed:1},
+    {recorded:true,assigned:7000,paid:2000,pending:5000,pendingPeople:['p1','p2']});
+  app.business.paymentsPanel(event);await flush();const html=app.business.paymentsPanel(event);balanced(html);
+  assert.match(html,/2 funciones/);assert.match(html,/Acuerdos generados<\/small><strong>3<span> \/ 4/);
+  assert.match(html,/Personas por pagar<\/small><strong>2/);assert.match(html,/80,00/);assert.match(html,/120,00/);
+});
+test('Pagos preserves empty, ungenerated and failed states without inventing payment amounts',async()=>{
+  const {app,event,responses}=client();
+  responses['/scrib/backstage/api/business/summary/e1']=paymentSummary({total:3,missing:3});
+  app.business.paymentsPanel(event);await flush();let html=app.business.paymentsPanel(event);balanced(html);
+  assert.match(html,/3 sin generar/);assert.match(html,/Sin importes asignados/);assert.doesNotMatch(html,/0,00|Todos generados/);
+  app.business.invalidate();responses['/scrib/backstage/api/business/summary/e1']=new Error('Error privado <prueba>');
+  app.business.paymentsPanel(event);await flush();html=app.business.paymentsPanel(event);balanced(html);
+  assert.match(html,/No se pudo cargar el resumen/);assert.match(html,/href="#production\/e1"/);
+  assert.doesNotMatch(html,/Personas por pagar|Error privado/);
+  app.business.invalidate();responses['/scrib/backstage/api/business/summary/e1']=paymentSummary();
+  app.business.paymentsPanel(event);await flush();assert.match(app.business.paymentsPanel(event),/Elenco pendiente/);
+});
+test('Pagos makes no private request for members or rehearsals',()=>{
+  const {app,state,event,calls}=client();state.user.role='member';
+  assert.equal(app.business.paymentsPanel(event),'');assert.doesNotMatch(app.renderEvent(event.id),/event-payments-section/);
+  assert.ok(!calls.some(c=>c.url.includes('/business/')));
+  state.user.role='admin';state.items.push({...event,id:'ensayo',eventType:'rehearsal',parentEventId:event.id});
+  assert.doesNotMatch(app.renderEvent('ensayo'),/event-payments-section/);
+  assert.ok(!calls.some(c=>c.url.includes('/business/')));
+});
+test('Pagos reloads after collaboration revision changes and ignores a stale in-flight summary',async()=>{
+  const {app,event,state,responses}=client();let resolveOld;
+  responses['/scrib/backstage/api/business/summary/e1']=()=>new Promise(resolve=>{resolveOld=resolve;});
+  app.business.paymentsPanel(event);
+  responses['/scrib/backstage/api/state']={...state,revision:2};await app.refresh(false);
+  responses['/scrib/backstage/api/business/summary/e1']=paymentSummary({total:1,generated:1,signed:1,reviewed:1});
+  app.business.paymentsPanel(event);await flush();
+  resolveOld(paymentSummary({total:1,missing:1}));await flush();
+  const html=app.business.paymentsPanel(event);assert.match(html,/Todos generados/);assert.match(html,/1 revisados/);assert.doesNotMatch(html,/1 sin generar/);
+  responses['/scrib/backstage/api/state']={...state,revision:3};await app.refresh(false);
+  responses['/scrib/backstage/api/business/summary/e1']=paymentSummary({total:1,generated:1,signed:1,reviewed:1},{recorded:true,assigned:1000,pending:1000,pendingPeople:['p1']});
+  app.business.paymentsPanel(event);await flush();assert.match(app.business.paymentsPanel(event),/Personas por pagar<\/small><strong>1/);
+});
 
 test('tickets show individually colored people, column colors and drag handles without move arrows',()=>{
   const {app,state}=client();state.members=[{username:'pablop',name:'Pablo Pineño'},{username:'abueno',name:'Ángela <Bueno>'}];
@@ -899,11 +970,11 @@ test('assigning and clearing a role slot save only its original date with optimi
   await assert.rejects(app.assignCastSlot(node),/Actualizado por otra persona/);
   assert.equal(node.value,'');assert.equal(node.disabled,false);assert.equal(event.cast.length,3);
 });
-test('bolo header has financial action once and rehearsal actions only inside Ensayos',()=>{
+test('bolo keeps financial access inside Pagos and rehearsal actions only inside Ensayos',()=>{
   const {app,event,state}=client();let html=app.renderEvent(event.id);balanced(html);
   const header=html.slice(0,html.indexOf('<div class="event-sheet">'));
-  assert.match(header,/href="#production\/e1"/);
-  assert.equal((html.match(/Acuerdos y liquidación/g)||[]).length,1);
+  assert.doesNotMatch(header,/href="#production\/e1"|Acuerdos y liquidación/);
+  assert.equal((html.match(/event-payments-link/g)||[]).length,1);
   assert.doesNotMatch(header,/new-rehearsal|new-poll-event|event-pdf|Hoja de llamada/);
   const rehearsals=html.split('bolo-rehearsals')[1].split('</section>')[0];
   assert.match(rehearsals,/new-rehearsal/);assert.match(rehearsals,/new-poll-event/);

@@ -66,6 +66,13 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   Acuerdos y facturas anteriores no se reescriben. La corrección explícita del
   domicilio Sutura a 3B se aplica con `correct_sutura_address.apply(store)`; no
   modifica el resto de datos fiscales ni confirma por sí misma toda la plantilla.
+- La ficha del bolo incluye una tarjeta «Pagos» para administración. Resume
+  acuerdos generados, por firmar y por revisar, personas pendientes de pago e
+  importes registrados; toda la tarjeta abre el detalle. En bolos agrupados suma
+  los acuerdos de cada función, pero cuenta una sola vez a cada persona por pagar.
+  El resumen privado no devuelve datos fiscales, documentos ni enlaces personales.
+  Las revisiones de colaboración invalidan la caché y las respuestas antiguas no
+  pueden reponer cifras obsoletas tras un guardado o una actualización.
 - Exportación técnica: se materializa el estilo computado en atributos SVG,
   no estilos inline. Firefox bloquea estos últimos bajo CSP y producía el plano
   negro; la política de seguridad se conserva sin cambios.

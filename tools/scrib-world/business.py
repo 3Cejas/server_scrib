@@ -175,6 +175,41 @@ class Business:
             records = [dict(json.loads(r['body']),type=r['type'],id=r['id'],version=r['version']) for r in db.execute('SELECT * FROM business_records')]
             return {'records':records}
 
+    def event_summary(self, event_id):
+        # The bolo card only needs counts and amounts, never fiscal fields,
+        # personal upload links or the full text of a collaboration agreement.
+        with self.store.connect() as db:
+            db.execute('BEGIN')
+            event = self.store.item(db, event_id, 'event', True)
+            settlement = self.record(db, 'settlement', event_id)
+            days = settlement.get('days', [])
+            allocations = [a for day in days for a in day['allocations']]
+            agreements = list(db.execute("""SELECT person,status,
+                EXISTS(SELECT 1 FROM agreement_uploads WHERE agreement=agreements.id) AS signed
+                FROM agreements WHERE event=? AND status<>'revoked'""", (event_id,)))
+            people = set(c['personId'] for c in event['cast'] if not pending_cast_role(c['role']))
+            people.update(a['personId'] for a in allocations)
+            people.update(a['person'] for a in agreements)
+            counts = dict(total=len(people), generated=0, unsigned=0, signed=0, review=0, reviewed=0)
+            for person in people:
+                versions = [a for a in agreements if a['person'] == person]
+                if not versions:
+                    continue
+                counts['generated'] += 1
+                signed = [a for a in versions if a['signed']]
+                if not signed:
+                    counts['unsigned'] += 1
+                else:
+                    counts['signed'] += 1
+                    counts['reviewed' if any(a['status'] == 'reviewed' for a in signed) else 'review'] += 1
+            counts['missing'] = counts['total'] - counts['generated']
+            pending = [a for a in allocations if not a['paid'] and a['amount'] > 0]
+            return {'agreements':counts, 'payments':{
+                'recorded':bool(days), 'assigned':sum(a['amount'] for a in allocations),
+                'paid':sum(a['amount'] for a in allocations if a['paid']),
+                'pending':sum(a['amount'] for a in pending),
+                'pendingPeople':sorted(set(a['personId'] for a in pending))}}
+
     def reports(self, event):
         with self.store.connect() as db:
             self.store.item(db,event,'event')

@@ -1215,6 +1215,8 @@ class Handler(BaseHTTPRequestHandler):
                         raise Problem('Los datos económicos, fiscales y acuerdos están reservados a administración.',403)
                     if route == 'api/business/overview':
                         return self.reply(200,store.business.overview())
+                    if route.startswith('api/business/summary/'):
+                        return self.reply(200,store.business.event_summary(route.split('/')[-1]))
                     if route == 'api/business/template':
                         return self.reply(200,{'text':(ROOT/'agreement_template.txt').read_text(),'source':'Modelo SCRIB · casillas de Exlímite y condiciones de Imparables · Drive','url':'https://drive.google.com/file/d/1zOnQsaqi6SdBe7UK41wWcoy5A2r-yOeT/view'})
                     if route.startswith('api/business/agreement-preview/'):

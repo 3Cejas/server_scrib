@@ -56,6 +56,18 @@
 .invoice-action{background:#332d3f;border-color:#bda1ff44;color:var(--violet)}
 .invoice-action:hover{background:#433753;border-color:var(--violet)}
 .button.invoice-action.is-blocked:disabled{cursor:not-allowed}
+.event-payments-section{padding:0;overflow:hidden;border-color:#bda1ff38;background:linear-gradient(125deg,#211e31,#18242e)}
+.event-payments-link{display:block;padding:24px;text-decoration:none;color:var(--text)}
+.event-payments-link:hover{background:#bda1ff08}.event-payments-link:focus-visible{outline:3px solid var(--cyan);outline-offset:-4px;border-radius:var(--radius)}
+.event-payments-head{display:flex;align-items:center;gap:12px;margin-bottom:20px}.event-payments-head h2{flex:1}.event-payments-arrow{font-size:1.5rem;color:var(--violet)}
+.event-payments-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.payment-metric{min-width:0;padding:16px;background:#ffffff05;border:1px solid #ffffff0c;border-radius:12px;display:grid;gap:6px;align-content:start;--metric:var(--violet)}
+.payment-metric.gold{--metric:var(--gold)}.payment-metric.cyan{--metric:var(--cyan)}.payment-metric.coral{--metric:var(--coral)}
+.payment-metric>span{font-size:1.25rem;color:var(--metric)}.payment-metric small{color:var(--muted);line-height:1.5;font-size:.74rem}.payment-metric strong{color:var(--metric);font-size:1.8rem;font-variant-numeric:tabular-nums;line-height:1.2}.payment-metric strong span{font-size:1rem;color:var(--muted)}.payment-metric p{font-size:.74rem;line-height:1.5;overflow-wrap:anywhere}
+.event-payments-totals{display:flex;gap:24px;flex-wrap:wrap;margin-top:18px;font-size:.8rem;color:var(--muted)}.event-payments-totals strong{color:var(--cyan);margin-left:6px;font-variant-numeric:tabular-nums}
+.event-payments-enter{display:flex;justify-content:space-between;gap:12px;color:var(--violet);font-size:.8rem;font-weight:700;border-top:1px solid var(--line);padding-top:14px;margin-top:18px}.event-payments-status{color:var(--muted);min-height:70px;line-height:1.6}
+@media(max-width:1100px){.event-payments-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.event-payments-link{padding:18px}.event-payments-metrics{gap:8px}.payment-metric{padding:12px}.event-payments-head{flex-wrap:wrap}.event-payments-head h2{flex:1 1 120px}}
 .agreement-card .finance-avatar{width:48px;height:48px;flex-basis:48px;border-radius:14px}
 .settlement-panel .panel-head{flex-wrap:wrap}
 .agreement-preview-head{display:grid;gap:14px;margin-bottom:24px}

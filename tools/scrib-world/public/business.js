@@ -10,7 +10,7 @@ window.ScribBusiness = function(h) {
   const GROUPS={creation:['Creación del proyecto','10','% del neto'],music:['Música','2','% del neto'],publicity:['Publicidad y difusión','15','€ fijos'],mount:['Montaje y desmontaje','15','€ fijos'],direction:['Dirección','5','% del fondo'],dramaturgy:['Dramaturgia activa','5','% del fondo'],cast:['Elenco y técnica','90','% del fondo']};
   function agreementHtml(text){return `<header class="agreement-brand"><img src="/scrib/backstage/sutura-logo.png" alt="Sutura Teatro"><span><img src="/scrib/backstage/logo.png" alt="&lt;SCRI&gt; B"></span></header><div class="agreement-content">${String(text).split('\n').map(line=>{const check=line.match(/^\[([X ])\] (.+)$/);if(check)return `<div class="agreement-check ${check[1]==='X'?'is-checked':''}"><span aria-label="${check[1]==='X'?'Seleccionado':'Sin seleccionar'}">${check[1]==='X'?'✓':''}</span>${esc(check[2])}</div>`;if(line.startsWith('ACUERDO DE COLABORACIÓN'))return `<h2 class="agreement-title">${esc(line)}</h2>`;if(line==='CLÁUSULAS')return `<h2 class="agreement-clauses">${esc(line)}</h2>`;if(/^[A-ZÁÉÍÓÚÑ]+\. /.test(line)||line.startsWith('Fdo.'))return `<h3>${esc(line)}</h3>`;return line.trim()?`<p>${esc(line)}</p>`:'';}).join('')}</div>`;}
   const date=v=>new Intl.DateTimeFormat('es-ES',{timeZone:'Europe/Madrid',dateStyle:'long',timeStyle:'short'}).format(new Date(v));
-  let cache={},pending=new Set(),errors={},paths={},exporting=new Set();
+  let cache={},pending=new Set(),errors={},paths={},exporting=new Set(),cacheEpoch=0;
   // Printing must start at the document beginning, not the modal's screen scroll.
   let printScroll=null;
   window.addEventListener('beforeprint',()=>{
@@ -22,12 +22,37 @@ window.ScribBusiness = function(h) {
     if(printScroll){dialog.scrollTop=printScroll.dialog;window.scrollTo(printScroll.x,printScroll.y);printScroll=null;}
   });
   const admin=()=>h.state()?.user.role==='admin';
-  function load(key,path){paths[key]=path;if(pending.has(key))return;pending.add(key);request(path).then(v=>{cache[key]=v;delete errors[key];}).catch(e=>errors[key]=e.message).finally(()=>{pending.delete(key);if(!dialog.open)renderPage();});}
+  function load(key,path){paths[key]=path;if(pending.has(key))return;const epoch=cacheEpoch;pending.add(key);request(path).then(v=>{if(epoch===cacheEpoch){cache[key]=v;delete errors[key];}}).catch(e=>{if(epoch===cacheEpoch)errors[key]=e.message;}).finally(()=>{if(epoch===cacheEpoch){pending.delete(key);if(!dialog.open)renderPage();}});}
   function get(key,path){if(!cache[key]&&!errors[key])load(key,path);return cache[key];}
   function records(){return cache.overview?.records||[];}
   function record(type,id){return records().find(r=>r.type===type&&r.id===id)||{version:0,id};}
   function loading(key){return `<p class="notice">${esc(errors[key]||'Cargando…')}</p>${btn('business-refresh','Actualizar')}`;}
   function link(route,label){return `<a class="button" href="#${esc(route)}">${esc(label)}</a>`;}
+  function paymentsPanel(event){
+    if(!admin())return '';
+    const group=h.eventSeries(event),summaries=group.map(e=>get('payments-'+e.id,'business/summary/'+e.id));
+    const error=group.map(e=>errors['payments-'+e.id]).find(Boolean),ready=summaries.every(Boolean);
+    let content;
+    if(!ready){
+      content=`<p class="event-payments-status" role="status">${esc(error?'No se pudo cargar el resumen. Puedes entrar al detalle o actualizar.':'Cargando acuerdos y pagos…')}</p>`;
+    }else{
+      const agreements={total:0,generated:0,missing:0,unsigned:0,signed:0,review:0,reviewed:0};
+      const payments={assigned:0,paid:0,pending:0},people=new Set();
+      for(const s of summaries){
+        for(const key of Object.keys(agreements))agreements[key]+=s.agreements[key];
+        for(const key of Object.keys(payments))payments[key]+=s.payments[key];
+        s.payments.pendingPeople.forEach(id=>people.add(id));
+      }
+      const generation=agreements.total?agreements.missing?`${agreements.missing} sin generar`:'Todos generados':'Elenco pendiente';
+      content=`<div class="event-payments-metrics">
+        <div class="payment-metric violet"><span aria-hidden="true">▤</span><small>Acuerdos generados</small><strong>${agreements.generated}<span> / ${agreements.total}</span></strong><p>${generation}</p></div>
+        <div class="payment-metric gold"><span aria-hidden="true">✎</span><small>Por firmar</small><strong>${agreements.unsigned}</strong><p>${agreements.signed} firmados</p></div>
+        <div class="payment-metric cyan"><span aria-hidden="true">✓</span><small>Por revisar</small><strong>${agreements.review}</strong><p>${agreements.reviewed} revisados</p></div>
+        <div class="payment-metric coral"><span aria-hidden="true">€</span><small>Personas por pagar</small><strong>${people.size}</strong><p>${payments.assigned?euro(payments.pending)+' pendientes':'Sin importes asignados'}</p></div>
+      </div>${payments.assigned?`<div class="event-payments-totals"><span>Asignado <strong>${euro(payments.assigned)}</strong></span><span>Pagado <strong>${euro(payments.paid)}</strong></span></div>`:''}`;
+    }
+    return `<section class="panel event-payments-section"><a class="event-payments-link" href="#production/${esc(event.id)}" aria-label="Pagos de ${esc(event.title)} · ver acuerdos y liquidación"><div class="event-payments-head"><h2>💶 Pagos</h2>${group.length>1?`<span class="badge">${group.length} funciones</span>`:''}<span class="event-payments-arrow" aria-hidden="true">↗</span></div>${content}<span class="event-payments-enter">Ver acuerdos y pagos <span aria-hidden="true">→</span></span></a></section>`;
+  }
   function eventPanel(event){return `<section class="panel event-reports-section"><div class="panel-head"><h2>📚 Memoria de las partidas</h2>${btn('business-refresh','Actualizar')}</div><p class="muted section">Los informes se guardan al terminar con la configuración de este bolo cargada en Control. Se consultan aquí sin generar PDFs automáticamente.</p>${reportList(event.id)}</section>`;}
   function reportList(id){const group=h.eventSeries(item(id)),responses=group.map(e=>get('reports-'+e.id,'reports/event/'+e.id)),key=group.find((e,i)=>!responses[i])?.id||id,c=responses.every(Boolean)?{reports:responses.flatMap(v=>v.reports).sort((a,b)=>b.endedAt-a.endedAt)}:null;return c?`<div class="report-list section">${c.reports.map(r=>`<article class="saved-match-card">${link('report/'+r.id,date(r.endedAt)+' · '+Object.values(r.writers).map(w=>w.name).join(' / '))}${btn('business-instagram','▧ Instagram · ZIP',r.id,'small')}</article>`).join('')||'<p class="muted">Todavía no hay partidas archivadas para este bolo.</p>'}</div>`:`<p class="notice">${esc(errors['reports-'+key]||'Cargando…')}</p>`;}
   function report(id){const key='report-'+id,r=get(key,'reports/match/'+id);if(!r)return loading(key);
@@ -74,7 +99,7 @@ window.ScribBusiness = function(h) {
   }
   function invoice(id){if(!admin())return overview();if(!get('overview','business/overview'))return loading('overview');const r=record('invoice',id);if(!r.status)return '<p>Borrador no encontrado.</p>';return `<article class="invoice-document printable panel"><div class="actions no-print">${btn('business-print','↓ Guardar PDF del borrador')}${link('production/'+r.eventId,'← Bolo')}</div><p class="eyebrow">BORRADOR · NO EMITIDO</p><h1>Factura · ${esc(r.series)} ${esc(r.number||'Número pendiente')}</h1><p class="section">Fecha: ${esc(r.date)}</p><div class="grid cols2 section"><div><h3>Emisor</h3><p class="notes">${esc(r.issuer.legalName)}\n${esc(r.issuer.taxId)}\n${esc(r.issuer.address)}</p></div><div><h3>Destinatario</h3><p class="notes">${esc(r.recipient.name)}\n${esc(r.recipient.taxId)}\n${esc(r.recipient.address)}</p></div></div><h3 class="section">Concepto</h3><p class="notes section">${esc(r.concept||'Participación en <SCRI> B · '+r.eventTitle)}</p><div class="invoice-line section"><strong>Día de función</strong><strong>Honorarios</strong></div>${r.lines.map(l=>`<div class="invoice-line"><span>${esc(l.date)}</span><strong>${euro(l.amount)}</strong></div>`).join('')}<div class="invoice-totals section">${[['Base imponible',r.base],['IVA '+r.issuer.vat+'%',r.vat],['IRPF '+r.issuer.withholding+'%',-r.withholding],['Total a percibir',r.total]].map(([l,v])=>`<div class="invoice-line"><span>${esc(l)}</span><strong>${euro(v)}</strong></div>`).join('')}</div><p class="notes section">Transferencia: ${esc(r.issuer.iban||'Cuenta pendiente de confirmar')}</p></article>`;}
   function form(title,body,onSubmit){openDialog('business',title,`<form id="business-form">${body}<p class="form-error" role="alert"></p><div class="actions section">${btn('close-dialog','Cancelar')}<button type="submit" class="button primary">Guardar</button></div></form>`);const f=dialog.querySelector('form');f.addEventListener('submit',async e=>{e.preventDefault();const b=f.querySelector('[type=submit]');if(b.disabled)return;b.disabled=true;try{await onSubmit(f);dialog.close();invalidate();renderPage();toast('Guardado.');}catch(e){f.querySelector('.form-error').textContent=e.message;}finally{b.disabled=false;}});return f;}
-  function invalidate(){cache={};errors={};}
+  function invalidate(){cacheEpoch++;cache={};errors={};paths={};pending.clear();}
   async function ensure(){cache.overview=await request('business/overview');}
   async function agreementPreview(id) {
     const result=await request('business/agreement-preview/'+id);
@@ -146,5 +171,5 @@ window.ScribBusiness = function(h) {
     return true;
   }
   function personLink(id){return admin()?btn('business-person','💶 Temporadas y datos fiscales',id,'section'):'';}
-  return {overview,production,report,invoice,eventPanel,action,personLink};
+  return {overview,production,report,invoice,eventPanel,paymentsPanel,action,personLink,invalidate};
 };
