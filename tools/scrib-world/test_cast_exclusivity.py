@@ -82,6 +82,50 @@ class CastExclusivityTests(unittest.TestCase):
         self.assertEqual(cast_conflict(changed, old), self.person['id'])
         self.assertEqual(cast_conflict([dict(c, personId='someone-else') for c in old], old), 'someone-else')
 
+    def test_pending_invitation_does_not_occupy_a_position_and_assignment_consumes_it(self):
+        pending=self.position('Papel pendiente de confirmar')
+        e=self.show([pending])
+        assigned=self.position('Presentador')
+        self.assertIsNone(cast_conflict([pending,assigned],e['cast']))
+        saved=self.store.update(e['id'],dict(e,cast=[pending,assigned]),'tester',e['version'])
+        self.assertEqual(saved['cast'],[assigned])
+        with self.assertRaisesRegex(world.Problem,'ya ocupa otro puesto'):
+            self.store.update(saved['id'],dict(saved,cast=saved['cast']+[self.position('Jurado')]),'tester',saved['version'])
+
+    def test_leon_legacy_roster_allows_each_pending_person_without_losing_other_invitations(self):
+        people=[self.create('person',name=name) for name in (
+            'Ana Sempere','Fer','David Viñas','Diego Valverde','Miriam del Valle',
+            'Ángela Harris Bueno','Pablo Pineño','Elena Conde','Verónica Antonucci')]
+        occupied=[dict(personId=people[0]['id'],role=role,team='blue') for role in ('Escritura','Interpretación')]
+        pending=[dict(personId=p['id'],role='Papel pendiente de confirmar',team='general') for p in people]
+        e=self.show([])
+        with self.store.connect() as db:
+            body=json.loads(db.execute('SELECT body FROM items WHERE id=?',(e['id'],)).fetchone()[0])
+            body['cast']=occupied+pending
+            db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(body),e['id']))
+        e=self.store.details(e['id'])['item']
+        for person in people[1:]:
+            with self.subTest(person=person['name']):
+                assigned=dict(personId=person['id'],role='Escritura',team='red')
+                saved=self.store.update(e['id'],dict(e,cast=e['cast']+[assigned]),'tester',e['version'])
+                self.assertEqual(saved['cast'][:2],occupied)
+                self.assertIn(assigned,saved['cast'])
+                remaining=[c['personId'] for c in saved['cast'] if c['role']=='Papel pendiente de confirmar']
+                self.assertEqual(set(remaining),{p['id'] for p in people[1:] if p!=person})
+                # Revert only this isolated fixture for the next independent choice.
+                with self.store.connect() as db:
+                    body=json.loads(db.execute('SELECT body FROM items WHERE id=?',(e['id'],)).fetchone()[0])
+                    body['cast']=occupied+pending
+                    db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(body),e['id']))
+                e=self.store.details(e['id'])['item']
+
+    def test_new_bolo_consumes_only_assigned_pending_people_and_preserves_technical_exception(self):
+        other=self.create('person',name='Otra persona')
+        pending=self.position('Papel pendiente de confirmar')
+        unassigned=dict(personId=other['id'],role='Papel pendiente de confirmar',team='general')
+        e=self.show([pending,unassigned,self.position('Técnica videojuego'),self.position('Técnica luminotecnia-sonido')])
+        self.assertEqual(e['cast'],[unassigned,self.position('Técnica videojuego'),self.position('Técnica luminotecnia-sonido')])
+
 
 if __name__ == '__main__':
     unittest.main()

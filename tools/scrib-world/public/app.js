@@ -320,7 +320,7 @@
     const casts = ['blue','red','general'].map(team=>`<div class="cast-group ${team}"><h3>${team==='blue'?'🔵 Equipo azul':team==='red'?'🔴 Equipo rojo':'✦ Equipo del espectáculo'}</h3><div class="cast-slot-grid">${slots.filter(c=>c.team===team).map(c=>`<div class="cast-slot ${team}"><label><strong>${esc(c.role)}</strong><select data-cast-event="${esc(event.id)}" data-cast-version="${event.version}" data-cast-slot="${c.slotIndex}" aria-label="${esc(c.role+' · '+team)}">${personChoices(c.personId,[...slots,...event.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')],c.role,c.slotIndex)}</select></label>${c.personId?`<a class="tiny" href="#person/${esc(c.personId)}">${personLabel(c.personId)} ↗</a>`:'<small class="muted">Puesto pendiente</small>'}</div>`).join('')}</div></div>`).join('');
     return `<div class="event-roadmap">` + pageHead("HOJA DE RUTA",eventSeries(event)[0].title,`${seriesDates(event)} · ${EVENT_STATUS[event.status]}`,
       btn("edit-event","Editar bolo",event.id) + btn('delete-event','Eliminar bolo',event.id,'danger') + btn("show-calendar","▦ Ver en calendario",event.start.slice(0,10)) + btn("compose-event","◌ Comunicación al elenco",event.id) + (state.user.role==='admin'?`<a class="button" href="#production/${esc(event.id)}">✍ Acuerdos y liquidación</a>`:'')) +
-      `<div class="event-sheet">${seriesLinks(event)}<section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Convocatoria del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
+      `<div class="event-sheet">${seriesLinks(event)}<section class="event-info"><div class="info-tile"><small>⌖ Espacio</small><strong>${esc(event.venue || "Pendiente")}</strong><p class="muted">${esc(event.city)}</p></div><div class="info-tile"><small>◷ Función · Europe/Madrid</small><strong>${hour(event.start)}${event.end?" — " + hour(event.end):""}</strong><p class="muted">${esc(niceDate(event.start))}</p></div><div class="info-tile"><small>☀ Hora de llegada del elenco</small><strong>${esc(dateTime(event.arrival))}</strong></div></section>
       ${rehearsalsPanel(event)}
       <section class="panel event-cast-section"><div class="panel-head"><h2>🎭 Elenco y equipo</h2>${badge(event.cast.length + " participaciones","violet")}</div><div class="cast-groups">${casts}</div>${event.cast.length?'':`<p class="muted section">Elige quién ocupa cada puesto. Puedes dejar huecos pendientes y completarlos después.</p>`}</section>
       ${inventory.eventPanel(event)}
@@ -494,7 +494,7 @@
     const e=item(node.dataset.castEvent),slots=castSlots(e.cast),slot=slots[Number(node.dataset.castSlot)];if(!slot)return;
     if(saving){node.value=slot.personId;return;}
     const previous=slot.personId;slot.personId=node.value;
-    const cast=[...slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team})),...e.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')];
+    const cast=resolveCast([...slots.filter(c=>c.personId).map(({personId,role,team})=>({personId,role,team})),...e.cast.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')]);
     const conflict=castConflict(cast,e.cast);
     if(conflict){node.value=previous;throw new Error(castConflictMessage(conflict));}
     saving=true;node.disabled=true;
@@ -502,14 +502,16 @@
     catch(error){node.value=previous;throw error;}finally{saving=false;node.disabled=false;}
   }
   const technicalRole=role=>['Técnica','Técnica videojuego','Técnica luminotecnia-sonido'].includes(role);
+  const pendingCastRole=role=>String(role).trim().toLocaleLowerCase('es')==='papel pendiente de confirmar';
+  function resolveCast(cast){const assigned=new Set(cast.filter(c=>!pendingCastRole(c.role)).map(c=>c.personId));return cast.filter(c=>!pendingCastRole(c.role)||!assigned.has(c.personId));}
   function castConflict(cast,previous=[]){
-    const group=rows=>{const groups=new Map();for(const c of rows.filter(c=>c.personId)){const role=c.role==='Técnica'?'Técnica videojuego':c.role,key=JSON.stringify([role,TEAM_ROLES.has(role)?c.team:'general']);if(!groups.has(c.personId))groups.set(c.personId,new Map());const counts=groups.get(c.personId);counts.set(key,(counts.get(key)||0)+1);}return groups;};
+    const group=rows=>{const groups=new Map();for(const c of rows.filter(c=>c.personId&&!pendingCastRole(c.role))){const role=c.role==='Técnica'?'Técnica videojuego':c.role,key=JSON.stringify([role,TEAM_ROLES.has(role)?c.team:'general']);if(!groups.has(c.personId))groups.set(c.personId,new Map());const counts=groups.get(c.personId);counts.set(key,(counts.get(key)||0)+1);}return groups;};
     const old=group(previous);
-    for(const [id,positions] of group(cast))if([...positions.values()].reduce((a,b)=>a+b,0)>1&&!cast.filter(c=>c.personId===id).every(c=>technicalRole(c.role))&&[...positions].some(([key,count])=>count>(old.get(id)?.get(key)||0)))return id;
+    for(const [id,positions] of group(cast))if([...positions.values()].reduce((a,b)=>a+b,0)>1&&!cast.filter(c=>c.personId===id&&!pendingCastRole(c.role)).every(c=>technicalRole(c.role))&&[...positions].some(([key,count])=>count>(old.get(id)?.get(key)||0)))return id;
     return '';
   }
   const castConflictMessage=id=>(item(id)?.name||'Esta persona')+' ya ocupa otro puesto en este bolo. Solo se pueden combinar los dos puestos de técnica.';
-  function personChoices(id,cast=[],role='',slotIndex=-1){return option('','Selecciona quién ocupa el puesto',id)+state.items.filter(p=>p.kind==='person'&&(!p.archived||p.id===id)).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>{const taken=p.id!==id&&cast.some((c,i)=>i!==slotIndex&&c.personId===p.id&&!(technicalRole(role)&&technicalRole(c.role)));return `<option value="${esc(p.id)}"${p.id===id?' selected':''}${taken?' disabled':''}>${esc(p.name+(p.archived?' (archivado)':'')+(taken?' · Ya ocupa otro puesto':''))}</option>`;}).join('');}
+  function personChoices(id,cast=[],role='',slotIndex=-1){return option('','Selecciona quién ocupa el puesto',id)+state.items.filter(p=>p.kind==='person'&&(!p.archived||p.id===id)).sort((a,b)=>a.name.localeCompare(b.name,'es')).map(p=>{const taken=p.id!==id&&cast.some((c,i)=>i!==slotIndex&&c.personId===p.id&&!pendingCastRole(c.role)&&!(technicalRole(role)&&technicalRole(c.role)));return `<option value="${esc(p.id)}"${p.id===id?' selected':''}${taken?' disabled':''}>${esc(p.name+(p.archived?' (archivado)':'')+(taken?' · Ya ocupa otro puesto':''))}</option>`;}).join('');}
   function syncCastChoices(form){
     if(!form)return;
     const rows=[...form.querySelectorAll('.cast-editor-row')],cast=rows.map(row=>({personId:row.querySelector('.cast-person').value,role:row.querySelector('.cast-role').value}));
@@ -532,7 +534,7 @@
       field(rehearsal?"Nombre del ensayo":"Nombre del bolo",input("title",e.title,"text",'required maxlength="240" placeholder="SCRIB · sala / festival"')) +
       `<div class="form-row">${field(rehearsal?"Fecha del ensayo":"Fecha del bolo",input("start",e.start.slice(0,10),"date", "required"))}${field("Hora · horario Madrid",input("startTime",e.start.length > 10 ? e.start.slice(11,16) : "","time"),"Déjala vacía si todavía está pendiente.")}</div>` +
       field("Fin (opcional; requiere hora de inicio)",input("end",localInput(e.end),"datetime-local")) +
-      (rehearsal?'':field("Convocatoria del elenco",input("arrival",localInput(e.arrival),"datetime-local")))+input('status',e.status,'hidden') +
+      (rehearsal?'':field("Hora de llegada del elenco",input("arrival",localInput(e.arrival),"datetime-local")))+input('status',e.status,'hidden') +
       `<div class="form-row">${field("Espacio / sala",input("venue",e.venue,"text",'maxlength="200"'))}${field("Ciudad",input("city",e.city,"text",'maxlength="120"'))}</div>` +
       (rehearsal?'':field("Entradas / información",input("ticketUrl",e.ticketUrl,"url",'placeholder="https://…" maxlength="2000"'))) + field(rehearsal?"Notas del ensayo":"Notas de producción",area("description",e.description,'maxlength="15000"')) +
       (rehearsal?'':window.ScribWorldGameConfig.editor(e,state.gameConfigSchema)) +
@@ -580,7 +582,7 @@
       if(data.eventType==='rehearsal')data.cast=[...form.querySelectorAll('[name=attendees]:checked')].map(n=>({personId:n.value,role:'Ensayo',team:'general'}));
       else {
         const previous=item(form.dataset.id)?.cast||[];
-        data.cast.push(...previous.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica'));
+        data.cast=resolveCast([...data.cast,...previous.filter(c=>!TEAM_ROLES.has(c.role)&&!STAFF_ROLES.includes(c.role)&&c.role!=='Técnica')]);
         const conflict=castConflict(data.cast,previous);if(conflict)throw new Error(castConflictMessage(conflict));
       }
       data.address=item(form.dataset.id)?.address||'';

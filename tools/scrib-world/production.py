@@ -3,6 +3,17 @@ TEAM_ROLES = ('Escritura', 'Interpretación')
 TECHNICAL_ROLES = ('Técnica videojuego', 'Técnica luminotecnia-sonido')
 
 
+def pending_cast_role(role):
+    """Imported roster invitations are not assigned show positions."""
+    return str(role).strip().casefold()=='papel pendiente de confirmar'
+
+
+def resolve_cast(cast):
+    """An assignment consumes that person's invitation, not other people."""
+    assigned={c['personId'] for c in cast if not pending_cast_role(c['role'])}
+    return [c for c in cast if not pending_cast_role(c['role']) or c['personId'] not in assigned]
+
+
 def normalize_role(role):
     import unicodedata
     key = ''.join(c for c in unicodedata.normalize('NFD',role.casefold()) if not unicodedata.combining(c))
@@ -36,7 +47,7 @@ def cast_conflict(cast, previous=()):
     def groups(rows):
         result = defaultdict(Counter)
         for row in rows:
-            if row.get('personId'):
+            if row.get('personId') and not pending_cast_role(row['role']):
                 role = normalize_role(row['role'])
                 result[row['personId']][(role, row.get('team', 'general') if role in TEAM_ROLES else 'general')] += 1
         return result

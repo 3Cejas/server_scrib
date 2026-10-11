@@ -823,6 +823,38 @@ test('slot assignments reject a conflicting writer before posting and allow the 
   const cast=JSON.parse(calls.find(c=>c.options.method==='POST').options.body).data.cast;
   assert.equal(cast.filter(c=>c.personId==='p3').length,2);
 });
+test('León imported invitations do not disable cast choices and are consumed only on assignment',async()=>{
+  const {app,event,responses,calls}=client();
+  event.cast=[
+    {personId:'p1',role:'Escritura',team:'blue'},
+    {personId:'p1',role:'Interpretación',team:'blue'},
+    ...['p1','p2','p3'].map(personId=>({personId,role:'Papel pendiente de confirmar',team:'general'}))
+  ];
+  const html=app.renderEvent(event.id),slot=html.match(/data-cast-slot="3"[^>]*>(.*?)<\/select>/s)[1];
+  assert.match(slot,/<option value="p2">/);assert.match(slot,/<option value="p3">/);
+  assert.match(slot,/<option value="p1" disabled>/);
+  responses['/scrib/backstage/api/update']=options=>({item:{...JSON.parse(options.body).data,version:2}});
+  const node={dataset:{castEvent:event.id,castSlot:'3',castVersion:'1'},value:'p2',disabled:false};
+  await app.assignCastSlot(node);
+  const cast=JSON.parse(calls.find(c=>c.options.method==='POST').options.body).data.cast;
+  assert.equal(cast.filter(c=>c.personId==='p1').length,2);
+  assert.deepEqual(cast.filter(c=>c.personId==='p2'),[{personId:'p2',role:'Escritura',team:'red'}]);
+  assert.deepEqual(cast.filter(c=>c.role==='Papel pendiente de confirmar'),[{personId:'p3',role:'Papel pendiente de confirmar',team:'general'}]);
+  assert.match(app.renderEvent(event.id),/Hora de llegada del elenco/);
+  await app.openEvent(event.id);
+  assert.doesNotMatch(read('app.js'),/Convocatoria del elenco/);
+});
+test('match memory has one refresh action and one SVG arrow before and after loading',async()=>{
+  const {app,event}=client();
+  for(let pass=0;pass<2;pass++){
+    const html=app.business.eventPanel(event);balanced(html);
+    assert.equal((html.match(/data-action="business-refresh"/g)||[]).length,1);
+    assert.equal((html.match(/<svg/g)||[]).length,1);
+    assert.doesNotMatch(html,/↻/);assert.match(html,/Actualizar/);
+    await flush();
+  }
+  assert.match(read('index.html'),/rel="icon" type="image\/svg\+xml" href="\/scrib\/backstage\/favicon.svg\?v=1"/);
+});
 test('a form cannot save repeated writer/staff positions even with programmatically set selects',async()=>{
   const {app}=client();
   const row=(role,team)=>({querySelector:s=>({value:s==='.cast-role'?role:s==='.cast-team'?team:'p1'})});

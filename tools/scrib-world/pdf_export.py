@@ -247,16 +247,36 @@ def generate(store, data, user, *, agreement_token=None):
             for w in plan['walkies']:
                 story.append(para(w['label']+' - CANAL '+w['channel'], 'Heading3'))
                 if w.get('notes'):story.append(para(w['notes'],'Small'))
+            story.append(PageBreak())
             section('Checklist de montaje técnico')
+            # One enclosing panel, not one card per task. Colored section bands
+            # keep the assembly sequence readable with paired checklist columns.
+            checklist_palette={'Ordenadores':'#55d7ff','Videojuego':'#f2d777',
+                'Vídeo':'#92baff','Sonido':'#ca93ff','Humo y DMX':'#6ce6a4',
+                'Comunicación':'#ffad78','Iluminación':'#ff708c','Prueba final':'#e3d3ff'}
+            rows=[[CheckBox(True,gold),para('Completado','Small'),
+                   CheckBox(False,gold),para('Por comprobar','Small')]]
+            commands=[('VALIGN',(0,0),(-1,-1),'TOP'),
+                ('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#101620')),
+                ('BOX',(0,0),(-1,-1),.7,colors.HexColor('#566079')),
+                ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
+                ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]
             for group in dict.fromkeys(c['category'] for c in plan['checklist']):
-                story.append(para(group,'Heading3'))
-                cards=[]
-                for check in plan['checklist']:
-                    if check['category']==group:
-                        contents=[para(check['text'],'Check'),Spacer(1,5),para('Completado' if check['done'] else 'Por comprobar','Small')]
-                        card=Table([[CheckBox(check['done'],gold),contents]],colWidths=[32,214.5])
-                        card.setStyle(card_style());cards.append(card)
-                two_columns(cards)
+                color=colors.HexColor(checklist_palette.get(group,'#c9b8ff'))
+                group_style=ParagraphStyle('check-group-'+group,parent=styles['Check'],fontName='ScribSansBold',fontSize=10,leading=13,textColor=color)
+                header=len(rows);rows.append([Paragraph(escape(clean(group)),group_style),'','',''])
+                commands.extend([('SPAN',(0,header),(-1,header)),
+                    ('BACKGROUND',(0,header),(-1,header),colors.HexColor('#202735')),
+                    ('LINEBELOW',(0,header),(-1,header),.6,color)])
+                checks=[c for c in plan['checklist'] if c['category']==group]
+                for start in range(0,len(checks),2):
+                    row=[]
+                    for check in checks[start:start+2]:
+                        row.extend([CheckBox(check['done'],color),para(check['text'],'Check')])
+                    rows.append(row+['']*(4-len(row)))
+                commands.append(('NOSPLIT',(0,header),(-1,min(header+1,len(rows)-1))))
+            panel=Table(rows,colWidths=[26,229.5,26,229.5],hAlign='LEFT')
+            panel.setStyle(TableStyle(commands));story.append(panel)
         elif kind == 'report':
             report = store.business.report(data.get('id',''))
             date = datetime.fromtimestamp(report['endedAt']/1000,ZoneInfo('Europe/Madrid')).strftime('%d/%m/%Y %H:%M')

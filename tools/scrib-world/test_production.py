@@ -153,6 +153,27 @@ class ProductionTests(unittest.TestCase):
         with self.assertRaises(world.Problem) as error:generate(self.store,{'kind':'inventory','ids':[o['id']]},ADMIN)
         self.assertEqual(error.exception.status,409)
 
+    def test_technical_checklist_is_one_colored_panel_not_individual_task_cards(self):
+        from lighting import default_plan
+        from reportlab.platypus import Table
+        original=Table.setStyle;panels=[]
+        def styled(table,style):
+            headers=[row[0] for row in table._cellvalues if hasattr(row[0],'style') and row[0].style.name.startswith('check-group-')]
+            if headers:panels.append((headers,style.getCommands()))
+            return original(table,style)
+        plan=default_plan()
+        with patch.object(Table,'setStyle',styled):
+            text,reader=self.pdf_text({'kind':'lighting','plan':plan})
+        self.assertEqual(len(panels),1)
+        headers,commands=panels[0]
+        self.assertEqual(len(headers),len({c['category'] for c in plan['checklist']}))
+        self.assertEqual(sum(c[0]=='BOX' for c in commands),1)
+        self.assertEqual(len({h.style.textColor.hexval() for h in headers}),len(headers))
+        checklist_pages=[p for p in reader.pages if 'Checklist de montaje técnico' in p.extract_text()]
+        self.assertEqual(len(checklist_pages),1)
+        rendered=' '.join(checklist_pages[0].extract_text().split())
+        for check in plan['checklist']:self.assertIn(check['text'],rendered)
+
     def test_call_sheet_pdf_removed_and_lighting_draft_does_not_save(self):
         self.seed();e=self.create('event',title='León',start='2026-11-07T19:00',venue='Teatro')
         with self.assertRaises(world.Problem) as error:generate(self.store,{'kind':'event','id':e['id']},ADMIN)
@@ -187,6 +208,17 @@ class PdfHttpTests(unittest.TestCase):
         self.assertEqual(self.req('api/pdf',{'kind':'lighting'},self.csrf(),raw=True)[0],200)
         self.assertEqual(self.req('api/pdf',{'kind':'invoice'},self.csrf(),raw=True)[0],403)
         self.assertEqual(self.req('api/pdf',{'kind':'event'},self.csrf(),raw=True)[0],400)
+
+    def test_black_favicon_preserves_logo_and_requires_authentication(self):
+        import xml.etree.ElementTree as ET
+        self.assertEqual(self.req('favicon.svg',headers={'X-Scrib-Bridge':''},raw=True)[0],401)
+        status,raw,headers=self.req('favicon.svg',raw=True)
+        self.assertEqual(status,200)
+        self.assertIn('image/svg+xml',headers['Content-Type'])
+        svg=ET.fromstring(raw)
+        self.assertEqual(svg.find('{http://www.w3.org/2000/svg}rect').attrib['fill'],'#000')
+        uri=svg.find('{http://www.w3.org/2000/svg}image').attrib['href']
+        self.assertEqual(base64.b64decode(uri.split(',',1)[1]),(ROOT/'assets/scrib-world-logo.png').read_bytes())
 
 
 if __name__=='__main__':unittest.main()

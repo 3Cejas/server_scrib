@@ -45,6 +45,10 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   protegen para no perder documentos o trazabilidad. La eliminación es
   idempotente; borra el plano asociado y desvincula las encuestas, conservando sus
   respuestas. Los ensayos vinculados deben eliminarse antes que su bolo.
+- Las invitaciones importadas «Papel pendiente de confirmar» no ocupan puestos.
+  Al asignar una persona se consume solo su invitación, conservando el resto del
+  reparto. No se amplían solapamientos antiguos; únicamente los dos puestos de
+  técnica pueden compartirse.
 - La agenda de Bolos agrupa por temporadas; el calendario indica la temporada
   del mes visible. Julio y agosto se muestran como verano, fuera de septiembre-junio.
 - Reparto automático por día en `revenue.py`: creación 10 % y música 2 % sobre el
@@ -95,7 +99,8 @@ usa ReportLab y pypdf (requirements.txt), instalados de forma aislada en
   de opacidad. El pie lleva iconos vectoriales para redes, web, correo y aviso,
   sin referencia ni fecha/hora de generación visibles, con enlaces a `@scrib_show`, `@su.tu.ra`, `scribshow.es` y
   `scribaleatorio@gmail.com`. Se numeran solo con un número. Inventario y checklist
-  técnica se presentan en tarjetas a dos columnas con casillas vectoriales;
+  técnica se presentan a dos columnas con casillas vectoriales; el checklist
+  técnico tiene un único panel y bandas de color por sección, sin tarjeta por tarea;
   las notas largas fluyen completas a continuación sin truncarse. Fondo negro
   significa mayor consumo de tinta al imprimir. Los PDF firmados que se suben no
   se reescriben ni se alteran: este diseño no afecta a sus firmas existentes.
