@@ -747,6 +747,20 @@ test('every actual cast member has a direct upload action before preparing any a
   assert.equal((html.match(/Sin acuerdo/g)||[]).length,3);assert.ok(calls.every(c=>c.options.method==='GET'));
   state.user.role='member';assert.doesNotMatch(app.business.production('e1'),/business-agreement-upload/);
 });
+test('agreement cards have a responsive scoped grid without changing other report lists or actions',async()=>{
+  const {app,responses,calls}=client();
+  responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.business.production('e1');await flush();const html=app.business.production('e1');balanced(html);
+  assert.match(html,/<section class="panel agreements-panel">/);assert.match(html,/<div class="agreement-grid section">/);
+  assert.equal((html.match(/class="agreement-card"/g)||[]).length,3);
+  assert.equal((html.match(/data-action="business-agreement-upload"/g)||[]).length,3);
+  assert.match(html,/business-agreement-preview/);assert.match(html,/business-generate/);assert.match(html,/business-send-links/);
+  assert.ok(calls.every(c=>c.options.method==='GET'));
+  const css=read('business.css');
+  assert.match(css,/\.agreement-grid\{display:grid;grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,380px\),1fr\)\)/);
+  assert.match(css,/\.agreement-grid \.button\{[^}]*white-space:normal;overflow-wrap:anywhere/);
+  assert.doesNotMatch(css,/\.report-list\{[^}]*grid-template-columns/);
+});
 test('direct upload reads the chosen PDF, scopes one person and avoids duplicate submissions',async()=>{
   const {app,nodes,responses,calls}=client(),form=element(),submit=element(),error=element();
   const file={name:'firma.pdf',size:100},input={files:[file]};
