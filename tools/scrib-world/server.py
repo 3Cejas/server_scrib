@@ -1133,6 +1133,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200,(ROOT/'assets/sutura-document-logo.png').read_bytes(),'image/png')
                 if route == 'tasks.css':
                     return self.reply(200, (ROOT / 'public' / 'tasks.css').read_bytes(), 'text/css; charset=utf-8')
+                if route == 'task-ui.js':
+                    return self.reply(200, (ROOT / 'public' / 'task-ui.js').read_bytes(), 'application/javascript; charset=utf-8')
                 if route == 'export.js':
                     return self.reply(200, (ROOT / 'public' / 'export.js').read_bytes(), 'application/javascript; charset=utf-8')
                 if route == 'documents.js':

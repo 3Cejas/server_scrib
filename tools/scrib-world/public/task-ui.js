@@ -1,0 +1,72 @@
+"use strict";
+window.ScribTasksUI = h => {
+  const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // Hide synthetic verification actors, not their comments/history or stored assignments.
+  const isServiceMember = m => [m?.username, m?.name].some(value => /^(?:deployment(?: verification| test| smoke)?|verification deploy(?:ment)?|verificacion despliegue|despliegue verificacion|e2e|smoke test)(?: |$)/.test(normalize(value)));
+  const memberClass = username => h.colors.className({id:'member:' + username, color:'auto'});
+  const members = () => h.state().members.filter(m => !isServiceMember(m));
+  const assigneeOptions = selected => members().map(m => `<label class="assignee-option ${memberClass(m.username)}"><input type="checkbox" name="assignees" value="${h.esc(m.username)}" ${selected.includes(m.username)?'checked':''}><span><i aria-hidden="true">${h.esc(h.initials(m.name))}</i>${h.esc(m.name)}</span></label>`).join('');
+  const chip = label => `<span class="tag-chip badge ${h.labelColor(label)}" data-label="${h.esc(label)}"><span>${h.esc(label)}</span><button type="button" data-action="remove-tag" aria-label="Quitar etiqueta ${h.esc(label)}">×</button></span>`;
+  const tagEditor = labels => `<div class="field"><span>Etiquetas</span><div class="tag-editor" role="group" aria-label="Etiquetas de la tarea"><div class="tag-chips">${labels.map(chip).join('')}</div><input class="tag-input" name="labels" type="text" maxlength="800" aria-label="Añadir etiquetas" placeholder="Añadir etiqueta…" autocomplete="off"><small class="tag-error" role="alert"></small></div></div>`;
+  const labelsIn = editor => [...editor.querySelectorAll('.tag-chip')].map(n => n.dataset.label);
+  function combineLabels(labels, draft) {
+    const result = [...new Set([...labels, ...String(draft || '').split(',').map(x => x.trim()).filter(Boolean)])];
+    if(result.length > 12)throw new Error('Puedes añadir hasta 12 etiquetas.');
+    if(result.some(x => [...x].length > 60))throw new Error('Cada etiqueta puede tener hasta 60 caracteres.');
+    return result;
+  }
+  function clearError(input) {
+    input.setCustomValidity('');
+    input.closest('.tag-editor').querySelector('.tag-error').textContent = '';
+  }
+  function commit(input, partial = false) {
+    const editor = input.closest('.tag-editor'), raw = input.value;
+    const cut = partial ? raw.lastIndexOf(',') : raw.length;
+    if(cut < 0)return true;
+    try {
+      const current = labelsIn(editor), labels = combineLabels(current, raw.slice(0, cut));
+      // Preserve existing chip nodes: blur can run between pointerdown and click
+      // on their remove buttons, so replacing the list would swallow that click.
+      for(const label of labels)if(!current.includes(label))editor.querySelector('.tag-chips').insertAdjacentHTML('beforeend',chip(label));
+      input.value = partial ? raw.slice(cut + 1) : '';
+      clearError(input);
+      return true;
+    } catch(error) {
+      input.setCustomValidity(error.message);
+      editor.querySelector('.tag-error').textContent = error.message;
+      return false; // Never truncate or lose a draft that exceeded a limit.
+    }
+  }
+  function readLabels(form) {
+    const input = form.querySelector('.tag-input');
+    if(!commit(input))throw new Error(input.validationMessage);
+    return labelsIn(input.closest('.tag-editor'));
+  }
+  function input(event) {
+    if(!event.target.matches('.tag-input'))return false;
+    clearError(event.target);
+    if(!event.isComposing && event.target.value.includes(','))commit(event.target, true);
+    return true;
+  }
+  function removeTag(node) {
+    const editor = node.closest('.tag-editor'), input = editor.querySelector('.tag-input');
+    node.closest('.tag-chip').remove();
+    clearError(input);
+    input.focus({preventScroll:true});
+  }
+  function keydown(event) {
+    const input = event.target;
+    if(!input.matches('.tag-input') || event.isComposing || event.keyCode === 229)return false;
+    if(event.key === 'Enter') {event.preventDefault();commit(input);return true;}
+    if(event.key === 'Backspace' && !input.value && !event.ctrlKey && !event.metaKey) {
+      const last = input.closest('.tag-editor').querySelector('.tag-chip:last-child');
+      if(last){event.preventDefault();input.value = last.dataset.label;last.remove();clearError(input);}
+      return true;
+    }
+    return false;
+  }
+  function focusout(event) {
+    if(event.target.matches('.tag-input'))commit(event.target);
+  }
+  return {isServiceMember,memberClass,members,assigneeOptions,tagEditor,combineLabels,readLabels,input,removeTag,keydown,focusout};
+};

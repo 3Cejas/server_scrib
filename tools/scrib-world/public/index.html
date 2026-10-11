@@ -13,10 +13,11 @@
   <link rel="stylesheet" href="/scrib/backstage/resources.css?v=7">
   <link rel="stylesheet" href="/scrib/backstage/laboratory.css?v=1">
   <link rel="stylesheet" href="/scrib/backstage/people.css?v=4">
-  <link rel="stylesheet" href="/scrib/backstage/tasks.css?v=4">
+  <link rel="stylesheet" href="/scrib/backstage/tasks.css?v=5">
   <link rel="stylesheet" href="/scrib/backstage/lighting.css?v=6">
   <script src="/scrib/backstage/activity.js?v=1" defer></script>
   <script src="/scrib/backstage/people-colors.js?v=1" defer></script>
+  <script src="/scrib/backstage/task-ui.js?v=1" defer></script>
   <script src="/scrib/backstage/people-profile.js?v=6" defer></script>
   <script src="/scrib/backstage/export.js?v=6" defer></script>
   <script src="/scrib/backstage/documents.js?v=2" defer></script>
@@ -29,7 +30,7 @@
   <script src="/scrib/backstage/library.js?v=4" defer></script>
   <script src="/scrib/backstage/laboratory.js?v=1" defer></script>
   <script src="/scrib/backstage/lighting.js?v=10" defer></script>
-  <script src="/scrib/backstage/app.js?v=34" defer></script>
+  <script src="/scrib/backstage/app.js?v=35" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Ir al contenido</a>
@@ -67,7 +68,7 @@
     </div>
   </div>
   <dialog id="editor" aria-labelledby="dialog-title"><div class="dialog-head"><div><p class="eyebrow" id="dialog-kicker">BACKSTAGE</p><h2 id="dialog-title">Ficha</h2></div><button type="button" data-action="close-dialog" class="icon-button" aria-label="Cerrar ficha">×</button></div><div id="dialog-content"></div></dialog>
-  <dialog id="delete-confirmation" aria-labelledby="delete-title" aria-describedby="delete-description"><div class="dialog-head"><h2 id="delete-title">Eliminar tarea</h2><button type="button" data-action="cancel-delete" class="icon-button" aria-label="Cancelar eliminación">×</button></div><div class="delete-content"><p>Vas a eliminar <strong id="delete-ticket-name"></strong>.</p><p id="delete-description" class="muted">Se borrarán la tarea, sus comentarios y su checklist. No se podrá recuperar desde Archivo. Si quieres conservarla, cancela y utiliza Archivar.</p><p id="delete-error" class="form-error" role="alert"></p><div class="actions"><button type="button" data-action="cancel-delete" class="button" autofocus>Cancelar</button><button type="button" data-action="confirm-delete" class="button destructive">Eliminar definitivamente</button></div></div></dialog>
+  <dialog id="delete-confirmation" aria-labelledby="delete-title" aria-describedby="delete-description"><div class="dialog-head"><h2 id="delete-title">Eliminar tarea</h2><button type="button" data-action="cancel-delete" class="icon-button" aria-label="Cancelar eliminación">×</button></div><div class="delete-content"><p>Vas a eliminar <strong id="delete-ticket-name"></strong>.</p><p id="delete-description" class="muted">Se borrarán la tarea, sus comentarios y su checklist. Esta acción no se puede deshacer.</p><p id="delete-error" class="form-error" role="alert"></p><div class="actions"><button type="button" data-action="cancel-delete" class="button" autofocus>Cancelar</button><button type="button" data-action="confirm-delete" class="button destructive">Eliminar definitivamente</button></div></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

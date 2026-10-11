@@ -59,6 +59,8 @@
   const localInput = value => (value || "").slice(0, 16);
   const badge = (label, color = "") => `<span class="badge ${esc(color)}">${esc(label)}</span>`;
   const labelColor = value => /TÉCN|TECN/.test(value.toUpperCase()) ? "coral" : /PREVIO|SHOW/.test(value.toUpperCase()) ? "cyan" : /ESCR|DRAM/.test(value.toUpperCase()) ? "violet" : "gold";
+  const taskUI = window.ScribTasksUI({esc,colors,initials,labelColor,state:()=>state});
+  const ticketAssignees = ticket => ticket.assignees.filter(username=>!taskUI.isServiceMember({username,name:member(username)}));
   const option = (value, label, selected) => `<option value="${esc(value)}"${String(selected) === String(value) ? " selected" : ""}>${esc(label)}</option>`;
   const ICONS = {
     edit:'<path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"/><path d="m14 5 5 5"/>',
@@ -278,18 +280,17 @@
     return pageHead(board.eventId ? "PREPARACIÓN DEL BOLO" : "TABLERO DE TAREAS",boardTitle(board.title),`${p.done}/${p.total} tareas completadas · ${p.percent}% listo${board.description ? " · " + board.description : ""}`,
       (board.eventId ? `<a class="button" href="#event/${board.eventId}">Ficha del bolo</a>` : btn("edit-board","Editar tablero",id)) + btn("new-ticket","＋ Añadir tarea",id,"primary")) +
       `<div class="toolbar"><input type="search" id="board-search" aria-label="Buscar tareas" placeholder="Buscar título, descripción o etiqueta…" value="${esc(filters.search)}"><select id="board-mine" aria-label="Filtrar responsables">${option("","Todo el equipo",filters.mine)}${option("mine","Mis tareas",filters.mine)}${option("unassigned","Sin responsable",filters.mine)}</select><select id="board-label" aria-label="Filtrar etiquetas">${option("","Todas las etiquetas",filters.label)}${labels.map(x=>option(x,x,filters.label)).join("")}</select><select id="board-due" aria-label="Filtrar vencimiento">${option("","Todos los plazos",filters.due)}${option("late","Fuera de plazo",filters.due)}${option("urgent","Alta / urgente",filters.due)}</select></div>
-      <div class="kanban" aria-label="Tablero de tareas: arrastra desde el asa o utiliza las flechas para mover entre columnas">${Object.entries(STATUS).map(([s,l])=>`<section class="column" data-status="${s}" aria-label="${l}"><div class="column-head"><span><i class="status-dot" aria-hidden="true"></i>${l}<span class="count">${tasks.filter(x=>x.status === s).length}</span></span><button type="button" class="icon-button" data-action="new-ticket-status" data-id="${id}" data-status="${s}" aria-label="Añadir tarea a ${l}">＋</button></div><div class="ticket-list">${tasks.filter(x=>x.status === s).sort((a,b)=>(a.position-b.position)||a.created.localeCompare(b.created)).map(ticketCard).join("")}</div><button type="button" class="add-ticket" data-action="new-ticket-status" data-id="${id}" data-status="${s}">＋ Añadir tarea</button></section>`).join("")}</div>`;
+      <div class="kanban" aria-label="Tablero de tareas: arrastra desde el asa para mover entre columnas">${Object.entries(STATUS).map(([s,l])=>`<section class="column" data-status="${s}" aria-label="${l}"><div class="column-head"><span><i class="status-dot" aria-hidden="true"></i>${l}<span class="count">${tasks.filter(x=>x.status === s).length}</span></span><button type="button" class="icon-button" data-action="new-ticket-status" data-id="${id}" data-status="${s}" aria-label="Añadir tarea a ${l}">＋</button></div><div class="ticket-list">${tasks.filter(x=>x.status === s).sort((a,b)=>(a.position-b.position)||a.created.localeCompare(b.created)).map(ticketCard).join("")}</div><button type="button" class="add-ticket" data-action="new-ticket-status" data-id="${id}" data-status="${s}">＋ Añadir tarea</button></section>`).join("")}</div>`;
   }
   function ticketCard(ticket) {
     const checks = ticket.checklist?.length || 0;
-    const statuses=Object.keys(STATUS),index=statuses.indexOf(ticket.status);
-    const arrow=(target,direction)=>target?`<button type="button" class="ticket-move" data-action="ticket-move-${direction}" data-id="${esc(ticket.id)}" aria-label="Mover ${esc(ticket.title)} a ${STATUS[target]}" title="Mover a ${STATUS[target]}">${direction==='prev'?'←':'→'}</button>`:'';
+    const assignees=ticketAssignees(ticket);
     return `<article class="ticket ${ticket.priority === "urgent"?"urgent":""}" data-status="${esc(ticket.status)}" data-ticket="${esc(ticket.id)}" draggable="true">
-      <div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${esc(ticket.id)}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div>
+      <div class="ticket-top"><button type="button" class="drag-handle" aria-label="Arrastrar ${esc(ticket.title)}; con el teclado, izquierda o derecha cambia la columna" title="Arrastrar tarea">⠿</button><button type="button" class="ticket-title" data-action="edit-ticket" data-id="${esc(ticket.id)}">${esc(ticket.title)}</button>${btn("delete-ticket","Eliminar tarea " + ticket.title,ticket.id,"ticket-delete danger")}</div>
       <div class="ticket-tags">${ticket.labels.map(x=>badge(x,labelColor(x))).join("")}${["high","urgent"].includes(ticket.priority)?badge(PRIORITY[ticket.priority],"coral"):""}</div>
       ${ticket.status === "blocked" && ticket.blockedReason?`<p class="muted">⚑ ${esc(ticket.blockedReason.slice(0,120))}</p>`:""}${dependencyInfo(ticket)}
-      <div class="ticket-assignees">${ticket.assignees.map(x=>`<span class="ticket-assignee"><span aria-hidden="true">${esc(initials(member(x)))}</span>${esc(member(x))}</span>`).join("")||'<span class="muted tiny">Sin responsable</span>'}</div>
-      <div class="ticket-footer"><span class="due ${ticket.due && ticket.due < today() && ticket.status !== "done" ? "overdue" : ""}">${ticket.due?"◷ " + esc(niceDate(ticket.due,false)):""}${checks ? ` · ☑ ${ticket.checklist.filter(x=>x.done).length}/${checks}` : ""}</span><span class="ticket-moves">${arrow(statuses[index-1],'prev')}${arrow(statuses[index+1],'next')}</span></div></article>`;
+      <div class="ticket-assignees">${assignees.map(x=>`<span class="ticket-assignee ${taskUI.memberClass(x)}"><span aria-hidden="true">${esc(initials(member(x)))}</span>${esc(member(x))}</span>`).join("")||'<span class="muted tiny">Sin responsable</span>'}</div>
+      <div class="ticket-footer"><span class="due ${ticket.due && ticket.due < today() && ticket.status !== "done" ? "overdue" : ""}">${ticket.due?"◷ " + esc(niceDate(ticket.due,false)):""}${checks ? ` · ☑ ${ticket.checklist.filter(x=>x.done).length}/${checks}` : ""}</span></div></article>`;
   }
   function dependencyInfo(task) {
     const dependencies=(task.blockedBy || []).map(id=>item(id)), pending=dependencies.filter(t=>!t || t.status!=='done');
@@ -305,7 +306,7 @@
   function applyFilters() {
     main.querySelectorAll("[data-ticket]").forEach(node=>{
       const ticket = item(node.dataset.ticket), needle = filters.search.toLocaleLowerCase("es");
-      node.hidden = !((!needle || [ticket.title,ticket.description,...ticket.labels].join(" ").toLocaleLowerCase("es").includes(needle)) && (!filters.mine || (filters.mine === "mine" ? ticket.assignees.includes(state.user.username) : !ticket.assignees.length)) && (!filters.label || ticket.labels.includes(filters.label)) && (!filters.due || (filters.due === "late" ? ticket.due && ticket.due < today() && ticket.status !== "done" : ["high","urgent"].includes(ticket.priority))));
+      node.hidden = !((!needle || [ticket.title,ticket.description,...ticket.labels].join(" ").toLocaleLowerCase("es").includes(needle)) && (!filters.mine || (filters.mine === "mine" ? ticketAssignees(ticket).includes(state.user.username) : !ticketAssignees(ticket).length)) && (!filters.label || ticket.labels.includes(filters.label)) && (!filters.due || (filters.due === "late" ? ticket.due && ticket.due < today() && ticket.status !== "done" : ["high","urgent"].includes(ticket.priority))));
     });
     main.querySelectorAll(".column").forEach(col=>col.querySelector(".count").textContent = col.querySelectorAll(".ticket:not([hidden])").length);
   }
@@ -433,7 +434,7 @@
     if (!dialog.open) dialog.showModal();
   }
   function formShell(kind, object, body, extra = "") {
-    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${!['person','event'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
+    return `<form id="edit-form" data-kind="${kind}" data-id="${esc(object.id || "")}" data-version="${object.version || 0}" data-request="${crypto.randomUUID()}">${body}<p class="form-error" role="alert"></p><div class="form-footer"><div class="actions">${!['person','event','ticket','board'].includes(kind) && object.id && object.id !== "default-template"?btn("archive", "Archivar",object.id,"small"):""}${kind==='event'&&object.id?btn('delete-event','Eliminar '+(object.eventType==='rehearsal'?'ensayo':'bolo'),object.id,'danger'):''}${kind === "ticket" && object.id ? btn("delete-ticket","Eliminar tarea",object.id,"danger") : ""}</div><div class="actions">${btn("close-dialog","Cancelar")}<button type="submit" class="button primary">Guardar ${KIND[kind].toLowerCase()}</button></div></div></form>${extra}`;
   }
   function openBoard(id) {
     const b = id ? item(id) : {title:"", description:"", color:"violet"};
@@ -449,15 +450,21 @@
     if (details) {const index = state.items.findIndex(x=>x.id === id); if(index>=0)state.items[index]=t;}
     const form = formShell("ticket",t,
       input("boardId",t.boardId,"hidden") + field("Título de la tarea",input("title",t.title,"text",'required maxlength="240"')) + field("Descripción",area("description",t.description,'maxlength="15000"')) +
-      input("status",t.status,"hidden") + `<div class="form-row"><div class="field"><span>Columna</span>${badge(STATUS[t.status])}<small class="hint">Mueve la tarjeta en el tablero para cambiarla de columna.</small></div>${field("Prioridad",select("priority",PRIORITY,t.priority))}</div>` +
-      `<div class="form-row">${field("Fecha límite",input("due",t.due,"date"))}${field("Etiquetas",input("labels",t.labels.join(", "),"text",'maxlength="800"'),"Separadas por comas")}</div>` +
-      field("Si está bloqueada, ¿qué necesita?",area("blockedReason",t.blockedReason,'maxlength="2000"')) +
+      input("status",t.status,"hidden") + field("Prioridad",select("priority",PRIORITY,t.priority)) +
+      `<div class="form-row">${field("Fecha límite",input("due",t.due,"date"))}${taskUI.tagEditor(t.labels)}</div>` +
+      input("blockedReason",t.blockedReason,"hidden") +
       dependencyInfo(t) + dependencyEditor(t) +
-      `<div><p class="field">Responsables</p><div class="assignee-options">${state.members.map(m=>`<label class="check-option"><input type="checkbox" name="assignees" value="${esc(m.username)}" ${t.assignees.includes(m.username)?"checked":""}>${esc(m.name)}</label>`).join("")}</div></div>` +
+      `<div><p class="field">Responsables</p><div class="assignee-options">${taskUI.assigneeOptions(t.assignees)}</div></div>` +
       `<div><div class="panel-head"><h3>Checklist</h3>${btn("add-check","＋ Paso","","small")}</div><div class="checklist-editor">${t.checklist.map(checkRow).join("")}</div></div>`);
-    openDialog("ticket",id ? "Dentro de la tarea" : "Nueva tarea",`<div class="editor-grid"><div>${form}</div><aside class="discussion"><h3>Conversación del equipo</h3><div id="comments">${id?commentsHtml(details.comments):`<p class="muted">Guarda la tarea para añadir comentarios.</p>`}</div>${id?`<form class="comment-form" data-id="${id}" data-request="${crypto.randomUUID()}">${field("Tu comentario",area("comment","",'required maxlength="10000" placeholder="Añade contexto, una decisión o un bloqueo…"'))}<p class="form-error" role="alert"></p><button type="submit" class="button">Enviar comentario</button></form><details><summary>Historial de la tarea</summary>${details.activity.map(activityRow).join("")}</details>`:""}</aside></div>`);
+    openDialog("ticket",id ? "Dentro de la tarea" : "Nueva tarea",`<div class="editor-grid"><div>${form}</div><aside class="discussion"><h3>Comentarios</h3><div id="comments" class="comment-thread" role="region" aria-label="Comentarios de la tarea" tabindex="0">${id?commentsHtml(details.comments):`<p class="muted">Guarda la tarea para añadir comentarios.</p>`}</div>${id?`<form class="comment-form" data-id="${id}" data-request="${crypto.randomUUID()}"><div class="chat-composer"><textarea name="comment" rows="2" required maxlength="10000" aria-label="Nuevo comentario" placeholder="Escribe un comentario…"></textarea><button type="submit" class="button primary chat-send" aria-label="Enviar comentario" title="Enviar comentario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13"/></svg></button></div><p class="form-error" role="alert"></p></form><details><summary>Historial de la tarea</summary>${details.activity.map(activityRow).join("")}</details>`:""}</aside></div>`);
+    const thread=dialog.querySelector('#comments');if(thread)thread.scrollTop=thread.scrollHeight;
   }
-  function commentsHtml(comments) {return comments.map(c=>`<div class="comment"><small><strong>${esc(member(c.author))}</strong> · ${dateTime(c.created)}</small>${esc(c.body)}</div>`).join("") || `<p class="muted">Aquí empieza la conversación.</p>`;}
+  function commentsHtml(comments) {return comments.map(c=>`<div class="comment${c.author===state.user.username?' own':''}"><small><strong class="${taskUI.memberClass(c.author)}">${esc(member(c.author))}</strong> · ${dateTime(c.created)}</small>${esc(c.body)}</div>`).join("");}
+  function updateComments(comments, forceEnd=false) {
+    const pane=dialog.querySelector('#comments');if(!pane)return;
+    const atEnd=pane.scrollHeight-pane.scrollTop-pane.clientHeight<40,html=commentsHtml(comments);
+    if(pane.innerHTML!==html){pane.innerHTML=html;if(forceEnd||atEnd)pane.scrollTop=pane.scrollHeight;}
+  }
   async function assignCastSlot(node){
     const e=item(node.dataset.castEvent),slots=castSlots(e.cast),slot=slots[Number(node.dataset.castSlot)];if(!slot)return;
     if(saving){node.value=slot.personId;return;}
@@ -504,13 +511,14 @@
       input("image",p.image,"hidden") + `<div class="upload-preview">${p.image?`<img src="${BASE}images/${p.image}" alt="Foto actual">`:""}${field("Foto de la ficha",'<input type="file" name="photo" accept="image/png,image/jpeg,image/webp">',"PNG, JPG o WebP, hasta 4 MB. Solo visible dentro del mundo autenticado.")}</div>`));
     colors.decorate(dialog,p);
   }
-  const splitValues = s => String(s || "").split(",").map(x=>x.trim()).filter(Boolean);
   async function formData(form) {
     const data = Object.fromEntries(new FormData(form));
     if (form.dataset.kind === "availability") return polls.formData(form, data);
     if (form.dataset.kind === "ticket") {
-      data.labels = splitValues(data.labels);
+      data.labels = taskUI.readLabels(form);
       data.assignees = [...form.querySelectorAll('[name=assignees]:checked')].map(x=>x.value);
+      // Removing test accounts from the UI must not silently rewrite old assignments.
+      data.assignees.push(...(item(form.dataset.id)?.assignees||[]).filter(username=>taskUI.isServiceMember({username,name:member(username)})));
       data.blockedBy = [...form.querySelectorAll('[name=blockedBy]:checked')].map(x=>x.value);
       data.checklist = [...form.querySelectorAll(".checklist-row")].map(row=>({text:row.querySelector(".check-text").value,done:row.querySelector(".check-done").checked}));
     } else if (form.dataset.kind === "person") {
@@ -545,13 +553,16 @@
   }
   async function saveForm(form) {
     if (saving) return;
+    const composer=form.matches('.comment-form')?form.querySelector('textarea'):null;
+    const returnFocus=composer && form.contains(document.activeElement);
     saving = true; const buttons = [...form.querySelectorAll("button")]; buttons.forEach(b=>b.disabled=true);
+    if(composer)composer.disabled=true;
     const errorNode = form.querySelector(".form-error"); errorNode.textContent = "";
     try {
       if (form.matches(".comment-form")) {
         await request("comment",{id:form.dataset.id,body:form.querySelector("textarea").value,requestId:form.dataset.request});
         form.reset(); form.dataset.request = crypto.randomUUID();
-        const details = await request("items/"+form.dataset.id); dialog.querySelector("#comments").innerHTML = commentsHtml(details.comments);
+        const details = await request("items/"+form.dataset.id); updateComments(details.comments,true);
         toast("Comentario guardado. El equipo lo verá en la tarea."); await refresh(false);
       } else {
         const data = await formData(form), id = form.dataset.id;
@@ -568,7 +579,10 @@
         toast(!refreshed ? "Guardado en el servidor. Recarga para ver todos los cambios cuando vuelva la conexión." : form.dataset.kind === "event" && !id ? (data.eventType==='rehearsal'?'Ensayo añadido al calendario.':'Bolo creado.') : "Guardado en el backstage.");
       }
     } catch(error) {errorNode.textContent=error.message; if(error.status === 409)await refresh(false).catch(()=>{});}
-    finally {saving=false;buttons.forEach(b=>b.disabled=false);}
+    finally {
+      saving=false;buttons.forEach(b=>b.disabled=false);
+      if(composer){composer.disabled=false;if(returnFocus && [document.body,dialog].includes(document.activeElement))composer.focus({preventScroll:true});}
+    }
   }
   async function moveTicket(id, status, beforeId = "") {
     const ticket = item(id); if (!ticket || saving) return;
@@ -655,17 +669,11 @@
     else if(a === "add-check")dialog.querySelector(".checklist-editor").insertAdjacentHTML("beforeend",checkRow());
     else if(a === "add-cast")dialog.querySelector(".cast-editor").insertAdjacentHTML("beforeend",castRow());
     else if(a === "remove-row"){node.parentElement.remove();}
+    else if(a === "remove-tag")taskUI.removeTag(node);
     else if(a === "archive")await archive(id);
     else if(a === "restore")await archive(id,true);
     else if(a === "delete-ticket")askDelete(id);
     else if(a === 'delete-event')await deleteEvent(id);
-    else if(a === "ticket-move-prev" || a === "ticket-move-next") {
-      const task=item(id),statuses=Object.keys(STATUS),target=statuses[statuses.indexOf(task?.status)+(a.endsWith('prev')?-1:1)];
-      if(task&&target) {
-        await moveTicket(id,target);
-        main.querySelector(`[data-ticket="${CSS.escape(id)}"] .ticket-title`)?.focus({preventScroll:true});
-      }
-    }
     else if(a === "confirm-delete")await confirmDelete();
     else if(a === "cancel-delete") {if(!saving)deleteDialog.close();}
     else if(a === "print")window.print();
@@ -700,6 +708,7 @@
     if(node.id === "message-event")messageRecipients(node.value);
   });
   document.addEventListener("input",event=>{
+    if(taskUI.input(event))return;
     if(lighting.input(event.target))return;
     if(event.target.id==='inventory-search'){inventory.filter(event.target);return;}
     if(event.target.id === "board-search"){filters.search=event.target.value;applyFilters();}
@@ -711,8 +720,25 @@
   document.addEventListener('pointerup',event=>lighting.pointerUp(event));
   document.addEventListener('pointercancel',event=>lighting.pointerUp(event));
   document.addEventListener('lostpointercapture',event=>lighting.pointerUp(event));
-  document.addEventListener('keydown',event=>lighting.keydown(event));
-  document.addEventListener('focusout',event=>lighting.focusout(event));
+  document.addEventListener('compositionend',event=>taskUI.input(event));
+  document.addEventListener('keydown',event=>{
+    if(taskUI.keydown(event))return;
+    if(!event.isComposing && event.keyCode!==229 && event.target.matches('.comment-form textarea') && event.key==='Enter' && !event.shiftKey){
+      event.preventDefault();
+      if(event.target.value.trim() && !saving)event.target.form.requestSubmit();
+      return;
+    }
+    // Keep board movement keyboard-accessible, without visible arrow controls.
+    if(event.target.matches('.drag-handle') && ['ArrowLeft','ArrowRight'].includes(event.key)){
+      event.preventDefault();
+      const id=event.target.closest('.ticket').dataset.ticket,task=item(id),statuses=Object.keys(STATUS);
+      const target=statuses[statuses.indexOf(task.status)+(event.key==='ArrowLeft'?-1:1)];
+      if(target)moveTicket(id,target).then(()=>main.querySelector(`[data-ticket="${CSS.escape(id)}"] .drag-handle`)?.focus({preventScroll:true})).catch(error=>toast(error.message));
+      return;
+    }
+    lighting.keydown(event);
+  });
+  document.addEventListener('focusout',event=>{taskUI.focusout(event);lighting.focusout(event);});
   window.addEventListener('beforeunload',event=>{if(lighting.hasDraft()){event.preventDefault();event.returnValue='';}});
   window.addEventListener("hashchange",()=>{polls.invalidate();filters={search:"",mine:"",label:"",priority:"",due:""};renderPage();if(route()[0]==="messages")loadMessages().then(()=>{if(route()[0]==="messages"&&!dialog.open)renderPage();}).catch(error=>toast(error.message));});
 
@@ -796,8 +822,7 @@
       if(commentForm){
         try {
           const details=await request("items/"+commentForm.dataset.id);
-          const html=commentsHtml(details.comments),pane=dialog.querySelector("#comments");
-          if(pane.innerHTML !== html)pane.innerHTML=html;
+          updateComments(details.comments);
         } catch(_) { /* Do not alter the draft if the connection drops. */ }
       }
       return;

@@ -133,10 +133,17 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
   tarjetas clicables y lápiz de edición independiente. Logo original de SCRIB
   en cabecera y favicon; sin los accesos a Mundo Sutura, cambiar mundo o videojuego.
   La autenticación sigue siendo la misma, aunque se retira su texto de la interfaz.
-- Kanban de tareas generales. Arrastre y reordenación de tarjetas
-  con ratón o asa táctil; flechas entre columnas para teclado/móvil, sin
-  desplegables de estado. Editar conserva la columna actual. Las tarjetas toman
-  el color de su columna y muestran cada responsable con un chip de nombre.
+- Kanban de tareas generales. Arrastre y reordenación de tarjetas con ratón o
+  asa táctil, sin botones de flechas ni desplegables de estado. El asa enfocada
+  admite izquierda/derecha para cambiar de columna con teclado. Editar conserva
+  la columna actual, sin repetir instrucciones ni el campo de motivo del bloqueo;
+  sus datos anteriores se conservan. Las tarjetas toman el color de su columna y
+  los chips de responsables tienen un color estable por persona. Los actores de
+  verificación de despliegue no aparecen como responsables; su historial no se borra.
+- Etiquetas convertidas en chips al introducir coma o Enter, con borrado y edición
+  mediante teclado. Guardar incorpora también la etiqueta que aún se esté escribiendo.
+  Comentarios en formato chat: Enter envía, Mayús+Enter añade una línea; la actualización
+  periódica conserva el borrador y no desplaza a quien esté leyendo mensajes anteriores.
 - TO DO, EN PROGRESO, BLOQUEADA, COMPLETADAS; responsables, etiquetas, prioridad,
   fecha límite, motivo del bloqueo, checklist, comentarios e historial.
 - Dependencias explícitas entre tareas de cualquier tablero. La tarjeta muestra
@@ -186,7 +193,8 @@ la clave de instalación y las pruebas necesarias en un dispositivo real.
 - Papelera en cada ticket y en su ficha: eliminación definitiva con confirmación,
   versión y token idempotente. Borra comentarios/checklist y limpia el contenido
   de los recibos de operaciones; los reintentos no resucitan la tarea.
-  Cancelar conserva el borrador. Se mantiene Archivar como alternativa recuperable.
+  Cancelar conserva el borrador. Sin botón Archivar en tareas ni tableros; las fichas
+  archivadas anteriormente siguen disponibles en Archivo recuperable.
   No se puede eliminar un tablero/bolo/persona mediante esta operación.
   Una tarea eliminada no aparece en Archivo; solo podría recuperarse de una copia
   de seguridad anterior que la contenga. Las copias previas no se reescriben.

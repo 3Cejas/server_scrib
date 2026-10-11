@@ -268,7 +268,7 @@ class HTTPTests(unittest.TestCase):
         return {"X-CSRF-Token":body["csrf"],"Cookie":headers["Set-Cookie"].split(";")[0],"Origin":"https://sutura.ddns.net"}
 
     def test_every_asset_and_api_requires_bridge_identity(self):
-        for path in ["","app.js","activity.js","app.css","api/state","api/calendar.ics","api/export.zip","images/fake.png"]:
+        for path in ["","app.js","activity.js","task-ui.js","tasks.css","app.css","api/state","api/calendar.ics","api/export.zip","images/fake.png"]:
             status,_,_=self.req(path,headers={"X-Scrib-Bridge":""})
             self.assertEqual(status,401)
 
@@ -280,6 +280,16 @@ class HTTPTests(unittest.TestCase):
         status, body, _ = self.req("", raw=True)
         self.assertEqual(status, 200)
         self.assertLess(body.index(b"activity.js"), body.index(b"app.js"))
+
+    def test_task_ui_is_private_and_loaded_before_app(self):
+        status, body, headers = self.req('task-ui.js', raw=True)
+        self.assertEqual(status, 200)
+        self.assertIn('application/javascript', headers['Content-Type'])
+        self.assertIn(b'ScribTasksUI', body)
+        self.assertIn("script-src 'self'", headers['Content-Security-Policy'])
+        status, body, _ = self.req('', raw=True)
+        self.assertEqual(status, 200)
+        self.assertLess(body.index(b'task-ui.js'), body.index(b'app.js'))
 
     def test_saved_match_instagram_assets_require_identity_and_load_before_business(self):
         for path in ['instagram-report.js', 'report-social.js']:

@@ -28,12 +28,12 @@ function client() {
     fetch:async(url,options)=>{calls.push({url,options});let value=responses[url];if(typeof value==='function')value=await value(options);if(value instanceof Error)throw value;return {ok:!value?.__status || value.__status < 400,status:value?.__status || 200,redirected:false,
       headers:{get:()=> 'application/json'},json:async()=>value?.__body || value || {reports:[]}};}};
   vm.createContext(context);
-  for(const file of ['people-colors.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
+  for(const file of ['people-colors.js','task-ui.js','people-profile.js','documents.js','availability.js','business.js','inventory.js','lighting.js','laboratory.js'])vm.runInContext(read(file),context,{filename:file});
   context.window.ScribMaterials=()=>({action:async()=>false});
   context.window.ScribWorldGameConfig={summary:()=>'<p>Configuración guardada</p>',editor:()=>'<p>Parámetros</p>'};
   const marker='  boot();';
   assert.equal(read('app.js').split(marker).length,2);
-  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,eventGroups,eventSeries,seriesDates,seriesLinks,castSlots,openEvent,assignCastSlot,renderHome,renderEvent,renderPeople,renderPerson,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
+  vm.runInContext(read('app.js').replace(marker,`window.tests={setState:s=>state=s,refresh,renderPage,setHomeCalendar:(m,d='')=>{homeMonth=m;homeDay=d;},today,homeCalendarDays,renderHomeCalendar,renderCalendar,renderEvents,agendaEvents,eventCard,eventGroups,eventSeries,seriesDates,seriesLinks,castSlots,openEvent,assignCastSlot,renderHome,renderEvent,renderPeople,renderPerson,renderArchive,renderBoards,renderBoard,ticketCard,openBoard,openTicket,commentsHtml,updateComments,taskUI,formShell,askDelete,confirmDelete,action,boardTitle,btn,openPerson,openDialog,personLabel,messageRecipients,showMessagePreview,checkHealth,inventory,business,polls,profile,castRow,formData,dependencyInfo,dependencyEditor};`),context,{filename:'app.js'});
   const people=[['p1','ÁNGELA HARRIS BUENO','orchid'],['p2','PABLO PINEÑO','cyan'],['p3','DAVID VIÑAS','auto']].map(([id,name,color])=>({id,name,color,kind:'person',roles:['Interpretación'],bio:'',image:'',phone:'+34600000000',phoneConfirmed:true,instagram:'',website:'',otherSocial:'',version:1}));
   const event={id:'e1',version:1,kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
@@ -51,7 +51,7 @@ function balanced(html) {
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 
-test('tickets show named chips, column colors and arrows without status dropdowns or assignee counts',()=>{
+test('tickets show individually colored people, column colors and drag handles without move arrows',()=>{
   const {app,state}=client();state.members=[{username:'pablop',name:'Pablo Pineño'},{username:'abueno',name:'Ángela <Bueno>'}];
   const task={id:'task',kind:'ticket',boardId:'board',title:'Tertulia',priority:'normal',labels:[],checklist:[],assignees:['pablop','abueno'],due:'',blockedBy:[]};
   for(const status of ['todo','progress','blocked','done']){
@@ -59,11 +59,79 @@ test('tickets show named chips, column colors and arrows without status dropdown
     assert.match(html,new RegExp('data-status="'+status+'"'));
     assert.match(html,/ticket-assignee/);assert.match(html,/Pablo Pineño/);assert.match(html,/Ángela &lt;Bueno&gt;/);
     assert.doesNotMatch(html,/<select|responsable\(s\)/);
-    assert.equal(html.includes('ticket-move-prev'),status!=='todo');assert.equal(html.includes('ticket-move-next'),status!=='done');
+    assert.doesNotMatch(html,/ticket-move/);assert.match(html,/drag-handle/);
+    assert.ok(html.includes(app.taskUI.memberClass('pablop')));assert.ok(html.includes(app.taskUI.memberClass('abueno')));
+    assert.notEqual(app.taskUI.memberClass('pablop'),app.taskUI.memberClass('abueno'));
     assert.match(read('tasks.css'),new RegExp('ticket\\[data-status='+status+'\\]'));
   }
   assert.doesNotMatch(read('app.js'),/select\("status",STATUS/);
   assert.match(read('app.js'),/input\("status",t.status,"hidden"\)/);
+});
+
+test('verification actors are hidden only from assignment UI, without deleting members or history',()=>{
+  const {app,state}=client();
+  state.members=[{username:'pablop',name:'Pablo Pineño'},{username:'abueno',name:'Ángela Bueno'},
+    {username:'deployment-verification',name:'Deployment Verification'},
+    {username:'verificación despliegue',name:'Verificación despliegue'},
+    {username:'real',name:'Verónica Antonucci'}];
+  const before=JSON.stringify(state.members);
+  for(const value of ['deployment-verification','deployment_verification_2026','VERIFICACIÓN DESPLIEGUE','e2e-smoke'])assert.ok(app.taskUI.isServiceMember({username:value}));
+  const html=app.taskUI.assigneeOptions(['pablop']);balanced(html);
+  assert.match(html,/Pablo Pineño|Ángela Bueno|Verónica Antonucci/);
+  assert.doesNotMatch(html,/deployment|Verification|Verificación/);
+  assert.equal(app.taskUI.members().length,3);
+  assert.equal(JSON.stringify(state.members),before);
+  const comments=app.commentsHtml([{author:'deployment-verification',created:'2026-10-11T12:00:00Z',body:'Comentario antiguo'}]);
+  assert.match(comments,/Deployment Verification|Comentario antiguo/);
+});
+
+test('task editor has chips and chat comments, no redundant column/blocking copy or archive',async()=>{
+  const {app,state,nodes,responses}=client();state.members=[{username:'pablop',name:'Pablo Pineño'}];
+  const ticket={id:'t1',kind:'ticket',version:2,title:'Probar',description:'',boardId:'b1',status:'blocked',priority:'normal',due:'',
+    labels:['PREVIO AL SHOW','Texto <largo>'],assignees:['pablop'],blockedBy:[],blockedReason:'Conservar motivo antiguo',checklist:[]};
+  state.items.push(ticket);responses['/scrib/backstage/api/items/t1']={item:ticket,comments:[],activity:[]};
+  await app.openTicket('t1');const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.doesNotMatch(html,/Mueve la tarjeta|>Columna<|Si está bloqueada|Aquí empieza|Conversación del equipo|data-action="archive"/);
+  assert.match(html,/<h3>Comentarios<\/h3>/);assert.match(html,/chat-composer/);
+  assert.match(html,/aria-label="Nuevo comentario"/);assert.match(html,/aria-label="Enviar comentario"/);
+  assert.match(html,/tag-chip badge cyan/);assert.match(html,/Texto &lt;largo&gt;/);
+  assert.match(html,/type="hidden"[^>]*name="blockedReason"|name="blockedReason"[^>]*type="hidden"/);
+  assert.match(html,/Conservar motivo antiguo/);assert.match(html,/assignee-option person-colored/);
+});
+
+test('tag parsing handles comma paste, blanks, duplicates and limits without losing drafts',()=>{
+  const {app}=client(), parse=(labels,draft)=>JSON.parse(JSON.stringify(app.taskUI.combineLabels(labels,draft)));
+  assert.deepEqual(parse(['Montaje'],' Montaje, Sonido , , Luz '),['Montaje','Sonido','Luz']);
+  assert.deepEqual(parse([],''),[]);assert.deepEqual(parse([],'Ángela, <script>'),['Ángela','<script>']);
+  const existing=Array.from({length:12},(_,i)=>'Etiqueta '+i), before=JSON.stringify(existing);
+  assert.throws(()=>parse(existing,'Una más'),/hasta 12/);assert.equal(JSON.stringify(existing),before);
+  assert.throws(()=>parse([], 'x'.repeat(61)),/60 caracteres/);assert.deepEqual(parse([], 'x'.repeat(60)),['x'.repeat(60)]);
+  assert.equal(app.commentsHtml([]),'');
+});
+
+test('tag blur keeps existing chip buttons mounted so their pending click is not swallowed',()=>{
+  const {app}=client(),existing={dataset:{label:'Montaje'}},chips=[existing],error={textContent:''};
+  const list={insertAdjacentHTML(_,html){chips.push({dataset:{label:html.match(/data-label="([^"]+)"/)[1]}});}};
+  Object.defineProperty(list,'innerHTML',{set(){throw new Error('Existing chip nodes must not be replaced');}});
+  const editor={querySelectorAll:()=>chips,querySelector:q=>q==='.tag-error'?error:q==='.tag-chips'?list:null};
+  const input={value:'Sonido, Luz',validationMessage:'',matches:q=>q==='.tag-input',closest:()=>editor,setCustomValidity(message){this.validationMessage=message;}};
+  app.taskUI.input({target:input});assert.equal(input.value,' Luz');assert.equal(chips[0],existing);
+  app.taskUI.focusout({target:input});assert.equal(chips[0],existing);assert.equal(input.value,'');
+  assert.deepEqual(chips.map(x=>x.dataset.label),['Montaje','Sonido','Luz']);
+  app.taskUI.focusout({target:input});assert.equal(chips.length,3);assert.equal(chips[0],existing);
+  input.value='Nueva,';app.taskUI.input({target:input,isComposing:true});assert.equal(chips.length,3);
+  app.taskUI.input({target:input});assert.equal(chips.length,4);
+  assert.equal(error.textContent,'');
+});
+
+test('chat escapes messages, preserves line breaks and refreshes without replacing the composer',()=>{
+  const {app,nodes}=client();const comments=[{author:'tester',created:'2026-10-11T12:00:00Z',body:'Uno\n<script>Dos</script>'}];
+  const html=app.commentsHtml(comments);balanced(html);assert.match(html,/comment own/);assert.match(html,/Uno\n&lt;script&gt;Dos&lt;\/script&gt;/);
+  const pane={innerHTML:'old',scrollTop:20,scrollHeight:500,clientHeight:100},draft={value:'Sin enviar'};
+  nodes.editor.querySelector=q=>q==='#comments'?pane:q==='.comment-form textarea'?draft:null;
+  app.updateComments(comments);assert.equal(pane.scrollTop,20);assert.equal(draft.value,'Sin enviar');
+  pane.scrollTop=395;app.updateComments([...comments,{...comments[0],body:'Tres'}]);assert.equal(pane.scrollTop,500);
+  pane.scrollTop=20;app.updateComments([],true);assert.equal(pane.scrollTop,500);
 });
 
 test('production naming, clickable cards and generation are simplified while actual agreement viewing remains',async()=>{
@@ -544,9 +612,10 @@ test('board editor cleans legacy labels and symbols retain tooltip/accessibility
     assert.match(html,/aria-hidden="true" focusable="false"/);
   }
   const form=app.formShell('ticket',ticket,'');balanced(form);
-  assert.match(form,/data-action="archive"/);assert.match(form,/data-action="delete-ticket"/);
+  assert.doesNotMatch(form,/data-action="archive"/);assert.match(form,/data-action="delete-ticket"/);
   assert.doesNotMatch(app.formShell('ticket',{},''),/data-action="delete-ticket"/);
   assert.doesNotMatch(app.formShell('board',board,''),/data-action="delete-ticket"/);
+  assert.doesNotMatch(app.formShell('board',board,''),/data-action="archive"/);
 });
 test('delete prompt does not write or replace drafts and cancel preserves them',async()=>{
   const {app,nodes,calls,ticket}=taskFixture();nodes['dialog-content'].innerHTML='UNSAVED DRAFT';
