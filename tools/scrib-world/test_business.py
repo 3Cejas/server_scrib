@@ -136,13 +136,41 @@ class BusinessTests(unittest.TestCase):
         with self.assertRaises(world.Problem):self.settlement(days=[base,base])
         base['allocations'][0]['personId']='missing'
         with self.assertRaises(world.Problem):self.settlement(days=[base])
-    def test_invoice_requires_verified_fiscal_data_and_individual_rates(self):
+    def test_invoice_requires_complete_fiscal_data_and_individual_rates_without_contact_checkbox(self):
         self.settings();self.settlement();data={'eventId':self.event['id'],'personId':self.person['id'],'date':'2026-11-08'}
         with self.assertRaises(world.Problem):self.b.invoice(data,'admin')
-        self.b.save('billing',{'id':self.person['id'],'version':0,'legalName':'Nombre de ensayo','taxId':'PRUEBA','address':'Domicilio de ensayo','vat':'10','withholding':'15','verified':True},'admin')
+        self.b.save('billing',{'id':self.person['id'],'version':0,'legalName':'Nombre de ensayo','taxId':'PRUEBA','address':'Domicilio de ensayo','vat':'10','withholding':'15'},'admin')
         self.signed_agreement()
         r=self.b.invoice(data,'admin');self.assertEqual((r['base'],r['vat'],r['withholding'],r['total']),(4235,424,635,4024));self.assertEqual(r['status'],'draft')
         self.assertTrue(any(x['type']=='invoice' and x['id']==r['id'] for x in self.b.overview()['records']))
+    def test_fiscal_save_and_agreements_do_not_require_or_claim_personal_confirmation(self):
+        saved=self.b.save('billing',dict(id=self.person['id'],version=0,legalName='Nombre fiscal de ensayo',taxId='PRUEBA',address='Domicilio de ensayo',vat='',withholding=''),'admin')
+        self.assertFalse(saved['verified']);self.assertIsNone(saved['vat']);self.assertIsNone(saved['withholding'])
+        agreement=self.agreement()
+        self.assertIn('Nombre fiscal de ensayo',agreement['text']);self.assertIn('PRUEBA',agreement['text'])
+        self.assertNotIn('Nombre fiscal de ensayo',json.dumps(self.store.snapshot()))
+    def test_invoice_still_requires_individual_tax_rates_even_with_signed_agreement(self):
+        self.settings();self.settlement();self.signed_agreement()
+        payload=dict(id=self.person['id'],version=0,legalName='Persona de ensayo',taxId='PRUEBA',address='Domicilio de ensayo')
+        self.b.save('billing',payload,'admin')
+        invoice=dict(eventId=self.event['id'],personId=self.person['id'],date='2026-11-08')
+        with self.assertRaisesRegex(world.Problem,'Completa los datos fiscales'):self.b.invoice(invoice,'admin')
+        for version,rates in enumerate([dict(vat='0',withholding=''),dict(vat='',withholding='0')],1):
+            self.b.save('billing',dict(payload,version=version,**rates),'admin')
+            with self.assertRaisesRegex(world.Problem,'Completa los datos fiscales'):self.b.invoice(invoice,'admin')
+        self.b.save('billing',dict(payload,version=3,vat='0',withholding='0'),'admin')
+        result=self.b.invoice(invoice,'admin');self.assertEqual((result['vat'],result['withholding']), (0,0))
+    def test_pending_roster_invitation_is_not_a_role_in_new_agreements_or_invoice_concepts(self):
+        with self.store.transaction() as db:
+            event=self.store.item(db,self.event['id'],'event')
+            event['cast'] += [dict(personId=self.person['id'],role='Interpretación',team='red'),dict(personId=self.person['id'],role='Papel pendiente de confirmar',team='general')]
+            db.execute('UPDATE items SET body=? WHERE id=?',(json.dumps(event),event['id']))
+            self.assertEqual(self.b.event_roles(db,event,self.person['id']),['Escritura','Interpretación'])
+        agreement=self.agreement();self.assertIn('Escritura / Interpretación',agreement['text']);self.assertNotIn('Papel pendiente',agreement['text'])
+        self.b.save('billing',dict(id=self.person['id'],version=0,legalName='Persona de ensayo',taxId='PRUEBA',address='Domicilio',vat='10',withholding='15'),'admin')
+        self.settlement();self.signed_agreement()
+        invoice=self.b.invoice(dict(eventId=self.event['id'],personId=self.person['id'],date='2026-11-08'),'admin')
+        self.assertEqual(invoice['roles'],['Escritura','Interpretación']);self.assertNotIn('Papel pendiente',invoice['concept'])
     def test_uploads_and_business_in_backup(self):
         self.settings();self.settlement()
         import zipfile,io

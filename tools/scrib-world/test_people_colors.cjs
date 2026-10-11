@@ -543,8 +543,8 @@ test('settlement has photos, initials, role labels, accurate amounts and visual 
   assert.match(html,new RegExp('src="/scrib/backstage/images/'+people[0].image+'"'));
   assert.match(html,/finance-initials/);assert.match(html,/&lt;Persona &amp; dos&gt;/);
   assert.equal((html.match(/class="settlement-person-card"/g)||[]).length,4);
-  assert.match(html,/Asignado · base<\/small><strong>200,00/);
-  assert.match(html,/Pendiente · base<\/small><strong>0,00/);
+  assert.match(html,/Asignado<\/small><strong>200,00/);
+  assert.match(html,/Pendiente<\/small><strong>0,00/);
   assert.match(html,/data-action="business-payments" data-id="e1\|previous"/);
   assert.doesNotMatch(html,/data-action="business-invoice"/);assert.match(html,/Factura · falta acuerdo firmado/);
   assert.match(html,/data-action="business-person" data-id="p1"/);
@@ -561,8 +561,45 @@ test('empty settlement never invents earnings and financial views remain admin-o
   responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};
   responses['/scrib/backstage/api/business/overview']={records:[]};
   app.business.production('e1');await flush();let html=app.business.production('e1');balanced(html);
-  assert.match(html,/Aún no hay liquidación/);assert.match(html,/Asignado · base<\/small><strong>—/);
+  assert.match(html,/Aún no hay liquidación/);assert.match(html,/Asignado<\/small><strong>—/);
   state.user.role='member';html=app.business.production('e1');assert.doesNotMatch(html,/settlement-person-card|Ingresos y reparto/);
+});
+test('production resolves stale invitations, simplifies money labels and distinguishes blocked invoices from loading',async()=>{
+  const {app,event,responses}=client();
+  event.cast.push({personId:'p1',role:'Interpretación',team:'red'},{personId:'p1',role:'Papel pendiente de confirmar',team:'general'});
+  const before=JSON.stringify(event.cast);
+  responses['/scrib/backstage/api/business/agreements/e1']={agreements:[]};responses['/scrib/backstage/api/business/overview']={records:[]};
+  app.business.production(event.id);await flush();const html=app.business.production(event.id);balanced(html);
+  assert.match(html,/Escritura · Interpretación/);assert.doesNotMatch(html,/Papel pendiente de confirmar/);
+  assert.doesNotMatch(html,/Porcentajes y cantidades fijas|Asignado · base|Pendiente · base/);
+  assert.match(html,/invoice-action is-blocked" disabled aria-disabled="true" title="Bloqueado:/);
+  assert.match(read('business.css'),/\.button\.invoice-action\.is-blocked:disabled\{cursor:not-allowed\}/);
+  assert.equal(JSON.stringify(event.cast),before);
+});
+test('agreement cards expose the signed-upload link only for open, unrevised agreements and keep invoice lock per person',async()=>{
+  const {app,event,responses}=client();
+  responses['/scrib/backstage/api/business/agreements/e1']={agreements:['generated','sent','uploaded','reviewed','revoked'].map((status,i)=>({id:'a'+i,personId:i===3?'p1':'p2',name:'Persona '+i,status,link:'https://sutura-gateway.ddns.net/scrib-disponibilidad/token'+i,uploads:status==='reviewed'?[{id:'upload',name:'firmado.pdf',created:'2026-10-11'}]:[]}))};
+  responses['/scrib/backstage/api/business/overview']={records:[]};app.business.production(event.id);await flush();
+  const html=app.business.production(event.id);balanced(html);
+  assert.equal((html.match(/↑ Subir acuerdo firmado/g)||[]).length,3);
+  for(const i of [0,1,2])assert.match(html,new RegExp('href="https://sutura-gateway.ddns.net/scrib-disponibilidad/token'+i+'" target="_blank" rel="noopener noreferrer"'));
+  for(const i of [3,4])assert.doesNotMatch(html,new RegExp('href="https://sutura-gateway.ddns.net/scrib-disponibilidad/token'+i+'"'));
+  assert.match(html,/data-action="business-invoice" data-id="e1\|p1"/);
+  assert.doesNotMatch(html,/data-action="business-invoice" data-id="e1\|p2"/);
+});
+test('fiscal form saves fields without a personal-confirmation checkbox or confirmation claim',async()=>{
+  const {app,nodes,responses,calls}=client(),form=element(),submit=element(),error=element();
+  form.entries=[['legalName','Nombre legal de prueba'],['taxId','PRUEBA'],['address','Domicilio de prueba'],['vat','10'],['withholding','15']];
+  form.querySelector=q=>q==='[type=submit]'?submit:q==='.form-error'?error:null;
+  nodes.editor.querySelector=q=>q==='form'?form:null;
+  responses['/scrib/backstage/api/business/overview']={records:[{type:'billing',id:'p1',version:1,source:'https://drive.google.com/file/d/prueba',legalName:'Nombre anterior'}]};
+  await app.business.action({dataset:{action:'business-billing',id:'p1'}});
+  const html=nodes['dialog-content'].innerHTML;balanced(html);
+  assert.doesNotMatch(html,/name="verified"|He confirmado estos datos con la persona/);assert.match(html,/name="legalName"[^>]*value="Nombre anterior"/);
+  await form.listeners.submit({preventDefault(){}});
+  const payload=JSON.parse(calls.find(c=>c.url==='/scrib/backstage/api/business/billing').options.body);
+  assert.equal(payload.id,'p1');assert.equal(payload.version,1);assert.equal(payload.legalName,'Nombre legal de prueba');assert.ok(!('verified' in payload));
+  assert.equal(error.textContent,'');
 });
 test('roadmap groups blue/red/general teams and keeps each person color',()=>{
   const {app,people}=client(),html=app.renderEvent('e1');balanced(html);

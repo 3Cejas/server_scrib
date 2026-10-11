@@ -16,6 +16,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from seasons import label as season_label, for_date as season_for_date
 from revenue import calculate as calculate_revenue
+from production import pending_cast_role
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS business_records (
@@ -61,7 +62,7 @@ class Business:
             [a['personId'] for day in self.record(db,'settlement',event['id']).get('days',[]) for a in day['allocations']]))
 
     def event_roles(self, db, event, person):
-        roles=[c['role'] for c in event['cast'] if c['personId']==person]
+        roles=[c['role'] for c in event['cast'] if c['personId']==person and not pending_cast_role(c['role'])]
         return list(dict.fromkeys(roles +
             [part['label'] for day in self.record(db,'settlement',event['id']).get('days',[])
              for a in day['allocations'] if a['personId']==person for part in a.get('breakdown',[]) if part.get('group')!='cast' or not roles]))
@@ -126,7 +127,9 @@ class Business:
             elif kind == 'billing':
                 self.store.item(db, ident, 'person', True)
                 body = {k: self.text(data.get(k,''), limit) for k, limit in [('legalName',200), ('taxId',40), ('address',1000), ('iban',40), ('source',2000)]}
-                body['verified'] = data.get('verified') is True
+                # Retain legacy review metadata, but no checkbox/contact claim
+                # is required to save fiscal fields or prepare a draft.
+                body['verified'] = old.get('verified', False)
                 # Taxes cannot be inherited blindly from another person's invoice.
                 body['vat'] = self.rate(data.get('vat'))
                 body['withholding'] = self.rate(data.get('withholding'))
@@ -232,7 +235,7 @@ class Business:
         dates=self.event_date(event['start'],event.get('timePending',False))
         if event.get('end') and event['end'][:10] != event['start'][:10]:
             dates += ' — '+self.event_date(event['end'],event.get('timePending',False))
-        roles=' / '.join(roles if roles is not None else dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person.get('id')))
+        roles=' / '.join(role for role in (roles if roles is not None else dict.fromkeys(c['role'] for c in event['cast'] if c['personId']==person.get('id'))) if not pending_cast_role(role))
         assigned = roles.split(' / ') if roles else []
         choices = list(dict.fromkeys(['Escritura', 'Interpretación', 'Presentador', 'Técnica', 'Jurado',
             'Dirección', 'Dramaturgia', 'Música', 'Comunicación', 'Montaje y desmontaje técnico'] + assigned))
@@ -242,8 +245,8 @@ class Business:
         count = (last-first).days+1
         dates_checks = '\n'.join('[X] '+self.event_date((first+timedelta(days=i)).date().isoformat(), True)
                                  for i in range(count)) if 1 <= count <= 60 else '[X] '+dates
-        fields={'persona':(billing.get('legalName') or person['name']) if billing.get('verified') else person['name'],
-                'documento':(billing.get('taxId') or '________________') if billing.get('verified') else '________________',
+        fields={'persona':billing.get('legalName') or person['name'],
+                'documento':billing.get('taxId') or '________________',
                 'entidad':settings.get('name',''),'cif':settings.get('taxId',''),'domicilio':settings.get('address',''),
                 'representante':settings.get('representative',''),'bolo':event['title'],'fecha':dates,
                 'lugar':' · '.join(filter(None,[event['venue'],event['city'],event['address']])),
@@ -378,8 +381,8 @@ class Business:
             if not agreement:
                 raise self.problem('Antes de preparar la factura, sube y revisa el acuerdo firmado de esta persona para este bolo.')
             settlement=self.record(db,'settlement',event_id);billing=self.record(db,'billing',person_id);settings=self.record(db,'settings','organizer')
-            if not settings.get('confirmed') or not billing.get('verified') or not all(billing.get(k) for k in ('legalName','taxId','address')) or billing.get('vat') is None or billing.get('withholding') is None:
-                raise self.problem('Confirma los datos fiscales de la entidad y de esta persona, incluido IVA y retención.')
+            if not settings.get('confirmed') or not all(billing.get(k) for k in ('legalName','taxId','address')) or billing.get('vat') is None or billing.get('withholding') is None:
+                raise self.problem('Completa los datos fiscales de la entidad y de esta persona, incluido IVA y retención.')
             lines=[]
             for d in settlement.get('days',[]):
                 lines.extend({'date':d['date'],'amount':a['amount']} for a in d['allocations'] if a['personId']==person_id)

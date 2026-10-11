@@ -105,7 +105,7 @@
   const empty = (title, subtitle, action = "") => `<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span><h3>${esc(title)}</h3><p>${esc(subtitle)}</p>${action}</div>`;
   const profile = window.ScribPersonProfile({esc,roles:()=>state?.personRoles});
   const polls = window.ScribAvailability({state:()=>state, item, active, personLabel, esc, btn, field, input, area, select, option, badge, pageHead, empty, dateTime, hour, localInput, request, refresh, toast, openDialog, formShell, renderPage, dialog});
-  const business = window.ScribBusiness({state:()=>state,item,active,eventGroups,eventSeries,seriesLinks,seriesDates,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage,niceDate,hour,eventInactive});
+  const business = window.ScribBusiness({state:()=>state,item,active,eventGroups,eventSeries,seriesLinks,seriesDates,personLabel,esc,btn,field,input,area,request,openDialog,dialog,toast,renderPage,niceDate,hour,eventInactive,resolveCast});
   const inventory = window.ScribInventory({state:()=>state,item,active,personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,openDialog,formShell,renderPage,dialog});
   const isAdmin=()=>state?.user.role==='admin';
   const documents = window.ScribDocuments({esc,request,openDialog,isAdmin});
