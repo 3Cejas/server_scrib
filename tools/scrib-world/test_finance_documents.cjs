@@ -18,6 +18,10 @@ test('invoice view omits draft and missing number, has top-right close/trash and
   const c=client();c.business.invoice('i1');await flush();let html=c.business.invoice('i1');
   assert.doesNotMatch(html,/BORRADOR|Borrador|Número pendiente|Factura · SUTURA/);
   assert.match(html,/<h1>Factura<\/h1>/);assert.match(html,/transferencia bancaria a la cuenta ES00 CUENTA\./);
+  assert.match(html,/<div class="invoice-signature" role="group" aria-label="Firma de la factura">/);
+  assert.match(html,/<span>Firma<\/span>/);assert.match(html,/<span>Nombre de quien firma<\/span>/);
+  assert.equal((html.match(/class="invoice-signature-space"/g)||[]).length,2);
+  assert.ok(html.indexOf('class="invoice-signature"')<html.indexOf('class="invoice-signed section no-print"'));
   for(const action of ['business-invoice-close','business-invoice-delete','business-invoice-upload'])assert.match(html,new RegExp('data-action="'+action+'"'));
   assert.match(html,/aria-label="Cerrar factura y volver"/);assert.match(html,/<svg viewBox="0 0 24 24"/);
   c.invoice.number='001';html=c.business.invoice('i1');assert.match(html,/Factura · SUTURA \/ 001/);

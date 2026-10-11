@@ -108,15 +108,32 @@ class FinanceDocumentsTests(unittest.TestCase):
         from pdf_export import generate
         invoice=self.invoice()
         raw=generate(self.store,dict(kind='invoice',id=invoice['id']),dict(role='admin',username='test'))
-        text='\n'.join(p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages)
+        pages=PdfReader(io.BytesIO(raw)).pages
+        self.assertEqual(len(pages),1)
+        text='\n'.join(p.extract_text() for p in pages)
         self.assertNotIn('BORRADOR',text);self.assertNotIn('Pendiente',text);self.assertNotIn('N.º',text)
         self.assertIn('transferencia bancaria a la cuenta ES00 CUENTA DE PRUEBA',text)
+        self.assertEqual(text.count('Nombre de quien firma'),1)
+        self.assertEqual(text.count('\nFirma\n'),1)
         with self.store.transaction() as db:
             invoice['number']='2026-001';invoice['series']='SCRIB'
             db.execute("UPDATE business_records SET body=? WHERE type='invoice' AND id=?",(json.dumps(invoice),invoice['id']))
         raw=generate(self.store,dict(kind='invoice',id=invoice['id']),dict(role='admin',username='test'))
         text='\n'.join(p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages)
         self.assertIn('N.º SCRIB / 2026-001',text)
+
+    def test_long_invoice_keeps_signature_and_name_together_at_the_end(self):
+        from pypdf import PdfReader
+        from pdf_export import generate
+        invoice=self.invoice()
+        invoice['lines']*=35
+        with self.store.transaction() as db:
+            db.execute("UPDATE business_records SET body=? WHERE type='invoice' AND id=?",(json.dumps(invoice),invoice['id']))
+        raw=generate(self.store,dict(kind='invoice',id=invoice['id']),dict(role='admin',username='test'))
+        pages=[p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages]
+        self.assertGreater(len(pages),1)
+        self.assertIn('\nFirma\n',pages[-1]);self.assertIn('Nombre de quien firma',pages[-1])
+        self.assertNotIn('Nombre de quien firma','\n'.join(pages[:-1]))
 
 
 class FinanceDocumentsHttpTests(unittest.TestCase):

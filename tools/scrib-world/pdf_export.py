@@ -412,6 +412,18 @@ def generate(store, data, user, *, agreement_token=None):
             story.extend([totals_table,Spacer(1,14)])
             iban=invoice['issuer'].get('iban')
             story.append(para('El pago se realizará mediante transferencia bancaria'+(' a la cuenta '+str(iban)+'.' if iban else '. Cuenta bancaria pendiente de indicar.'),'Small'))
+            # Keep both writing areas together, including on multi-page invoices.
+            # The signer may be a representative, so leave the name blank.
+            signature_fields = [[Spacer(1, 64),
+                                 HRFlowable(width='100%', thickness=.7, color=muted),
+                                 Spacer(1, 8), para(label, 'Small')]
+                                for label in ('Firma', 'Nombre de quien firma')]
+            signatures = Table([[signature_fields[0], '', signature_fields[1]]],
+                               colWidths=[235.5, 40, 235.5], hAlign='LEFT')
+            signatures.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),
+                ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
+                ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+            story.append(KeepTogether([Spacer(1, 20), signatures]))
     created=datetime.now(timezone.utc).isoformat(timespec='seconds')
     reference='SC-'+uuid.uuid4().hex
     labels={'inventory':'KIT DE ESCENA','lighting':'TÉCNICA',
