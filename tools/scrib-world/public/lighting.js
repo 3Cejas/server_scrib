@@ -2,12 +2,12 @@
 window.ScribLighting = function(h) {
   const {esc,btn,pageHead,request,toast} = h;
   const clone = value => JSON.parse(JSON.stringify(value));
-  const LIGHTS = new Set(['street','spot','front']);
-  const TYPES={computer:'Ordenador',desk:'Mesa con portátil','video-card':'Interfaz de vídeo',splitter:'Splitter HDMI',projector:'Proyector',monitor:'Monitor',screen:'Pantalla',console:'Mesa de control',power:'Alimentación',speaker:'Altavoz',controller:'Mando',smoke:'Máquina de humo',street:'Calle de luz',spot:'Puntual',front:'Frontales',psu:'Fuente de alimentación'};
+  const LIGHTS = new Set(['street','spot','front','back']);
+  const TYPES={computer:'Ordenador',desk:'Mesa con portátil','video-card':'Interfaz de vídeo',splitter:'Splitter HDMI',projector:'Proyector',monitor:'Monitor',screen:'Pantalla',console:'Mesa de control',power:'Alimentación',speaker:'Altavoz',controller:'Mando',smoke:'Máquina de humo',street:'Calle de luz',spot:'Puntual',front:'Frontales',back:'Contra',psu:'Fuente de alimentación'};
   let scope='',loadedScope=null,draft=null,version=0,selected='blue-street',dirty=false,busy=false,drag=null,requestId='',cableView='all',elementView='all';
   let baseline='',past=[],future=[],editGroup=null;
   let newElementOpen=false,newElementType='computer',newElementZone='stage',newElementColor='white';
-  const ELEMENT_GROUPS={blue:'🔵 Equipo azul',red:'🔴 Equipo rojo',lights:'Luces',presenter:'Presentador',frontals:'Frontales'};
+  const ELEMENT_GROUPS={blue:'🔵 Equipo azul',red:'🔴 Equipo rojo',lights:'☀ Todos los focos',presenter:'◉ Presentador',frontals:'Frontales',backlights:'Contras'};
   const ZONES={stage:'Escenario',technical:'Técnica',actors:'Sala de intérpretes'};
   function matchesElement(e) {
     if(elementView==='all')return true;
@@ -15,6 +15,7 @@ window.ScribLighting = function(h) {
     if(elementView==='lights')return LIGHTS.has(e.type);
     if(elementView==='presenter')return e.id==='presenter'||e.type==='spot';
     if(elementView==='frontals')return e.type==='front';
+    if(elementView==='backlights')return e.type==='back';
     if(elementView.startsWith('type:'))return e.type===elementView.slice(5);
     if(elementView.startsWith('zone:'))return (e.zone||'stage')===elementView.slice(5);
     return false;
@@ -38,16 +39,30 @@ window.ScribLighting = function(h) {
     if(!view.elements.length)return 'No hay elementos que coincidan con estos filtros.';
     return view.elements.some(e=>!view.primaryIds.has(e.id))?'Los extremos conectados de otros tipos aparecen atenuados.':'';
   }
+  function completeV6(plan,defaults) {
+    if(plan.elements.some(e=>LIGHTS.has(e.type)&&(e.zone||'stage')==='stage')){
+      for(const e of defaults.elements.filter(e=>e.type==='back')){
+        if(plan.elements.length<100&&!plan.elements.some(x=>x.id===e.id||x.type==='back'&&x.color===e.color))plan.elements.push(clone(e));
+      }
+    }
+    for(const c of defaults.connections.filter(c=>['power-blue-monitor','power-red-monitor'].includes(c.id))){
+      if(!plan.elements.some(e=>e.id===c.to&&e.type==='monitor')||!plan.elements.some(e=>e.id===c.from&&e.type==='power'))continue;
+      if(plan.connections.length<200&&!plan.connections.some(x=>x.id===c.id||x.type==='power'&&[x.from,x.to].includes(c.to)))plan.connections.push(clone(c));
+    }
+    return plan;
+  }
   function upgraded(source) {
     const defaults=h.state().lightingDefaults;
     const plan=clone({schemaVersion:defaults.schemaVersion,notes:source.notes||'',elements:source.elements,connections:source.connections||defaults.connections,walkies:source.walkies||defaults.walkies,checklist:source.checklist||defaults.checklist});
-    if(source.schemaVersion>=5)return plan;
+    if(source.schemaVersion>=6)return plan;
+    if(source.schemaVersion>=5)return completeV6(plan,defaults);
     const ids=plan.elements.map(e=>e.id);
     const additions=['game-controller','video-card','left-speaker','right-speaker'];
-    const v2=defaults.elements.map(e=>e.id).filter(id=>!additions.includes(id));
+    const v2=defaults.elements.filter(e=>e.type!=='back').map(e=>e.id).filter(id=>!additions.includes(id));
     const legacy=['blue-street','red-street','presenter','frontals','blue-desk','red-desk','screen'];
     const same=(a,b)=>new Set(a).size===a.length&&a.length===b.length&&b.every(id=>a.includes(id));
-    if([legacy,v2,[...defaults.elements.map(e=>e.id),'video-psu'],defaults.elements.map(e=>e.id)].some(keys=>same(ids,keys))){
+    const oldDefaultIds=defaults.elements.filter(e=>e.type!=='back').map(e=>e.id);
+    if([legacy,v2,[...oldDefaultIds,'video-psu'],oldDefaultIds,defaults.elements.map(e=>e.id)].some(keys=>same(ids,keys))){
       const positions={splitter:[50,34],'blue-power':[14,28],'red-power':[86,28],'game-computer':[25,25],'sound-computer':[75,25],'sound-desk':[75,65],'technical-power':[25,65],'dmx-desk':[50,90]};
       for(const e of plan.elements){const d=defaults.elements.find(x=>x.id===e.id),p=positions[e.id];if(d&&[legacy,v2].some(keys=>same(ids,keys))&&p&&e.x===p[0]&&e.y===p[1]){e.x=d.x;e.y=d.y;}if(e.id==='splitter')e.zone='technical';}
       plan.elements.push(...clone(defaults.elements.filter(e=>!ids.includes(e.id))));
@@ -70,7 +85,7 @@ window.ScribLighting = function(h) {
         return copy;
       });
     }
-    return plan;
+    return completeV6(plan,defaults);
   }
   const root = () => document.querySelector('.lighting-workspace');
   const own = () => h.state().items.find(x=>x.kind==='lighting' && x.eventId===scope && !x.archived);
@@ -100,11 +115,13 @@ window.ScribLighting = function(h) {
   }
   const bounds = e => ['blue-power','red-power'].includes(e.id)?({min:0,max:100}):({min:['screen','front'].includes(e.type)?20:10,max:['screen','front'].includes(e.type)?80:90});
   const limited = (value,min,max) => Math.round(Math.max(min,Math.min(max,value))*100)/100;
+  const powered = e => draft.connections.some(c=>c.type==='power'&&[c.from,c.to].includes(e.id));
   function beams(e) {
     if(!LIGHTS.has(e.type))return '';
     const {x,y}=at(e),opacity=e.enabled?e.intensity/100:0;
     if(e.type==='street') {const end=x+(e.color==='blue'?360:-360);return `<polygon points="${x},${y} ${end},${y-155} ${end},${y+155}" fill="url(#lumi-${tone(e)})" opacity="${opacity}"/>`;}
     if(e.type==='spot')return `<ellipse cx="${x}" cy="${y}" rx="105" ry="66" fill="url(#lumi-warm)" opacity="${opacity}"/>`;
+    if(e.type==='back')return `<polygon points="${x},${y} ${x-125},${y+260} ${x+125},${y+260}" fill="url(#lumi-${tone(e)})" opacity="${opacity}"/>`;
     return `<rect x="${x-305}" y="${y-105}" width="610" height="125" rx="45" fill="url(#lumi-white)" opacity="${opacity*.55}"/>`;
   }
   function marker(e,context=false) {
@@ -114,6 +131,7 @@ window.ScribLighting = function(h) {
     else if(e.type==='screen')shape='<rect class="lumi-body" x="-150" y="-30" width="300" height="60" rx="5"/><path class="lumi-line" d="M-156-37h312M0 30v12"/><text class="lumi-screen-word" text-anchor="middle" y="7">&lt;SCRI&gt; B</text>';
     else if(e.type==='front')shape=[-115,0,115].map(pos=>`<circle class="lumi-body" cx="${pos}" cy="0" r="23"/><path class="lumi-line" d="M${pos-9} 5l9-13 9 13"/>`).join('');
     else if(e.type==='spot')shape='<circle class="lumi-body" r="34"/><circle class="lumi-person" cy="-9" r="8"/><path class="lumi-line" d="M-14 17v-2a14 14 0 0 1 28 0v2"/>';
+    else if(e.type==='back')shape='<circle class="lumi-body" r="27"/><path class="lumi-line" d="M-14-22v-8h28v8M0-9v24m-10-9 10 10 10-10"/>';
     else if(['monitor','computer'].includes(e.type))shape='<rect class="lumi-body" x="-35" y="-24" width="70" height="43" rx="5"/><path class="lumi-line" d="M0 19v10M-22 29h44"/>';
     else if(e.type==='projector')shape='<rect class="lumi-body" x="-38" y="-20" width="76" height="40" rx="6"/><circle class="lumi-line" cx="18" r="12"/><path class="lumi-line" d="M-28-6h20M-28 6h20"/>';
     else if(e.type==='splitter')shape='<rect class="lumi-body" x="-45" y="-25" width="90" height="50" rx="8"/><path class="lumi-line" d="M-45 0h32L15-11h30M-13 0l28 11h30"/>';
@@ -125,9 +143,10 @@ window.ScribLighting = function(h) {
     else if(e.type==='console')shape='<rect class="lumi-body" x="-38" y="-22" width="76" height="44" rx="5"/><path class="lumi-line" d="M-20-12v24M0-12v24M20-12v24M-27-3h14M-7 7H7M13-7h14"/>';
     else if(e.type==='smoke')shape='<rect class="lumi-body" x="-28" y="-15" width="56" height="30" rx="5"/><path class="lumi-line" d="M0 15v25m-10-9 10 10 10-10"/><path class="lumi-smoke-direction" d="M-15 50q15 12 30 0M-22 60q22 15 44 0"/>';
     else shape=`<circle class="lumi-body" r="25"/><path class="lumi-line" ${e.color==='red'?'transform="scale(-1 1)"':''} d="m-10-12 22 12-22 12Z"/>`;
-    const yLabel=e.type==='desk'&&!e.zone?67:e.type==='screen'?62:e.type==='smoke'?-28:e.type==='spot'?-60:e.type==='street'?45:e.zone?(e.type==='power'?32:43):57;
+    const yLabel=e.type==='desk'&&!e.zone?67:e.type==='screen'?62:e.type==='smoke'?-28:e.type==='spot'?-60:['street','back'].includes(e.type)?45:e.zone?(e.type==='power'?32:43):57;
     const edge=['blue-power','red-power'].includes(e.id),anchor=edge?(e.color==='blue'?'start':'end'):'middle';
     const label=name(e),parts=(e.zone||e.type==='spot')&&label.includes(' · ')?label.split(' · '):[label];
+    if(e.type==='monitor')shape+=`<g class="lumi-monitor-power${powered(e)?'':' is-missing'}" data-monitor-power="${powered(e)}"><title>${powered(e)?'Alimentación conectada':'Sin alimentación'}</title><circle cx="43" cy="-28" r="12"/><text x="43" y="-23" text-anchor="middle">ϟ</text></g>`;
     return `<g class="lumi-node lumi-${t}${selected===e.id?' is-selected':''}${!e.enabled?' is-off':''}${context?' is-filter-context':''}" transform="translate(${x},${y})" data-lighting-node="${esc(e.id)}" data-action="lighting-select" data-id="${esc(e.id)}" tabindex="0" role="button" aria-pressed="${selected===e.id}" aria-label="${esc(e.label)}. ${context?'Extremo de conexión. ':''}${LIGHTS.has(e.type)?e.enabled?'Intensidad '+e.intensity+' por ciento':'Apagado':'Elemento de escenario'}. Pulsa para seleccionar; flechas para mover."><title>${esc(e.label)}</title><circle class="lumi-hit" r="42"/>${shape}<text class="lumi-node-label" text-anchor="${anchor}" y="${yLabel}">${parts.map((part,i)=>`<tspan x="0" dy="${i?18:0}">${esc(short(part))}</tspan>`).join('')}</text></g>`;
   }
   function svg() {
@@ -136,10 +155,22 @@ window.ScribLighting = function(h) {
     return `<svg class="lighting-map" viewBox="0 0 1000 1600" role="group" aria-label="Plano interactivo del escenario, técnica y sala de intérpretes, visto desde el público"><defs><pattern id="lumi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="lumi-grid-line"/></pattern><clipPath id="lumi-stage-clip"><rect x="70" y="80" width="860" height="540" rx="18"/></clipPath>${Object.entries(palettes).map(([name,color])=>`<radialGradient id="lumi-${name}"><stop offset="0" stop-color="${color}" stop-opacity=".48"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></radialGradient>`).join('')}</defs><text class="lumi-orientation" text-anchor="middle" x="500" y="43">FONDO DEL ESCENARIO</text><rect class="lumi-stage" x="70" y="80" width="860" height="540" rx="18"/><rect x="70" y="80" width="860" height="540" rx="18" fill="url(#lumi-grid)"/><rect class="lumi-proscenium" x="72" y="462" width="856" height="155" rx="18"/><text class="lumi-zone-label" text-anchor="middle" x="500" y="490">PROSCENIO</text><rect class="lumi-stage" x="60" y="730" width="900" height="510" rx="18"/><rect class="lumi-stage" x="60" y="1280" width="900" height="300" rx="18"/><text class="lumi-orientation" text-anchor="middle" x="500" y="770">TÉCNICA</text><text class="lumi-orientation" text-anchor="middle" x="500" y="1310">SALA INTÉRPRETES</text><g class="lumi-beams" clip-path="url(#lumi-stage-clip)">${view.elements.filter(e=>view.primaryIds.has(e.id)).map(beams).join('')}</g><g class="lumi-cables">${cables(view.connections)}</g><g class="lumi-markers">${view.elements.map(e=>marker(e,!view.primaryIds.has(e.id))).join('')}</g><g class="lumi-ports">${connectionPorts(view.connections)}</g><g class="lumi-audience" aria-hidden="true">${[280,350,420,500,580,650,720].map(x=>`<g transform="translate(${x},660)"><circle cy="-10" r="7"/><path d="M-12 18v-6a12 12 0 0 1 24 0v6M-7 18v10M7 18v10"/></g>`).join('')}</g><text class="lumi-orientation" text-anchor="middle" x="500" y="714">PÚBLICO</text></svg>`;
   }
   const cableLabels={hdmi:'Vídeo',data:'Datos / USB',audio:'Audio',power:'Alimentación',dmx:'DMX'};
+  function filterSummary() {
+    const view=visiblePlan(),references=view.elements.length-view.primaryIds.size;
+    return `<span><strong>${view.primaryIds.size}</strong> elementos${references?` <small>+ ${references} de referencia</small>`:''}</span><span><strong>${view.connections.length}</strong> conexiones</span>`;
+  }
   function viewControls() {
     const options=(choices,prefix='')=>Object.entries(choices).map(([id,label])=>`<option value="${prefix+id}"${prefix+id===elementView?' selected':''}>${esc(label)}</option>`).join('');
     const hint=filterHint();
-    return `<div class="lighting-view-controls"><label class="field lighting-element-filter"><span>Elementos</span><select id="lighting-element-view" data-lighting-control>${options({all:'Todos los elementos'})}<optgroup label="Equipos y luces">${options(ELEMENT_GROUPS)}</optgroup><optgroup label="Zona">${options(ZONES,'zone:')}</optgroup><optgroup label="Tipo de elemento">${options(TYPES,'type:')}</optgroup></select></label><label class="field lighting-cable-filter"><span>Cableado</span><select id="lighting-cable-view" data-lighting-control>${Object.entries({all:'Todos los cables',none:'Sin cables',...cableLabels}).map(([id,label])=>`<option value="${id}"${id===cableView?' selected':''}>${label}</option>`).join('')}</select></label></div><p id="lighting-filter-hint" class="lighting-filter-hint" role="status"${hint?'':' hidden'}>${hint}</p>`;
+    const equipment=Object.fromEntries(Object.entries(TYPES).filter(([type])=>!LIGHTS.has(type))),lights=Object.fromEntries(Object.entries(TYPES).filter(([type])=>LIGHTS.has(type)));
+    return `<section class="lighting-filter-panel" aria-label="Filtros del plano" data-cable-view="${cableView}"><header><h3>Vista del plano</h3><button type="button" class="button small lighting-filter-reset" data-action="lighting-filter-reset" data-lighting-control${elementView==='all'&&cableView==='all'?' disabled':''}>↺ Mostrar todo</button></header><div class="lighting-view-controls"><label class="field lighting-element-filter"><span><b aria-hidden="true">1</b> Elementos</span><select id="lighting-element-view" aria-label="Elementos" data-lighting-control>${options({all:'Todos los elementos'})}<optgroup label="Vistas rápidas">${options(ELEMENT_GROUPS)}</optgroup><optgroup label="Por espacio">${options(ZONES,'zone:')}</optgroup><optgroup label="Por aparato">${options(equipment,'type:')}</optgroup><optgroup label="Por tipo de foco">${options(lights,'type:')}</optgroup></select><small>Elige equipo, espacio o tipo.</small></label><label class="field lighting-cable-filter"><span><b aria-hidden="true">2</b> Cableado</span><select id="lighting-cable-view" aria-label="Cableado" data-lighting-control>${Object.entries({all:'Todos los cables',none:'Sin cables',...cableLabels}).map(([id,label])=>`<option value="${id}"${id===cableView?' selected':''}>${label}</option>`).join('')}</select><small>Un tipo muestra solo sus equipos conectados.</small></label></div><div class="lighting-filter-summary" id="lighting-filter-summary" role="status">${filterSummary()}</div><p id="lighting-filter-hint" class="lighting-filter-hint"${hint?'':' hidden'}>${hint}</p></section>`;
+  }
+  function lightButtons() {
+    const lights=draft.elements.filter(e=>LIGHTS.has(e.type)),on=lights.filter(e=>e.enabled).length;
+    return `<header><div><h3>Luces del plano</h3><span class="lighting-light-count">${on} de ${lights.length} encendidas</span></div><div class="lighting-light-actions"><button type="button" class="button small" data-action="lighting-lights-on" data-lighting-control${!lights.length||on===lights.length?' disabled':''}>☀ Encender todas</button><button type="button" class="button small" data-action="lighting-lights-off" data-lighting-control${!on?' disabled':''}>◯ Apagar todas</button></div></header><div class="lighting-light-grid">${lights.map(e=>`<button type="button" class="lighting-light-toggle lumi-${tone(e)}${e.enabled?' is-on':''}" data-action="lighting-light-toggle" data-id="${esc(e.id)}" data-lighting-control aria-pressed="${e.enabled}" aria-label="${e.enabled?'Apagar':'Encender'} ${esc(e.label)}"><span class="lighting-light-dot" aria-hidden="true"></span><span><strong>${esc(name(e))}</strong><small>${e.enabled?'Encendida · '+e.intensity+'%':'Apagada'}</small></span><span class="lighting-light-power" aria-hidden="true">⏻</span></button>`).join('')}</div>`;
+  }
+  function lightControls() {
+    return `<section class="lighting-light-panel" id="lighting-lights-controls" aria-label="Encendido de luces en el plano">${lightButtons()}</section>`;
   }
   function newElementEditor() {
     const options=(choices,value)=>Object.entries(choices).map(([id,label])=>`<option value="${id}"${id===value?' selected':''}>${esc(label)}</option>`).join('');
@@ -187,7 +218,7 @@ window.ScribLighting = function(h) {
   }
   function materialSummary() {
     const cables=Object.entries(cableLabels).map(([type,label])=>({label,type,icon:{hdmi:'▣',data:'⌘',audio:'♫',power:'ϟ',dmx:'✦'}[type],count:draft.connections.filter(c=>c.type===type).length}));
-    const equipment=Object.entries(TYPES).map(([type,label])=>({label,icon:{computer:'💻',desk:'✍',monitor:'▣',screen:'▱',projector:'🎥',splitter:'↣','video-card':'▤',controller:'🎮',speaker:'🔊',console:'🎛',smoke:'☁',power:'ϟ',street:'✦',spot:'◉',front:'☀',psu:'▰'}[type],count:draft.elements.filter(e=>e.type===type).length}));
+    const equipment=Object.entries(TYPES).map(([type,label])=>({label,icon:{computer:'💻',desk:'✍',monitor:'▣',screen:'▱',projector:'🎥',splitter:'↣','video-card':'▤',controller:'🎮',speaker:'🔊',console:'🎛',smoke:'☁',power:'ϟ',street:'✦',spot:'◉',front:'☀',back:'↘',psu:'▰'}[type],count:draft.elements.filter(e=>e.type===type).length}));
     equipment.push({label:'Walkies',icon:'📻',count:draft.walkies.length});
     const rows=items=>items.filter(x=>x.count).map(x=>`<div class="lighting-material ${x.type?'cable-'+esc(x.type):''}"><span class="material-icon" aria-hidden="true">${x.icon}</span><strong>${x.count}</strong><span class="material-label">${esc(x.label)}</span></div>`).join('');
     return `<section class="panel lighting-materials"><div class="panel-head"><div><p class="eyebrow">TODO LISTO PARA CONECTAR</p><h2>Material técnico del show</h2></div><span class="badge gold">${draft.connections.length} conexiones · ${draft.elements.length} elementos</span></div><div class="lighting-material-columns"><section><h3>ϟ Cableado</h3><div class="lighting-material-list">${rows(cables)}</div></section><section><h3>▣ Equipos</h3><div class="lighting-material-list">${rows(equipment)}</div></section></div></section>`;
@@ -199,7 +230,7 @@ window.ScribLighting = function(h) {
   function inspector() {
     const e=current();if(!e)return `<p class="muted">${draft.elements.length?'No hay elementos que coincidan. Cambia los filtros para seleccionar uno.':'Añade un elemento para empezar el plano.'}</p>`;
     const b=bounds(e),light=LIGHTS.has(e.type),connections=visiblePlan().connections.filter(c=>c.from===e.id||c.to===e.id);
-    return `<div class="lighting-inspector lumi-${tone(e)}"><p class="eyebrow">ELEMENTO SELECCIONADO</p><h2>${esc(name(e))}</h2>
+    return `<div class="lighting-inspector lumi-${tone(e)}"><p class="eyebrow">ELEMENTO SELECCIONADO</p><h2>${esc(name(e))}</h2>${e.type==='monitor'?`<span class="lighting-powered${powered(e)?'':' is-missing'}">ϟ ${powered(e)?'Alimentación conectada':'Falta conectar alimentación'}</span>`:''}
       <label class="field">Nombre<input data-lighting-field="label" data-lighting-control value="${esc(e.label)}" maxlength="80" required></label>
       <div class="grid cols2"><label class="field">Horizontal (%)<input type="number" data-lighting-field="x" data-lighting-control value="${e.x}" min="${b.min}" max="${b.max}" step="1"></label><label class="field">${e.zone?'Vertical en su zona':'Fondo → proscenio'} (%)<input type="number" data-lighting-field="y" data-lighting-control value="${e.y}" min="10" max="90" step="1"></label></div>
       ${light?`<label class="lighting-switch"><input type="checkbox" data-lighting-field="enabled" data-lighting-control ${e.enabled?'checked':''}> Encendido</label><label class="field">Intensidad <output id="lighting-intensity">${e.intensity}%</output><input type="range" data-lighting-field="intensity" data-lighting-control min="0" max="100" step="1" value="${e.intensity}"></label>`:''}
@@ -212,7 +243,7 @@ window.ScribLighting = function(h) {
     ensureVisibleSelection();
     const events=h.state().items.filter(x=>x.kind==='event' && !x.archived).sort((a,b)=>b.start.localeCompare(a.start));
     return pageHead('EL SHOW, CON TODO CONECTADO','Técnica','Escenario, vídeo, técnica, sala de intérpretes y montaje: todo conectado en un mismo plano.',btn('lighting-pdf','↓ Exportar plano PDF'))+
-      `<section class="lighting-workspace"><div class="panel lighting-toolbar"><label class="field">Plano<select id="lighting-scope" data-lighting-control><option value=""${scope===''?' selected':''}>Plano base de &lt;SCRI&gt; B</option>${events.map(e=>`<option value="${esc(e.id)}"${scope===e.id?' selected':''}>${esc(e.title)} · ${esc(e.start.slice(0,10))}</option>`).join('')}</select></label><div class="actions"><span id="lighting-status" role="status">${dirty?'Cambios sin guardar':version?'Plano guardado · v'+version:scope?'Adaptación nueva a partir del plano base':'Plano inicial · aún sin guardar'}</span><button class="button small" type="button" data-action="lighting-undo" data-lighting-control title="Deshacer · Ctrl/Cmd+Z" ${busy||!past.length?'disabled':''}>↶ Deshacer</button><button class="button small" type="button" data-action="lighting-redo" data-lighting-control title="Rehacer · Ctrl/Cmd+Mayús+Z o Ctrl/Cmd+Y" ${busy||!future.length?'disabled':''}>↷ Rehacer</button><button class="button" type="button" data-action="lighting-revert" data-lighting-control>↺ Descartar cambios</button><button class="button primary" type="button" data-action="lighting-save" data-lighting-control ${busy?'disabled':''}>${busy?'Guardando…':'✓ Guardar plano'}</button></div></div><div class="lighting-layout"><section class="panel lighting-stage-panel"><div class="panel-head"><div><h2>Plano de escenario</h2></div><button type="button" class="button primary" data-action="lighting-new-element" data-lighting-control aria-expanded="${newElementOpen}" aria-controls="lighting-add-element">＋ Nuevo elemento</button></div>${viewControls()}${newElementEditor()}<div class="lighting-map-scroll"><div id="lighting-svg">${svg()}</div></div></section><aside class="panel" id="lighting-inspector">${inspector()}</aside></div>${technicalSections()}<section class="panel lighting-notes"><label class="field">Notas generales para la sala<textarea id="lighting-notes" data-lighting-control maxlength="5000">${esc(draft.notes)}</textarea></label></section></section>`;
+      `<section class="lighting-workspace"><div class="panel lighting-toolbar"><label class="field">Plano<select id="lighting-scope" data-lighting-control><option value=""${scope===''?' selected':''}>Plano base de &lt;SCRI&gt; B</option>${events.map(e=>`<option value="${esc(e.id)}"${scope===e.id?' selected':''}>${esc(e.title)} · ${esc(e.start.slice(0,10))}</option>`).join('')}</select></label><div class="actions"><span id="lighting-status" role="status">${dirty?'Cambios sin guardar':version?'Plano guardado · v'+version:scope?'Adaptación nueva a partir del plano base':'Plano inicial · aún sin guardar'}</span><button class="button small" type="button" data-action="lighting-undo" data-lighting-control title="Deshacer · Ctrl/Cmd+Z" ${busy||!past.length?'disabled':''}>↶ Deshacer</button><button class="button small" type="button" data-action="lighting-redo" data-lighting-control title="Rehacer · Ctrl/Cmd+Mayús+Z o Ctrl/Cmd+Y" ${busy||!future.length?'disabled':''}>↷ Rehacer</button><button class="button" type="button" data-action="lighting-revert" data-lighting-control>↺ Descartar cambios</button><button class="button primary" type="button" data-action="lighting-save" data-lighting-control ${busy?'disabled':''}>${busy?'Guardando…':'✓ Guardar plano'}</button></div></div><div class="lighting-layout"><section class="panel lighting-stage-panel"><div class="panel-head"><div><h2>Plano de escenario</h2></div><button type="button" class="button primary" data-action="lighting-new-element" data-lighting-control aria-expanded="${newElementOpen}" aria-controls="lighting-add-element">＋ Nuevo elemento</button></div>${viewControls()}${newElementEditor()}${lightControls()}<div class="lighting-map-scroll"><div id="lighting-svg">${svg()}</div></div></section><aside class="panel" id="lighting-inspector">${inspector()}</aside></div>${technicalSections()}<section class="panel lighting-notes"><label class="field">Notas generales para la sala<textarea id="lighting-notes" data-lighting-control maxlength="5000">${esc(draft.notes)}</textarea></label></section></section>`;
   }
   function historyControls() {
     for(const [action,stack] of [['undo',past],['redo',future]]){const button=document.querySelector(`[data-action="lighting-${action}"]`);if(button)button.disabled=busy||!stack.length;}
@@ -242,6 +273,10 @@ window.ScribLighting = function(h) {
     const canvas=document.querySelector('#lighting-svg');
     if(canvas)canvas.innerHTML=svg();
     for(const [id,value] of [['lighting-element-view',elementView],['lighting-cable-view',cableView]]){const chooser=document.querySelector('#'+id);if(chooser)chooser.value=value;}
+    const panel=document.querySelector('.lighting-filter-panel');if(panel)panel.dataset.cableView=cableView;
+    const summary=document.querySelector('#lighting-filter-summary');if(summary)summary.innerHTML=filterSummary();
+    const reset=document.querySelector('[data-action="lighting-filter-reset"]');if(reset)reset.disabled=elementView==='all'&&cableView==='all';
+    const lights=document.querySelector('#lighting-lights-controls');if(lights)lights.innerHTML=lightButtons();
     const hint=document.querySelector('#lighting-filter-hint');if(hint){hint.textContent=filterHint();hint.hidden=!hint.textContent;}
     if(previous!==selected){const pane=document.querySelector('#lighting-inspector');if(pane)pane.innerHTML=inspector();}
   }
@@ -340,6 +375,13 @@ window.ScribLighting = function(h) {
     edit(()=>draft.elements.filter(e=>LIGHTS.has(e.type)).forEach(e=>{e.enabled=id==='all' || e.id===id || (id==='blue'&&e.id==='blue-street') || (id==='red'&&e.id==='red-street');}));
     redraw();select(selected);
   }
+  function switchLights(enabled,id='') {
+    const lights=draft.elements.filter(e=>LIGHTS.has(e.type)&&(!id||e.id===id));
+    if(!lights.length)return;
+    edit(()=>lights.forEach(e=>{e.enabled=enabled===null?!e.enabled:enabled;}));
+    redraw();select(selected);
+    const focus=document.querySelector(id?`[data-action="lighting-light-toggle"][data-id="${id}"]`:`[data-action="lighting-lights-${enabled?'off':'on'}"]`);focus?.focus?.();
+  }
   function controls(disabled) {root()?.querySelectorAll('[data-lighting-control]').forEach(n=>{n.disabled=disabled;});}
   async function save() {
     if(busy || !ensure())return;
@@ -366,6 +408,9 @@ window.ScribLighting = function(h) {
   async function action(node) {
     const {action:a,id}=node.dataset;if(!a.startsWith('lighting-'))return false;
     if(busy)return true;
+    if(a==='lighting-filter-reset'){elementView='all';cableView='all';updateView();return true;}
+    if(a==='lighting-light-toggle'){switchLights(null,id);return true;}
+    if(a==='lighting-lights-on'||a==='lighting-lights-off'){switchLights(a==='lighting-lights-on');return true;}
     if(a==='lighting-new-element'){toggleNewElement(true);return true;}
     if(a==='lighting-close-element'){toggleNewElement(false);return true;}
     if(a==='lighting-add'){

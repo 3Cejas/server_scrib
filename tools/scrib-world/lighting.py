@@ -8,7 +8,8 @@ from pathlib import Path
 DEFAULT = json.loads((Path(__file__).parent / 'lighting_plan.json').read_text())
 PREVIOUS = json.loads((Path(__file__).parent / 'lighting_legacy.json').read_text())
 BLUEPRINT = {x['id']: x for x in DEFAULT['elements']}
-ELEMENT_TYPES = {'street','spot','front','desk','screen','monitor','projector','splitter','smoke','power','computer','console','controller','video-card','speaker','psu'}
+ELEMENT_TYPES = {'street','spot','front','back','desk','screen','monitor','projector','splitter','smoke','power','computer','console','controller','video-card','speaker','psu'}
+BACKLIGHTS = {'blue-back','red-back'}
 CONNECTION_TYPES = {'hdmi','data','audio','power','dmx'}
 LEGACY = {'blue-street', 'red-street', 'presenter', 'frontals', 'blue-desk', 'red-desk', 'screen'}
 V2_ADDITIONS = {'blue-monitor', 'red-monitor', 'projector', 'splitter', 'blue-smoke', 'red-smoke',
@@ -36,18 +37,41 @@ def default_plan():
     return copy.deepcopy(DEFAULT)
 
 
-def upgrade(data):
-    """Migrate known v1-v4 plans once; never resurrect deleted v5 elements."""
-    plan=copy.deepcopy(data)
-    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=5:
+def complete_v6(plan):
+    """Add the new contras and missing monitor power once, preserving custom wiring."""
+    elements=plan.get('elements',[])
+    if not isinstance(elements,list) or not all(isinstance(e,dict) for e in elements):
         return plan
+    nodes={e.get('id'):e for e in elements}
+    if any(e.get('type') in ('street','spot','front','back') and e.get('zone','stage')=='stage' for e in elements):
+        for e in DEFAULT['elements']:
+            if len(elements)<100 and e['id'] in BACKLIGHTS and e['id'] not in nodes and not any(x.get('type')=='back' and x.get('color')==e['color'] for x in elements):
+                elements.append(copy.deepcopy(e))
+    connections=plan.get('connections',[])
+    if isinstance(connections,list) and all(isinstance(c,dict) for c in connections):
+        for c in DEFAULT['connections']:
+            if c['id'] not in ('power-blue-monitor','power-red-monitor'):continue
+            if nodes.get(c['to'],{}).get('type')!='monitor' or nodes.get(c['from'],{}).get('type')!='power':continue
+            if any(x.get('type')=='power' and c['to'] in (x.get('from'),x.get('to')) for x in connections):continue
+            if len(connections)<200 and not any(x.get('id')==c['id'] for x in connections):connections.append(copy.deepcopy(c))
+    plan['schemaVersion']=DEFAULT['schemaVersion']
+    return plan
+
+
+def upgrade(data):
+    """Migrate known layouts; v6 respects subsequent deliberate removals."""
+    plan=copy.deepcopy(data)
+    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=6:
+        return plan
+    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=5:
+        return complete_v6(plan)
     if plan.get('notes')==PREVIOUS['notes']:
         plan['notes']=DEFAULT['notes']
     elements=plan.get('elements',[])
     old_nodes={e['id']:e for e in PREVIOUS['elements']}
     if isinstance(elements,list) and all(isinstance(e,dict) and isinstance(e.get('id'),str) for e in elements):
         ids=[e['id'] for e in elements]
-        known=(LEGACY,V2,set(old_nodes),set(BLUEPRINT))
+        known=(LEGACY,V2,set(old_nodes),set(BLUEPRINT),set(BLUEPRINT)-BACKLIGHTS)
         legacy=len(ids)==len(set(ids)) and set(ids) in known
         if legacy:
             for e in elements:
@@ -86,7 +110,7 @@ def upgrade(data):
             updated.append(row)
         plan[field]=updated
     plan['schemaVersion']=DEFAULT['schemaVersion']
-    return plan
+    return complete_v6(plan)
 
 
 def coordinates(element):
@@ -110,7 +134,7 @@ def material_counts(plan):
             ('Mesas de control',lambda e:e['type']=='console' and e['id']!='dmx-desk'),('Mesa DMX',lambda e:e['id']=='dmx-desk'),
             ('Máquinas de humo',lambda e:e['type']=='smoke'),('Puntos de alimentación / regletas',lambda e:e['type']=='power'),
             ('Calles de luz',lambda e:e['type']=='street'),('Puntual de presentador',lambda e:e['type']=='spot'),
-            ('Grupo de frontales',lambda e:e['type']=='front')]
+            ('Grupo de frontales',lambda e:e['type']=='front'),('Contras',lambda e:e['type']=='back')]
     equipment=[(label,sum(test(e) for e in plan['elements'])) for label,test in groups]
     equipment.append(('Walkies',len(plan['walkies'])))
     return {'cables':cables,'equipment':equipment}

@@ -118,6 +118,14 @@ que administración haya exportado antes otro documento.
   «Nuevo elemento» abre su recuadro de creación; las opciones se mantienen al
   actualizar la vista y el recuadro se cierra después de añadir el elemento.
   Si el nuevo elemento quedaría oculto por los filtros, se muestra el plano completo.
+- Contras azul/rojo en el fondo del escenario. El bloque «Luces del plano» permite
+  encendido individual o conjunto, conserva intensidad, admite deshacer/rehacer
+  y guarda los estados por bolo; no envía órdenes a equipos físicos.
+  Los filtros están numerados, agrupados por equipo/espacio/aparato/foco, coloreados
+  por cableado, con contador visible y «Mostrar todo» independiente de las luces.
+  Cada monitor muestra su conexión de alimentación. La actualización v6 incorpora
+  contras y recupera alimentaciones faltantes, sin duplicar cables personalizados;
+  después respeta eliminaciones intencionadas y conserva notas, posiciones y checklist.
 
 - Inventario azul/rojo: dos kits completos, con selección de objetos al exportar.
   Cada bolo incluye por defecto todos los objetos activos, salvo selección explícita.

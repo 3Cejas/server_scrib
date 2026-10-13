@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "notes": "Adaptar recorridos y conexiones a la sala. Comprobar líquido, dirección, distancia y ventilación de las máquinas de humo.",
   "elements": [
     {"id":"blue-street","type":"street","label":"Calle azul","color":"blue","x":10,"y":52,"enabled":true,"intensity":75,"channel":"","notes":"Baño lateral azul para la zona del equipo azul."},
@@ -28,7 +28,9 @@
     {"id":"game-controller","type":"controller","zone":"technical","label":"Mando · videojuego","color":"white","x":25,"y":36,"enabled":true,"intensity":100,"channel":"","notes":"Conectar y probar el mando en el PC principal antes de comenzar."},
     {"id":"video-card","type":"video-card","zone":"technical","label":"Interfaz de vídeo","color":"white","x":25,"y":54,"enabled":true,"intensity":100,"channel":"","notes":"Alimentación desde técnica; conexión de vídeo y carga al PC principal. Salida 1 al proyector y salida 2 al splitter."},
     {"id":"left-speaker","type":"speaker","label":"Altavoz · izquierdo","color":"white","x":10,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Salida izquierda de mesa de sonido. Alimentación dibujada para altavoz activo; si la sala usa pasivos, adaptar a amplificación de la sala."},
-    {"id":"right-speaker","type":"speaker","label":"Altavoz · derecho","color":"white","x":90,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Salida derecha de mesa de sonido. Alimentación dibujada para altavoz activo; si la sala usa pasivos, adaptar a amplificación de la sala."}
+    {"id":"right-speaker","type":"speaker","label":"Altavoz · derecho","color":"white","x":90,"y":12,"enabled":true,"intensity":100,"channel":"","notes":"Salida derecha de mesa de sonido. Alimentación dibujada para altavoz activo; si la sala usa pasivos, adaptar a amplificación de la sala."},
+    {"id":"blue-back","type":"back","label":"Contra azul","color":"blue","x":26,"y":18,"enabled":true,"intensity":70,"channel":"","notes":"Contraluz desde el fondo hacia la zona del equipo azul, evitando iluminar la pantalla."},
+    {"id":"red-back","type":"back","label":"Contra rojo","color":"red","x":74,"y":18,"enabled":true,"intensity":70,"channel":"","notes":"Contraluz desde el fondo hacia la zona del equipo rojo, evitando iluminar la pantalla."}
   ],
   "connections": [
     {"id":"hdmi-projector","from":"video-card","to":"projector","type":"hdmi","label":"HDMI 1 · proyector"},
@@ -46,8 +48,8 @@
     {"id":"power-actors-red","from":"actors-power","to":"actors-red","type":"power","label":"Alimentación · intérpretes rojos"},
     {"id":"power-projector","from":"technical-power","to":"projector","type":"power","label":"Alimentación · proyector"},
     {"id":"power-splitter","from":"technical-power","to":"splitter","type":"power","label":"Alimentación · splitter"},
-    {"id":"power-blue-monitor","from":"blue-power","to":"blue-monitor","type":"power","label":"Alimentación · monitor azul"},
-    {"id":"power-red-monitor","from":"red-power","to":"red-monitor","type":"power","label":"Alimentación · monitor rojo"},
+    {"id":"power-blue-monitor","from":"blue-power","to":"blue-monitor","type":"power","label":"Alimentación · monitor izquierdo"},
+    {"id":"power-red-monitor","from":"red-power","to":"red-monitor","type":"power","label":"Alimentación · monitor derecho"},
     {"id":"power-blue-smoke","from":"blue-power","to":"blue-smoke","type":"power","label":"Alimentación · humo azul"},
     {"id":"power-red-smoke","from":"red-power","to":"red-smoke","type":"power","label":"Alimentación · humo rojo"},
     {"id":"data-video","from":"game-computer","to":"video-card","type":"hdmi","label":"Interfaz ↔ PC principal · vídeo y carga"},
@@ -79,7 +81,7 @@
     {"id":"smoke-safe","category":"Humo y DMX","text":"Colocar máquinas de humo y comprobar líquido, dirección, distancia y ventilación con sala/manual","done":false},
     {"id":"smoke-dmx","category":"Humo y DMX","text":"Alimentar máquinas y conectar DMX: asignar direcciones y verificar control con sala","done":false},
     {"id":"walkies","category":"Comunicación","text":"Cargar y repartir 4 walkies: presentador canal 1, equipos canal 2, técnica coordina 1/2","done":false},
-    {"id":"lighting","category":"Iluminación","text":"Montar y probar calles azul/roja, puntual de presentador y frontales","done":false},
+    {"id":"lighting","category":"Iluminación","text":"Montar y probar calles y contras azul/rojo, puntual de presentador y frontales","done":false},
     {"id":"run","category":"Prueba final","text":"Ensayar inicio, musas, fin de juego, resultados, temporizador y teleprompter","done":false}
   ]
 }
