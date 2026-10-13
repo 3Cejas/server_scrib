@@ -122,10 +122,19 @@ que administración haya exportado antes otro documento.
   encendido individual o conjunto, conserva intensidad, admite deshacer/rehacer
   y guarda los estados por bolo; no envía órdenes a equipos físicos.
   Los filtros están numerados, agrupados por equipo/espacio/aparato/foco, coloreados
-  por cableado, con contador visible y «Mostrar todo» independiente de las luces.
+  por cableado, con «Mostrar todo» independiente de las luces. Vista del plano y
+  Luces del plano se pueden plegar; sus preferencias sobreviven al redibujado sin
+  modificar filtros, luces ni historial. No se muestran contadores de vista/encendido.
   Cada monitor muestra su conexión de alimentación. La actualización v6 incorpora
   contras y recupera alimentaciones faltantes, sin duplicar cables personalizados;
   después respeta eliminaciones intencionadas y conserva notas, posiciones y checklist.
+  La actualización v7 separa las mesas y PCs de escritura/intérpretes y lleva los
+  cables de los portátiles al PC, conservando notas y conexiones personalizadas.
+  La alimentación existente de los monitores desde técnica o el otro lateral se
+  dirige al margen correspondiente; no se duplican conexiones ni se alteran puntos
+  de alimentación personalizados. El inspector acompaña el desplazamiento dentro
+  del plano en escritorio/tablet horizontal; en pantalla estrecha queda en flujo
+  normal para no tapar el mapa. Se limita a la altura disponible de la pantalla.
 
 - Inventario azul/rojo: dos kits completos, con selección de objetos al exportar.
   Cada bolo incluye por defecto todos los objetos activos, salvo selección explícita.

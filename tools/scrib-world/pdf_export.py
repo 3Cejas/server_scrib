@@ -629,7 +629,7 @@ def StagePlan(plan,font='ScribSans',*,max_height=910):
                 color=palette['white' if kind=='monitor' else e['color']]
                 c.setStrokeColor(colors.HexColor(color));c.setFillColor(colors.HexColor('#171e2d'));c.setLineWidth(2)
                 if kind=='screen':c.roundRect(x-150,y-30,300,60,5,fill=1,stroke=1)
-                elif kind=='desk':c.roundRect(x-80,y-30,160,60,10,fill=1,stroke=1);c.rect(x-27,y-22,54,30,fill=0)
+                elif kind=='desk':c.roundRect(x-80,y-30,160,60,10,fill=1,stroke=1)
                 elif kind in ('monitor','computer','console','projector','splitter','video-card','psu','controller'):
                     c.roundRect(x-35,y-24,70,43,5,fill=1,stroke=1)
                 elif kind=='power':c.roundRect(x-13,y-22,26,44,6,fill=1,stroke=1)

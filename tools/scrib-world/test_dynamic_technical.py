@@ -15,7 +15,7 @@ class DynamicTechnicalTests(BoloCleanupTests):
     def test_v4_upgrade_removes_psu_and_keeps_coordinates_notes_and_progress(self):
         old=copy.deepcopy(PREVIOUS);old['elements'][0].update(x=33,notes='Sala adaptada');old['checklist'][0]['done']=True
         updated=upgrade(old);self.assertEqual(old['schemaVersion'],4)
-        self.assertEqual(updated['schemaVersion'],5);self.assertEqual(updated['elements'][0]['x'],33)
+        self.assertEqual(updated['schemaVersion'],default_plan()['schemaVersion']);self.assertEqual(updated['elements'][0]['x'],33)
         self.assertEqual(updated['elements'][0]['notes'],'Sala adaptada');self.assertTrue(updated['checklist'][0]['done'])
         self.assertEqual(updated['notes'],default_plan()['notes'])
         custom=copy.deepcopy(old);custom['notes']='Recorrido ajustado para esta sala'
@@ -43,7 +43,7 @@ class DynamicTechnicalTests(BoloCleanupTests):
             before=db.execute("SELECT body,version FROM items WHERE id='lighting-base'").fetchone()
             original=tuple(before)
         plan=next(i for i in self.store.snapshot()['items'] if i['kind']=='lighting')
-        self.assertEqual(plan['schemaVersion'],5);self.assertEqual(plan['notes'],default_plan()['notes'])
+        self.assertEqual(plan['schemaVersion'],default_plan()['schemaVersion']);self.assertEqual(plan['notes'],default_plan()['notes'])
         self.assertNotIn('video-psu',[e['id'] for e in plan['elements']])
         self.assertEqual(next(c for c in plan['connections'] if c['id']=='power-video-card')['from'],'technical-power')
         with self.store.connect() as db:

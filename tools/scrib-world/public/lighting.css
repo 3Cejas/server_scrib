@@ -14,14 +14,16 @@
 .lighting-filter-panel{--filter-cable-color:#c1cbe1}
 .lighting-filter-panel[data-cable-view=hdmi]{--filter-cable-color:#55d7ff}.lighting-filter-panel[data-cable-view=data]{--filter-cable-color:#c9b8ff}.lighting-filter-panel[data-cable-view=audio]{--filter-cable-color:#ca93ff}.lighting-filter-panel[data-cable-view=power]{--filter-cable-color:#ffd16e}.lighting-filter-panel[data-cable-view=dmx]{--filter-cable-color:#6ce6a4}
 .lighting-cable-filter>span{color:var(--filter-cable-color)}.lighting-cable-filter select{border-color:var(--filter-cable-color)}
-.lighting-filter-summary{display:flex;align-items:center;flex-wrap:wrap;gap:8px 20px;font-size:.75rem;color:var(--muted);padding-top:12px;border-top:1px solid #35445a}
-.lighting-filter-summary strong{color:var(--text);font-size:.9rem}.lighting-filter-summary small{font-size:.72rem;color:var(--muted)}
+.lighting-fold{display:flex;align-items:center;justify-content:space-between;gap:18px;flex:1;min-width:0;padding:3px 0;border:0;background:transparent;color:var(--text);text-align:left}
+.lighting-fold-title{font-size:.92rem;font-weight:700}
+.lighting-fold-icon{display:grid;place-items:center;width:26px;height:26px;border:1px solid #59617b;border-radius:8px;color:var(--cyan);font-size:1rem;flex-shrink:0}
+.lighting-fold:hover .lighting-fold-icon{background:#39ccff15;border-color:var(--cyan)}
+.lighting-fold-body[hidden]{display:none}
 .lighting-filter-hint{font-size:.8rem;color:var(--muted);margin:0 0 12px;line-height:1.5}
 .lighting-filter-panel .lighting-filter-hint{font-size:.72rem;margin:9px 0 0}
 .lighting-filter-hint[hidden]{display:none}
 .lighting-light-panel{padding:16px;border:1px solid #4b4669;border-radius:14px;background:#181b2b;margin:16px 0}
-.lighting-light-count{display:block;margin-top:5px;color:var(--muted);font-size:.72rem}
-.lighting-light-actions{display:flex;gap:8px;flex-wrap:wrap}.lighting-light-actions .button{font-size:.72rem}
+.lighting-light-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.lighting-light-actions .button{font-size:.72rem}
 .lighting-light-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
 .lighting-light-toggle{display:flex;align-items:center;gap:10px;min-width:0;min-height:60px;border:1px solid #41465c;border-radius:10px;background:#141826;text-align:left;color:var(--text);padding:10px;cursor:pointer}
 .lighting-light-toggle>span:nth-child(2){flex:1;min-width:0}.lighting-light-toggle strong{display:block;font-size:.78rem;overflow-wrap:anywhere}.lighting-light-toggle small{display:block;margin-top:4px;color:var(--muted);font-size:.66rem}
@@ -44,6 +46,7 @@
 .lighting-toolbar>.field{min-width:min(300px,100%);flex:1}.lighting-toolbar select{width:100%}
 .lighting-toolbar .actions{flex-wrap:wrap}#lighting-status{font-size:.75rem;color:var(--gold)}
 .lighting-layout{display:grid;grid-template-columns:minmax(0,2.4fr) minmax(270px,1fr);gap:22px;align-items:start}
+#lighting-inspector{position:sticky;top:20px;max-height:calc(100dvh - 40px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .lighting-stage-panel{padding:20px;min-width:0}.lighting-stage-panel .panel-head{align-items:start;gap:12px}
 .lighting-stage-panel .muted{font-size:.76rem;margin-top:7px}
 @media(max-width:640px){.lighting-view-controls{grid-template-columns:minmax(0,1fr);gap:14px}.lighting-add-element .field{min-width:min(160px,100%)}}
@@ -93,7 +96,7 @@
 .lighting-check-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}.lighting-check-groups fieldset{min-width:0;border:1px solid var(--line);border-radius:12px;padding:14px}.lighting-check-groups legend{color:var(--gold);padding:0 7px}.lighting-check{display:flex;align-items:flex-start;gap:12px;padding:10px 0;font-size:.9rem;line-height:1.5}.lighting-check input{flex-shrink:0;width:20px;height:20px;accent-color:var(--cyan);margin-top:2px}.lighting-check:has(input:checked) span{color:var(--muted)}
 @media(max-width:1100px){.lighting-walkies{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.lighting-connections,.lighting-check-groups,.lighting-walkies{grid-template-columns:1fr}}
-@media(max-width:1100px){.lighting-layout{grid-template-columns:minmax(0,1fr)}.lighting-inspector{grid-template-columns:repeat(2,minmax(0,1fr))}.lighting-inspector>.eyebrow,.lighting-inspector>h2,.lighting-inspector>.tiny{grid-column:1/-1}}
+@media(max-width:900px){.lighting-layout{grid-template-columns:minmax(0,1fr)}#lighting-inspector{position:static;max-height:none;overflow:visible}.lighting-inspector{grid-template-columns:repeat(2,minmax(0,1fr))}.lighting-inspector>.eyebrow,.lighting-inspector>h2,.lighting-inspector>.tiny{grid-column:1/-1}}
 @media(max-width:600px){.lighting-elements,.lighting-inspector{grid-template-columns:1fr}.lighting-stage-panel{padding:14px}.lighting-toolbar{padding:16px}.lighting-toolbar .actions{width:100%}.lighting-toolbar .button{white-space:normal}.lighting-inspector>.grid{grid-template-columns:1fr}}
 @media(max-width:760px){.lighting-light-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lighting-filter-panel,.lighting-light-panel{padding:12px}}
 @media print{.lighting-toolbar,.lighting-cues,.lighting-inspector input,.lighting-inspector textarea,.lighting-switch{display:none!important}.lighting-layout{grid-template-columns:1fr}.lighting-map{min-width:0;width:100%}.lighting-map-scroll{overflow:visible;background:#0c101b;print-color-adjust:exact;-webkit-print-color-adjust:exact}.lighting-elements{grid-template-columns:repeat(2,1fr)}.lighting-element{break-inside:avoid}.lighting-notes textarea{border:0;color:black;height:auto}.lighting-stage-panel{break-inside:avoid}}

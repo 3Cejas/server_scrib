@@ -10,6 +10,7 @@ PREVIOUS = json.loads((Path(__file__).parent / 'lighting_legacy.json').read_text
 BLUEPRINT = {x['id']: x for x in DEFAULT['elements']}
 ELEMENT_TYPES = {'street','spot','front','back','desk','screen','monitor','projector','splitter','smoke','power','computer','console','controller','video-card','speaker','psu'}
 BACKLIGHTS = {'blue-back','red-back'}
+SEPARATE_FURNITURE = {'blue-writer-computer','red-writer-computer','actors-blue-desk','actors-red-desk'}
 CONNECTION_TYPES = {'hdmi','data','audio','power','dmx'}
 LEGACY = {'blue-street', 'red-street', 'presenter', 'frontals', 'blue-desk', 'red-desk', 'screen'}
 V2_ADDITIONS = {'blue-monitor', 'red-monitor', 'projector', 'splitter', 'blue-smoke', 'red-smoke',
@@ -58,20 +59,59 @@ def complete_v6(plan):
     return plan
 
 
+def complete_v7(plan):
+    """Separate furniture from PCs and route existing monitor power by side once."""
+    elements=plan.get('elements',[]);connections=plan.get('connections',[])
+    if not isinstance(elements,list) or not all(isinstance(e,dict) for e in elements):return plan
+    if not isinstance(connections,list) or not all(isinstance(c,dict) for c in connections):return plan
+    nodes={e.get('id'):e for e in elements}
+    for color,x in (('blue',32),('red',68)):
+        desk=nodes.get(color+'-desk');pc_id=color+'-writer-computer'
+        if not desk or desk.get('type')!='desk' or (pc_id not in nodes and len(elements)>=100):continue
+        if (desk.get('x'),desk.get('y'))==(x,34):desk['y']=BLUEPRINT[desk['id']]['y']
+        if pc_id not in nodes:
+            pc=copy.deepcopy(BLUEPRINT[pc_id]);pc.update(x=desk.get('x',x),y=max(10,desk.get('y',53)-19))
+            if desk.get('zone'):pc['zone']=desk['zone']
+            elements.append(pc);nodes[pc_id]=pc
+        for c in connections:
+            for endpoint in ('from','to'):
+                if c.get(endpoint)==desk['id']:c[endpoint]=pc_id
+        if desk.get('notes')==f'Mesa y portátil de la persona que escribe para el equipo {"azul" if color=="blue" else "rojo"}.':desk['notes']=BLUEPRINT[desk['id']]['notes']
+    for color in ('blue','red'):
+        pc=nodes.get('actors-'+color);desk_id='actors-'+color+'-desk'
+        if not pc or pc.get('type') not in ('desk','computer') or (desk_id not in nodes and len(elements)>=100):continue
+        pc['type']='computer'
+        if desk_id not in nodes:
+            desk=copy.deepcopy(BLUEPRINT[desk_id]);desk.update(x=pc.get('x',desk['x']),y=min(90,pc.get('y',30)+43))
+            if pc.get('zone'):desk['zone']=pc['zone']
+            elements.append(desk);nodes[desk_id]=desk
+    for color in ('blue','red'):
+        power=color+'-power';monitor=color+'-monitor'
+        if nodes.get(power,{}).get('type')!='power' or nodes.get(monitor,{}).get('type')!='monitor':continue
+        for c in connections:
+            if c.get('type')!='power':continue
+            for endpoint,other in (('from','to'),('to','from')):
+                if c.get(other)==monitor and c.get(endpoint) in ('technical-power','blue-power','red-power'):c[endpoint]=power
+    plan['schemaVersion']=DEFAULT['schemaVersion']
+    return plan
+
+
 def upgrade(data):
-    """Migrate known layouts; v6 respects subsequent deliberate removals."""
+    """Migrate known layouts; v7 respects subsequent deliberate removals."""
     plan=copy.deepcopy(data)
-    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=6:
+    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=7:
         return plan
+    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=6:
+        return complete_v7(plan)
     if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=5:
-        return complete_v6(plan)
+        return complete_v7(complete_v6(plan))
     if plan.get('notes')==PREVIOUS['notes']:
         plan['notes']=DEFAULT['notes']
     elements=plan.get('elements',[])
     old_nodes={e['id']:e for e in PREVIOUS['elements']}
     if isinstance(elements,list) and all(isinstance(e,dict) and isinstance(e.get('id'),str) for e in elements):
         ids=[e['id'] for e in elements]
-        known=(LEGACY,V2,set(old_nodes),set(BLUEPRINT),set(BLUEPRINT)-BACKLIGHTS)
+        known=(LEGACY,V2,set(old_nodes),set(BLUEPRINT),set(BLUEPRINT)-SEPARATE_FURNITURE,set(BLUEPRINT)-BACKLIGHTS-SEPARATE_FURNITURE)
         legacy=len(ids)==len(set(ids)) and set(ids) in known
         if legacy:
             for e in elements:
@@ -110,7 +150,7 @@ def upgrade(data):
             updated.append(row)
         plan[field]=updated
     plan['schemaVersion']=DEFAULT['schemaVersion']
-    return complete_v6(plan)
+    return complete_v7(complete_v6(plan))
 
 
 def coordinates(element):
@@ -125,8 +165,9 @@ def coordinates(element):
 def material_counts(plan):
     labels={'hdmi':'Vídeo','data':'Datos / USB','audio':'Audio','power':'Alimentación','dmx':'DMX'}
     cables=[(label,sum(c['type']==kind for c in plan['connections'])) for kind,label in labels.items()]
-    groups=[('Ordenadores y portátiles',lambda e:e['type'] in ('computer','desk')),
+    groups=[('Ordenadores y portátiles',lambda e:e['type']=='computer'),
             ('Mesas de escritura',lambda e:e['type']=='desk' and not e.get('zone')),
+            ('Mesas de intérpretes',lambda e:e['type']=='desk' and e.get('zone')=='actors'),
             ('Monitores',lambda e:e['type']=='monitor'),('Pantalla de proyección',lambda e:e['type']=='screen'),
             ('Proyector',lambda e:e['type']=='projector'),('Splitter HDMI',lambda e:e['type']=='splitter'),
             ('Interfaz de vídeo',lambda e:e['type']=='video-card'),('Fuente de alimentación',lambda e:e['type']=='psu'),
