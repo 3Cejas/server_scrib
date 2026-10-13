@@ -1,5 +1,15 @@
 .lighting-workspace{display:grid;gap:22px;min-width:0}
+.lighting-view-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.lighting-view-controls .field{min-width:0;gap:8px;font-size:.82rem}
+.lighting-view-controls select{min-height:46px;font-size:.9rem;background:#111827}
+.lighting-element-filter>span{color:var(--cyan)}.lighting-element-filter select{border-color:#427078}
+.lighting-cable-filter>span{color:var(--gold)}.lighting-cable-filter select{border-color:#7b6b42}
+.lighting-filter-hint{font-size:.8rem;color:var(--muted);margin:0 0 12px;line-height:1.5}
+.lighting-filter-hint[hidden]{display:none}
+.lighting-add-element[hidden]{display:none}
 .lighting-add-element{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:16px;padding:14px;border-radius:12px;background:#212a3e}
+.lighting-add-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-basis:100%;color:var(--cyan)}
+.lighting-stage-panel>.panel-head{align-items:center;flex-wrap:wrap}
 .lighting-add-element .field{flex:1;min-width:120px;font-size:.75rem}.lighting-add-element select{width:100%}
 .lighting-link-editor{display:grid;gap:12px;border-top:1px solid var(--line);padding-top:18px;grid-column:1/-1}
 .lighting-link-list{display:grid;gap:8px}.lighting-link{display:flex;justify-content:space-between;align-items:center;gap:8px;border-left:3px solid var(--cable-color);padding:8px 10px;background:#212a3e;border-radius:7px}
@@ -12,7 +22,7 @@
 .lighting-layout{display:grid;grid-template-columns:minmax(0,2.4fr) minmax(270px,1fr);gap:22px;align-items:start}
 .lighting-stage-panel{padding:20px;min-width:0}.lighting-stage-panel .panel-head{align-items:start;gap:12px}
 .lighting-stage-panel .muted{font-size:.76rem;margin-top:7px}
-.lighting-cues{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 8px}
+@media(max-width:640px){.lighting-view-controls{grid-template-columns:minmax(0,1fr);gap:14px}.lighting-add-element .field{min-width:min(160px,100%)}}
 .lighting-map-scroll{overflow:auto;border:1px solid #343b52;background:#0c101b;border-radius:14px;margin:16px 0;overscroll-behavior-x:contain}
 .lighting-map{display:block;width:100%;min-width:620px;touch-action:none;user-select:none}
 .lumi-stage{fill:#121825;stroke:#607087;stroke-width:2}.lumi-grid-line{fill:none;stroke:#93a9c915;stroke-width:1}
@@ -30,6 +40,7 @@
 @media(max-width:520px){.lighting-material-list{grid-template-columns:minmax(0,1fr)}}
 .lumi-blue{--lumi-color:#39ccff}.lumi-red{--lumi-color:#ff708c}.lumi-warm{--lumi-color:#ffcf81}.lumi-white{--lumi-color:#e7e1ff}
 .lumi-node{cursor:grab;outline:none}.lumi-node:active{cursor:grabbing}.lumi-hit{fill:transparent}
+.lumi-node.is-filter-context{opacity:.45}.lumi-node.is-filter-context:is(.is-selected,:focus-visible){opacity:1}
 .lumi-body{fill:#171e2d;stroke:var(--lumi-color);stroke-width:2}.lumi-line{fill:none;stroke:var(--lumi-color);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .lumi-laptop{fill:#090e18;stroke:var(--lumi-color);stroke-width:2}.lumi-person{fill:var(--lumi-color)}
 .lumi-node-label{fill:var(--lumi-color);font:600 16px system-ui,sans-serif;paint-order:stroke;stroke:#0c101b;stroke-width:5;stroke-linejoin:round}

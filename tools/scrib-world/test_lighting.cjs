@@ -23,7 +23,7 @@ test('power cables are visible by default, attach to equipment ports and splitte
   assert.doesNotMatch(html,/data-connection="power-game"/);assert.match(html,/data-connection="data-video"/);
   for(const id of ['blue-desk','red-desk','actors-blue','actors-red','game-computer','sound-computer'])assert.match(html,new RegExp('data-port-for="'+id+'"'));
   assert.match(html,/class="lumi-ports"/);assert.match(html,/M-45 0h32L15-11h30M-13 0l28 11h30/);assert.doesNotMatch(html,/>IN<\/text>/);
-  await action(app,'lighting-cables','power');
+  assert.ok(app.input({id:'lighting-cable-view',value:'power',dataset:{}}));assert.ok(!app.hasDraft());
   const power=app.render();assert.match(power,/data-connection="power-blue"/);assert.doesNotMatch(power,/data-connection="hdmi-blue"/);
 });
 test('complete stage with blue/red streets, tables, screen, presenter and frontals is safe and responsive',()=>{
@@ -47,6 +47,63 @@ test('selecting previews never writes until explicitly saved and does not hide f
   await action(app,'lighting-save');const plan=calls[0].data.plan;
   assert.ok(plan.elements.find(e=>e.id==='red-street').enabled);assert.ok(!plan.elements.find(e=>e.id==='blue-street').enabled);
   assert.ok(plan.elements.filter(e=>['desk','screen'].includes(e.type)).every(e=>e.enabled));
+});
+const mapNodes=html=>[...html.matchAll(/data-lighting-node="([^"]+)"/g)].map(m=>m[1]);
+const mapConnections=html=>[...html.matchAll(/data-connection="([^"]+)"/g)].map(m=>m[1]);
+test('every cable filter restricts nodes, routes and ports to the connected topology without editing it',async()=>{
+  for(const type of ['hdmi','data','audio','power','dmx']){
+    const {app,calls}=setup();app.render();app.input({id:'lighting-cable-view',value:type});
+    const html=app.render(),expected=defaults().connections.filter(c=>c.type===type),endpoints=[...new Set(expected.flatMap(c=>[c.from,c.to]))];
+    assert.deepEqual(mapConnections(html).sort(),expected.map(c=>c.id).sort());
+    assert.deepEqual(mapNodes(html).sort(),endpoints.sort());
+    assert.deepEqual([...new Set([...html.matchAll(/data-port-for="([^"]+)"/g)].map(m=>m[1]))].sort(),endpoints.sort());
+    assert.ok(!app.hasDraft());assert.equal(calls.length,0);
+    await action(app,'lighting-save');assert.deepEqual(JSON.parse(JSON.stringify(calls[0].data.plan)),defaults());
+  }
+});
+test('type and cable filters combine and keep only other endpoints as attenuated context',()=>{
+  const {app}=setup();app.render();
+  app.input({id:'lighting-element-view',value:'type:monitor'});app.input({id:'lighting-cable-view',value:'hdmi'});
+  const html=app.render();
+  assert.deepEqual(mapNodes(html).sort(),['blue-monitor','red-monitor','splitter']);
+  assert.deepEqual(mapConnections(html).sort(),['hdmi-blue','hdmi-red']);
+  assert.match(html,/is-filter-context[^>]+data-lighting-node="splitter"/);
+  assert.doesNotMatch(html,/is-filter-context[^>]+data-lighting-node="(?:blue|red)-monitor"/);
+  assert.match(html,/otros tipos aparecen atenuados/);assert.ok(!app.hasDraft());
+  app.input({id:'lighting-cable-view',value:'none'});
+  const isolated=app.render();assert.deepEqual(mapNodes(isolated).sort(),['blue-monitor','red-monitor']);assert.deepEqual(mapConnections(isolated),[]);
+  assert.doesNotMatch(isolated,/is-filter-context|data-port-for=/);
+});
+test('team and zone filters retain neutral team monitors, and an empty intersection leaves no stale inspector',()=>{
+  const {app,nodes}=setup();app.render();app.input({id:'lighting-cable-view',value:'none'});
+  app.input({id:'lighting-element-view',value:'blue'});
+  const blue=mapNodes(app.render());assert.ok(blue.includes('blue-monitor'));assert.ok(blue.includes('actors-blue'));assert.ok(!blue.includes('red-monitor'));
+  app.input({id:'lighting-element-view',value:'zone:actors'});assert.deepEqual(mapNodes(app.render()).sort(),['actors-blue','actors-power','actors-red']);
+  app.input({id:'lighting-element-view',value:'type:spot'});app.input({id:'lighting-cable-view',value:'hdmi'});
+  assert.deepEqual(mapNodes(app.render()),[]);assert.deepEqual(mapConnections(app.render()),[]);
+  assert.match(nodes['#lighting-inspector'].innerHTML,/Cambia los filtros/);
+  assert.doesNotThrow(()=>app.input({dataset:{lightingField:'x'},value:'50'}));assert.ok(!app.hasDraft());
+  app.input({id:'lighting-element-view',value:'all'});app.input({id:'lighting-cable-view',value:'all'});
+  assert.equal(mapNodes(app.render()).length,27);assert.equal(mapConnections(app.render()).length,26);
+});
+test('view changes do not consume undo steps, survive re-render and invalid values do not broaden the filter',async()=>{
+  const {app}=setup();app.render();app.input({id:'lighting-notes',value:'Solo esta edición'});
+  app.input({id:'lighting-element-view',value:'type:monitor'});app.input({id:'lighting-cable-view',value:'none'});
+  app.input({id:'lighting-element-view',value:'type:unknown'});app.input({id:'lighting-cable-view',value:'invalid'});
+  await action(app,'lighting-undo');assert.ok(!app.hasDraft());
+  const html=app.render();assert.match(html,/<option value="type:monitor" selected>/);assert.match(html,/<option value="none" selected>/);
+  assert.deepEqual(mapNodes(html).sort(),['blue-monitor','red-monitor']);
+});
+test('new element panel opens on demand, retains choices and reveals a created element hidden by active filters',async()=>{
+  const {app,nodes,calls}=setup();assert.match(app.render(),/id="lighting-add-element" hidden/);
+  app.input({id:'lighting-element-view',value:'type:spot'});app.input({id:'lighting-cable-view',value:'hdmi'});
+  await action(app,'lighting-new-element');app.input({id:'lighting-new-type',value:'monitor'});app.input({id:'lighting-new-zone',value:'actors'});
+  await action(app,'lighting-close-element');await action(app,'lighting-new-element');
+  const open=app.render();assert.match(open,/<option value="monitor" selected>/);assert.match(open,/<option value="actors" selected>/);assert.ok(!app.hasDraft());
+  nodes['#lighting-new-type']={value:'monitor'};nodes['#lighting-new-zone']={value:'actors'};nodes['#lighting-new-color']={value:'white'};
+  await action(app,'lighting-add');const added=app.render();assert.equal(mapNodes(added).length,28);assert.match(added,/id="lighting-add-element" hidden/);
+  assert.match(added,/<option value="all" selected>Todos los elementos/);assert.match(added,/<option value="all" selected>Todos los cables/);assert.equal(calls.length,0);
+  await action(app,'lighting-undo');assert.equal(mapNodes(app.render()).length,27);assert.ok(!app.hasDraft());
 });
 test('scope switch asks before discarding dirty edits and new bolo starts from saved base',async()=>{
   const {app,state,setAnswer,calls}=setup();

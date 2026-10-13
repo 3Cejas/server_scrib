@@ -111,6 +111,13 @@ que administración haya exportado antes otro documento.
 - En Técnica la sala de intérpretes se sitúa debajo de la zona técnica,
   ambas a todo el ancho. Arrastre, deshacer y PDF usan las nuevas coordenadas
   sin cambiar las posiciones normalizadas guardadas.
+- Elementos y Cableado se eligen desde dos desplegables combinables: equipo,
+  zona o tipo de elemento, y tipo de conexión. Solo aparecen los equipos que
+  corresponden, con los otros extremos conectados atenuados como referencia.
+  Los filtros no modifican el plano guardado ni consumen pasos de deshacer.
+  «Nuevo elemento» abre su recuadro de creación; las opciones se mantienen al
+  actualizar la vista y el recuadro se cierra después de añadir el elemento.
+  Si el nuevo elemento quedaría oculto por los filtros, se muestra el plano completo.
 
 - Inventario azul/rojo: dos kits completos, con selección de objetos al exportar.
   Cada bolo incluye por defecto todos los objetos activos, salvo selección explícita.
