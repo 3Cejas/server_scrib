@@ -132,7 +132,7 @@ def generate(store, data, user, *, agreement_token=None):
                 ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
                 ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
             story.extend([row,Spacer(1,gap)])
-    def inventory(objects):
+    def inventory(objects, compact=False):
         for team in ('blue', 'red'):
             chosen = sorted([o for o in objects if o['team'] == team], key=lambda o: o['title'].casefold())
             if not chosen:
@@ -143,6 +143,16 @@ def generate(store, data, user, *, agreement_token=None):
             story.append(para(str(len(chosen))+' objetos seleccionados', 'Small'))
             cards, long_notes = [], []
             for obj in chosen:
+                if compact:
+                    photo=image(obj.get('image'),size=32)
+                    quantity=str(obj['quantity']) if obj.get('quantity') is not None else '?'
+                    cells=[CheckBox(False,tones[team]),para(obj['title'],'Check'),para('× '+quantity,'Check')]
+                    widths=[20,170.5,36]
+                    if photo:cells.insert(1,photo);widths=[20,38,132.5,36]
+                    row=Table([cells],colWidths=widths)
+                    row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+                    block=Table([[row]],colWidths=[246.5]);block.setStyle(card_style(team));cards.append(block)
+                    continue
                 photo = image(obj.get('image')) if data.get('photos', True) else None
                 quantity = str(obj['quantity']) if obj.get('quantity') is not None else 'Sin especificar'
                 texts = [para('Cantidad: '+quantity, 'Object'),
@@ -240,9 +250,9 @@ def generate(store, data, user, *, agreement_token=None):
             if plan.get('notes'):
                 section('Notas para la sala')
                 story.append(para(plan['notes']))
-            from lighting import material_counts
+            from lighting import material_counts, material_details
             section('Material técnico del show')
-            story.append(para('Mínimo del plano. Longitudes, conectores, adaptadores y número de focos por grupo: según la sala.','Small'))
+            story.append(para('Barras LED por Bluetooth, sin cableado a sonido. Los conectores y cargadores pendientes se indican expresamente.','Small'))
             for label,rows in [('Cables necesarios',material_counts(plan)['cables']),('Equipos y elementos',material_counts(plan)['equipment'])]:
                 story.append(para(label,'Heading3'));cards=[]
                 for name,count in rows:
@@ -250,6 +260,27 @@ def generate(store, data, user, *, agreement_token=None):
                     card=Table([[para(str(count),'Score'),para(name,'Check')]],colWidths=[64,182.5])
                     card.setStyle(card_style());cards.append(card)
                 two_columns(cards)
+            details=material_details(plan)
+            section('Conectores - origen a destino')
+            cards=[]
+            for link in details['cables']:
+                content=[para(cable_names[link['type']]+' - '+str(link['count'])+(' cable' if link['count']==1 else ' cables'),'Heading3'),
+                         para('EN ORIGEN','Small'),para(link['source'],'Check'),
+                         para('EN DESTINO','Small'),para(link['target'],'Check'),
+                         para('\n'.join(link['routes']),'Small')]
+                card=Table([[content]],colWidths=[246.5]);card.setStyle(card_style());cards.append(card)
+            two_columns(cards)
+            section('Fuentes, cargadores y alimentación')
+            cards=[]
+            for supply in details['supplies']:
+                card=Table([[[para(supply['label'],'Heading3'),para(supply['detail'],'Small')]]],colWidths=[246.5])
+                card.setStyle(card_style());cards.append(card)
+            two_columns(cards)
+            event=next((e for e in store.all(db,'event') if e['id']==ident and not e['archived']),None)
+            objects=[o for o in all_objects if o['team'] in TEAMS and (not event or 'inventoryIds' not in event or o['id'] in event['inventoryIds'])]
+            if objects:
+                story.append(PageBreak());section('Inventario de los equipos')
+                inventory(objects,compact=True)
             section('Walkies - cuatro unidades')
             for w in plan['walkies']:
                 story.append(para(w['label']+' - CANAL '+w['channel'], 'Heading3'))
@@ -630,6 +661,8 @@ def StagePlan(plan,font='ScribSans',*,max_height=910):
                 c.setStrokeColor(colors.HexColor(color));c.setFillColor(colors.HexColor('#171e2d'));c.setLineWidth(2)
                 if kind=='screen':c.roundRect(x-150,y-30,300,60,5,fill=1,stroke=1)
                 elif kind=='desk':c.roundRect(x-80,y-30,160,60,10,fill=1,stroke=1)
+                elif kind=='led-bar':
+                    c.saveState();c.translate(x,y);c.rotate(e.get('rotation',0));c.roundRect(-40,-6,80,12,4,fill=1,stroke=1);c.restoreState()
                 elif kind in ('monitor','computer','console','projector','splitter','video-card','psu','controller'):
                     c.roundRect(x-35,y-24,70,43,5,fill=1,stroke=1)
                 elif kind=='power':c.roundRect(x-13,y-22,26,44,6,fill=1,stroke=1)
@@ -641,13 +674,16 @@ def StagePlan(plan,font='ScribSans',*,max_height=910):
                     c.roundRect(x-28,y-15,56,30,5,fill=1,stroke=1);c.line(x,y+15,x,y+40);c.line(x,y+40,x-10,y+30);c.line(x,y+40,x+10,y+30)
                 else:c.circle(x,y,25,fill=1,stroke=1)
                 label=e['label']
+                led=kind=='led-bar'
+                if led and e['id'] in ('blue-led-upper','blue-led-lower','red-led-upper','red-led-lower'):label='LED '+('1' if e['id'].endswith('upper') else '2')
                 if kind!='monitor' and e['color'] in ('blue','red'):
                     label=re.sub(r'(?:\s*·)?\s+(?:azul(?:es)?|roj[oa]s?)$','',label,flags=re.I)
                 parts=label.split(' · ') if e.get('zone') or kind=='spot' else [label]
-                offset=67 if kind=='desk' and not e.get('zone') else 62 if kind=='screen' else -28 if kind=='smoke' else -60 if kind=='spot' else 45 if kind=='street' else 32 if kind=='power' and e.get('zone') else 43 if e.get('zone') else 57
-                anchor='left' if e['id']=='blue-power' else 'right' if e['id']=='red-power' else 'center'
+                offset=5 if led else 67 if kind=='desk' and not e.get('zone') else 62 if kind=='screen' else -28 if kind=='smoke' else -12 if kind=='spot' else 45 if kind in ('street','back') else 32 if kind=='power' and e.get('zone') else 43 if e.get('zone') else 57
+                anchor=('right' if e['color']=='blue' else 'left') if led else 'left' if kind=='spot' or e['id']=='blue-power' else 'right' if e['id']=='red-power' else 'center'
+                label_x=x+(-50 if e['color']=='blue' else 50) if led else x+55 if kind=='spot' else x
                 for number,part in enumerate(parts):
-                    text(part if len(part)<=29 else part[:28]+'…',x,y+offset+18*number,16,color,anchor,halo=True)
+                    text(part if len(part)<=29 else part[:28]+'…',label_x,y+offset+18*number,16,color,anchor,halo=True)
             for x in (280,350,420,500,580,650,720):
                 c.setStrokeColor(colors.HexColor('#bdc6d9'));c.setLineWidth(2);c.circle(x,650,7,fill=0)
                 c.line(x,660,x,680);c.line(x-7,680,x-7,690);c.line(x+7,680,x+7,690)

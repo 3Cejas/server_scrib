@@ -2,13 +2,14 @@
 window.ScribLighting = function(h) {
   const {esc,btn,pageHead,request,toast} = h;
   const clone = value => JSON.parse(JSON.stringify(value));
-  const LIGHTS = new Set(['street','spot','front','back']);
-  const TYPES={computer:'Ordenador',desk:'Mesa','video-card':'Interfaz de vídeo',splitter:'Splitter HDMI',projector:'Proyector',monitor:'Monitor',screen:'Pantalla',console:'Mesa de control',power:'Alimentación',speaker:'Altavoz',controller:'Mando',smoke:'Máquina de humo',street:'Calle de luz',spot:'Puntual',front:'Frontales',back:'Contra',psu:'Fuente de alimentación'};
+  const LIGHTS = new Set(['street','spot','front','back','led-bar']);
+  const TYPES={computer:'Ordenador',desk:'Mesa','video-card':'Interfaz de vídeo',splitter:'Splitter HDMI',projector:'Proyector',monitor:'Monitor',screen:'Pantalla',console:'Mesa de control',power:'Entrada / regleta 230 V',speaker:'Altavoz',controller:'Mando',smoke:'Máquina de humo','led-bar':'Barra LED · Bluetooth',street:'Calle de luz',spot:'Puntual',front:'Frontales',back:'Contra',psu:'Fuente de alimentación'};
   let scope='',loadedScope=null,draft=null,version=0,selected='blue-street',dirty=false,busy=false,drag=null,requestId='',cableView='all',elementView='all';
   let baseline='',past=[],future=[],editGroup=null;
   let newElementOpen=false,newElementType='computer',newElementZone='stage',newElementColor='white';
   let viewOpen=true,lightsOpen=true;
   const SEPARATE_FURNITURE=new Set(['blue-writer-computer','red-writer-computer','actors-blue-desk','actors-red-desk']);
+  const LED_BARS=new Set(['blue-led-upper','blue-led-lower','red-led-upper','red-led-lower']);
   const ELEMENT_GROUPS={blue:'🔵 Equipo azul',red:'🔴 Equipo rojo',lights:'☀ Todos los focos',presenter:'◉ Presentador',frontals:'Frontales',backlights:'Contras'};
   const ZONES={stage:'Escenario',technical:'Técnica',actors:'Sala de intérpretes'};
   function matchesElement(e) {
@@ -87,16 +88,18 @@ window.ScribLighting = function(h) {
   function upgraded(source) {
     const defaults=h.state().lightingDefaults;
     const plan=clone({schemaVersion:defaults.schemaVersion,notes:source.notes||'',elements:source.elements,connections:source.connections||defaults.connections,walkies:source.walkies||defaults.walkies,checklist:source.checklist||defaults.checklist});
-    if(source.schemaVersion>=7)return plan;
-    if(source.schemaVersion>=6)return completeV7(plan,defaults);
-    if(source.schemaVersion>=5)return completeV7(completeV6(plan,defaults),defaults);
+    if(source.schemaVersion>=8)return plan;
+    if(source.schemaVersion>=7)return completeV8(plan,defaults);
+    if(source.schemaVersion>=6)return completeV8(completeV7(plan,defaults),defaults);
+    if(source.schemaVersion>=5)return completeV8(completeV7(completeV6(plan,defaults),defaults),defaults);
     const ids=plan.elements.map(e=>e.id);
     const additions=['game-controller','video-card','left-speaker','right-speaker'];
-    const v2=defaults.elements.filter(e=>e.type!=='back'&&!SEPARATE_FURNITURE.has(e.id)).map(e=>e.id).filter(id=>!additions.includes(id));
+    const previousIds=[...defaults.elements.filter(e=>!LED_BARS.has(e.id)).map(e=>e.id),'red-smoke'];
+    const v2=previousIds.filter(id=>!['blue-back','red-back'].includes(id)&&!SEPARATE_FURNITURE.has(id)&&!additions.includes(id));
     const legacy=['blue-street','red-street','presenter','frontals','blue-desk','red-desk','screen'];
     const same=(a,b)=>new Set(a).size===a.length&&a.length===b.length&&b.every(id=>a.includes(id));
-    const oldDefaultIds=defaults.elements.filter(e=>e.type!=='back'&&!SEPARATE_FURNITURE.has(e.id)).map(e=>e.id);
-    if([legacy,v2,[...oldDefaultIds,'video-psu'],oldDefaultIds,defaults.elements.filter(e=>!SEPARATE_FURNITURE.has(e.id)).map(e=>e.id),defaults.elements.map(e=>e.id)].some(keys=>same(ids,keys))){
+    const oldDefaultIds=previousIds.filter(id=>!['blue-back','red-back'].includes(id)&&!SEPARATE_FURNITURE.has(id));
+    if([legacy,v2,[...oldDefaultIds,'video-psu'],oldDefaultIds,previousIds.filter(id=>!SEPARATE_FURNITURE.has(id)),defaults.elements.map(e=>e.id)].some(keys=>same(ids,keys))){
       const positions={splitter:[50,34],'blue-power':[14,28],'red-power':[86,28],'game-computer':[25,25],'sound-computer':[75,25],'sound-desk':[75,65],'technical-power':[25,65],'dmx-desk':[50,90]};
       for(const e of plan.elements){const d=defaults.elements.find(x=>x.id===e.id),p=positions[e.id];if(d&&[legacy,v2].some(keys=>same(ids,keys))&&p&&e.x===p[0]&&e.y===p[1]){e.x=d.x;e.y=d.y;}if(e.id==='splitter')e.zone='technical';}
       plan.elements.push(...clone(defaults.elements.filter(e=>!ids.includes(e.id))));
@@ -107,7 +110,7 @@ window.ScribLighting = function(h) {
       const row={...clone(d),...e};if(row.label===labels[e.id])row.label=d.label;
       return row;
     });
-    for(const [field,retired,added] of [['connections',['power-game','power-video-psu'],['data-video','data-controller','power-video-card','power-video-psu','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['room','cables','backup','sound-cues','speakers'],['video-card','controller','speakers']]]){
+    for(const [field,retired,added] of [['connections',['power-game','power-video-psu','dmx-red','power-red-smoke'],['data-video','data-controller','power-video-card','power-video-psu','audio-left','audio-right','power-left-speaker','power-right-speaker']],['checklist',['room','cables','backup','sound-cues','speakers'],['video-card','controller','speakers']]]){
       const rows=plan[field],keys=rows.map(r=>r.id),fixed=defaults[field].map(r=>r.id);
       const previous=[...new Set([...fixed,...retired])];
       const historical=[previous,previous.filter(id=>!added.includes(id)),previous.filter(id=>id!=='power-game'),previous.filter(id=>id!=='power-video-psu'),previous.filter(id=>id!=='power-game'&&!added.includes(id)),fixed];
@@ -119,7 +122,38 @@ window.ScribLighting = function(h) {
         return copy;
       });
     }
-    return completeV7(completeV6(plan,defaults),defaults);
+    return completeV8(completeV7(completeV6(plan,defaults),defaults),defaults);
+  }
+  function completeV8(plan,defaults) {
+    const blueprint=new Map(defaults.elements.map(e=>[e.id,e]));
+    for(const color of ['blue','red']){
+      const desk=plan.elements.find(e=>e.id===color+'-desk');if(!desk)continue;
+      for(const [part,offset] of [['upper',-8],['lower',4]]){
+        const id=color+'-led-'+part;if(plan.elements.some(e=>e.id===id)||plan.elements.length>=100)continue;
+        plan.elements.push({...clone(blueprint.get(id)),x:Math.max(10,Math.min(90,desk.x+(color==='blue'?-14:14))),y:Math.max(10,Math.min(90,desk.y+offset))});
+      }
+    }
+    const smoke=plan.elements.filter(e=>['blue-smoke','red-smoke'].includes(e.id)&&e.type==='smoke');
+    if(smoke.length){
+      const keep=smoke[0],retired=new Set(smoke.slice(1).map(e=>e.id));
+      if(['Humo · azul','Humo · rojo'].includes(keep.label)){keep.label='Máquina de humo';keep.color='white';}
+      keep.notes=[...new Set(smoke.map(e=>e.notes).filter(Boolean))].join('\n').slice(0,2000);
+      plan.elements=plan.elements.filter(e=>!retired.has(e.id));
+      const pairs=new Map();
+      plan.connections=plan.connections.flatMap(original=>{
+        if(retired.size&&['dmx-red','power-red-smoke'].includes(original.id))return [];
+        const c=clone(original);for(const k of ['from','to'])if(retired.has(c[k]))c[k]=keep.id;
+        if(c.from===c.to)return [];const key=JSON.stringify([c.from,c.to,c.type]);
+        if(pairs.has(key)){const prior=pairs.get(key);prior.notes=[...new Set([prior.notes,c.notes].filter(Boolean))].join('\n').slice(0,1000);return [];}
+        pairs.set(key,c);return [c];
+      });
+    }
+    for(const e of plan.elements){const d=blueprint.get(e.id);if(d?.powerSupply!==undefined&&e.powerSupply===undefined)e.powerSupply=d.powerSupply;}
+    const links=new Map(defaults.connections.map(c=>[c.id,c]));
+    for(const c of plan.connections)for(const field of ['fromConnector','toConnector'])if(c[field]===undefined)c[field]=links.get(c.id)?.[field]||'Por confirmar';
+    for(const c of plan.connections)if(['DMX · humo azul','Alimentación · humo azul'].includes(c.label)&&links.has(c.id))c.label=links.get(c.id).label;
+    for(const check of plan.checklist){const d=defaults.checklist.find(c=>c.id===check.id);if(d){check.text=d.text;check.category=d.category;}}
+    return plan;
   }
   const root = () => document.querySelector('.lighting-workspace');
   const own = () => h.state().items.find(x=>x.kind==='lighting' && x.eventId===scope && !x.archived);
@@ -153,6 +187,7 @@ window.ScribLighting = function(h) {
   function beams(e) {
     if(!LIGHTS.has(e.type))return '';
     const {x,y}=at(e),opacity=e.enabled?e.intensity/100:0;
+    if(e.type==='led-bar')return `<ellipse cx="${x}" cy="${y}" rx="57" ry="13" transform="rotate(${e.rotation||0} ${x} ${y})" fill="url(#lumi-${tone(e)})" opacity="${opacity}"/>`;
     if(e.type==='street') {const end=x+(e.color==='blue'?360:-360);return `<polygon points="${x},${y} ${end},${y-155} ${end},${y+155}" fill="url(#lumi-${tone(e)})" opacity="${opacity}"/>`;}
     if(e.type==='spot')return `<ellipse cx="${x}" cy="${y}" rx="105" ry="66" fill="url(#lumi-warm)" opacity="${opacity}"/>`;
     if(e.type==='back')return `<polygon points="${x},${y} ${x-125},${y+260} ${x+125},${y+260}" fill="url(#lumi-${tone(e)})" opacity="${opacity}"/>`;
@@ -161,7 +196,8 @@ window.ScribLighting = function(h) {
   function marker(e,context=false) {
     const {x,y}=at(e),t=tone(e);
     let shape;
-    if(e.type==='desk')shape='<rect class="lumi-body" x="-80" y="-30" width="160" height="60" rx="10"/><path class="lumi-line" d="M-60 30v15M60 30v15"/>';
+    if(e.type==='led-bar')shape=`<g transform="rotate(${e.rotation||0})"><rect class="lumi-body" x="-40" y="-6" width="80" height="12" rx="4"/><path class="lumi-line" d="M-34 0h68"/></g>`;
+    else if(e.type==='desk')shape='<rect class="lumi-body" x="-80" y="-30" width="160" height="60" rx="10"/><path class="lumi-line" d="M-60 30v15M60 30v15"/>';
     else if(e.type==='screen')shape='<rect class="lumi-body" x="-150" y="-30" width="300" height="60" rx="5"/><path class="lumi-line" d="M-156-37h312M0 30v12"/><text class="lumi-screen-word" text-anchor="middle" y="7">&lt;SCRI&gt; B</text>';
     else if(e.type==='front')shape=[-115,0,115].map(pos=>`<circle class="lumi-body" cx="${pos}" cy="0" r="23"/><path class="lumi-line" d="M${pos-9} 5l9-13 9 13"/>`).join('');
     else if(e.type==='spot')shape='<circle class="lumi-body" r="34"/><circle class="lumi-person" cy="-9" r="8"/><path class="lumi-line" d="M-14 17v-2a14 14 0 0 1 28 0v2"/>';
@@ -177,9 +213,9 @@ window.ScribLighting = function(h) {
     else if(e.type==='console')shape='<rect class="lumi-body" x="-38" y="-22" width="76" height="44" rx="5"/><path class="lumi-line" d="M-20-12v24M0-12v24M20-12v24M-27-3h14M-7 7H7M13-7h14"/>';
     else if(e.type==='smoke')shape='<rect class="lumi-body" x="-28" y="-15" width="56" height="30" rx="5"/><path class="lumi-line" d="M0 15v25m-10-9 10 10 10-10"/><path class="lumi-smoke-direction" d="M-15 50q15 12 30 0M-22 60q22 15 44 0"/>';
     else shape=`<circle class="lumi-body" r="25"/><path class="lumi-line" ${e.color==='red'?'transform="scale(-1 1)"':''} d="m-10-12 22 12-22 12Z"/>`;
-    const yLabel=e.type==='desk'&&!e.zone?67:e.type==='screen'?62:e.type==='smoke'?-28:e.type==='spot'?-12:['street','back'].includes(e.type)?45:e.zone?(e.type==='power'?32:43):57;
-    const edge=['blue-power','red-power'].includes(e.id),anchor=e.type==='spot'?'start':edge?(e.color==='blue'?'start':'end'):'middle',xLabel=e.type==='spot'?55:0;
-    const label=name(e),parts=(e.zone||e.type==='spot')&&label.includes(' · ')?label.split(' · '):[label];
+    const led=e.type==='led-bar',yLabel=led?5:e.type==='desk'&&!e.zone?67:e.type==='screen'?62:e.type==='smoke'?-28:e.type==='spot'?-12:['street','back'].includes(e.type)?45:e.zone?(e.type==='power'?32:43):57;
+    const edge=['blue-power','red-power'].includes(e.id),anchor=led?(e.color==='blue'?'end':'start'):e.type==='spot'?'start':edge?(e.color==='blue'?'start':'end'):'middle',xLabel=led?(e.color==='blue'?-50:50):e.type==='spot'?55:0;
+    const label=led&&LED_BARS.has(e.id)?'LED '+(e.id.endsWith('upper')?'1':'2'):name(e),parts=(e.zone||e.type==='spot')&&label.includes(' · ')?label.split(' · '):[label];
     if(e.type==='monitor')shape+=`<g class="lumi-monitor-power${powered(e)?'':' is-missing'}" data-monitor-power="${powered(e)}"><title>${powered(e)?'Alimentación conectada':'Sin alimentación'}</title><circle cx="43" cy="-28" r="12"/><text x="43" y="-23" text-anchor="middle">ϟ</text></g>`;
     return `<g class="lumi-node lumi-${t}${selected===e.id?' is-selected':''}${!e.enabled?' is-off':''}${context?' is-filter-context':''}" transform="translate(${x},${y})" data-lighting-node="${esc(e.id)}" data-action="lighting-select" data-id="${esc(e.id)}" tabindex="0" role="button" aria-pressed="${selected===e.id}" aria-label="${esc(e.label)}. ${context?'Extremo de conexión. ':''}${LIGHTS.has(e.type)?e.enabled?'Intensidad '+e.intensity+' por ciento':'Apagado':'Elemento de escenario'}. Pulsa para seleccionar; flechas para mover."><title>${esc(e.label)}</title><circle class="lumi-hit" r="42"/>${shape}<text class="lumi-node-label" text-anchor="${anchor}" y="${yLabel}">${parts.map((part,i)=>`<tspan x="${xLabel}" dy="${i?18:0}">${esc(short(part))}</tspan>`).join('')}</text></g>`;
   }
@@ -257,11 +293,27 @@ window.ScribLighting = function(h) {
     }).join('')).join('');
   }
   function materialSummary() {
+    return `<section class="panel lighting-materials"><div class="panel-head"><div><p class="eyebrow">TODO LISTO PARA CONECTAR</p><h2>Material técnico del show</h2></div></div><div id="lighting-materials-content">${materialContents()}</div></section>`;
+  }
+  function materialContents() {
     const cables=Object.entries(cableLabels).map(([type,label])=>({label,type,icon:{hdmi:'▣',data:'⌘',audio:'♫',power:'ϟ',dmx:'✦'}[type],count:draft.connections.filter(c=>c.type===type).length}));
-    const equipment=Object.entries(TYPES).map(([type,label])=>({label,icon:{computer:'💻',desk:'✍',monitor:'▣',screen:'▱',projector:'🎥',splitter:'↣','video-card':'▤',controller:'🎮',speaker:'🔊',console:'🎛',smoke:'☁',power:'ϟ',street:'✦',spot:'◉',front:'☀',back:'↘',psu:'▰'}[type],count:draft.elements.filter(e=>e.type===type).length}));
+    const omitted=new Set(['screen','console','street','spot','front','back','led-bar']);
+    const equipment=Object.entries(TYPES).filter(([type])=>!omitted.has(type)).map(([type,label])=>({label,icon:{computer:'💻',desk:'✍',monitor:'▣',projector:'🎥',splitter:'↣','video-card':'▤',controller:'🎮',speaker:'🔊',smoke:'☁',power:'ϟ',psu:'▰'}[type],count:draft.elements.filter(e=>e.type===type).length}));
+    for(const color of ['blue','red'])equipment.push({label:`Barras LED ${color==='blue'?'azules':'rojas'} · Bluetooth`,icon:'▰',count:draft.elements.filter(e=>e.type==='led-bar'&&e.color===color).length});
     equipment.push({label:'Walkies',icon:'📻',count:draft.walkies.length});
     const rows=items=>items.filter(x=>x.count).map(x=>`<div class="lighting-material ${x.type?'cable-'+esc(x.type):''}"><span class="material-icon" aria-hidden="true">${x.icon}</span><strong>${x.count}</strong><span class="material-label">${esc(x.label)}</span></div>`).join('');
-    return `<section class="panel lighting-materials"><div class="panel-head"><div><p class="eyebrow">TODO LISTO PARA CONECTAR</p><h2>Material técnico del show</h2></div><span class="badge gold">${draft.connections.length} conexiones · ${draft.elements.length} elementos</span></div><div class="lighting-material-columns"><section><h3>ϟ Cableado</h3><div class="lighting-material-list">${rows(cables)}</div></section><section><h3>▣ Equipos</h3><div class="lighting-material-list">${rows(equipment)}</div></section></div></section>`;
+    const nodes=new Map(draft.elements.map(e=>[e.id,e])),groups=new Map();
+    for(const c of draft.connections){
+      const source=c.fromConnector||'Por confirmar',target=c.toConnector||'Por confirmar',key=JSON.stringify([c.type,source,target]);
+      if(!groups.has(key))groups.set(key,{type:c.type,source,target,routes:[]});
+      groups.get(key).routes.push((nodes.get(c.from)?.label||'Origen')+' → '+(nodes.get(c.to)?.label||'Destino'));
+    }
+    const event=h.state().items.find(e=>e.id===scope&&e.kind==='event');
+    const objects=h.state().items.filter(o=>o.kind==='inventory'&&!o.archived&&(!Array.isArray(event?.inventoryIds)||event.inventoryIds.includes(o.id)));
+    return `<div class="lighting-material-columns"><section><h3>ϟ Cableado</h3><div class="lighting-material-list">${rows(cables)}</div></section><section><h3>▣ Equipos</h3><div class="lighting-material-list">${rows(equipment)}</div></section></div><section class="lighting-material-detail"><h3>Conectores · origen → destino</h3><div class="lighting-cable-detail-list">${[...groups.values()].map(g=>`<article class="lighting-cable-detail cable-${esc(g.type)}"><header><span>${esc(cableLabels[g.type])}</span><strong>× ${g.routes.length}</strong></header><div class="lighting-connector-pair"><div><small>EN ORIGEN</small><strong>${esc(g.source)}</strong></div><span aria-hidden="true">→</span><div><small>EN DESTINO</small><strong>${esc(g.target)}</strong></div></div><p>${g.routes.map(esc).join('<br>')}</p></article>`).join('')||'<p class="muted">Sin conexiones en este plano.</p>'}</div></section><section class="lighting-material-detail"><h3>Fuentes, cargadores y alimentación</h3><div class="lighting-supply-list">${draft.elements.filter(e=>e.powerSupply).map(e=>`<article class="lighting-supply lumi-${tone(e)}"><span aria-hidden="true">ϟ</span><div><strong>${esc(e.label)}</strong><p>${esc(e.powerSupply)}</p>${e.type==='led-bar'?'<small>Bluetooth · carga previa; sin cable a la mesa de sonido.</small>':''}</div></article>`).join('')}</div></section><section class="lighting-material-detail"><div class="panel-head"><h3>Inventario de los equipos</h3><a class="button small" href="#inventory">Ver inventario ↗</a></div><div class="lighting-team-inventory">${['blue','red'].map(team=>`<section class="lighting-kit lumi-${team}"><h3>${team==='blue'?'🔵 Equipo azul':'🔴 Equipo rojo'}</h3><ul>${objects.filter(o=>o.team===team).sort((a,b)=>a.title.localeCompare(b.title,'es')).map(o=>`<li>${o.image?`<img src="/scrib/backstage/images/${esc(o.image)}" alt="" loading="lazy">`:'<span class="lighting-kit-placeholder" aria-hidden="true">🎭</span>'}<strong>${esc(o.title)}</strong><span>${o.quantity==null?'Por confirmar':'× '+esc(o.quantity)}</span></li>`).join('')||'<li class="muted">Sin objetos para este plano.</li>'}</ul></section>`).join('')}</div></section>`;
+  }
+  function refreshMaterials() {
+    const content=document.querySelector('#lighting-materials-content');if(content)content.innerHTML=materialContents();
   }
   function technicalSections() {
     const checks=draft.checklist,groups=[...new Set(checks.map(c=>c.category))];
@@ -273,10 +325,12 @@ window.ScribLighting = function(h) {
     return `<div class="lighting-inspector lumi-${tone(e)}"><p class="eyebrow">ELEMENTO SELECCIONADO</p><h2>${esc(name(e))}</h2>${e.type==='monitor'?`<span class="lighting-powered${powered(e)?'':' is-missing'}">ϟ ${powered(e)?'Alimentación conectada':'Falta conectar alimentación'}</span>`:''}
       <label class="field">Nombre<input data-lighting-field="label" data-lighting-control value="${esc(e.label)}" maxlength="80" required></label>
       <div class="grid cols2"><label class="field">Horizontal (%)<input type="number" data-lighting-field="x" data-lighting-control value="${e.x}" min="${b.min}" max="${b.max}" step="1"></label><label class="field">${e.zone?'Vertical en su zona':'Fondo → proscenio'} (%)<input type="number" data-lighting-field="y" data-lighting-control value="${e.y}" min="10" max="90" step="1"></label></div>
+      ${e.type==='led-bar'?`<span class="lighting-powered">Bluetooth · sin conexión a sonido</span><label class="field">Ángulo de la barra (°)<input type="number" data-lighting-field="rotation" data-lighting-control min="-180" max="180" value="${e.rotation||0}"></label>`:''}
       ${light?`<label class="lighting-switch"><input type="checkbox" data-lighting-field="enabled" data-lighting-control ${e.enabled?'checked':''}> Encendido</label><label class="field">Intensidad <output id="lighting-intensity">${e.intensity}%</output><input type="range" data-lighting-field="intensity" data-lighting-control min="0" max="100" step="1" value="${e.intensity}"></label>`:''}
       <label class="field">Notas de montaje<textarea data-lighting-field="notes" data-lighting-control maxlength="2000">${esc(e.notes)}</textarea></label>
+      <label class="field">Alimentación / cargador<textarea data-lighting-field="powerSupply" data-lighting-control maxlength="500" placeholder="Qué alimenta y qué fuente o cargador utiliza">${esc(e.powerSupply||'')}</textarea></label>
       <section class="lighting-link-editor"><h3>Conectar con…</h3><label class="field">Destino<select id="lighting-link-target" data-lighting-control>${draft.elements.filter(x=>x.id!==e.id).map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</select></label><label class="field">Tipo<select id="lighting-link-type" data-lighting-control>${Object.entries(cableLabels).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></label>${btn('lighting-connect','＋ Conectar','','small')}
-      <div class="lighting-link-list">${connections.map(c=>`<div class="lighting-link cable-${esc(c.type)}"><span><strong>${esc(cableLabels[c.type])}</strong><small>${esc(draft.elements.find(x=>x.id===(c.from===e.id?c.to:c.from))?.label||'Elemento eliminado')} ${c.from===e.id?'↗':'↙'}</small></span>${btn('lighting-disconnect','×',c.id,'icon-button')}</div>`).join('')}</div></section>${btn('lighting-remove','⌫ Eliminar elemento',e.id,'small danger')}</div>`;
+      <div class="lighting-link-list">${connections.map(c=>`<div class="lighting-link cable-${esc(c.type)}"><div class="lighting-link-heading"><span><strong>${esc(cableLabels[c.type])}</strong><small>${esc(draft.elements.find(x=>x.id===(c.from===e.id?c.to:c.from))?.label||'Elemento eliminado')} ${c.from===e.id?'↗':'↙'}</small></span>${btn('lighting-disconnect','×',c.id,'icon-button')}</div><label class="field">Conector en origen<input data-lighting-connector="fromConnector" data-connection-id="${esc(c.id)}" data-lighting-control maxlength="120" value="${esc(c.fromConnector||'')}" placeholder="Por confirmar"></label><label class="field">Conector en destino<input data-lighting-connector="toConnector" data-connection-id="${esc(c.id)}" data-lighting-control maxlength="120" value="${esc(c.toConnector||'')}" placeholder="Por confirmar"></label></div>`).join('')}</div></section>${btn('lighting-remove','⌫ Eliminar elemento',e.id,'small danger')}</div>`;
   }
   function render() {
     if(!ensure())return pageHead('PREPARAR LA ESCENA','Técnica','El servidor debe actualizarse para cargar el plano de iluminación.');
@@ -312,6 +366,7 @@ window.ScribLighting = function(h) {
     const previous=selected;ensureVisibleSelection();
     const canvas=document.querySelector('#lighting-svg');
     if(canvas)canvas.innerHTML=svg();
+    refreshMaterials();
     for(const [id,value] of [['lighting-element-view',elementView],['lighting-cable-view',cableView]]){const chooser=document.querySelector('#'+id);if(chooser)chooser.value=value;}
     const panel=document.querySelector('.lighting-filter-panel');if(panel)panel.dataset.cableView=cableView;
     const reset=document.querySelector('[data-action="lighting-filter-reset"]');if(reset)reset.disabled=elementView==='all'&&cableView==='all';
@@ -332,6 +387,12 @@ window.ScribLighting = function(h) {
     if(node.id==='lighting-new-zone'){if(['stage','technical','actors'].includes(node.value))newElementZone=node.value;return true;}
     if(node.id==='lighting-new-color'){if(['white','blue','red','warm'].includes(node.value))newElementColor=node.value;return true;}
     const key=node.dataset?.lightingField;
+    if(node.dataset?.lightingConnector){
+      if(busy||!draft)return true;
+      const field=node.dataset.lightingConnector,c=draft.connections.find(c=>c.id===node.dataset.connectionId);
+      if(c&&['fromConnector','toConnector'].includes(field)){edit(()=>{c[field]=node.value;},node);refreshMaterials();}
+      return true;
+    }
     if(node.dataset?.lightingCheck || node.dataset?.connectionNotes) {
       if(busy || !draft)return true;
       if(node.dataset.lightingCheck){
@@ -348,9 +409,12 @@ window.ScribLighting = function(h) {
     if(key==='x' || key==='y') {
       if(node.value==='' || !Number.isFinite(Number(node.value)))return true;
       const b=bounds(e);edit(()=>{e[key]=limited(Number(node.value),key==='x'?b.min:10,key==='x'?b.max:90);},node);
+    } else if(key==='rotation'&&e.type==='led-bar'){
+      if(node.value===''||!Number.isFinite(Number(node.value)))return true;
+      edit(()=>{e.rotation=limited(Number(node.value),-180,180);},node);
     } else if(key==='enabled')edit(()=>{e.enabled=node.checked;});
     else if(key==='intensity')edit(()=>{e.intensity=Math.round(limited(Number(node.value),0,100));},node);
-    else if(['label','notes','channel'].includes(key))edit(()=>{e[key]=node.value;},node);
+    else if(['label','notes','channel','powerSupply'].includes(key))edit(()=>{e[key]=node.value;},node);
     else return false;
     redraw();const output=document.querySelector('#lighting-intensity');if(output)output.textContent=e.intensity+'%';
     // Keep the input/textarea node intact while typing, including its caret.

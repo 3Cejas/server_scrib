@@ -8,9 +8,10 @@ from pathlib import Path
 DEFAULT = json.loads((Path(__file__).parent / 'lighting_plan.json').read_text())
 PREVIOUS = json.loads((Path(__file__).parent / 'lighting_legacy.json').read_text())
 BLUEPRINT = {x['id']: x for x in DEFAULT['elements']}
-ELEMENT_TYPES = {'street','spot','front','back','desk','screen','monitor','projector','splitter','smoke','power','computer','console','controller','video-card','speaker','psu'}
+ELEMENT_TYPES = {'street','spot','front','back','led-bar','desk','screen','monitor','projector','splitter','smoke','power','computer','console','controller','video-card','speaker','psu'}
 BACKLIGHTS = {'blue-back','red-back'}
 SEPARATE_FURNITURE = {'blue-writer-computer','red-writer-computer','actors-blue-desk','actors-red-desk'}
+LED_BARS = {'blue-led-upper','blue-led-lower','red-led-upper','red-led-lower'}
 CONNECTION_TYPES = {'hdmi','data','audio','power','dmx'}
 LEGACY = {'blue-street', 'red-street', 'presenter', 'frontals', 'blue-desk', 'red-desk', 'screen'}
 V2_ADDITIONS = {'blue-monitor', 'red-monitor', 'projector', 'splitter', 'blue-smoke', 'red-smoke',
@@ -96,22 +97,75 @@ def complete_v7(plan):
     return plan
 
 
+def complete_v8(plan):
+    """Add wireless LED bars and connector/supply descriptions without resetting edits."""
+    elements=plan.get('elements',[]);connections=plan.get('connections',[])
+    if not isinstance(elements,list) or not all(isinstance(e,dict) for e in elements):return plan
+    if not isinstance(connections,list) or not all(isinstance(c,dict) for c in connections):return plan
+    nodes={e.get('id'):e for e in elements}
+    for color in ('blue','red'):
+        desk=nodes.get(color+'-desk')
+        if not desk:continue
+        for part,offset in (('upper',-8),('lower',4)):
+            ident=color+'-led-'+part
+            if ident in nodes or len(elements)>=100:continue
+            bar=copy.deepcopy(BLUEPRINT[ident]);bar.update(x=max(10,min(90,desk.get('x',32)+(-14 if color=='blue' else 14))),y=max(10,min(90,desk.get('y',53)+offset)))
+            elements.append(bar);nodes[ident]=bar
+    smoke=[e for e in elements if e.get('id') in ('blue-smoke','red-smoke') and e.get('type')=='smoke']
+    if smoke:
+        keep=smoke[0];retired={e['id'] for e in smoke[1:]}
+        if keep.get('label') in ('Humo · azul','Humo · rojo'):keep['label']='Máquina de humo';keep['color']='white'
+        notes=list(dict.fromkeys(e.get('notes','') for e in smoke if e.get('notes')))
+        keep['notes']='\n'.join(notes)[:2000]
+        plan['elements']=elements=[e for e in elements if e.get('id') not in retired]
+        fixed=[];pairs={}
+        for c in connections:
+            if c.get('id') in ('dmx-red','power-red-smoke') and retired:continue
+            c=copy.deepcopy(c)
+            for key in ('from','to'):
+                if c.get(key) in retired:c[key]=keep['id']
+            if c.get('from')==c.get('to'):continue
+            pair=(c.get('from'),c.get('to'),c.get('type'))
+            if pair in pairs:
+                if c.get('notes'):pairs[pair]['notes']='\n'.join(dict.fromkeys(filter(None,(pairs[pair].get('notes',''),c['notes']))))[:1000]
+                continue
+            pairs[pair]=c;fixed.append(c)
+        plan['connections']=connections=fixed
+    for e in elements:
+        default=BLUEPRINT.get(e.get('id'),{})
+        if 'powerSupply' in default:e.setdefault('powerSupply',default['powerSupply'])
+    by_id={c['id']:c for c in DEFAULT['connections']}
+    for c in connections:
+        default=by_id.get(c.get('id'),{})
+        for field in ('fromConnector','toConnector'):c.setdefault(field,default.get(field,'Por confirmar'))
+        if c.get('label') in ('DMX · humo azul','Alimentación · humo azul') and default:c['label']=default['label']
+    checks={c['id']:c for c in DEFAULT['checklist']}
+    for check in plan.get('checklist',[]):
+        if isinstance(check,dict) and check.get('id') in checks:
+            for field in ('text','category'):check[field]=checks[check['id']][field]
+    plan['schemaVersion']=DEFAULT['schemaVersion']
+    return plan
+
+
 def upgrade(data):
-    """Migrate known layouts; v7 respects subsequent deliberate removals."""
+    """Migrate known layouts; v8 respects subsequent deliberate removals."""
     plan=copy.deepcopy(data)
-    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=7:
+    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=8:
         return plan
+    if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=7:
+        return complete_v8(plan)
     if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=6:
-        return complete_v7(plan)
+        return complete_v8(complete_v7(plan))
     if type(plan.get('schemaVersion')) is int and plan['schemaVersion']>=5:
-        return complete_v7(complete_v6(plan))
+        return complete_v8(complete_v7(complete_v6(plan)))
     if plan.get('notes')==PREVIOUS['notes']:
         plan['notes']=DEFAULT['notes']
     elements=plan.get('elements',[])
     old_nodes={e['id']:e for e in PREVIOUS['elements']}
     if isinstance(elements,list) and all(isinstance(e,dict) and isinstance(e.get('id'),str) for e in elements):
         ids=[e['id'] for e in elements]
-        known=(LEGACY,V2,set(old_nodes),set(BLUEPRINT),set(BLUEPRINT)-SEPARATE_FURNITURE,set(BLUEPRINT)-BACKLIGHTS-SEPARATE_FURNITURE)
+        prior=set(BLUEPRINT)-LED_BARS|{'red-smoke'}
+        known=(LEGACY,V2,set(old_nodes),set(BLUEPRINT),prior,prior-SEPARATE_FURNITURE,prior-BACKLIGHTS-SEPARATE_FURNITURE)
         legacy=len(ids)==len(set(ids)) and set(ids) in known
         if legacy:
             for e in elements:
@@ -150,7 +204,7 @@ def upgrade(data):
             updated.append(row)
         plan[field]=updated
     plan['schemaVersion']=DEFAULT['schemaVersion']
-    return complete_v7(complete_v6(plan))
+    return complete_v8(complete_v7(complete_v6(plan)))
 
 
 def coordinates(element):
@@ -168,17 +222,27 @@ def material_counts(plan):
     groups=[('Ordenadores y portátiles',lambda e:e['type']=='computer'),
             ('Mesas de escritura',lambda e:e['type']=='desk' and not e.get('zone')),
             ('Mesas de intérpretes',lambda e:e['type']=='desk' and e.get('zone')=='actors'),
-            ('Monitores',lambda e:e['type']=='monitor'),('Pantalla de proyección',lambda e:e['type']=='screen'),
+            ('Monitores',lambda e:e['type']=='monitor'),
             ('Proyector',lambda e:e['type']=='projector'),('Splitter HDMI',lambda e:e['type']=='splitter'),
             ('Interfaz de vídeo',lambda e:e['type']=='video-card'),('Fuente de alimentación',lambda e:e['type']=='psu'),
             ('Mando',lambda e:e['type']=='controller'),('Altavoces',lambda e:e['type']=='speaker'),
-            ('Mesas de control',lambda e:e['type']=='console' and e['id']!='dmx-desk'),('Mesa DMX',lambda e:e['id']=='dmx-desk'),
             ('Máquinas de humo',lambda e:e['type']=='smoke'),('Puntos de alimentación / regletas',lambda e:e['type']=='power'),
-            ('Calles de luz',lambda e:e['type']=='street'),('Puntual de presentador',lambda e:e['type']=='spot'),
-            ('Grupo de frontales',lambda e:e['type']=='front'),('Contras',lambda e:e['type']=='back')]
+            ('Barras LED azules · Bluetooth',lambda e:e['type']=='led-bar' and e['color']=='blue'),
+            ('Barras LED rojas · Bluetooth',lambda e:e['type']=='led-bar' and e['color']=='red')]
     equipment=[(label,sum(test(e) for e in plan['elements'])) for label,test in groups]
     equipment.append(('Walkies',len(plan['walkies'])))
     return {'cables':cables,'equipment':equipment}
+
+
+def material_details(plan):
+    """Physical endpoint descriptions, separated from power/cable family totals."""
+    nodes={e['id']:e for e in plan['elements']};groups={}
+    for c in plan['connections']:
+        key=(c['type'],c.get('fromConnector') or 'Por confirmar',c.get('toConnector') or 'Por confirmar')
+        row=groups.setdefault(key,dict(type=key[0],source=key[1],target=key[2],count=0,routes=[]))
+        row['count']+=1;row['routes'].append(nodes[c['from']]['label']+' → '+nodes[c['to']]['label'])
+    supplies=[dict(label=e['label'],detail=e['powerSupply']) for e in plan['elements'] if e.get('powerSupply')]
+    return {'cables':list(groups.values()),'supplies':supplies}
 
 
 def normalize(data, problem, text):
@@ -203,6 +267,11 @@ def normalize(data, problem, text):
         body['label'] = text(element.get('label',''), 80, True)
         body['notes'] = text(element.get('notes', ''), 2000)
         body['channel'] = text(element.get('channel', ''), 80)
+        if 'powerSupply' in element:body['powerSupply']=text(element['powerSupply'],500)
+        if kind=='led-bar':
+            rotation=element.get('rotation',0)
+            if type(rotation) not in (int,float) or not math.isfinite(rotation) or not -180<=rotation<=180:raise problem('Ángulo de barra LED no válido.')
+            body['rotation']=round(rotation,2)
         for axis in ('x', 'y'):
             value = element.get(axis)
             low, high = (20, 80) if axis == 'x' and kind in ('screen', 'front') else (10, 90)
@@ -229,7 +298,10 @@ def normalize(data, problem, text):
         pair=(c['from'],c['to'],c['type'])
         if pair in endpoints:raise problem('Esta conexión ya existe.')
         endpoints.add(pair);link_ids.add(c['id'])
-        links.append(dict(id=c['id'],**{'from':c['from'],'to':c['to']},type=c['type'],label=text(c.get('label',''),100,True),notes=text(c.get('notes',''),1000)))
+        row=dict(id=c['id'],**{'from':c['from'],'to':c['to']},type=c['type'],label=text(c.get('label',''),100,True),notes=text(c.get('notes',''),1000))
+        for field in ('fromConnector','toConnector'):
+            if field in c:row[field]=text(c[field],120)
+        links.append(row)
     checks = data.get('checklist')
     if not isinstance(checks, list) or len(checks) != len(DEFAULT['checklist']):
         raise problem('La checklist debe conservar todos los pasos de montaje.')

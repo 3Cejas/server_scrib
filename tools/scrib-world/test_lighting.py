@@ -25,7 +25,7 @@ class LightingTests(unittest.TestCase):
     def test_default_is_complete_with_correct_colors_and_independent_copies(self):
         plan = default_plan()
         nodes = {x['id']:x for x in plan['elements']}
-        self.assertEqual(len(nodes), 33)
+        self.assertEqual(len(nodes), 36)
         self.assertEqual(nodes['blue-street']['color'], 'blue')
         self.assertEqual(nodes['red-street']['color'], 'red')
         self.assertLess(nodes['presenter']['x'], 50)
@@ -39,7 +39,7 @@ class LightingTests(unittest.TestCase):
     def test_technical_topology_checklist_and_old_plan_upgrade(self):
         from lighting import LEGACY
         plan = default_plan()
-        self.assertEqual(len(plan['connections']), 26)
+        self.assertEqual(len(plan['connections']), 24)
         self.assertEqual(len(plan['walkies']), 4)
         self.assertEqual(len(plan['checklist']), 16)
         connections={c['id']:c for c in plan['connections']}
@@ -47,11 +47,11 @@ class LightingTests(unittest.TestCase):
         self.assertEqual(connections['hdmi-splitter']['from'], 'video-card')
         self.assertEqual(connections['hdmi-red']['from'], 'splitter')
         self.assertEqual(connections['audio-interpretation']['from'], 'sound-computer')
-        self.assertEqual(connections['dmx-red']['type'], 'dmx')
+        self.assertEqual(connections['dmx-blue']['type'], 'dmx')
         old={'notes':'Conservar notas','elements':[e for e in plan['elements'] if e['id'] in LEGACY]}
         old['elements'][0].update(x=18,label='Edición existente',channel='Circuito 4')
         saved=self.save(old)
-        self.assertEqual(len(saved['elements']),33)
+        self.assertEqual(len(saved['elements']),36)
         self.assertEqual(saved['elements'][0]['x'],18)
         self.assertEqual(saved['elements'][0]['label'],'Edición existente')
         self.assertEqual(saved['notes'],'Conservar notas')
@@ -67,12 +67,12 @@ class LightingTests(unittest.TestCase):
         plan['connections'][0].update(notes='15 metros',**{'from':'game-computer'})
         plan['checklist'][0].update(done=True,notes='Validado con sala')
         source=copy.deepcopy(plan);updated=upgrade(plan);self.assertEqual(source,plan)
-        self.assertEqual(len(updated['elements']),33);self.assertEqual(updated['elements'][0]['x'],18)
+        self.assertEqual(len(updated['elements']),36);self.assertEqual(updated['elements'][0]['x'],18)
         self.assertEqual(updated['elements'][0]['label'],'Luz personalizada')
         self.assertEqual(updated['checklist'][0]['notes'],'Validado con sala');self.assertTrue(updated['checklist'][0]['done'])
         self.assertTrue(all(not c['done'] for c in updated['checklist'] if c['id'] in NEW_CHECKS))
         self.assertEqual(updated['connections'][0]['from'],'video-card');self.assertEqual(updated['connections'][0]['notes'],'15 metros')
-        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],7)
+        saved=self.save(plan);self.assertEqual(saved['schemaVersion'],8)
         self.assertEqual(next(e for e in saved['elements'] if e['id']=='splitter')['zone'],'technical')
 
     def test_video_controller_speakers_and_margin_power_topology(self):
@@ -107,7 +107,7 @@ class LightingTests(unittest.TestCase):
         video=[c['id'] for c in updated['checklist'] if c['category']=='Vídeo']
         self.assertEqual(video,['video-card','projection','monitors','displays'])
         self.assertNotIn('power-game',{c['id'] for c in updated['connections']})
-        self.assertEqual(self.save(plan)['schemaVersion'],7)
+        self.assertEqual(self.save(plan)['schemaVersion'],8)
 
     def test_checklist_and_connection_notes_persist_and_cannot_rewire_devices(self):
         plan=default_plan();plan['checklist'][0]['done']=True
@@ -193,9 +193,9 @@ class LightingTests(unittest.TestCase):
         for ident in ('blue-monitor','red-monitor'):
             self.assertEqual(sum(c['type']=='power' and ident in (c['from'],c['to']) for c in updated['connections']),1)
         self.assertEqual(next(c for c in updated['connections'] if c['id']=='custom-monitor-power')['notes'],'15 m')
-        self.assertEqual(dict(material_counts(updated)['equipment'])['Contras'],2)
+        self.assertEqual(dict(material_counts(updated)['equipment'])['Barras LED azules · Bluetooth'],2)
         saved=self.save(updated)
-        self.assertEqual(saved['schemaVersion'],7);self.assertFalse(saved['elements'][0]['enabled'])
+        self.assertEqual(saved['schemaVersion'],8);self.assertFalse(saved['elements'][0]['enabled'])
         saved['elements']=[e for e in saved['elements'] if e['id']!='blue-back']
         saved['connections']=[c for c in saved['connections'] if c['id']!='power-red-monitor']
         self.assertNotIn('blue-back',{e['id'] for e in upgrade(saved)['elements']})
@@ -230,7 +230,7 @@ class LightingTests(unittest.TestCase):
         next(e for e in old['elements'] if e['id']=='actors-blue').update(notes='Portátil personal')
         old['connections'].append(dict(id='custom-data',type='data',label='Datos',notes='Conservar',**{'from':'blue-desk','to':'actors-blue'}))
         before=copy.deepcopy(old);plan=upgrade(old);nodes={e['id']:e for e in plan['elements']}
-        self.assertEqual(old,before);self.assertEqual(upgrade(plan),plan);self.assertEqual(plan['schemaVersion'],7)
+        self.assertEqual(old,before);self.assertEqual(upgrade(plan),plan);self.assertEqual(plan['schemaVersion'],8)
         self.assertEqual(nodes['blue-desk']['x'],37);self.assertEqual(nodes['blue-desk']['notes'],'Mesa personal')
         self.assertEqual(nodes['blue-writer-computer']['x'],37);self.assertEqual(nodes['blue-writer-computer']['type'],'computer')
         self.assertEqual(nodes['actors-blue']['type'],'computer');self.assertEqual(nodes['actors-blue']['notes'],'Portátil personal')
@@ -253,6 +253,41 @@ class LightingTests(unittest.TestCase):
         migrated=upgrade(plan);self.assertEqual(len(migrated['elements']),100)
         self.assertEqual(next(c for c in migrated['connections'] if c['id']=='power-blue-monitor')['from'],'custom-power')
         self.assertNotIn('blue-writer-computer',{e['id'] for e in migrated['elements']})
+
+    def test_v8_bluetooth_bars_connectors_supplies_and_material_exclusions(self):
+        from lighting import material_counts,material_details
+        plan=default_plan();bars=[e for e in plan['elements'] if e['type']=='led-bar']
+        self.assertEqual(len(bars),4);self.assertEqual([e['rotation'] for e in bars],[-50,50,50,-50])
+        self.assertTrue(all(all(e['id'] not in (c['from'],c['to']) for c in plan['connections']) for e in bars))
+        counts=dict(material_counts(plan)['equipment'])
+        self.assertEqual(counts['Barras LED azules · Bluetooth'],2);self.assertEqual(counts['Máquinas de humo'],1)
+        self.assertTrue(all(k not in counts for k in ('Contras','Calles de luz','Mesas de control','Pantalla de proyección')))
+        plan['connections'][0].update(fromConnector='HDMI-A propio',toConnector='HDMI-A macho')
+        bars[0].update(powerSupply='Cargador LED identificado',rotation=-35)
+        saved=self.save(plan);self.assertEqual(saved['connections'][0]['fromConnector'],'HDMI-A propio')
+        self.assertEqual(next(e for e in saved['elements'] if e['id']==bars[0]['id'])['rotation'],-35)
+        detail=material_details(saved);self.assertEqual(sum(c['count'] for c in detail['cables']),len(saved['connections']))
+        self.assertTrue(any(s['detail']=='Cargador LED identificado' for s in detail['supplies']))
+        for field,value in (('rotation',181),('rotation',True),('powerSupply','x'*501)):
+            bad=default_plan();next(e for e in bad['elements'] if e['type']=='led-bar')[field]=value
+            with self.subTest(field=field),self.assertRaises(world.Problem):self.save(bad,version=1)
+        bad=default_plan();bad['connections'][0]['toConnector']='x'*121
+        with self.assertRaises(world.Problem):self.save(bad,version=1)
+
+    def test_v8_migration_keeps_notes_and_custom_connectors_and_respects_removal(self):
+        from lighting import upgrade,LED_BARS,PREVIOUS
+        old=default_plan();old['schemaVersion']=7;old['elements']=[e for e in old['elements'] if e['id'] not in LED_BARS]
+        old['elements'].append(copy.deepcopy(next(e for e in PREVIOUS['elements'] if e['id']=='red-smoke')))
+        old['connections'].extend(copy.deepcopy(c) for c in PREVIOUS['connections'] if c['id'] in ('dmx-red','power-red-smoke'))
+        old['connections'].append(dict(id='custom-smoke',type='data',label='Datos',notes='Conservar',**{'from':'game-computer','to':'red-smoke'}))
+        old['connections'][0]['fromConnector']='Conector especial';before=copy.deepcopy(old)
+        upgraded=upgrade(old);self.assertEqual(old,before);self.assertEqual(upgrade(upgraded),upgraded)
+        self.assertEqual(len([e for e in upgraded['elements'] if e['type']=='led-bar']),4)
+        self.assertEqual(len([e for e in upgraded['elements'] if e['type']=='smoke']),1)
+        self.assertEqual(next(c for c in upgraded['connections'] if c['id']=='custom-smoke')['to'],'blue-smoke')
+        self.assertEqual(upgraded['connections'][0]['fromConnector'],'Conector especial')
+        saved=self.save(upgraded);saved['elements']=[e for e in saved['elements'] if e['id']!='blue-led-upper']
+        self.assertNotIn('blue-led-upper',{e['id'] for e in upgrade(saved)['elements']})
 
     def test_invalid_scope_and_versions_cannot_create_or_overwrite_plan(self):
         person=self.create('person',{'name':'Ana'})

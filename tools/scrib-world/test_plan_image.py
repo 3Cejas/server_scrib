@@ -91,5 +91,22 @@ class PlanImageTests(unittest.TestCase):
             text='\n'.join(p.extract_text() for p in reader.pages)
             self.assertIn('Detalles de montaje',text);self.assertIn('FIN DE NOTAS',text)
 
+    def test_material_pdf_includes_bolo_inventory_connectors_and_supplies_not_excluded_equipment(self):
+        from pypdf import PdfReader
+        import uuid
+        with tempfile.TemporaryDirectory() as directory:
+            store=fixtures.world.Store(directory)
+            blue=store.create('inventory',dict(title='Gorra azul QA',team='blue',quantity=1,category='props'),'ensayo',str(uuid.uuid4()))
+            red=store.create('inventory',dict(title='Taza roja QA',team='red',quantity=2,category='props'),'ensayo',str(uuid.uuid4()))
+            event=store.create('event',dict(title='Bolo QA',start='2026-11-07T19:00',inventoryIds=[red['id']]),'ensayo',str(uuid.uuid4()))
+            plan=default_plan();plan['connections'][0]['fromConnector']='Conector QA origen';plan['connections'][0]['toConnector']='Conector QA destino'
+            plan['elements'][-1]['powerSupply']='Cargador LED QA'
+            raw=generate(store,{'kind':'lighting','id':event['id'],'plan':plan},{'username':'ensayo','role':'admin'})
+            text='\n'.join(p.extract_text() for p in PdfReader(io.BytesIO(raw)).pages)
+            self.assertIn('Conector QA origen',text);self.assertIn('Conector QA destino',text);self.assertIn('Cargador LED QA',text)
+            self.assertIn('Taza roja QA',text);self.assertNotIn('Gorra azul QA',text);self.assertIn('Barras LED rojas',text)
+            material=text.split('Material técnico del show',1)[1].split('Conectores - origen a destino',1)[0]
+            self.assertNotIn('Pantalla de proyección',material);self.assertNotIn('Mesas de control',material);self.assertNotIn('Contras',material)
+
 
 if __name__=='__main__':unittest.main()

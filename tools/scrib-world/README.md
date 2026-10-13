@@ -135,6 +135,21 @@ que administración haya exportado antes otro documento.
   de alimentación personalizados. El inspector acompaña el desplazamiento dentro
   del plano en escritorio/tablet horizontal; en pantalla estrecha queda en flujo
   normal para no tapar el mapa. Se limita a la altura disponible de la pantalla.
+- Material del show incluye el inventario activo azul/rojo; para un bolo respeta
+  su selección de objetos y usa las mismas cantidades/fotos, sin duplicar el almacén.
+  Focos, pantalla y mesas de control permanecen como referencias del plano, pero
+  no se incluyen entre los equipos que llevar. Una máquina de humo en el plano base.
+  Cuatro barras LED por Bluetooth forman < > junto a las mesas: dos azules y dos
+  rojas, con ángulo editable, sin cables a sonido ni a las regletas durante el show.
+  La carga previa se identifica aparte. La actualización v8 conserva ediciones,
+  añade las barras una vez y combina los dos símbolos de humo antiguos sin perder
+  notas/conexiones personalizadas; después respeta eliminaciones intencionadas.
+  Cada conexión admite `fromConnector`/`toConnector` (hasta 120 caracteres) y los
+  equipos `powerSupply` (hasta 500). Se editan sin reconstruir el campo/caret y
+  aparecen en web/PDF como origen → destino y alimentación identificada por equipo.
+  Lo dependiente de un modelo no confirmado se señala expresamente; Bluetooth
+  es la especificación confirmada para las barras. El PDF incluye kits compactos
+  por equipo y el plano conserva una sola página sin cortar conexiones.
 
 - Inventario azul/rojo: dos kits completos, con selección de objetos al exportar.
   Cada bolo incluye por defecto todos los objetos activos, salvo selección explícita.
