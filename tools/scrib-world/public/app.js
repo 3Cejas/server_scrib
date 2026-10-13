@@ -156,9 +156,6 @@
     // Background collaboration updates must never reload a playing presentation.
     if(renderedRoute===location.hash && /^#material\//.test(location.hash) && main.querySelector('.material-viewer iframe'))return;
     if(renderedRoute===location.hash && /^#experiment\//.test(location.hash) && main.querySelector('.laboratory-viewer iframe'))return;
-    const keepScroll = renderedRoute === location.hash ? {
-      left:main.querySelector(".kanban")?.scrollLeft || 0
-    } : null;
     const [page = "home", id] = route();
     const nav = page === "person" ? "people" : page === "archive" ? "boards" : page === "material" ? "materials" : page === "experiment" ? "laboratory" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
     document.querySelectorAll("[data-nav]").forEach(x => {x.classList.toggle("active",x.dataset.nav === nav); if(x.dataset.nav === nav)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current");});
@@ -188,7 +185,6 @@
     main.innerHTML = (state.demo ? `<div class="notice demo-notice">ENSAYO LOCAL · Datos ficticios, sin conexión con una partida ni con datos de producción.</div>` : "") + content;
     library.afterRender?.();
     if(page==='inventory')inventory.applyFilters();
-    if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;}
     renderedRoute=location.hash;
     if (page === "board") applyFilters();
     updateHealthUI();
@@ -872,8 +868,6 @@
     if(!pointerDrag.ghost)return;
     pointerDrag.ghost.style.left=(event.clientX-100)+"px";pointerDrag.ghost.style.top=(event.clientY+15)+"px";
     const drop=targetAt(document.elementFromPoint(event.clientX,event.clientY),event.clientY);showDrop(drop);
-    const board=main.querySelector(".kanban"), bounds=board?.getBoundingClientRect();
-    if(bounds){if(event.clientX>bounds.right-35)board.scrollLeft+=18;else if(event.clientX<bounds.left+35)board.scrollLeft-=18;}
     if(event.clientY>window.innerHeight-64)window.scrollBy(0,18);
     else if(event.clientY<64)window.scrollBy(0,-18);
     event.preventDefault();

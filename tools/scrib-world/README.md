@@ -16,7 +16,9 @@ que administración haya exportado antes otro documento.
   muestran con texto y color. Los aliases de responsables `3cejas`/`trescejas`
   se presentan como una sola opción `3cejas`, sin fusionar cuentas de acceso.
 - Las columnas crecen con las tarjetas y usan el desplazamiento vertical de la
-  página, sin listas con scroll interno. El arrastre táctil desplaza la página
+  página, sin listas con scroll interno. El tablero ajusta sus cuatro columnas
+  al ancho disponible, pasa a dos o una en pantallas estrechas y no tiene scroll
+  horizontal. El arrastre táctil desplaza la página
   al acercarse a sus extremos. Las dependencias tienen espacio sobre ellas y
   abren la ficha de la tarea relacionada sin cambiar de tablero ni mover tarjetas;
   si se abren desde una ficha, se guardan antes sus cambios y su borrador de comentario.

@@ -29,8 +29,14 @@
 .column[data-status=progress],.ticket[data-status=progress]{--task-color:#f1d28a;--task-fill:#332c20;--task-border:#8a743d}
 .column[data-status=blocked],.ticket[data-status=blocked]{--task-color:#ff8495;--task-fill:#38212d;--task-border:#954659}
 .column[data-status=done],.ticket[data-status=done]{--task-color:#8bde9c;--task-fill:#20332b;--task-border:#4a805c}
+.kanban{grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;max-width:100%}
 .kanban .column{max-height:none}
+.kanban .column-head{gap:8px}
+.kanban .column-head>span{min-width:0;overflow-wrap:anywhere}
+.kanban .column-head .icon-button{flex-shrink:0}
 .kanban .ticket-list{overflow:visible;flex:1 0 auto}
+@media(max-width:1280px){.kanban{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.kanban{grid-template-columns:minmax(0,1fr)}}
 .column{border-color:var(--task-border)}
 .column-head{color:var(--task-color)}
 .column .status-dot{background:var(--task-color)}
