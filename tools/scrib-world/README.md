@@ -125,6 +125,10 @@ que administración haya exportado antes otro documento.
   por cableado, con «Mostrar todo» independiente de las luces. Vista del plano y
   Luces del plano empiezan contraídos y se abren al pulsarlos; sus preferencias sobreviven al redibujado sin
   modificar filtros, luces ni historial. No se muestran contadores de vista/encendido.
+  Apertura/cierre animados en 200 ms, con inversión segura al pulsar rápido y sin
+  animación si está activa la preferencia de reducir movimiento. La flecha de
+  Vista del plano queda a la derecha de Mostrar todo. El contenido cerrado no
+  recibe foco ni se anuncia durante el cierre; el plano no se guarda por plegarlo.
   Cada monitor muestra su conexión de alimentación. La actualización v6 incorpora
   contras y recupera alimentaciones faltantes, sin duplicar cables personalizados;
   después respeta eliminaciones intencionadas y conserva notas, posiciones y checklist.

@@ -8,6 +8,7 @@ window.ScribLighting = function(h) {
   let baseline='',past=[],future=[],editGroup=null;
   let newElementOpen=false,newElementType='computer',newElementZone='stage',newElementColor='white';
   let viewOpen=false,lightsOpen=false;
+  const foldAnimations=new WeakMap();
   const SEPARATE_FURNITURE=new Set(['blue-writer-computer','red-writer-computer','actors-blue-desk','actors-red-desk']);
   const LED_BARS=new Set(['blue-led-upper','blue-led-lower','red-led-upper','red-led-lower']);
   const ELEMENT_GROUPS={blue:'🔵 Equipo azul',red:'🔴 Equipo rojo',lights:'☀ Todos los focos',presenter:'◉ Presentador',frontals:'Frontales',backlights:'Contras'};
@@ -225,21 +226,38 @@ window.ScribLighting = function(h) {
     return `<svg class="lighting-map" viewBox="0 0 1000 1600" role="group" aria-label="Plano interactivo del escenario, técnica y sala de intérpretes, visto desde el público"><defs><pattern id="lumi-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="lumi-grid-line"/></pattern><clipPath id="lumi-stage-clip"><rect x="70" y="80" width="860" height="540" rx="18"/></clipPath>${Object.entries(palettes).map(([name,color])=>`<radialGradient id="lumi-${name}"><stop offset="0" stop-color="${color}" stop-opacity=".48"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></radialGradient>`).join('')}</defs><text class="lumi-orientation" text-anchor="middle" x="500" y="43">FONDO DEL ESCENARIO</text><rect class="lumi-stage" x="70" y="80" width="860" height="540" rx="18"/><rect x="70" y="80" width="860" height="540" rx="18" fill="url(#lumi-grid)"/><rect class="lumi-proscenium" x="72" y="462" width="856" height="155" rx="18"/><text class="lumi-zone-label" text-anchor="middle" x="500" y="490">PROSCENIO</text><rect class="lumi-stage" x="60" y="730" width="900" height="510" rx="18"/><rect class="lumi-stage" x="60" y="1280" width="900" height="300" rx="18"/><text class="lumi-orientation" text-anchor="middle" x="500" y="770">TÉCNICA</text><text class="lumi-orientation" text-anchor="middle" x="500" y="1310">SALA INTÉRPRETES</text><g class="lumi-beams" clip-path="url(#lumi-stage-clip)">${view.elements.filter(e=>view.primaryIds.has(e.id)).map(beams).join('')}</g><g class="lumi-cables">${cables(view.connections)}</g><g class="lumi-markers">${view.elements.map(e=>marker(e,!view.primaryIds.has(e.id))).join('')}</g><g class="lumi-ports">${connectionPorts(view.connections)}</g><g class="lumi-audience" aria-hidden="true">${[280,350,420,500,580,650,720].map(x=>`<g transform="translate(${x},660)"><circle cy="-10" r="7"/><path d="M-12 18v-6a12 12 0 0 1 24 0v6M-7 18v10M7 18v10"/></g>`).join('')}</g><text class="lumi-orientation" text-anchor="middle" x="500" y="714">PÚBLICO</text></svg>`;
   }
   const cableLabels={hdmi:'Vídeo',data:'Datos / USB',audio:'Audio',power:'Alimentación',dmx:'DMX'};
-  function foldHeading(id,title,open) {
-    return `<button type="button" class="lighting-fold" data-action="lighting-fold-${id}" aria-expanded="${open}" aria-controls="lighting-${id}-body" aria-label="${open?'Contraer':'Expandir'} ${title}"><span class="lighting-fold-title">${title}</span><span class="lighting-fold-icon" aria-hidden="true">${open?'⌃':'⌄'}</span></button>`;
+  function foldHeading(id,title,open,iconOnly=false) {
+    return `<button type="button" class="lighting-fold${iconOnly?' lighting-fold-icon-button':''}" data-action="lighting-fold-${id}" aria-expanded="${open}" aria-controls="lighting-${id}-body" aria-label="${open?'Contraer':'Expandir'} ${title}">${iconOnly?'':`<span class="lighting-fold-title">${title}</span>`}<span class="lighting-fold-icon" aria-hidden="true">⌄</span></button>`;
+  }
+  function animateFold(body,open) {
+    const height=body.hidden?0:body.getBoundingClientRect?.().height||0;
+    const opacity=body.hidden?0:Number(window.getComputedStyle?.(body)?.opacity??1);
+    foldAnimations.get(body)?.cancel();foldAnimations.delete(body);
+    body.inert=!open;body.setAttribute?.('aria-hidden',String(!open));
+    if(!body.animate||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
+      body.classList?.remove('is-folding');body.hidden=!open;return;
+    }
+    body.hidden=false;body.classList.add('is-folding');
+    const animation=body.animate([{height:height+'px',opacity},{height:(open?body.scrollHeight:0)+'px',opacity:open?1:0}],{duration:200,easing:'cubic-bezier(.2,.7,.2,1)'});
+    foldAnimations.set(body,animation);
+    const finish=()=>{
+      if(foldAnimations.get(body)!==animation)return;
+      foldAnimations.delete(body);body.classList.remove('is-folding');body.hidden=!open;
+    };
+    animation.finished.then(finish,finish);
   }
   function toggleFold(id) {
     if(id==='view')viewOpen=!viewOpen;else lightsOpen=!lightsOpen;
     const open=id==='view'?viewOpen:lightsOpen,title=id==='view'?'Vista del plano':'Luces del plano';
-    const body=document.querySelector('#lighting-'+id+'-body');if(body)body.hidden=!open;
+    const body=document.querySelector('#lighting-'+id+'-body');if(body)animateFold(body,open);
     const button=document.querySelector('[data-action="lighting-fold-'+id+'"]');
-    if(button){button.setAttribute('aria-expanded',String(open));button.setAttribute('aria-label',(open?'Contraer':'Expandir')+' '+title);const icon=button.querySelector('.lighting-fold-icon');if(icon)icon.textContent=open?'⌃':'⌄';}
+    if(button){button.setAttribute('aria-expanded',String(open));button.setAttribute('aria-label',(open?'Contraer':'Expandir')+' '+title);}
   }
   function viewControls() {
     const options=(choices,prefix='')=>Object.entries(choices).map(([id,label])=>`<option value="${prefix+id}"${prefix+id===elementView?' selected':''}>${esc(label)}</option>`).join('');
     const hint=filterHint();
     const equipment=Object.fromEntries(Object.entries(TYPES).filter(([type])=>!LIGHTS.has(type))),lights=Object.fromEntries(Object.entries(TYPES).filter(([type])=>LIGHTS.has(type)));
-    return `<section class="lighting-filter-panel" aria-label="Filtros del plano" data-cable-view="${cableView}"><header>${foldHeading('view','Vista del plano',viewOpen)}<button type="button" class="button small lighting-filter-reset" data-action="lighting-filter-reset" data-lighting-control${elementView==='all'&&cableView==='all'?' disabled':''}>↺ Mostrar todo</button></header><div id="lighting-view-body" class="lighting-fold-body"${viewOpen?'':' hidden'}><div class="lighting-view-controls"><label class="field lighting-element-filter"><span><b aria-hidden="true">1</b> Elementos</span><select id="lighting-element-view" aria-label="Elementos" data-lighting-control>${options({all:'Todos los elementos'})}<optgroup label="Vistas rápidas">${options(ELEMENT_GROUPS)}</optgroup><optgroup label="Por espacio">${options(ZONES,'zone:')}</optgroup><optgroup label="Por aparato">${options(equipment,'type:')}</optgroup><optgroup label="Por tipo de foco">${options(lights,'type:')}</optgroup></select><small>Elige equipo, espacio o tipo.</small></label><label class="field lighting-cable-filter"><span><b aria-hidden="true">2</b> Cableado</span><select id="lighting-cable-view" aria-label="Cableado" data-lighting-control>${Object.entries({all:'Todos los cables',none:'Sin cables',...cableLabels}).map(([id,label])=>`<option value="${id}"${id===cableView?' selected':''}>${label}</option>`).join('')}</select><small>Un tipo muestra solo sus equipos conectados.</small></label></div><p id="lighting-filter-hint" class="lighting-filter-hint"${hint?'':' hidden'}>${hint}</p></div></section>`;
+    return `<section class="lighting-filter-panel" aria-label="Filtros del plano" data-cable-view="${cableView}"><header><h3>Vista del plano</h3><div class="lighting-fold-actions"><button type="button" class="button small lighting-filter-reset" data-action="lighting-filter-reset" data-lighting-control${elementView==='all'&&cableView==='all'?' disabled':''}>↺ Mostrar todo</button>${foldHeading('view','Vista del plano',viewOpen,true)}</div></header><div id="lighting-view-body" class="lighting-fold-body"${viewOpen?'':' hidden'}><div class="lighting-view-controls"><label class="field lighting-element-filter"><span><b aria-hidden="true">1</b> Elementos</span><select id="lighting-element-view" aria-label="Elementos" data-lighting-control>${options({all:'Todos los elementos'})}<optgroup label="Vistas rápidas">${options(ELEMENT_GROUPS)}</optgroup><optgroup label="Por espacio">${options(ZONES,'zone:')}</optgroup><optgroup label="Por aparato">${options(equipment,'type:')}</optgroup><optgroup label="Por tipo de foco">${options(lights,'type:')}</optgroup></select><small>Elige equipo, espacio o tipo.</small></label><label class="field lighting-cable-filter"><span><b aria-hidden="true">2</b> Cableado</span><select id="lighting-cable-view" aria-label="Cableado" data-lighting-control>${Object.entries({all:'Todos los cables',none:'Sin cables',...cableLabels}).map(([id,label])=>`<option value="${id}"${id===cableView?' selected':''}>${label}</option>`).join('')}</select><small>Un tipo muestra solo sus equipos conectados.</small></label></div><p id="lighting-filter-hint" class="lighting-filter-hint"${hint?'':' hidden'}>${hint}</p></div></section>`;
   }
   function lightButtons() {
     const lights=draft.elements.filter(e=>LIGHTS.has(e.type)),on=lights.filter(e=>e.enabled).length;

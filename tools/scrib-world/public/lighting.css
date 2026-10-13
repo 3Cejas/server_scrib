@@ -16,9 +16,16 @@
 .lighting-cable-filter>span{color:var(--filter-cable-color)}.lighting-cable-filter select{border-color:var(--filter-cable-color)}
 .lighting-fold{display:flex;align-items:center;justify-content:space-between;gap:18px;flex:1;min-width:0;padding:3px 0;border:0;background:transparent;color:var(--text);text-align:left}
 .lighting-fold-title{font-size:.92rem;font-weight:700}
+.lighting-fold-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
+.lighting-fold-icon-button{flex:0 0 auto;justify-content:center;min-width:40px;min-height:40px;padding:6px}
 .lighting-fold-icon{display:grid;place-items:center;width:26px;height:26px;border:1px solid #59617b;border-radius:8px;color:var(--cyan);font-size:1rem;flex-shrink:0}
+.lighting-fold-icon{transition:transform .2s cubic-bezier(.2,.7,.2,1)}
+.lighting-fold[aria-expanded=true] .lighting-fold-icon{transform:rotate(180deg)}
 .lighting-fold:hover .lighting-fold-icon{background:#39ccff15;border-color:var(--cyan)}
+.lighting-fold-body{display:flow-root}
+.lighting-fold-body.is-folding{overflow:hidden}
 .lighting-fold-body[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){.lighting-fold-icon{transition:none}}
 .lighting-filter-hint{font-size:.8rem;color:var(--muted);margin:0 0 12px;line-height:1.5}
 .lighting-filter-panel .lighting-filter-hint{font-size:.72rem;margin:9px 0 0}
 .lighting-filter-hint[hidden]{display:none}

@@ -2,12 +2,12 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const read=file=>fs.readFileSync(path.join(__dirname,file),'utf8');
 const defaults=()=>JSON.parse(read('lighting_plan.json'));
 function historical(){const plan=defaults();plan.schemaVersion=3;plan.elements=plan.elements.filter(e=>e.type!=='back'&&e.type!=='led-bar'&&!['blue-writer-computer','red-writer-computer','actors-blue-desk','actors-red-desk'].includes(e.id));for(const e of plan.elements){if(e.id.startsWith('actors-')&&e.type==='computer')e.type='desk';if(['blue-desk','red-desk'].includes(e.id))e.y=34;}for(const c of plan.connections)if(c.id==='power-blue'||c.id==='power-red')c.to=c.id.slice(6)+'-desk';plan.elements.push(JSON.parse(read('lighting_legacy.json')).elements.find(e=>e.id==='red-smoke'));plan.connections.push(...JSON.parse(read('lighting_legacy.json')).connections.filter(c=>['dmx-red','power-red-smoke'].includes(c.id)));plan.connections.push({id:'power-game',from:'technical-power',to:'game-computer',type:'power',label:'PC'});for(const id of ['room','cables','backup','sound-cues','speakers'])plan.checklist.push({id,category:'Anterior',text:id,done:false});return plan;}
-function setup() {
+function setup({reducedMotion=false}={}) {
   const calls=[],toasts=[],nodes={},state={lightingDefaults:defaults(),items:[{kind:'event',id:'leon',title:'León <7 noviembre>',start:'2026-11-07'}]};
   let updates=0,answer=true,saveReply=null,refreshError=false,uuid=0;
   const element=()=>({innerHTML:'',textContent:'',dataset:{},querySelectorAll:()=>[],querySelector:()=>null});
   for(const id of ['.lighting-workspace','#lighting-svg','#lighting-elements','#lighting-inspector','#lighting-inspector h2','#lighting-intensity','#lighting-status'])nodes[id]=element();
-  const context={window:{confirm:()=>answer},document:{querySelector:s=>nodes[s]||null},crypto:{randomUUID:()=> 'test-request-identifier-unique-'+(++uuid)}};
+  const context={window:{confirm:()=>answer,matchMedia:()=>({matches:reducedMotion}),getComputedStyle:node=>({opacity:node.opacity??'1'})},document:{querySelector:s=>nodes[s]||null},crypto:{randomUUID:()=> 'test-request-identifier-unique-'+(++uuid)}};
   vm.createContext(context);vm.runInContext(read('public/lighting.js'),context);
   const app=context.window.ScribLighting({state:()=>state,
     esc:v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
@@ -368,6 +368,34 @@ test('view and light panels start collapsed, stay collapsed on redraw and open o
   assert.ok(!app.hasDraft());assert.equal(calls.length,0);
   await action(app,'lighting-fold-view');assert.match(app.render(),/aria-label="Contraer Vista del plano"/);
   assert.match(app.render(),/id="lighting-lights-body" class="lighting-fold-body" hidden/);
+});
+function animatedBody() {
+  const active=new Set(),runs=[],attributes={};
+  const body={hidden:true,inert:true,opacity:1,height:180,scrollHeight:180,
+    setAttribute:(key,value)=>{attributes[key]=value;},getBoundingClientRect:()=>({height:body.height}),
+    classList:{add:c=>active.add(c),remove:c=>active.delete(c)},
+    animate:(frames,options)=>{let resolve,reject;const finished=new Promise((yes,no)=>{resolve=yes;reject=no;});const run={frames,options,finished,complete:resolve,cancel:()=>{run.cancelled=true;reject(new Error('cancelled'));}};runs.push(run);return run;}};
+  return {body,runs,active,attributes};
+}
+test('fold motion opens and closes at measured height, supports rapid reversal and blocks closed controls',async()=>{
+  const {app,nodes,calls}=setup();app.render();const {body,runs,active,attributes}=animatedBody();nodes['#lighting-view-body']=body;
+  await action(app,'lighting-fold-view');assert.equal(body.hidden,false);assert.equal(body.inert,false);assert.equal(runs[0].frames[0].height,'0px');assert.equal(runs[0].frames[1].height,'180px');assert.equal(runs[0].options.duration,200);
+  runs[0].complete();await Promise.resolve();assert.equal(body.hidden,false);assert.ok(!active.has('is-folding'));
+  await action(app,'lighting-fold-view');assert.equal(body.hidden,false);assert.equal(body.inert,true);assert.equal(attributes['aria-hidden'],'true');assert.equal(runs[1].frames[1].height,'0px');
+  body.height=90;body.opacity=.5;await action(app,'lighting-fold-view');assert.ok(runs[1].cancelled);assert.equal(runs[2].frames[0].height,'90px');assert.equal(runs[2].frames[0].opacity,.5);
+  runs[1].complete();await Promise.resolve();assert.equal(body.hidden,false);assert.ok(active.has('is-folding'));
+  runs[2].complete();await Promise.resolve();assert.equal(body.hidden,false);assert.equal(body.inert,false);assert.ok(!active.has('is-folding'));
+  await action(app,'lighting-fold-view');runs[3].complete();await Promise.resolve();assert.equal(body.hidden,true);assert.equal(body.inert,true);assert.ok(!active.has('is-folding'));
+  assert.equal(calls.length,0);assert.ok(!app.hasDraft());
+});
+test('reduced motion skips panel animations, and the view toggle follows Show all in the same header',async()=>{
+  const {app,nodes}=setup({reducedMotion:true});const html=app.render();
+  const header=html.slice(html.indexOf('aria-label="Filtros del plano"'),html.indexOf('id="lighting-view-body"'));
+  assert.ok(header.indexOf('data-action="lighting-filter-reset"')<header.indexOf('data-action="lighting-fold-view"'));
+  assert.match(header,/lighting-fold-actions/);assert.match(header,/lighting-fold-icon-button/);
+  const {body,runs}=animatedBody();nodes['#lighting-view-body']=body;
+  await action(app,'lighting-fold-view');assert.equal(body.hidden,false);await action(app,'lighting-fold-view');assert.equal(body.hidden,true);assert.equal(runs.length,0);
+  assert.match(read('public/lighting.css'),/prefers-reduced-motion:reduce/);
 });
 test('four wireless LED bars form opposed brackets, stay in the plan and lights, but no excluded equipment remains in material',()=>{
   const {app}=setup(),html=app.render(),material=html.slice(html.indexOf('class="panel lighting-materials"'),html.indexOf('Walkies · cuatro unidades'));
