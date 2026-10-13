@@ -29,6 +29,8 @@
 .column[data-status=progress],.ticket[data-status=progress]{--task-color:#f1d28a;--task-fill:#332c20;--task-border:#8a743d}
 .column[data-status=blocked],.ticket[data-status=blocked]{--task-color:#ff8495;--task-fill:#38212d;--task-border:#954659}
 .column[data-status=done],.ticket[data-status=done]{--task-color:#8bde9c;--task-fill:#20332b;--task-border:#4a805c}
+.kanban .column{max-height:none}
+.kanban .ticket-list{overflow:visible;flex:1 0 auto}
 .column{border-color:var(--task-border)}
 .column-head{color:var(--task-color)}
 .column .status-dot{background:var(--task-color)}
@@ -96,8 +98,9 @@
 #edit-form[data-kind=ticket] .form-error:empty{display:none}
 .task-error-actions:not([hidden]){display:flex;justify-content:flex-end}
 .editor-grid .form-row{align-items:start}
-.ticket-dependencies{display:grid;gap:7px;min-width:0}.ticket-dependencies:empty{display:none}
-.dependency-link{display:block;background:#d6af5310;border:1px solid #d6af5344;border-radius:8px;padding:8px;font-size:.75rem;color:var(--gold);overflow-wrap:anywhere}
+.ticket-dependencies{display:grid;gap:7px;min-width:0;margin-top:12px}.ticket-dependencies:empty{display:none}
+.dependency-link{display:block;width:100%;min-width:0;background:#d6af5310;border:1px solid #d6af5344;border-radius:8px;padding:10px;font-family:inherit;font-size:.75rem;line-height:1.45;text-align:left;color:var(--gold);overflow-wrap:anywhere}
+button.dependency-link:hover{background:#d6af5320;border-color:var(--gold)}
 .dependency-link small,.dependency-options small{display:block;color:var(--muted);font-size:.68rem;margin-top:4px}
 .dependency-editor{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}.dependency-editor summary{cursor:pointer;color:var(--gold)}
 .dependency-options{max-height:300px;overflow:auto;display:grid;gap:12px;margin-top:14px}.dependency-options fieldset{border:1px solid var(--line);border-radius:9px;padding:10px;min-width:0}.dependency-options legend{color:var(--cyan);font-size:.8rem}.dependency-options .check-option{display:flex;align-items:flex-start;margin:8px 0;overflow-wrap:anywhere}.dependency-options input{flex-shrink:0}

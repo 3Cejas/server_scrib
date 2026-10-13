@@ -157,8 +157,7 @@
     if(renderedRoute===location.hash && /^#material\//.test(location.hash) && main.querySelector('.material-viewer iframe'))return;
     if(renderedRoute===location.hash && /^#experiment\//.test(location.hash) && main.querySelector('.laboratory-viewer iframe'))return;
     const keepScroll = renderedRoute === location.hash ? {
-      left:main.querySelector(".kanban")?.scrollLeft || 0,
-      columns:Object.fromEntries([...main.querySelectorAll(".column")].map(c=>[c.dataset.status,c.querySelector(".ticket-list").scrollTop]))
+      left:main.querySelector(".kanban")?.scrollLeft || 0
     } : null;
     const [page = "home", id] = route();
     const nav = page === "person" ? "people" : page === "archive" ? "boards" : page === "material" ? "materials" : page === "experiment" ? "laboratory" : page === "poll" ? "availability" : page === "board" ? (item(id)?.eventId ? "events" : "boards") : page === "event" ? "events" : page;
@@ -189,7 +188,7 @@
     main.innerHTML = (state.demo ? `<div class="notice demo-notice">ENSAYO LOCAL · Datos ficticios, sin conexión con una partida ni con datos de producción.</div>` : "") + content;
     library.afterRender?.();
     if(page==='inventory')inventory.applyFilters();
-    if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;main.querySelectorAll(".column").forEach(c=>{c.querySelector(".ticket-list").scrollTop=keepScroll.columns[c.dataset.status] || 0;});}
+    if(keepScroll){const board=main.querySelector(".kanban");if(board)board.scrollLeft=keepScroll.left;}
     renderedRoute=location.hash;
     if (page === "board") applyFilters();
     updateHealthUI();
@@ -298,7 +297,7 @@
   function dependencyInfo(task) {
     const dependencies=(task.blockedBy || []).map(id=>item(id)), pending=dependencies.filter(t=>!t || t.status!=='done');
     const downstream=active('ticket').filter(t=>t.status!=='done' && (t.blockedBy || []).includes(task.id));
-    const link=(t,label)=>t?`<a class="dependency-link" href="#board/${esc(t.boardId)}">${label} ${esc(t.title)}<small>${esc(boardTitle(item(t.boardId)?.title || 'Tablero archivado'))}${t.archived?' · archivada':''}</small></a>`:`<span class="dependency-link">⚠ Tarea eliminada: retira esta dependencia en la ficha</span>`;
+    const link=(t,label)=>t?`<button type="button" class="dependency-link" data-action="open-dependency" data-id="${esc(t.id)}" aria-label="Abrir tarea: ${esc(t.title)}">${label} ${esc(t.title)}<small>${esc(boardTitle(item(t.boardId)?.title || 'Tablero archivado'))}${t.archived?' · archivada':''}</small></button>`:`<span class="dependency-link">⚠ Tarea eliminada: retira esta dependencia en la ficha</span>`;
     return `<div class="ticket-dependencies">${dependencies.map(t=>link(t,t?.status==='done'?'✓':'🔒')).join('')}${dependencies.length&&!pending.length&&task.status==='blocked'?'<span class="badge green">✓ Dependencias resueltas · puedes reanudar</span>':''}${downstream.map(t=>link(t,task.status==='done'?'✓ Permite reanudar:':'↗ Desbloquea:')).join('')}</div>`;
   }
   function dependencyEditor(t) {
@@ -716,6 +715,10 @@
     else if(a === "new-ticket")await openTicket("",id);
     else if(a === "new-ticket-status")await openTicket("",id,status);
     else if(a === "edit-ticket")await openTicket(id);
+    else if(a === "open-dependency"){
+      if(dialog.open && await closeTask() && dialog.open)return;
+      await openTicket(id);
+    }
     else if(a === "new-person")openPerson();
     else if(a === "edit-person")openPerson(id);
     else if(a === "compose-message")openMessage();
@@ -871,7 +874,8 @@
     const drop=targetAt(document.elementFromPoint(event.clientX,event.clientY),event.clientY);showDrop(drop);
     const board=main.querySelector(".kanban"), bounds=board?.getBoundingClientRect();
     if(bounds){if(event.clientX>bounds.right-35)board.scrollLeft+=18;else if(event.clientX<bounds.left+35)board.scrollLeft-=18;}
-    if(drop){const list=drop.column.querySelector(".ticket-list"),r=list.getBoundingClientRect();if(event.clientY>r.bottom-40)list.scrollTop+=18;else if(event.clientY<r.top+40)list.scrollTop-=18;}
+    if(event.clientY>window.innerHeight-64)window.scrollBy(0,18);
+    else if(event.clientY<64)window.scrollBy(0,-18);
     event.preventDefault();
   });
   function stopPointer(event, cancel=false) {

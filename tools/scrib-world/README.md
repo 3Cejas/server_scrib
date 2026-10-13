@@ -15,6 +15,11 @@ que administración haya exportado antes otro documento.
   enlaces/botones secundarios su acción propia. Las cuatro prioridades se
   muestran con texto y color. Los aliases de responsables `3cejas`/`trescejas`
   se presentan como una sola opción `3cejas`, sin fusionar cuentas de acceso.
+- Las columnas crecen con las tarjetas y usan el desplazamiento vertical de la
+  página, sin listas con scroll interno. El arrastre táctil desplaza la página
+  al acercarse a sus extremos. Las dependencias tienen espacio sobre ellas y
+  abren la ficha de la tarea relacionada sin cambiar de tablero ni mover tarjetas;
+  si se abren desde una ficha, se guardan antes sus cambios y su borrador de comentario.
 - La ficha de tarea guarda sus campos automáticamente (650 ms de pausa al
   escribir) y al cerrar con la X, Escape o pulsando fuera. Espera al último
   guardado antes de cerrar; un fallo conserva el formulario y permite reintentar.

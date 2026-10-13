@@ -39,7 +39,7 @@ function client() {
   const event={id:'e1',version:1,kind:'event',title:'León · función',start:'2026-11-07T19:00',end:'2026-11-07T20:00',arrival:'2026-11-07T17:00',status:'confirmed',venue:'Teatro',city:'León',boardId:'b1',cast:[{personId:'p1',team:'blue',role:'Escritura'},{personId:'p2',team:'red',role:'Escritura'},{personId:'p3',team:'general',role:'Técnica'}]};
   const state={items:[...people,event],user:{name:'Ensayo local',username:'tester',role:'admin'},members:[],activity:[],gameConfigSchema:{},csrf:'test-token',demo:true,revision:1};
   context.window.tests.setState(state);
-  return {app:context.window.tests,colors:context.window.ScribPeopleColors,state,event,people,nodes,listeners,calls,responses,document:context.document};
+  return {app:context.window.tests,colors:context.window.ScribPeopleColors,state,event,people,nodes,listeners,calls,responses,document:context.document,location:context.location};
 }
 function balanced(html) {
   const stack=[],voids=new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
@@ -345,11 +345,25 @@ test('cross-board dependencies are visible at both ends, safe and reflect comple
   const source={id:'s',kind:'ticket',title:'Publicar & probar',boardId:'bb',status:'todo'};
   const target={id:'t',kind:'ticket',title:'Preparar estreno',boardId:'bc',status:'blocked',blockedBy:['s']};
   state.items.push(source,target);
-  let html=app.dependencyInfo(target);balanced(html);assert.match(html,/🔒 Publicar &amp; probar/);assert.match(html,/#board\/bb/);
-  html=app.dependencyInfo(source);assert.match(html,/Desbloquea: Preparar estreno/);assert.match(html,/#board\/bc/);
+  let html=app.dependencyInfo(target);balanced(html);assert.match(html,/🔒 Publicar &amp; probar/);assert.match(html,/data-action="open-dependency" data-id="s"/);assert.doesNotMatch(html,/href=/);
+  html=app.dependencyInfo(source);assert.match(html,/Desbloquea: Preparar estreno/);assert.match(html,/data-action="open-dependency" data-id="t"/);
   source.status='done';assert.match(app.dependencyInfo(target),/Dependencias resueltas/);
   html=app.dependencyEditor(target);balanced(html);assert.match(html,/Programación &lt;juego&gt;/);assert.match(html,/name="blockedBy" value="s" checked/);
   target.blockedBy=['missing'];assert.match(app.dependencyInfo(target),/Tarea eliminada/);assert.match(app.dependencyEditor(target),/desmarca para retirar/);
+});
+test('opening a prerequisite keeps the current board and does not move any task',async()=>{
+  const {app,state,nodes,calls,responses,location}=client();
+  const source={id:'source',kind:'ticket',version:1,title:'Dar un punch dramático al nivel Frase final',description:'',boardId:'dramaturgia',status:'todo',priority:'normal',labels:[],assignees:[],blockedBy:[],checklist:[],due:'',blockedReason:'',position:1,created:'2026-10-13'};
+  const target={...source,id:'target',title:'Renovar el PDF final del juego',boardId:'programacion',status:'blocked',blockedBy:['source']};
+  state.items.push(source,target);
+  location.hash='#board/programacion';
+  responses['/scrib/backstage/api/items/source']={item:{...source},comments:[],activity:[]};
+  const before=state.items.filter(x=>x.kind==='ticket').map(x=>[x.id,x.status,x.boardId,x.position]);
+  await app.action({dataset:{action:'open-dependency',id:'source'}});
+  assert.equal(location.hash,'#board/programacion');
+  assert.match(nodes['dialog-content'].innerHTML,/Dar un punch dramático al nivel Frase final/);
+  assert.deepEqual(state.items.filter(x=>x.kind==='ticket').map(x=>[x.id,x.status,x.boardId,x.position]),before);
+  assert.equal(calls.length,1);assert.equal(calls[0].options.method,'GET');
 });
 test('task form autosaves without a save button and excludes retired bolo dependencies',()=>{
   const {app,state}=client();
