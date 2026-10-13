@@ -7,7 +7,7 @@ window.ScribLighting = function(h) {
   let scope='',loadedScope=null,draft=null,version=0,selected='blue-street',dirty=false,busy=false,drag=null,requestId='',cableView='all',elementView='all';
   let baseline='',past=[],future=[],editGroup=null;
   let newElementOpen=false,newElementType='computer',newElementZone='stage',newElementColor='white';
-  let viewOpen=true,lightsOpen=true;
+  let viewOpen=false,lightsOpen=false;
   const SEPARATE_FURNITURE=new Set(['blue-writer-computer','red-writer-computer','actors-blue-desk','actors-red-desk']);
   const LED_BARS=new Set(['blue-led-upper','blue-led-lower','red-led-upper','red-led-lower']);
   const ELEMENT_GROUPS={blue:'🔵 Equipo azul',red:'🔴 Equipo rojo',lights:'☀ Todos los focos',presenter:'◉ Presentador',frontals:'Frontales',backlights:'Contras'};

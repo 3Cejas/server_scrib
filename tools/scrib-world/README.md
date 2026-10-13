@@ -123,7 +123,7 @@ que administración haya exportado antes otro documento.
   y guarda los estados por bolo; no envía órdenes a equipos físicos.
   Los filtros están numerados, agrupados por equipo/espacio/aparato/foco, coloreados
   por cableado, con «Mostrar todo» independiente de las luces. Vista del plano y
-  Luces del plano se pueden plegar; sus preferencias sobreviven al redibujado sin
+  Luces del plano empiezan contraídos y se abren al pulsarlos; sus preferencias sobreviven al redibujado sin
   modificar filtros, luces ni historial. No se muestran contadores de vista/encendido.
   Cada monitor muestra su conexión de alimentación. La actualización v6 incorpora
   contras y recupera alimentaciones faltantes, sin duplicar cables personalizados;

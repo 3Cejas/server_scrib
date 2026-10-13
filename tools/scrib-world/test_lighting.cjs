@@ -350,6 +350,7 @@ test('v6 separates furniture, reroutes desk wiring to PCs and uses monitor power
 });
 test('folds are read-only preferences, preserve controls and survive edits, redraw and undo',async()=>{
   const {app,nodes,calls}=setup();app.render();
+  await action(app,'lighting-fold-view');await action(app,'lighting-fold-lights');
   const body={hidden:false};nodes['#lighting-view-body']=body;
   await action(app,'lighting-fold-view');assert.equal(body.hidden,true);assert.match(app.render(),/id="lighting-view-body" class="lighting-fold-body" hidden/);
   await action(app,'lighting-fold-lights');assert.match(app.render(),/id="lighting-lights-body" class="lighting-fold-body" hidden/);
@@ -358,6 +359,15 @@ test('folds are read-only preferences, preserve controls and survive edits, redr
   await action(app,'lighting-fold-view');assert.equal(body.hidden,false);await action(app,'lighting-fold-lights');
   const html=app.render();assert.match(html,/aria-label="Contraer Luces del plano"/);assert.doesNotMatch(html,/lighting-filter-summary|lighting-light-count|\d de \d encendidas|Mesa con portátil/);
   assert.match(read('public/lighting.css'),/#lighting-inspector\{position:sticky;top:20px;max-height:calc\(100dvh - 40px\)/);
+});
+test('view and light panels start collapsed, stay collapsed on redraw and open only when requested',async()=>{
+  const {app,calls}=setup();
+  const closed=()=>{const html=app.render();assert.match(html,/id="lighting-view-body" class="lighting-fold-body" hidden/);assert.match(html,/id="lighting-lights-body" class="lighting-fold-body" hidden/);assert.match(html,/aria-label="Expandir Vista del plano"/);assert.match(html,/aria-label="Expandir Luces del plano"/);};
+  closed();app.input({id:'lighting-cable-view',value:'none'});closed();
+  await action(app,'lighting-light-toggle','blue-back');closed();await action(app,'lighting-undo');closed();
+  assert.ok(!app.hasDraft());assert.equal(calls.length,0);
+  await action(app,'lighting-fold-view');assert.match(app.render(),/aria-label="Contraer Vista del plano"/);
+  assert.match(app.render(),/id="lighting-lights-body" class="lighting-fold-body" hidden/);
 });
 test('four wireless LED bars form opposed brackets, stay in the plan and lights, but no excluded equipment remains in material',()=>{
   const {app}=setup(),html=app.render(),material=html.slice(html.indexOf('class="panel lighting-materials"'),html.indexOf('Walkies · cuatro unidades'));
