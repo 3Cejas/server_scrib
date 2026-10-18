@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS invoice_uploads (
 CREATE TABLE IF NOT EXISTS business_deletions (
  id TEXT PRIMARY KEY, type TEXT NOT NULL, body TEXT NOT NULL, deleted TEXT NOT NULL, actor TEXT NOT NULL);
 '''
-PUBLIC_ORIGIN = 'https://sutura-gateway.ddns.net'
+PUBLIC_ORIGIN = os.environ.get('SCRIB_PUBLIC_ORIGIN', 'https://scribshow.es').rstrip('/')
 
 
 class Business:

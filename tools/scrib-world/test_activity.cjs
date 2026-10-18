@@ -31,6 +31,9 @@ hidden.context.document.visibilityState="visible";hidden.listeners.visibilitycha
 for (const host of ["localhost","127.0.0.1","sutura.ddns.net","evil.example"]) {
   const local=page({host});assert.equal(local.calls.length,0);assert.equal(local.timers.length,0);
 }
+for (const host of ["scribshow.es","www.scribshow.es"]) {
+  const scrib=page({host});assert.equal(scrib.calls.length,1);assert.equal(scrib.timers.length,1);
+}
 const duplicate=page({existing:true});assert.equal(duplicate.calls.length,0);assert.equal(duplicate.timers.length,0);
 const fallback=page({beacon:false});assert.equal(fallback.calls[1][0],"fetch");
 assert.equal(fallback.calls[1][2].method,"POST");assert.equal(fallback.calls[1][2].keepalive,true);
@@ -38,7 +41,7 @@ assert.doesNotThrow(()=>page({broken:true}));
 const app=fs.readFileSync(path.join(__dirname,"public/app.js"),"utf8");
 const redirects=[];
 vm.runInNewContext(app,{location:{hostname:"sutura.ddns.net",pathname:"/mundo-scrib/",search:"?from=link",hash:"#board/123",replace:url=>redirects.push(url)}});
-assert.deepEqual(redirects,["https://sutura-gateway.ddns.net/scrib/?from=link#board/123"]);
+assert.deepEqual(redirects,["https://scribshow.es/mundo/?from=link#board/123"]);
 vm.runInNewContext(app,{location:{hostname:"sutura-gateway.ddns.net",origin:"https://sutura-gateway.ddns.net",pathname:"/mundo-scrib/",search:"",hash:"#event/123",replace:url=>redirects.push(url)}});
-assert.equal(redirects[1],"https://sutura-gateway.ddns.net/scrib/#event/123");
+assert.equal(redirects[1],"https://scribshow.es/mundo/#event/123");
 console.log("Activity: visible/hidden, 45s, duplicate guard, fallback, offline, local isolation and legacy redirect passed.");

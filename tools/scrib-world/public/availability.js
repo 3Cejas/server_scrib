@@ -3,7 +3,7 @@ window.ScribAvailability = function(h) {
   const {personLabel,esc,btn,field,input,area,select,option,badge,pageHead,empty,dateTime,hour,localInput,request,refresh,toast,openDialog,formShell,renderPage,dialog,item,active}=h;
   const choices={yes:"Sí",maybe:"Quizá",no:"No",unknown:"—"};
   let cache=null, pending="", failure="";
-  const link=token=>(h.state().demo?location.origin:"https://sutura-gateway.ddns.net")+"/scrib-disponibilidad/"+token;
+  const link=token=>(h.state().demo?location.origin:"https://scribshow.es")+"/scrib-disponibilidad/"+token;
   const slotDay=v=>new Intl.DateTimeFormat("es-ES",{timeZone:"Europe/Madrid",day:"numeric",month:"short",year:"numeric"}).format(new Date(v));
   const slotLabel=s=>slotDay(s.start)+" · "+hour(s.start)+" — "+(s.start.slice(0,10)!==s.end.slice(0,10)?slotDay(s.end)+" · ":"")+hour(s.end);
   function invalidate(){cache=null;failure="";}

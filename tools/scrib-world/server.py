@@ -860,7 +860,7 @@ class Store:
                         raise Problem('Genera primero un acuerdo vigente para '+person['name']+'.')
                 message = personalize(template, dict(context, nombre=person["name"].split()[0], nombre_completo=person["name"], papel=role))
                 if agreement:
-                    message += '\n\nTu acuerdo y enlace personal para subirlo firmado:\nhttps://sutura-gateway.ddns.net/scrib-disponibilidad/' + agreement['token']
+                    message += '\n\nTu acuerdo y enlace personal para subirlo firmado:\nhttps://scribshow.es/scrib-disponibilidad/' + agreement['token']
                 people.append({"id": ident, "name": person["name"], "phone": phone, "version": person["version"], "text": message, 'agreementId':agreement['id'] if agreement else ''})
             ident = str(uuid.uuid4())
             draft = {"id": ident, "people": people, "eventId": event["id"] if event else "", "eventVersion": event["version"] if event else 0, "template": template}
@@ -965,7 +965,7 @@ class App(ThreadingHTTPServer):
                 pass
             secret = self.secret_path.read_text().strip()
         self.secret = secret
-        self.origins = {"https://sutura.ddns.net", "https://sutura-gateway.ddns.net"}
+        self.origins = {"https://sutura.ddns.net", "https://sutura-gateway.ddns.net", "https://scribshow.es", "https://www.scribshow.es"}
         if demo:
             self.origins.add(f"http://127.0.0.1:{port}")
             self.origins.add(f"http://localhost:{port}")

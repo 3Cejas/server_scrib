@@ -1,10 +1,9 @@
 "use strict";
 (() => {
-  // Keep legacy links on the gateway too, including their selected board/event.
-  if (location.hostname === "sutura.ddns.net" || location.pathname === "/mundo-scrib/" || location.pathname === "/mundo-scrib") {
-    const pathname = /^\/mundo-scrib\/?$/.test(location.pathname) ? "/scrib/" : location.pathname;
-    const origin = location.hostname === "sutura.ddns.net" ? "https://sutura-gateway.ddns.net" : location.origin;
-    location.replace(origin + pathname + location.search + location.hash);
+  // Keep old world bookmarks and their selected board/event on the SCRIB domain.
+  if (["sutura.ddns.net", "sutura-gateway.ddns.net"].includes(location.hostname)
+      || /^\/mundo-scrib\/?$/.test(location.pathname)) {
+    location.replace("https://scribshow.es/mundo/" + location.search + location.hash);
     return;
   }
   const BASE = "/scrib/backstage/";

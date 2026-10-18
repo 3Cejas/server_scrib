@@ -311,8 +311,13 @@ class HTTPTests(unittest.TestCase):
         status,_,_=self.req("api/create",payload);self.assertEqual(status,403)
         headers=self.csrf();headers["Origin"]="https://evil.example"
         status,_,_=self.req("api/create",payload,headers);self.assertEqual(status,403)
-        headers["Origin"]="https://sutura.ddns.net"
-        status,body,_=self.req("api/create",payload,headers);self.assertEqual(status,200);self.assertEqual(body["item"]["name"],"Persona")
+        for origin in ["https://sutura.ddns.net", "https://sutura-gateway.ddns.net", "https://scribshow.es", "https://www.scribshow.es"]:
+            with self.subTest(origin=origin):
+                headers["Origin"]=origin
+                payload["requestId"]=str(uuid.uuid4())
+                self.assertEqual(self.req("api/create",payload,{"Origin":origin})[0],403)
+                status,body,_=self.req("api/create",payload,headers)
+                self.assertEqual(status,200);self.assertEqual(body["item"]["name"],"Persona")
 
     def test_multi_tab_csrf_cookie_reused_not_rotated(self):
         h=self.csrf();_,body,headers=self.req(headers={"Cookie":h["Cookie"]})

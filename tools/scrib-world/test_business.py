@@ -359,10 +359,11 @@ class BusinessHttpTests(BusinessTests):
         self.assertEqual(self.call('/scrib/backstage/api/reports/event/'+self.event['id'])[0],200)
     def test_public_upload_csrf_and_no_identity_required(self):
         a=self.agreement();token=a['link'].split('/')[-1];url='/scrib-disponibilidad/api/'+token
+        self.assertTrue(a['link'].startswith('https://scribshow.es/scrib-disponibilidad/'))
         status,headers,data=self.call(url);self.assertEqual(status,200);self.assertEqual(data['kind'],'agreement')
         payload={'name':'test.pdf','base64':base64.b64encode(b'%PDF-1.7\n%%EOF').decode()}
         self.assertEqual(self.call(url,'POST',payload,{'Origin':'http://localhost'})[0],403)
-        head={'Origin':'http://localhost','Cookie':headers['Set-Cookie'].split(';')[0],'X-CSRF-Token':data['csrf']}
+        head={'Origin':'https://scribshow.es','Cookie':headers['Set-Cookie'].split(';')[0],'X-CSRF-Token':data['csrf']}
         self.assertEqual(self.call(url,'POST',payload,head)[0],200)
         self.assertEqual(self.call(url,'POST',payload,dict(head,Origin='http://evil'))[0],403)
     def test_direct_upload_requires_admin_csrf_and_is_scoped_to_bolo_person(self):

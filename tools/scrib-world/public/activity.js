@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // The always-on gateway owns power/activity. Local demos never keep production awake.
-  if (location.hostname !== "sutura-gateway.ddns.net" || window.__suturaActivityPing) return;
+  if (!["sutura-gateway.ddns.net", "scribshow.es", "www.scribshow.es"].includes(location.hostname) || window.__suturaActivityPing) return;
   window.__suturaActivityPing = true;
   const ping = () => {
     if (document.visibilityState !== "visible") return;
